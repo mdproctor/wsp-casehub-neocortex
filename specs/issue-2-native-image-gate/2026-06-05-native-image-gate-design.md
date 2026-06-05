@@ -3,7 +3,7 @@
 **Date:** 2026-06-05
 **Issue:** casehubio/neural-text#2
 **Chapter:** C2 ([ARC42STORIES §9.3](../../ARC42STORIES.MD))
-**Status:** Draft (rev 3)
+**Status:** Draft (rev 4)
 
 ---
 
@@ -37,6 +37,19 @@ This gates `inference-quarkus` (C5) native image support and Hortora's distribut
 
 ---
 
+## Implementation Sequence
+
+1. Bump ORT + DJL versions in parent POM; verify JVM build passes
+2. `mvn dependency:tree -pl inference-runtime | grep -i awt` — early AWT kill signal
+3. Check `langchain4j-embeddings-onnx` and quarkiverse extension for existing native-image metadata
+4. Write `OnnxSessionLoader`, `TokenizerLoader`, `RawInference` in `inference-runtime`
+5. Write `NativeImageGateCommand` in `inference-quarkus`; configure model download + test plugins
+6. Green JVM tests (`@QuarkusMainTest`)
+7. Run tracing agent; curate `reachability-metadata.json` + `NATIVE-IMAGE-NOTES.md`
+8. Native build → iterate config → green `@QuarkusMainIntegrationTest`
+
+---
+
 ## Module Structure — Build in Real Modules
 
 No throwaway prototype module. The gate code goes into the production modules where it belongs. The JNI bridge logic in `inference-runtime` IS the code C3 will wrap with the SPI. The GraalVM config in `inference-quarkus` IS what C5 needs.
@@ -56,11 +69,11 @@ No SPI interfaces, no `InferenceModel`, no `InferenceInput`/`InferenceOutput` ty
 
 ### inference-quarkus
 
-Native build profile + gate test. The `@QuarkusMain` command-mode app lives in `src/main/java/` — it must be in main sources to be compiled into the native binary. It compiles on every build but is inert unless the native profile is active (nothing invokes it without `-Dnative`).
+Gate test + native build profile. The `@QuarkusMain(name = "native-gate")` command-mode app lives in `src/main/java/` — it must be in main sources to be compiled into the native binary. The non-default name prevents conflicts when downstream Quarkus applications depend on `casehub-inference-quarkus` and have their own `@QuarkusMain` — Quarkus only runs the default-named main class unless overridden.
 
 ```
 inference-quarkus/src/main/java/io/casehub/inference/quarkus/gate/
-  NativeImageGateCommand.java       — @QuarkusMain command-mode diagnostic entry point
+  NativeImageGateCommand.java       — @QuarkusMain(name = "native-gate") command-mode diagnostic entry point
 
 inference-quarkus/src/main/resources/
   META-INF/native-image/io.casehub/casehub-inference-quarkus/
@@ -126,22 +139,69 @@ Stays empty. The SPI interface comes in C3.
 </dependencies>
 ```
 
-### inference-quarkus pom.xml — native profile
+### inference-quarkus pom.xml
 
-All Quarkus application machinery — `quarkus-maven-plugin`, `maven-failsafe-plugin`, and model download — lives inside the `native` profile. Without `-Dnative`, `inference-quarkus` builds as a normal JAR library. With `-Dnative`, it additionally builds a native binary and runs the gate test.
+Existing dependencies (inference-api, inference-runtime, inference-tasks, inference-splade, quarkus-arc, quarkus-config-yaml, test deps) remain unchanged. The snippets below show only the gate-relevant additions.
+
+**Model download and surefire config — default build (outside any profile):**
+
+Model download runs during `generate-test-resources` — this phase only executes on `mvn test` or `mvn verify`, not `mvn compile` or `mvn install -DskipTests`. The ~87MB download is cached after first run. Surefire gets the model dir system property so `@QuarkusMainTest` works in JVM mode.
 
 ```xml
-<dependencies>
-  <dependency>
-    <groupId>io.casehub</groupId>
-    <artifactId>casehub-inference-runtime</artifactId>
-  </dependency>
-  <dependency>
-    <groupId>io.quarkus</groupId>
-    <artifactId>quarkus-arc</artifactId>
-  </dependency>
-</dependencies>
+<build>
+  <plugins>
+    <!-- existing plugins (jandex, etc.) remain unchanged -->
 
+    <plugin>
+      <groupId>com.googlecode.maven-download-plugin</groupId>
+      <artifactId>download-maven-plugin</artifactId>
+      <executions>
+        <execution>
+          <id>download-onnx-model</id>
+          <phase>generate-test-resources</phase>
+          <goals><goal>wget</goal></goals>
+          <configuration>
+            <url>https://huggingface.co/Xenova/nli-deberta-v3-xsmall/resolve/main/onnx/model_quantized.onnx</url>
+            <outputDirectory>${project.build.directory}/test-models/nli-deberta-v3-xsmall</outputDirectory>
+            <outputFileName>model.onnx</outputFileName>
+            <cacheDirectory>${user.home}/.cache/maven-download</cacheDirectory>
+          </configuration>
+        </execution>
+        <execution>
+          <id>download-tokenizer</id>
+          <phase>generate-test-resources</phase>
+          <goals><goal>wget</goal></goals>
+          <configuration>
+            <url>https://huggingface.co/Xenova/nli-deberta-v3-xsmall/resolve/main/tokenizer.json</url>
+            <outputDirectory>${project.build.directory}/test-models/nli-deberta-v3-xsmall</outputDirectory>
+            <outputFileName>tokenizer.json</outputFileName>
+            <cacheDirectory>${user.home}/.cache/maven-download</cacheDirectory>
+          </configuration>
+        </execution>
+      </executions>
+    </plugin>
+
+    <plugin>
+      <groupId>org.apache.maven.plugins</groupId>
+      <artifactId>maven-surefire-plugin</artifactId>
+      <configuration>
+        <systemPropertyVariables>
+          <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
+          <inference.model.dir>${project.build.directory}/test-models/nli-deberta-v3-xsmall</inference.model.dir>
+        </systemPropertyVariables>
+      </configuration>
+    </plugin>
+  </plugins>
+</build>
+```
+
+**Native profile — Quarkus application build + failsafe only:**
+
+The native profile adds `quarkus-maven-plugin` (with `<extensions>true</extensions>`) and `maven-failsafe-plugin`. Without `-Dnative`, `inference-quarkus` builds as a normal JAR library. With `-Dnative`, it additionally builds a native binary and runs the integration test.
+
+**Note:** `<extensions>true</extensions>` inside a profile is a known Maven pattern that works correctly with Maven 3.9+. Build extensions are technically loaded at POM parse time, but modern Maven versions handle profile-activated extensions. IDE builds and older Maven versions may not — if issues arise, move the plugin to the default build and gate native-specific goals via profile properties instead.
+
+```xml
 <profiles>
   <profile>
     <id>native</id>
@@ -187,34 +247,6 @@ All Quarkus application machinery — `quarkus-maven-plugin`, `maven-failsafe-pl
             </execution>
           </executions>
         </plugin>
-        <plugin>
-          <groupId>com.googlecode.maven-download-plugin</groupId>
-          <artifactId>download-maven-plugin</artifactId>
-          <executions>
-            <execution>
-              <id>download-onnx-model</id>
-              <phase>generate-test-resources</phase>
-              <goals><goal>wget</goal></goals>
-              <configuration>
-                <url>https://huggingface.co/Xenova/nli-deberta-v3-xsmall/resolve/main/onnx/model_quantized.onnx</url>
-                <outputDirectory>${project.build.directory}/test-models/nli-deberta-v3-xsmall</outputDirectory>
-                <outputFileName>model.onnx</outputFileName>
-                <cacheDirectory>${user.home}/.cache/maven-download</cacheDirectory>
-              </configuration>
-            </execution>
-            <execution>
-              <id>download-tokenizer</id>
-              <phase>generate-test-resources</phase>
-              <goals><goal>wget</goal></goals>
-              <configuration>
-                <url>https://huggingface.co/Xenova/nli-deberta-v3-xsmall/resolve/main/tokenizer.json</url>
-                <outputDirectory>${project.build.directory}/test-models/nli-deberta-v3-xsmall</outputDirectory>
-                <outputFileName>tokenizer.json</outputFileName>
-                <cacheDirectory>${user.home}/.cache/maven-download</cacheDirectory>
-              </configuration>
-            </execution>
-          </executions>
-        </plugin>
       </plugins>
     </build>
   </profile>
@@ -225,14 +257,16 @@ All Quarkus application machinery — `quarkus-maven-plugin`, `maven-failsafe-pl
 
 ```bash
 # JVM mode — iterative development (fast, seconds)
-# inference-quarkus builds as a normal JAR library, no Quarkus packaging
-JAVA_HOME=$(/usr/libexec/java_home -v 26) mvn clean verify -pl inference-runtime,inference-quarkus
+# Downloads model on first test run (~87MB, cached). Runs @QuarkusMainTest.
+JAVA_HOME=$(/usr/libexec/java_home -v 26) mvn clean verify -pl inference-runtime,inference-quarkus -am
 
 # Native gate — validation only (slow, minutes)
 # Uses GraalVM 25 (not JDK 26) — intentional: GraalVM provides native-image
-# -Dnative activates quarkus-maven-plugin, failsafe, and model download
-JAVA_HOME=$(/usr/libexec/java_home -v 25) mvn clean verify -pl inference-runtime,inference-quarkus -Dnative
+# -Dnative activates quarkus-maven-plugin + failsafe for @QuarkusMainIntegrationTest
+JAVA_HOME=$(/usr/libexec/java_home -v 25) mvn clean verify -pl inference-runtime,inference-quarkus -am -Dnative
 ```
+
+`-am` (also-make-dependencies) is required because `inference-quarkus` depends on `inference-api`, `inference-tasks`, and `inference-splade` (existing pom.xml). After a clean, these aren't in the local repo — `-am` builds them first.
 
 ---
 
@@ -240,23 +274,23 @@ JAVA_HOME=$(/usr/libexec/java_home -v 25) mvn clean verify -pl inference-runtime
 
 ### Source: Xenova/nli-deberta-v3-xsmall
 
-The original `cross-encoder/nli-deberta-v3-xsmall` ships PyTorch weights only — no ONNX file. Its tokenizer is SentencePiece-based (`spm.model` + `tokenizer_config.json`), not the `tokenizer.json` format that DJL's `HuggingFaceTokenizer.newInstance(path)` expects. The Xenova conversion (Transformers.js export) provides both `onnx/model.onnx` and `tokenizer.json` in the correct formats.
+The original `cross-encoder/nli-deberta-v3-xsmall` ships PyTorch weights only — no ONNX file. Its tokenizer is SentencePiece-based (`spm.model` + `tokenizer_config.json`), not the `tokenizer.json` format that DJL's `HuggingFaceTokenizer.newInstance(path)` expects. The Xenova conversion (Transformers.js export) provides both `onnx/model_quantized.onnx` and `tokenizer.json` in the correct formats.
 
 ### Quantized model
 
-The Xenova repo contains both `onnx/model.onnx` (FP32, ~90MB) and `onnx/model_quantized.onnx` (INT8, ~25MB). **Use the quantized model.** JNI bridge validation doesn't care about numerical precision — the same JNI calls and tensor operations execute regardless. The quantized model makes downloads 3.5× faster and the native binary smaller.
+The Xenova repo contains `onnx/model.onnx` (FP32, ~284MB) and `onnx/model_quantized.onnx` (~87MB). **Use the quantized model.** JNI bridge validation doesn't care about numerical precision — the same JNI calls and tensor operations execute regardless. DeBERTa-v3-xsmall doesn't shrink dramatically with quantization (~87MB vs ~284MB, 3.2× reduction) but the saving is still worthwhile for a test resource.
 
 **URLs to verify at implementation time** — confirm the HuggingFace CDN path format (`/resolve/main/onnx/model_quantized.onnx`) and that the file exists in the Xenova repo.
 
 ### Model path at runtime
 
-Model path is passed as a system property: `-Dinference.model.dir=<path>`. The `@QuarkusMain` command-mode app reads it via `System.getProperty("inference.model.dir")` or `@ConfigProperty`. System properties work identically in JVM and native mode.
+Model path is passed as a system property: `-Dinference.model.dir=<path>`. The `@QuarkusMain(name = "native-gate")` command-mode app reads it via `System.getProperty("inference.model.dir")`. System properties work identically in JVM and native mode.
 
-The failsafe plugin sets this property to `${project.build.directory}/test-models/nli-deberta-v3-xsmall` — relative to the project build directory where the integration test runs.
+Both surefire (JVM mode) and failsafe (native mode) set this property to `${project.build.directory}/test-models/nli-deberta-v3-xsmall`.
 
 ### CI caching
 
-`maven-download-plugin` caches to `~/.cache/maven-download/`. GitHub Actions caches this directory with a stable key. First run downloads ~25MB (quantized model) + tokenizer, subsequent runs are no-ops.
+`maven-download-plugin` caches to `~/.cache/maven-download/`. GitHub Actions caches this directory with a stable key. First run downloads ~87MB (quantized model) + tokenizer, subsequent runs are no-ops.
 
 ---
 
@@ -266,9 +300,9 @@ The failsafe plugin sets this property to `${project.build.directory}/test-model
 
 ONNX Runtime JNI and DJL Tokenizers JNI are independent libraries with independent failure modes. The gate test validates each layer separately before testing them together, so the failure report identifies exactly which library is the problem.
 
-### NativeImageGateCommand.java (`@QuarkusMain`, in `src/main/java/`)
+### NativeImageGateCommand.java (`@QuarkusMain(name = "native-gate")`, in `src/main/java/`)
 
-A command-mode Quarkus app implementing `QuarkusApplication`. Located in `src/main/java/` because native image compiles main sources only — test sources are not in the binary. Compiles on every build; runs only when invoked (native gate or manual execution).
+A command-mode Quarkus app implementing `QuarkusApplication`. Located in `src/main/java/` because native image compiles main sources only — test sources are not in the binary. The non-default `name = "native-gate"` prevents conflicts with downstream consumers' own `@QuarkusMain` entry points.
 
 `QuarkusApplication.run(String... args)` receives command-line arguments directly. The model directory is read from the `inference.model.dir` system property.
 
@@ -316,7 +350,7 @@ public class NativeImageGateTest {
 }
 ```
 
-Runs in JVM mode during development. Verifies the code is correct before attempting native compilation.
+Runs in JVM mode via surefire during every `mvn test` / `mvn verify`. Model files are downloaded during `generate-test-resources` and cached.
 
 ### NativeImageGateIT.java (`@QuarkusMainIntegrationTest` — native mode)
 
@@ -345,10 +379,11 @@ Located at: `inference-quarkus/src/main/resources/META-INF/native-image/io.caseh
 
 ### Discovery process
 
-1. Get the app running in JVM mode with both JNI layers working
-2. Run with tracing agent to discover required config
-3. Curate the agent output into `reachability-metadata.json`; document each entry in `NATIVE-IMAGE-NOTES.md`
-4. Iterate: attempt native build → read error → add config → retry
+1. Check `langchain4j-embeddings-onnx` and the quarkiverse `quarkus-langchain4j` extension for existing native-image metadata — even partial metadata for `com.microsoft.onnxruntime` is a head start over discovering everything via the agent. LangChain4j has an open feature request (#1047) for proper GraalVM AOT support, suggesting upstream metadata isn't well-packaged, but the quarkiverse extension ships in-process ONNX embedding and may have config.
+2. Get the app running in JVM mode with both JNI layers working
+3. Run with tracing agent to discover remaining required config
+4. Curate the agent output + any borrowed metadata into `reachability-metadata.json`; document each entry in `NATIVE-IMAGE-NOTES.md`
+5. Iterate: attempt native build → read error → add config → retry
 
 ### Known --initialize-at-run-time suspects
 
@@ -413,7 +448,7 @@ Each fix is documented in `NATIVE-IMAGE-NOTES.md` alongside the `reachability-me
 
 **The native gate is local-only.** Native image compilation for macOS ARM requires a macOS ARM runner. GitHub Actions has M1 runners but they're more expensive and add CI complexity.
 
-For the prototype: validate locally, document the result. CI can run the JVM-mode tests (`NativeImageGateTest` via surefire, if model download is also enabled for JVM testing) to verify the code is correct, but the native gate itself runs on the developer's machine.
+For the gate: validate locally, document the result. CI runs the JVM-mode tests (`NativeImageGateTest` via surefire) to verify the code is correct. The native gate itself runs on the developer's machine.
 
 If the gate passes and we want CI native builds in C5, options:
 - GitHub Actions M1 runner (macos-14 or later)
@@ -426,8 +461,8 @@ This decision belongs in C5, not the gate.
 
 ## Development Workflow
 
-- **JVM mode** for iterative development (fast — seconds). All day-to-day work across C3–C6.
-- **Native image** only for gate validation (slow — minutes). Production deployment option.
+- **JVM mode** for iterative development (fast — seconds). `mvn clean verify -am` downloads model (cached), runs `@QuarkusMainTest`. All day-to-day work across C3–C6.
+- **Native image** only for gate validation (slow — minutes). `mvn clean verify -am -Dnative` additionally builds native binary and runs `@QuarkusMainIntegrationTest`.
 - After the gate passes, the native config is parked in `inference-quarkus`. C5 expands it into a proper Quarkus extension with deployment/runtime module split and build-time annotation processing.
 
 ---
@@ -437,7 +472,7 @@ This decision belongs in C5, not the gate.
 **If PASS:**
 - `inference-runtime` has working JNI bridge code — direct input to C3 (wrap with SPI)
 - `inference-quarkus` has curated GraalVM config + `NATIVE-IMAGE-NOTES.md` — direct input to C5
-- `NativeImageGateCommand` + gate tests stay until C5 restructures into deployment/runtime/integration-tests split
+- Gate test stays until C5 restructures into deployment/runtime/integration-tests split
 - Parent POM has updated ORT + DJL versions validated for native
 
 **If FAIL:**
@@ -458,5 +493,5 @@ This decision belongs in C5, not the gate.
 | Quarkus | 3.32.2 | Application framework, native build integration |
 | ONNX Runtime | bump to latest | Model execution via JNI |
 | DJL HuggingFace Tokenizers | bump to latest | Tokenization via JNI |
-| maven-download-plugin | latest | Model file download (native profile only) |
-| Xenova/nli-deberta-v3-xsmall | HuggingFace | Validation model — quantized ONNX (~25MB) |
+| maven-download-plugin | latest | Model file download (`generate-test-resources` phase) |
+| Xenova/nli-deberta-v3-xsmall | HuggingFace | Validation model — quantized ONNX (~87MB) |
