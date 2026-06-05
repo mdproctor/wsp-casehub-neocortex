@@ -1,0 +1,9 @@
+branch: issue-2-native-image-gate
+project-sha: 27e38e4cba385548393b3379918d31a1567d4690
+date: 2026-06-05
+issue: 2
+issue-repo: casehubio/neural-text
+covers: 2
+flyway-next-v: none
+design-repo: workspace
+design-section-hashes:
