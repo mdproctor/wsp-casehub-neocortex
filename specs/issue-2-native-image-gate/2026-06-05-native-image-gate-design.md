@@ -3,7 +3,7 @@
 **Date:** 2026-06-05
 **Issue:** casehubio/neural-text#2
 **Chapter:** C2 ([ARC42STORIES §9.3](../../ARC42STORIES.MD))
-**Status:** Draft (rev 4)
+**Status:** Draft (rev 5)
 
 ---
 
@@ -187,11 +187,17 @@ Model download runs during `generate-test-resources` — this phase only execute
       <configuration>
         <systemPropertyVariables>
           <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
-          <inference.model.dir>${project.build.directory}/test-models/nli-deberta-v3-xsmall</inference.model.dir>
         </systemPropertyVariables>
       </configuration>
     </plugin>
   </plugins>
+
+  <testResources>
+    <testResource>
+      <directory>src/test/resources</directory>
+      <filtering>true</filtering>
+    </testResource>
+  </testResources>
 </build>
 ```
 
@@ -239,11 +245,6 @@ The native profile adds `quarkus-maven-plugin` (with `<extensions>true</extensio
                 <goal>integration-test</goal>
                 <goal>verify</goal>
               </goals>
-              <configuration>
-                <systemPropertyVariables>
-                  <inference.model.dir>${project.build.directory}/test-models/nli-deberta-v3-xsmall</inference.model.dir>
-                </systemPropertyVariables>
-              </configuration>
             </execution>
           </executions>
         </plugin>
@@ -284,9 +285,24 @@ The Xenova repo contains `onnx/model.onnx` (FP32, ~284MB) and `onnx/model_quanti
 
 ### Model path at runtime
 
-Model path is passed as a system property: `-Dinference.model.dir=<path>`. The `@QuarkusMain(name = "native-gate")` command-mode app reads it via `System.getProperty("inference.model.dir")`. System properties work identically in JVM and native mode.
+Model path is configured via `@ConfigProperty(name = "inference.model.dir")` in the `@QuarkusMain` command-mode app. The value is set in `src/test/resources/application.properties` with Maven resource filtering:
 
-Both surefire (JVM mode) and failsafe (native mode) set this property to `${project.build.directory}/test-models/nli-deberta-v3-xsmall`.
+```properties
+# src/test/resources/application.properties (filtered)
+inference.model.dir=@project.build.directory@/test-models/nli-deberta-v3-xsmall
+```
+
+Maven filtering substitutes `@project.build.directory@` at build time. MicroProfile Config reads the resolved value from `application.properties` in both JVM and native mode — the path is baked into the binary. No system property forwarding needed.
+
+The `inference-quarkus` build enables filtering on test resources:
+```xml
+<testResources>
+  <testResource>
+    <directory>src/test/resources</directory>
+    <filtering>true</filtering>
+  </testResource>
+</testResources>
+```
 
 ### CI caching
 
@@ -304,7 +320,7 @@ ONNX Runtime JNI and DJL Tokenizers JNI are independent libraries with independe
 
 A command-mode Quarkus app implementing `QuarkusApplication`. Located in `src/main/java/` because native image compiles main sources only — test sources are not in the binary. The non-default `name = "native-gate"` prevents conflicts with downstream consumers' own `@QuarkusMain` entry points.
 
-`QuarkusApplication.run(String... args)` receives command-line arguments directly. The model directory is read from the `inference.model.dir` system property.
+The model directory is injected via `@ConfigProperty(name = "inference.model.dir")` — not `System.getProperty()`. Quarkus's `NativeImageLauncher` (used by `@QuarkusMainIntegrationTest`) selectively filters system properties forwarded to the native binary subprocess — arbitrary custom properties like `inference.model.dir` may be filtered out. `@ConfigProperty` reads from `application.properties`, which is baked into the binary at build time and works identically in JVM and native mode.
 
 Three validation phases:
 
