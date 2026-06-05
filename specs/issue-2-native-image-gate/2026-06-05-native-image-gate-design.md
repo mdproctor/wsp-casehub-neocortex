@@ -3,7 +3,7 @@
 **Date:** 2026-06-05
 **Issue:** casehubio/neural-text#2
 **Chapter:** C2 ([ARC42STORIES §9.3](../../ARC42STORIES.MD))
-**Status:** Draft (rev 5)
+**Status:** Draft (rev 6)
 
 ---
 
@@ -191,13 +191,6 @@ Model download runs during `generate-test-resources` — this phase only execute
       </configuration>
     </plugin>
   </plugins>
-
-  <testResources>
-    <testResource>
-      <directory>src/test/resources</directory>
-      <filtering>true</filtering>
-    </testResource>
-  </testResources>
 </build>
 ```
 
@@ -285,24 +278,17 @@ The Xenova repo contains `onnx/model.onnx` (FP32, ~284MB) and `onnx/model_quanti
 
 ### Model path at runtime
 
-Model path is configured via `@ConfigProperty(name = "inference.model.dir")` in the `@QuarkusMain` command-mode app. The value is set in `src/test/resources/application.properties` with Maven resource filtering:
+Model path is passed as a command-line argument to `QuarkusApplication.run(String... args)`:
 
-```properties
-# src/test/resources/application.properties (filtered)
-inference.model.dir=@project.build.directory@/test-models/nli-deberta-v3-xsmall
+```java
+@Override
+public int run(String... args) throws Exception {
+    String modelDir = args[0];
+    // ...
+}
 ```
 
-Maven filtering substitutes `@project.build.directory@` at build time. MicroProfile Config reads the resolved value from `application.properties` in both JVM and native mode — the path is baked into the binary. No system property forwarding needed.
-
-The `inference-quarkus` build enables filtering on test resources:
-```xml
-<testResources>
-  <testResource>
-    <directory>src/test/resources</directory>
-    <filtering>true</filtering>
-  </testResource>
-</testResources>
-```
+The `@Launch` annotation on the test provides the path as a relative argument. Both `@QuarkusMainTest` (JVM) and `@QuarkusMainIntegrationTest` (native) execute from the project root, so `target/test-models/nli-deberta-v3-xsmall` resolves correctly in both modes.
 
 ### CI caching
 
@@ -320,7 +306,7 @@ ONNX Runtime JNI and DJL Tokenizers JNI are independent libraries with independe
 
 A command-mode Quarkus app implementing `QuarkusApplication`. Located in `src/main/java/` because native image compiles main sources only — test sources are not in the binary. The non-default `name = "native-gate"` prevents conflicts with downstream consumers' own `@QuarkusMain` entry points.
 
-The model directory is injected via `@ConfigProperty(name = "inference.model.dir")` — not `System.getProperty()`. Quarkus's `NativeImageLauncher` (used by `@QuarkusMainIntegrationTest`) selectively filters system properties forwarded to the native binary subprocess — arbitrary custom properties like `inference.model.dir` may be filtered out. `@ConfigProperty` reads from `application.properties`, which is baked into the binary at build time and works identically in JVM and native mode.
+The model directory is passed as a command-line argument via `QuarkusApplication.run(String... args)`. The `@Launch` annotation on the test provides the args — `@QuarkusMainTest` calls `run(args)` in-process, `@QuarkusMainIntegrationTest` passes them as command-line arguments to the native binary. Both mechanisms are guaranteed to deliver the args. This avoids system property forwarding issues (Quarkus's `NativeImageLauncher` filters arbitrary properties) and test-resource scoping issues (`src/test/resources/application.properties` is not reliably included in the native binary).
 
 Three validation phases:
 
@@ -356,7 +342,7 @@ Exit 0 if all phases pass. Exit 1 on any failure, printing which phase and which
 @QuarkusMainTest
 public class NativeImageGateTest {
     @Test
-    @Launch(value = {}, exitCode = 0)
+    @Launch(value = {"target/test-models/nli-deberta-v3-xsmall"}, exitCode = 0)
     void nativeImageGatePasses(LaunchResult result) {
         assertThat(result.getOutput())
             .contains("PASS: DJL Tokenizer JNI loaded and executed")
@@ -366,7 +352,7 @@ public class NativeImageGateTest {
 }
 ```
 
-Runs in JVM mode via surefire during every `mvn test` / `mvn verify`. Model files are downloaded during `generate-test-resources` and cached.
+Runs in JVM mode via surefire during every `mvn test` / `mvn verify`. The model path is passed as a command-line arg via `@Launch`. Model files are downloaded during `generate-test-resources` and cached.
 
 ### NativeImageGateIT.java (`@QuarkusMainIntegrationTest` — native mode)
 
