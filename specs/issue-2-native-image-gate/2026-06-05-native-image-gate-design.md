@@ -3,7 +3,7 @@
 **Date:** 2026-06-05
 **Issue:** casehubio/neural-text#2
 **Chapter:** C2 ([ARC42STORIES §9.3](../../ARC42STORIES.MD))
-**Status:** Draft (rev 6)
+**Status:** Approved
 
 ---
 
@@ -145,7 +145,7 @@ Existing dependencies (inference-api, inference-runtime, inference-tasks, infere
 
 **Model download and surefire config — default build (outside any profile):**
 
-Model download runs during `generate-test-resources` — this phase only executes on `mvn test` or `mvn verify`, not `mvn compile` or `mvn install -DskipTests`. The ~87MB download is cached after first run. Surefire gets the model dir system property so `@QuarkusMainTest` works in JVM mode.
+Model download runs during `generate-test-resources` — this phase only executes on `mvn test` or `mvn verify`, not `mvn compile` or `mvn install -DskipTests`. The ~87MB download is cached after first run. The `@Launch` annotation provides the model path to the test.
 
 ```xml
 <build>
