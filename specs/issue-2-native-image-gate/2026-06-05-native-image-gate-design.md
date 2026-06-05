@@ -2,8 +2,8 @@
 
 **Date:** 2026-06-05
 **Issue:** casehubio/neural-text#2
-**Chapter:** C2 (ARC42STORIES §9.3)
-**Status:** Draft
+**Chapter:** C2 ([ARC42STORIES §9.3](../../ARC42STORIES.MD))
+**Status:** Draft (rev 2)
 
 ---
 
@@ -15,209 +15,371 @@ This gates `inference-quarkus` (C5) native image support and Hortora's distribut
 
 ## Non-Goals
 
-- Production code. This is a throwaway validation module.
-- REST endpoints or HTTP-level testing.
+- Full SPI design (`InferenceModel`, `InferenceInput`, `InferenceOutput`) — that's C3.
 - Dense embeddings, SPLADE, or any model type beyond NLI.
-- Quarkus extension development (that's C5).
+- Quarkus extension annotations (`@InferenceModel` qualifier) — that's C5.
 - Performance benchmarking.
+- CI native builds — the gate runs locally on macOS ARM only (see CI section).
 
 ## Pass/Fail Criteria
 
-**Pass:** A `@QuarkusIntegrationTest` running against the native binary successfully:
-1. Loads a HuggingFace tokenizer via DJL JNI
-2. Tokenizes a text pair (premise + hypothesis)
-3. Runs ONNX inference via ONNX Runtime JNI
-4. Returns a `float[3]` logits tensor (entailment/neutral/contradiction)
+**Pass:** A `@QuarkusMain` command-mode app, compiled to a native binary, successfully:
+1. Loads a HuggingFace tokenizer via DJL JNI — independently verified
+2. Runs ONNX inference via ONNX Runtime JNI — independently verified
+3. Tokenizes a text pair + runs inference end-to-end → returns `float[3]` logits
+4. Process exits 0
 
-**Fail:** Any of the above steps throws a JNI error, native library load failure, or GraalVM build error that cannot be resolved with configuration. Document what broke, whether it's a GraalVM or library limitation, and whether upstream changes are needed.
+**Fail:** Any of the above steps throws a JNI error, native library load failure, or GraalVM build error that cannot be resolved with configuration. Document:
+- Which JNI layer failed (ORT, DJL, or both)
+- Whether it's a GraalVM limitation, library limitation, or configuration gap
+- Whether upstream changes are needed
+- Workaround options if any
 
 ---
 
-## Module Structure
+## Module Structure — Build in Real Modules
 
-A new Maven module `native-image-prototype/` at the project root, gated behind a Maven profile so normal builds skip it.
+No throwaway prototype module. The gate code goes into the production modules where it belongs. The JNI bridge logic in `inference-runtime` IS the code C3 will wrap with the SPI. The GraalVM config in `inference-quarkus` IS what C5 needs.
+
+### inference-runtime
+
+Minimal JNI bridge code — enough to validate both JNI layers:
 
 ```
-native-image-prototype/
-  pom.xml
-  src/main/java/io/casehub/inference/prototype/
-    NativeImageGateApp.java
-  src/main/resources/
-    application.properties
-    META-INF/native-image/io.casehub/native-image-prototype/
-      reflect-config.json
-      jni-config.json
-      resource-config.json
-      native-image.properties
-  src/test/java/io/casehub/inference/prototype/
-    NativeImageGateIT.java
+inference-runtime/src/main/java/io/casehub/inference/runtime/
+  OnnxSessionLoader.java     — load OrtEnvironment + OrtSession from model path
+  TokenizerLoader.java       — load DJL HuggingFaceTokenizer from tokenizer.json path
+  RawInference.java          — tokenize + run inference + return raw float[] output
 ```
 
-### Parent POM Integration
+No SPI interfaces, no `InferenceModel`, no `InferenceInput`/`InferenceOutput` types. C3 adds the SPI on top of this code. These classes are internal implementation details that the SPI will wrap — they stay as-is in C3.
 
-The module is activated via a `native-prototype` profile:
+### inference-quarkus
+
+Native build profile + gate test:
+
+```
+inference-quarkus/src/main/resources/
+  META-INF/native-image/io.casehub/casehub-inference-quarkus/
+    reachability-metadata.json     — consolidated GraalVM 25 format
+    native-image.properties        — --initialize-at-run-time entries
+
+inference-quarkus/src/test/java/io/casehub/inference/prototype/
+  NativeImageGateCommand.java      — @QuarkusMain command-mode app
+  NativeImageGateIT.java           — integration test asserting exit code 0
+```
+
+### inference-api
+
+Stays empty. The SPI interface comes in C3.
+
+### Why not a throwaway module
+
+- The JNI bridge code (`OnnxSessionLoader`, `TokenizerLoader`, `RawInference`) is exactly what `inference-runtime` will contain — writing it twice wastes effort.
+- The GraalVM config files (`reachability-metadata.json`, `native-image.properties`) belong permanently in `inference-quarkus` — they'd need to move there anyway.
+- The `@QuarkusMain` gate test in `src/test/java` stays as the permanent native regression test.
+- If native fails, the JVM-mode code in `inference-runtime` is still correct and feeds C3.
+
+---
+
+## Build Configuration
+
+### inference-runtime pom.xml (key dependencies)
 
 ```xml
-<profile>
-  <id>native-prototype</id>
-  <modules>
-    <module>native-image-prototype</module>
-  </modules>
-</profile>
+<dependencies>
+  <dependency>
+    <groupId>com.microsoft.onnxruntime</groupId>
+    <artifactId>onnxruntime</artifactId>
+  </dependency>
+  <dependency>
+    <groupId>ai.djl.huggingface</groupId>
+    <artifactId>tokenizers</artifactId>
+  </dependency>
+</dependencies>
 ```
 
-Not listed in the default `<modules>` block — regular `mvn clean install` skips it entirely.
+### inference-quarkus pom.xml (key additions for gate)
 
-### Build Command
+```xml
+<dependencies>
+  <!-- existing deps plus: -->
+  <dependency>
+    <groupId>io.quarkus</groupId>
+    <artifactId>quarkus-arc</artifactId>
+  </dependency>
+</dependencies>
+
+<build>
+  <plugins>
+    <plugin>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-maven-plugin</artifactId>
+      <version>${quarkus.version}</version>
+      <extensions>true</extensions>
+      <executions>
+        <execution>
+          <goals>
+            <goal>build</goal>
+            <goal>generate-code</goal>
+            <goal>generate-code-tests</goal>
+            <goal>native-image-agent</goal>
+          </goals>
+        </execution>
+      </executions>
+    </plugin>
+    <plugin>
+      <groupId>org.apache.maven.plugins</groupId>
+      <artifactId>maven-failsafe-plugin</artifactId>
+      <version>${surefire-plugin.version}</version>
+      <executions>
+        <execution>
+          <goals>
+            <goal>integration-test</goal>
+            <goal>verify</goal>
+          </goals>
+        </execution>
+      </executions>
+    </plugin>
+  </plugins>
+</build>
+
+<profiles>
+  <profile>
+    <id>native</id>
+    <activation>
+      <property><name>native</name></property>
+    </activation>
+    <properties>
+      <quarkus.native.enabled>true</quarkus.native.enabled>
+    </properties>
+  </profile>
+</profiles>
+```
+
+### Build commands
 
 ```bash
-JAVA_HOME=$(/usr/libexec/java_home -v 25) mvn clean verify -pl native-image-prototype -Pnative-prototype -Dnative
-```
+# JVM mode — iterative development (fast, seconds)
+JAVA_HOME=$(/usr/libexec/java_home -v 26) mvn clean verify -pl inference-runtime,inference-quarkus
 
-GraalVM 25.0.3 (Oracle, macOS ARM) provides `native-image`. The project compiles to Java 21 bytecode.
+# Native gate — validation only (slow, minutes)
+# Uses GraalVM 25 (not JDK 26) — intentional: GraalVM provides native-image
+JAVA_HOME=$(/usr/libexec/java_home -v 25) mvn clean verify -pl inference-runtime,inference-quarkus -Dnative
+```
 
 ---
 
 ## Model Provisioning
 
-**Model:** `cross-encoder/nli-deberta-v3-xsmall` — a small NLI model (~90MB ONNX, ~700KB tokenizer.json). Chosen because it exercises the exact production use case (tokenize text pair → infer → 3-class logits) with the smallest footprint.
+### Source: Xenova/nli-deberta-v3-xsmall
 
-**Download mechanism:** `exec-maven-plugin` calling `huggingface-cli download` during `generate-resources` phase. Downloads to `target/models/nli-deberta-v3-xsmall/`.
+The original `cross-encoder/nli-deberta-v3-xsmall` ships PyTorch weights only — no ONNX file. The Xenova conversion (Transformers.js export) provides both `onnx/model.onnx` and `tokenizer.json` in the format DJL expects.
+
+**Note:** The Xenova repo totals ~1.29GB across all formats. We download only the two files we need.
+
+### Download mechanism: maven-download-plugin
+
+Direct URL downloads from HuggingFace CDN. No Python dependency, deterministic, with built-in cache.
 
 ```xml
 <plugin>
-  <groupId>org.codehaus.mojo</groupId>
-  <artifactId>exec-maven-plugin</artifactId>
+  <groupId>com.googlecode.maven-download-plugin</groupId>
+  <artifactId>download-maven-plugin</artifactId>
   <executions>
     <execution>
-      <id>download-model</id>
-      <phase>generate-resources</phase>
-      <goals><goal>exec</goal></goals>
+      <id>download-onnx-model</id>
+      <phase>generate-test-resources</phase>
+      <goals><goal>wget</goal></goals>
       <configuration>
-        <executable>huggingface-cli</executable>
-        <arguments>
-          <argument>download</argument>
-          <argument>cross-encoder/nli-deberta-v3-xsmall</argument>
-          <argument>--local-dir</argument>
-          <argument>${project.build.directory}/models/nli-deberta-v3-xsmall</argument>
-        </arguments>
+        <url>https://huggingface.co/Xenova/nli-deberta-v3-xsmall/resolve/main/onnx/model.onnx</url>
+        <outputDirectory>${project.build.directory}/test-models/nli-deberta-v3-xsmall</outputDirectory>
+        <outputFileName>model.onnx</outputFileName>
+        <cacheDirectory>${user.home}/.cache/maven-download</cacheDirectory>
+      </configuration>
+    </execution>
+    <execution>
+      <id>download-tokenizer</id>
+      <phase>generate-test-resources</phase>
+      <goals><goal>wget</goal></goals>
+      <configuration>
+        <url>https://huggingface.co/Xenova/nli-deberta-v3-xsmall/resolve/main/tokenizer.json</url>
+        <outputDirectory>${project.build.directory}/test-models/nli-deberta-v3-xsmall</outputDirectory>
+        <outputFileName>tokenizer.json</outputFileName>
+        <cacheDirectory>${user.home}/.cache/maven-download</cacheDirectory>
       </configuration>
     </execution>
   </executions>
 </plugin>
 ```
 
-**CI caching:** `huggingface-cli` uses `~/.cache/huggingface/hub/` as its download cache. GitHub Actions caches this directory between runs with a stable key based on the model name. First run downloads, subsequent runs are a no-op.
+**URLs to verify at implementation time** — the HuggingFace CDN path format (`/resolve/main/`) and whether the Xenova repo hosts `onnx/model.onnx` at that path. If the path differs, adjust URLs before first build.
 
-**Pre-requisite:** `huggingface-cli` must be installed (`pip install huggingface_hub`). Document in the module README.
+**CI caching:** `maven-download-plugin` caches to `~/.cache/maven-download/`. GitHub Actions caches this directory with a stable key. First run downloads (~90MB model + ~700KB tokenizer), subsequent runs are no-ops.
 
-### Model Path Configuration
+### Model path at runtime
 
-```properties
-# application.properties
-inference.prototype.model-dir=${project.build.directory}/models/nli-deberta-v3-xsmall
+Model path is passed as a system property at invocation — no Maven resource filtering, no `${...}` conflict with Quarkus property syntax.
+
+The `@QuarkusMain` command-mode app reads the path from `quarkus.args` or a system property:
+```bash
+./target/*-runner -Dinference.model.dir=target/test-models/nli-deberta-v3-xsmall
 ```
+
+The integration test sets this property via `maven-failsafe-plugin` `<systemPropertyVariables>`. The model directory is relative to the project build directory — the failsafe plugin runs from there.
 
 ---
 
-## Prototype Code
+## Gate Test Structure
 
-### NativeImageGateApp.java
+### Independent JNI validation
 
-A `@ApplicationScoped` CDI bean with no domain types or SPI. Raw JNI calls only.
+ONNX Runtime JNI and DJL Tokenizers JNI are independent libraries with independent failure modes. The gate test validates each layer separately before testing them together, so the failure report identifies exactly which library is the problem.
 
-Responsibilities:
-- Load HuggingFace tokenizer from `tokenizer.json` via DJL's `HuggingFaceTokenizer` JNI binding
-- Create `OrtEnvironment` and `OrtSession` from `model.onnx` via ONNX Runtime JNI
-- Expose `float[] classify(String premise, String hypothesis)` that:
-  1. Tokenizes the text pair → token IDs + attention mask
-  2. Creates `OnnxTensor` inputs from the token arrays
-  3. Runs `session.run()` → raw output tensors
-  4. Extracts and returns the `float[3]` logits
+### NativeImageGateCommand.java (`@QuarkusMain`)
 
-No error recovery, no pooling, no lifecycle management beyond `@PreDestroy` cleanup. This is throwaway code.
+A command-mode Quarkus app in `src/test/java/` — test infrastructure, not production code. Runs three validation phases:
+
+```
+Phase 1 — DJL Tokenizer JNI (independent)
+  Load tokenizer from tokenizer.json
+  Tokenize "hello world" → verify token IDs array is non-empty
+  Print: "PASS: DJL Tokenizer JNI loaded and executed"
+
+Phase 2 — ONNX Runtime JNI (independent)
+  Create OrtEnvironment
+  Create OrtSession from model.onnx
+  Print model input/output names
+  Print: "PASS: ONNX Runtime JNI loaded and session created"
+
+Phase 3 — End-to-end inference
+  Tokenize text pair: ("The weather is sunny", "It is raining")
+  Create OnnxTensor inputs from token arrays
+  Run session.run()
+  Extract float[3] logits
+  Assert contradiction score (index 0) is highest
+  Print logits and result
+  Print: "PASS: End-to-end inference completed"
+```
+
+Label order per model card: **contradiction=0, entailment=1, neutral=2**.
+
+Exit 0 if all phases pass. Exit 1 on any failure, printing which phase and which JNI layer failed.
 
 ### NativeImageGateIT.java
 
-A `@QuarkusIntegrationTest` (not `@QuarkusTest`). Quarkus runs this against the native binary when built with `-Dnative`.
-
-Test case:
 ```java
-classify("The weather is sunny", "It is raining")
-→ float[3] where contradiction score is highest
+@QuarkusIntegrationTest
+class NativeImageGateIT {
+    @Test
+    void nativeImageGatePasses() {
+        // @QuarkusIntegrationTest launches the @QuarkusMain binary
+        // and asserts it exits with code 0.
+        // Stdout contains per-phase PASS/FAIL lines for diagnostics.
+    }
+}
 ```
-
-Assertions:
-- Result is non-null
-- Result has exactly 3 elements
-- Contradiction index (typically [2]) has the highest value
-- No JNI exceptions thrown
-
-The assertion on contradiction being highest is a sanity check, not an accuracy test. If the model loads and runs but produces garbage logits, that's a different problem from JNI failure.
 
 ---
 
 ## GraalVM Native Image Configuration
 
-### Discovery Process
+### Config format
 
-1. Get the app running in JVM mode with both JNI layers working — validate the code is correct before attempting native
-2. Run with tracing agent: `java -agentlib:native-image-agent=config-output-dir=target/agent-config -jar target/quarkus-app/quarkus-run.jar`
-3. Exercise the classify path to capture JNI crossings
-4. Curate the agent output into hand-written config files with comments explaining each entry
+GraalVM 25 supports a consolidated `reachability-metadata.json` format alongside the legacy separate files. The tracing agent on GraalVM 25 may output either format. **Standardise on `reachability-metadata.json`** (consolidated) — single file, easier to maintain.
 
-### Config Files
+Located at: `inference-quarkus/src/main/resources/META-INF/native-image/io.casehub/casehub-inference-quarkus/`
 
-All in `src/main/resources/META-INF/native-image/io.casehub/native-image-prototype/`:
+### Discovery process
 
-- **`jni-config.json`** — ONNX Runtime JNI bridge classes (`OrtEnvironment`, `OrtSession`, `OnnxTensor`, etc.) and DJL tokenizer JNI bridge classes. These cross the JNI boundary.
-- **`reflect-config.json`** — classes discovered via reflection (platform detection, native lib loading).
-- **`resource-config.json`** — native `.dylib` files bundled inside JARs (`ai/onnxruntime/native/osx-aarch64/libonnxruntime.dylib` and DJL's equivalent). Must be registered as resources so GraalVM includes them in the native image.
-- **`native-image.properties`** — `--initialize-at-run-time` entries for classes that load native libraries in static initializers. Most likely failure point.
+1. Get the app running in JVM mode with both JNI layers working
+2. Run with tracing agent to discover required config
+3. Curate the agent output into a hand-written `reachability-metadata.json` with comments explaining each entry
+4. Iterate: attempt native build → read error → add config → retry
 
-### Expected Challenges
+### Known --initialize-at-run-time suspects
 
-**1. `--initialize-at-run-time` for native lib loaders (high likelihood)**
-Both libraries load `.dylib` files during class initialization. GraalVM runs class initializers at build time where the libs aren't available. Fix: defer those classes to runtime init.
+These classes load native libraries in static initializers. GraalVM runs class init at build time where the libs aren't available. List upfront to save build-fail-fix cycles:
 
-**2. Missing JNI entries (medium likelihood)**
-Tracing agent only captures exercised code paths. Fix: inspect ONNX Runtime and DJL source for `native` method declarations and register them manually.
+**ONNX Runtime:**
+- `ai.onnxruntime.OnnxRuntime` — calls `System.loadLibrary("onnxruntime")`
 
-**3. Native lib extraction (medium likelihood)**
+**DJL:**
+- `ai.djl.util.Platform` — platform detection and native lib path resolution
+- `ai.djl.huggingface.tokenizers.jni.LibUtils` — loads the tokenizers native library
+
+These are starting points from known library internals. The tracing agent will find additional classes.
+
+### Expected challenges (ordered by likelihood)
+
+**1. `--initialize-at-run-time` for native lib loaders (high)**
+Both libraries load `.dylib` files during class initialization. Fix: defer to runtime init.
+
+**2. Missing JNI/reflection entries (medium)**
+Tracing agent only captures exercised code paths. Fix: inspect ORT and DJL source for `native` method declarations.
+
+**3. Native lib extraction (medium)**
 Both JARs bundle native libs extracted to a temp dir at runtime. In native image, JAR resource handling differs. Fix: may need custom extraction or library path configuration.
 
-### Iterative Approach
+**4. Oracle GraalVM svm-enterprise.jar class conflict (low–medium)**
+Known issue where ONNX Runtime's `ai.onnxruntime.ValueInfo` class conflicts with classes in `svm-enterprise.jar` in Oracle GraalVM Enterprise builds. May or may not affect 25.0.3. If hit: try GraalVM CE as fallback.
 
-The native build will likely fail on the first attempt. The process is:
-1. Attempt build
-2. Read the error (missing class, missing resource, build-time init failure)
-3. Add the appropriate config entry
-4. Retry
+### Iterative approach
 
-Each fix is documented in the config file with a comment explaining what it resolves. This documentation feeds directly into C5's Quarkus extension.
+Each fix is documented in `reachability-metadata.json` with comments explaining what it resolves. This documentation feeds directly into C5's Quarkus extension.
+
+---
+
+## Dependency Versions
+
+| Dependency | Parent POM | Latest | Action |
+|---|---|---|---|
+| ONNX Runtime | 1.17.3 | ~1.21.x | Bump — GraalVM JNI metadata may have improved in newer versions. GitHub issue #5172 (ONNX+GraalVM) is closed. |
+| DJL Tokenizers | 0.29.0 | ~0.36.0 | Bump — 7 minor versions may include native-image fixes and updated JNI surface. The DJL GraalVM demo uses recent versions. |
+| Quarkus | 3.32.2 | (keep) | Current — no change needed. |
+| GraalVM | 25.0.3 | (keep) | Installed, macOS ARM. Provides `native-image`. |
+
+**Version bump is the first implementation step** — update parent POM, verify JVM-mode build still passes, then proceed to native. If native fails with bumped versions, the old versions are a fallback data point, but starting with the latest gives the best chance of existing metadata and fixes.
+
+---
+
+## CI Feasibility
+
+**The native gate is local-only.** Native image compilation for macOS ARM requires a macOS ARM runner. GitHub Actions has M1 runners but they're more expensive and add CI complexity.
+
+For the prototype: validate locally, document the result. CI can run the JVM-mode tests to verify the code is correct, but the native gate itself runs on the developer's machine.
+
+If the gate passes and we want CI native builds in C5, options:
+- GitHub Actions M1 runner (macos-14 or later)
+- Cross-compile to Linux x86_64 for CI, macOS ARM locally
+- Native gate as a manual CI workflow (triggered on demand, not per-push)
+
+This decision belongs in C5, not the gate.
 
 ---
 
 ## Development Workflow
 
-- **JVM mode** for iterative development (fast — seconds). Get the code working first, then tackle native.
-- **Native image** only for the final gate validation (slow — minutes).
-- After the gate passes, all subsequent development (C3–C6) runs on JVM. Native image config is parked until C5.
+- **JVM mode** for iterative development (fast — seconds). All day-to-day work across C3–C6.
+- **Native image** only for gate validation and CI regression (slow — minutes). Production deployment option.
+- After the gate passes, the native config is parked in `inference-quarkus`. C5 expands it into a proper Quarkus extension with `@RegisterForReflection` and build-time annotation processing.
 
 ---
 
 ## Outcome Artifacts
 
 **If PASS:**
-- The curated GraalVM config files — direct input to C5's Quarkus extension
-- Documentation of which classes need runtime init, JNI registration, and resource bundling
-- Confidence that `inference-quarkus` can target native image
+- `inference-runtime` has working JNI bridge code — direct input to C3 (wrap with SPI)
+- `inference-quarkus` has curated GraalVM config — direct input to C5 (Quarkus extension)
+- `NativeImageGateCommand` + `NativeImageGateIT` stay as permanent native regression tests
+- Parent POM has updated ORT + DJL versions validated for native
 
 **If FAIL:**
-- Documentation of what broke and why
-- Assessment: GraalVM limitation vs library limitation vs fixable with upstream contribution
-- Recommendation: JVM-only deployment, or wait for specific upstream fix
+- Failure report identifies which JNI layer failed (ORT, DJL, or both)
+- Assessment: GraalVM limitation vs library limitation vs fixable upstream
+- Workaround options documented
 - C5 proceeds in JVM-only mode; Hortora native binary goal deferred
+- JVM-mode code in `inference-runtime` still feeds C3
 
 ---
 
@@ -227,11 +389,7 @@ Each fix is documented in the config file with a comment explaining what it reso
 |---|---|---|
 | GraalVM (Oracle) | 25.0.3 | `native-image` compiler, macOS ARM |
 | Quarkus | 3.32.2 | Application framework, native build integration |
-| ONNX Runtime | 1.17.3 | Model execution via JNI |
-| DJL HuggingFace Tokenizers | 0.29.0 | Tokenization via JNI |
-| `huggingface-cli` | latest | Model download (build-time, not runtime) |
-| `cross-encoder/nli-deberta-v3-xsmall` | HuggingFace | Validation model (~90MB) |
-
-## Cleanup
-
-After the gate passes (or fails), the `native-image-prototype/` module is removed from the repo. The `native-prototype` profile is removed from the parent POM. The config files and documentation are preserved — they move to C5's `inference-quarkus` module (on pass) or to the issue's closing comment (on fail).
+| ONNX Runtime | bump to latest | Model execution via JNI |
+| DJL HuggingFace Tokenizers | bump to latest | Tokenization via JNI |
+| maven-download-plugin | latest | Model file download (build-time) |
+| Xenova/nli-deberta-v3-xsmall | HuggingFace | Validation model (ONNX export) |
