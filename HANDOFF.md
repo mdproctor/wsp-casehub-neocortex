@@ -1,29 +1,27 @@
-# Handoff — 2026-06-05
+# Handoff — 2026-06-06
 
-**Focus:** ONNX inference (J1) — chapters C2→C3→C4→C5→C6, RAG deferred
+## What Changed
 
----
+C2 (native image gate) — **PASS**. ONNX Runtime JNI + DJL Tokenizers JNI both work in Quarkus native image on macOS ARM (GraalVM 25.0.3). Three gotchas discovered and garden-documented. Issue #2 closed. ARC42STORIES.MD updated.
 
-## Plan — ONNX Chapter Sequence
-
-| Order | Chapter | What | Issue | Blocked by | Scale | Complexity |
-|-------|---------|------|-------|------------|-------|------------|
-| 1 | C2 | Native image gate — ONNX Runtime + HF Tokenizers JNI in Quarkus native on macOS ARM | #2 | — | M | High |
-| 2 | C3 | SPI Foundation + Runtime Core — `inference-api`, `inference-runtime`, `inference-inmem` | #3 | — | M | Med |
-| 3 | C4 | Task Adapters — NliClassifier, TextClassifier, ScalarRegressor, CrossEncoderReranker | #4 | C3 | M | Med |
-| 4 | C5 | Quarkus Integration — CDI wiring, @InferenceModel qualifier, Dev Services | #5 | C3, C4, C2 (native) | M | Med |
-| 5 | C6 | SPLADE — SparseEmbedder, log-saturation, sparse maps | #6 | C2, C4 | S | Med |
-
-C2 and C3 are independent — C2 first to retire JNI native image risk early.
-C2 outcome determines whether C5/C6 target native image or JVM-only.
+Code landed in production modules: `inference-runtime` (3 JNI bridge classes), `inference-quarkus` (gate command, tests, GraalVM config). Versions bumped: ORT 1.26.0, DJL 0.36.0.
 
 ## Immediate Next Step
 
-Start C2 — native image prototype. Run `/work` against #2.
+Start C3 — SPI Foundation + Runtime Core. Run `/work` against #3. The JNI bridge code in `inference-runtime` is the starting point — C3 wraps it with the `InferenceModel` SPI in `inference-api` and adds `inference-inmem` stubs.
+
+## What's Left
+
+- `inference-api` SPI design + `inference-runtime` full implementation + `inference-inmem` stubs (C3 / #3) · M · Med
+- Task adapters — NliClassifier, TextClassifier, ScalarRegressor, CrossEncoderReranker (C4 / #4) · M · Med — blocked by C3
+- Quarkus CDI wiring, @InferenceModel qualifier, Dev Services (C5 / #5) · M · Med — blocked by C3, C4
+- SPLADE sparse embeddings (C6 / #6) · S · Med — blocked by C2 ✅, C4
+- RAG pipeline (C7 / #7) · L · Med — blocked by C6
 
 ## Key References
 
-- ARC42STORIES.MD — chapter and layer details
-- Hortora design spec: `Hortora/spec: docs/superpowers/specs/2026-06-03-onnx-inference-module-design.md`
-- ONNX inference brief: `casehubio/parent: docs/specs/2026-06-03-standalone-rag-retrieval-brief.md`
-- Tracking: parent#158, Hortora/spec#15
+- Spec: `docs/specs/2026-06-05-native-image-gate-design.md` (promoted, approved rev 6)
+- Native config: `inference-quarkus/src/main/resources/NATIVE-IMAGE-NOTES.md`
+- Blog: `blog/2026-06-06-mdp01-native-image-gate.md`
+- Garden: GE-20260606-d3cd87, GE-20260606-7bf5dd, GE-20260606-025601, GE-20260606-fc0556, GE-20260606-aab62a
+- ARC42STORIES.MD: C2 ✅, C3–C7 🔲
