@@ -1,0 +1,9 @@
+branch: issue-3-spi-foundation
+project-sha: 9aa751642a5fddff9e5e4c553c0f9517e52ad236
+date: 2026-06-06
+issue: 3
+issue-repo: casehubio/neural-text
+covers: 3
+flyway-next-v: none
+design-repo: project
+design-section-hashes:
