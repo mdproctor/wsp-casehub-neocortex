@@ -1,7 +1,7 @@
 # Inference SPI Foundation — Design Spec
 
 **Date:** 2026-06-07
-**Status:** Approved (rev 3 — contract precision)
+**Status:** Approved (rev 4 — final)
 **Issue:** casehubio/neural-text#3
 **Modules:** inference-api, inference-runtime, inference-inmem
 **Consumers:** casehub-engine (#154), casehub-openclaw, casehub-eidos, casehub-rag, Hortora
@@ -203,9 +203,11 @@ Constructor:
 7. Tensors closed via try-with-resources
 
 `runBatch()` flow:
-- Empty list → return empty list immediately
-- Null list or null elements → `IllegalArgumentException`
-- Tokenize all inputs individually
+1. Check not closed → `InferenceException` if closed
+2. Null list → `IllegalArgumentException`
+3. Empty list → return empty unmodifiable list
+4. Null elements → `IllegalArgumentException`
+5. Tokenize all inputs individually
 - Pad to batch-max length (not `maxSequenceLength` — shorter when inputs are similar length). Tokenizer padding is disabled at construction; the runtime pads all inputs to the batch-max length after tokenization, using the tokenizer's pad token ID (`tokenizer.getPadTokenId()`).
 - Stack into `long[batchSize][maxLen]` tensors
 - Single `session.run()` call
@@ -255,6 +257,8 @@ Only `input_ids` and `attention_mask` are passed. Models requiring `token_type_i
 ```java
 public final class InMemoryInferenceModel implements InferenceModel {
 
+    private volatile boolean closed;
+
     public static InMemoryInferenceModel returning(float... values) { ... }
     public static InMemoryInferenceModel withFunction(
             int outputSize, Function<InferenceInput, float[]> fn) { ... }
@@ -262,13 +266,13 @@ public final class InMemoryInferenceModel implements InferenceModel {
     @Override public InferenceOutput run(InferenceInput input) { ... }
     @Override public List<InferenceOutput> runBatch(List<InferenceInput> inputs) { ... }
     @Override public OptionalInt outputSize() { ... }
-    @Override public void close() { /* no-op */ }
+    @Override public void close() { closed = true; }
 }
 ```
 
 - `returning()` — clones the varargs array on construction and on each `run()` call. Consistent with `InferenceOutput`'s defensive-copy pattern. `outputSize()` returns `OptionalInt.of(values.length)`.
 - `withFunction()` — custom logic per input, explicit `outputSize` required. `outputSize()` returns `OptionalInt.of(outputSize)`. **Thread safety: the provided function must itself be thread-safe** — the model delegates directly, no synchronization is added. Document in Javadoc.
-- `runBatch()` — empty list returns empty list. Null list or null elements throw `IllegalArgumentException`. Loops `run()` — no native batching to optimize.
+- `runBatch()` — validation ordering: closed check → null list → empty list → null elements → loop `run()`. Same ordering as `OnnxInferenceModel`. The closed check must precede the empty-list early return — `runBatch(List.of())` after `close()` must throw, not return an empty list.
 - `close()` — sets a closed flag. Subsequent `run()`/`runBatch()` calls throw `InferenceException`. Idempotent (second close is a no-op). Honors the SPI post-close contract — test stubs must not silently allow post-close usage.
 - No JNI, no native libs. Safe in `@QuarkusTest`, native image tests, plain JUnit.
 
@@ -347,7 +351,13 @@ All construction errors are `ModelLoadException` (subclass of `InferenceExceptio
 - **Batch/single equivalence**: `run(input)` and `runBatch(List.of(input)).get(0)` must produce identical `InferenceOutput`. If batch padding causes divergence, it's a bug.
 - Thread safety: concurrent `run()` calls on the same model produce correct results
 
-**Test model strategy:** Create a minimal ONNX model with the correct input/output signature (random weights, ~10KB) using Python's `onnx` library. Check into test resources at `inference-runtime/src/test/resources/test-model/`. Tests verify the runtime can load, tokenize, and run — not that inference results are semantically meaningful. Semantic correctness is verified in C4 (task adapters) with real models.
+**Test model strategy:** Create a minimal ONNX model with the correct input/output signature (random weights, ~10KB) using Python's `onnx` library. Pair with a real `tokenizer.json` from a small model (e.g., `bert-base-uncased` tokenizer — ~700KB, well-tested, compatible with `input_ids` + `attention_mask` input names). Check both into test resources at `inference-runtime/src/test/resources/test-model/`. Tests verify the runtime can load, tokenize, and run — not that inference results are semantically meaningful. Semantic correctness is verified in C4 (task adapters) with real models.
+
+### ArchUnit (all three modules)
+
+- `inference-api`: zero imports from `io.casehub` (non-inference), Quarkus, Spring, LangChain4j, ONNX Runtime, DJL
+- `inference-runtime`: zero imports from `io.casehub` (non-inference), Quarkus, Spring, LangChain4j
+- `inference-inmem`: zero imports from `io.casehub` (non-inference), Quarkus, Spring, LangChain4j, ONNX Runtime, DJL
 
 ---
 
@@ -360,4 +370,3 @@ All construction errors are `ModelLoadException` (subclass of `InferenceExceptio
 | Execution provider config (CUDA, CoreML) | C5 scope | Quarkus config will expose `OrtSession.SessionOptions`. |
 | Non-text modalities (image, audio) | Out of scope | Would require a different SPI with different input types. |
 | CLAUDE.md sync | Post-implementation | CLAUDE.md lists `ModelConfig` in inference-api; update after C3 lands. |
-| ArchUnit enforcement | In scope for C3 | Zero-domain-dep constraint on all three modules. |
