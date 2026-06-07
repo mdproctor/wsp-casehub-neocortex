@@ -1,0 +1,9 @@
+branch: issue-4-task-adapters
+project-sha: fa39b01a88047bb407121d61b30e3ed898083d60
+date: 2026-06-07
+issue: 4
+issue-repo: casehubio/neural-text
+covers: 4
+flyway-next-v: none
+design-repo: workspace
+design-section-hashes:
