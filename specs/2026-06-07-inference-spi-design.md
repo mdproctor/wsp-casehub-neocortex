@@ -1,7 +1,7 @@
 # Inference SPI Foundation — Design Spec
 
 **Date:** 2026-06-07
-**Status:** Approved (rev 2 — post-review)
+**Status:** Approved (rev 3 — contract precision)
 **Issue:** casehubio/neural-text#3
 **Modules:** inference-api, inference-runtime, inference-inmem
 **Consumers:** casehub-engine (#154), casehub-openclaw, casehub-eidos, casehub-rag, Hortora
@@ -65,11 +65,12 @@ public interface InferenceModel extends AutoCloseable {
 }
 ```
 
-- `AutoCloseable` because ONNX sessions hold native memory.
+- `AutoCloseable` because ONNX sessions hold native memory. `close()` must be idempotent — second and subsequent calls are no-ops.
 - `runBatch` is on the SPI (not a convenience wrapper) because native ONNX batching — padding multiple inputs into one tensor for a single `session.run()` — is significantly faster than looping `run()`. The in-memory impl loops; the ONNX impl batches natively.
-- `outputSize()` returns `OptionalInt` — empty means unknown. ONNX runtime returns the real value from session metadata. Task adapters (C4) validate at construction: `model.outputSize().ifPresent(size -> { if (size != 3) throw ... })`.
+- `runBatch()` contract: null `inputs` list or null elements throw `IllegalArgumentException`. Empty list returns an empty list (vacuous — no inputs, no outputs). Returns one `InferenceOutput` per input, in the same order. The returned list is unmodifiable.
+- `outputSize()` returns `OptionalInt` — empty means unknown (or dynamic). ONNX runtime returns the real value from session metadata. Task adapters (C4) validate at construction: `model.outputSize().ifPresent(size -> { if (size != 3) throw ... })`.
 - Thread safety contract: implementations must be safe for concurrent `run()`/`runBatch()` calls.
-- Lifecycle: `InferenceModel` is one-shot — construct, use, close. Calling `run()` or `runBatch()` after `close()` throws `InferenceException`. Implementations are not recyclable.
+- Lifecycle: `InferenceModel` is one-shot — construct, use, close. Calling `run()` or `runBatch()` after `close()` throws `InferenceException`. All implementations must enforce this — including test stubs. Implementations are not recyclable.
 
 **`InferenceInput`** — text input to a model.
 
@@ -189,8 +190,8 @@ Constructor:
 3. `env.createSession(modelPath, sessionOptions)` — loads model, allocates native heap. Wraps `OrtException` → `ModelLoadException`
 4. **Validate model inputs**: verify the model has inputs named `input_ids` and `attention_mask`. If missing, throw `ModelLoadException` with a message listing the actual input names.
 5. **Validate model outputs**: verify at least one output exists and its shape is rank 2 (`[batch, dim]`). If not, throw `ModelLoadException`.
-6. `HuggingFaceTokenizer.builder().optTokenizerPath(...).optMaxLength(...).optTruncation(true).optPadding(false).build()` — tokenizer with truncation. Wraps `IOException` → `ModelLoadException`
-7. `outputSize` — read from validated output shape's last dimension
+6. `HuggingFaceTokenizer.builder().optTokenizerPath(...).optMaxLength(...).optTruncation(true).optPadding(false).build()` — tokenizer with truncation enabled, padding disabled (batch-level padding is handled by the runtime, not the tokenizer — see `runBatch()` below). Wraps `IOException` → `ModelLoadException`
+7. `outputSize` — read from validated output shape's last dimension. If the dimension is dynamic (-1), `outputSize()` returns `OptionalInt.empty()` — task adapters skip validation rather than seeing a meaningless value.
 
 `run()` flow:
 1. Check not closed — throw `InferenceException` if closed
@@ -202,17 +203,20 @@ Constructor:
 7. Tensors closed via try-with-resources
 
 `runBatch()` flow:
+- Empty list → return empty list immediately
+- Null list or null elements → `IllegalArgumentException`
 - Tokenize all inputs individually
-- Pad to batch-max length (not `maxSequenceLength` — shorter when inputs are short)
+- Pad to batch-max length (not `maxSequenceLength` — shorter when inputs are similar length). Tokenizer padding is disabled at construction; the runtime pads all inputs to the batch-max length after tokenization, using the tokenizer's pad token ID (`tokenizer.getPadTokenId()`).
 - Stack into `long[batchSize][maxLen]` tensors
 - Single `session.run()` call
-- Split `float[batchSize][outputDim]` result into `List<InferenceOutput>`
+- Split `float[batchSize][outputDim]` result into `List<InferenceOutput>` (unmodifiable, same order as inputs)
 
-`close()`: try-finally pattern — session close in try block, tokenizer close in finally. Does not close `OrtEnvironment` (process singleton). Sets a closed flag for post-close detection.
+`close()`: idempotent, try-finally pattern. Does not close `OrtEnvironment` (process singleton).
 
 ```java
 @Override
 public void close() {
+    if (closed) return;
     closed = true;
     try { session.close(); } finally { tokenizer.close(); }
 }
@@ -262,10 +266,10 @@ public final class InMemoryInferenceModel implements InferenceModel {
 }
 ```
 
-- `returning()` — fixed output, cloned on each call to prevent mutation. `outputSize()` returns `OptionalInt.of(values.length)`.
+- `returning()` — clones the varargs array on construction and on each `run()` call. Consistent with `InferenceOutput`'s defensive-copy pattern. `outputSize()` returns `OptionalInt.of(values.length)`.
 - `withFunction()` — custom logic per input, explicit `outputSize` required. `outputSize()` returns `OptionalInt.of(outputSize)`. **Thread safety: the provided function must itself be thread-safe** — the model delegates directly, no synchronization is added. Document in Javadoc.
-- `runBatch()` loops `run()` — no native batching to optimize.
-- `close()` is a no-op — no native resources. Does not set a closed flag (stubs are trivially reusable in tests).
+- `runBatch()` — empty list returns empty list. Null list or null elements throw `IllegalArgumentException`. Loops `run()` — no native batching to optimize.
+- `close()` — sets a closed flag. Subsequent `run()`/`runBatch()` calls throw `InferenceException`. Idempotent (second close is a no-op). Honors the SPI post-close contract — test stubs must not silently allow post-close usage.
 - No JNI, no native libs. Safe in `@QuarkusTest`, native image tests, plain JUnit.
 
 ---
@@ -323,9 +327,10 @@ All construction errors are `ModelLoadException` (subclass of `InferenceExceptio
 
 ### inference-inmem (unit tests)
 
-- `InMemoryInferenceModel.returning()`: returns expected values, `outputSize()` matches, same output regardless of input, clones on each call (mutation safety)
+- `InMemoryInferenceModel.returning()`: returns expected values, `outputSize()` matches, same output regardless of input, clones varargs on construction (mutating source doesn't affect stub), clones on each `run()` call (mutating returned output doesn't affect next call)
 - `InMemoryInferenceModel.withFunction()`: function receives correct input, `outputSize()` returns configured value
-- `runBatch()`: returns one output per input, consistent with individual `run()` calls
+- `runBatch()`: returns one output per input, consistent with individual `run()` calls; empty list returns empty list; null list and null elements throw IAE
+- Post-close: `run()` after `close()` throws `InferenceException`; second `close()` is a no-op
 
 ### inference-runtime (unit + integration tests)
 
@@ -337,6 +342,7 @@ All construction errors are `ModelLoadException` (subclass of `InferenceExceptio
 - Model validation at load: model missing `input_ids` → `ModelLoadException` with input name list
 - Model validation at load: model with wrong output rank → `ModelLoadException` with shape
 - Post-close: `run()` after `close()` throws `InferenceException`
+- Close idempotency: second `close()` is a no-op, no exception
 - Close ordering: session close failure still closes tokenizer
 - **Batch/single equivalence**: `run(input)` and `runBatch(List.of(input)).get(0)` must produce identical `InferenceOutput`. If batch padding causes divergence, it's a bug.
 - Thread safety: concurrent `run()` calls on the same model produce correct results
