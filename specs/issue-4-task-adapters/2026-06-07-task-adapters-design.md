@@ -1,7 +1,7 @@
 # inference-tasks — Task Adapters Design Spec
 
 **Date:** 2026-06-07
-**Status:** Approved (rev 2)
+**Status:** Approved (rev 3)
 **Issue:** casehubio/neural-text#4
 **Module:** inference-tasks
 **Consumers:** casehub-engine (#154 — NliClassifier), casehub-openclaw (TextClassifier → ActionRiskClassifier), casehub-eidos (ScalarRegressor → CapabilityHealth epistemic confidence), Hortora (CrossEncoderReranker)
@@ -172,9 +172,9 @@ public final class CrossEncoderReranker {
 
 - Validates `outputSize() == 1` when available (cross-encoders output a single relevance score per pair)
 - `score()` flow: `InferenceInput.pair(query, candidate)` → `model.run()` → extract `values()` once → validate length == 1 → return `values[0]`
-- `rerank()` flow: validate all arguments eagerly (null query, null candidates, empty candidates, null elements — all checked before building any `InferenceInput`, preventing NPE leaks from `InferenceInput.pair()`) → build `List<InferenceInput>` with `pair(query, candidate)` for each candidate → `model.runBatch()` → extract score from each output → sort by descending score → `List<RankedResult>` (unmodifiable)
+- `rerank()` flow: validate all arguments → build `List<InferenceInput>` with `pair(query, candidate)` for each candidate → `model.runBatch()` → extract score from each output → sort by descending score → `List<RankedResult>` (unmodifiable)
 - Null query, null candidates, empty candidates → `IllegalArgumentException`
-- Null elements in candidates → `IllegalArgumentException` (checked before `InferenceInput` construction)
+- Null elements in candidates → `IllegalArgumentException`
 
 ---
 
@@ -205,6 +205,10 @@ Used by `NliClassifier` and `TextClassifier`. `ScalarRegressor` and `CrossEncode
 
 ---
 
+## Argument Validation
+
+All adapters validate null arguments explicitly before constructing `InferenceInput`, ensuring `IllegalArgumentException` with adapter-specific messages (e.g., "premise must not be null"). `InferenceInput` factory NPEs are never exposed to callers — the adapter is the caller's boundary and owns its own precondition reporting.
+
 ## Error Handling
 
 | Scenario | Exception | When |
@@ -213,9 +217,8 @@ Used by `NliClassifier` and `TextClassifier`. `ScalarRegressor` and `CrossEncode
 | Null/empty labels (TextClassifier) | `IllegalArgumentException` | Constructor |
 | `outputSize()` mismatch | `IllegalArgumentException` | Constructor |
 | Duplicate or out-of-range NLI indices | `IllegalArgumentException` | Constructor |
-| Null premise/hypothesis/text/query/candidates | `IllegalArgumentException` | Method call |
+| Null arguments (premise, hypothesis, text, query, candidates, elements) | `IllegalArgumentException` | Method call (before InferenceInput construction) |
 | Empty candidates list (rerank) | `IllegalArgumentException` | Method call |
-| Null elements in candidates | `IllegalArgumentException` | Method call (before InferenceInput construction) |
 | Output length mismatch at runtime | `InferenceException` | Method call |
 | Model closed or inference failure | `InferenceException` (from model) | Method call |
 
@@ -281,7 +284,26 @@ All tests use `InMemoryInferenceModel` — zero JNI, zero native libs.
 
 ### ArchUnit
 
-- `DependencyConstraintTest`: zero imports from casehub (non-inference), Quarkus, Spring, LangChain4j, ONNX Runtime, DJL
+`DependencyConstraintTest` enforces two categories of constraint:
+
+**Framework exclusion** (same as inference-api and inference-inmem):
+- No Quarkus/Jakarta, Spring, LangChain4j, ONNX Runtime, DJL imports
+
+**Casehub domain exclusion** (new — first module where this needs an explicit rule):
+
+The existing modules (inference-api, inference-inmem) don't enforce this because casehub domain types aren't on their classpaths. inference-tasks will be consumed by casehub modules in C5, making accidental domain imports possible. The architectural invariant from ARC42STORIES §2 ("zero dependencies on casehub domain artifacts") requires an explicit rule:
+
+```java
+@ArchTest
+static final ArchRule noCasehubDomain = noClasses()
+    .that().resideInAPackage("io.casehub.inference.tasks..")
+    .should().dependOnClassesThat(
+        DescribedPredicate.describe("casehub domain classes",
+            cls -> cls.getPackageName().startsWith("io.casehub.")
+                && !cls.getPackageName().startsWith("io.casehub.inference")));
+```
+
+This allows `io.casehub.inference.*` (the SPI) while blocking `io.casehub.engine.*`, `io.casehub.openclaw.*`, `io.casehub.eidos.*`, and any other casehub domain package. This rule should also be backported to inference-api, inference-inmem, and inference-runtime — tracked as a follow-up, not blocking C4.
 
 ---
 
