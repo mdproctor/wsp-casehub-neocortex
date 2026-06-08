@@ -1,0 +1,9 @@
+branch: issue-5-inference-quarkus-batch
+project-sha: 747be86a47b8d9be72ca49a0815b8ec66bc770d0
+date: 2026-06-08
+issue: 5
+issue-repo: casehubio/neural-text
+covers: 5,6,8,9,10
+flyway-next-v: none
+design-repo: workspace
+design-section-hashes:
