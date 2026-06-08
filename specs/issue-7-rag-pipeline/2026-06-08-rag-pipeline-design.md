@@ -19,13 +19,15 @@
 rag-api/       Pure Java, zero deps.
                CorpusStore SPI, CaseRetriever SPI, CorpusRef, ChunkInput, RetrievedChunk.
                Package: io.casehub.rag
+               (matches inference-api convention: io.casehub.inference)
 
 rag/           Quarkus library JAR (Jandex-indexed, not a Quarkus extension).
                QdrantCorpusStore, HybridCaseRetriever, TenancyStrategy, QdrantConfig.
                Package: io.casehub.rag.runtime
 
-rag-tika/      Optional. LangChain4j Tika parser → List<ChunkInput>.
-               Callers add as compile dep to activate.
+rag-tika/      NEW MODULE (not in original scaffold — must be created and added
+               to parent pom <modules>). Optional. LangChain4j Tika parser →
+               List<ChunkInput>. Callers add as compile dep to activate.
                Package: io.casehub.rag.tika
 
 rag-testing/   In-memory CorpusStore + CaseRetriever stubs.
@@ -38,15 +40,30 @@ rag-testing/   In-memory CorpusStore + CaseRetriever stubs.
 | Module | Depends on |
 |--------|-----------|
 | `rag-api` | nothing |
-| `rag` | `rag-api`, `inference-splade`, `inference-tasks`, `casehub-platform-api`, `quarkus-arc`, `langchain4j-core`, `langchain4j-embeddings`, `io.qdrant:client` |
-| `rag-tika` | `rag-api`, `langchain4j-document-parser-apache-tika`, `langchain4j` (for DocumentSplitter) |
+| `rag` | `rag-api`, `inference-splade`, `inference-tasks`, `casehub-platform-api`, `quarkus-arc`, `langchain4j-core`, `io.qdrant:client` |
+| `rag-tika` | `rag-api`, `langchain4j`, `langchain4j-document-parser-apache-tika` |
 | `rag-testing` | `rag-api` |
 
-### What was dropped
+### POM changes required at implementation time
 
-`langchain4j-qdrant` removed from the dependency tree. LangChain4j does not support Qdrant hybrid search with named vector spaces (open feature request [langchain4j#4087](https://github.com/langchain4j/langchain4j/issues/4087), no timeline). Since we need the direct Qdrant Java client for sparse vectors + RRF fusion anyway, using it for both legs gives a unified architecture with one client, one code path, and no split-brain between dense and sparse operations.
+The scaffolded POMs predate this spec. The following changes are needed:
 
-LangChain4j is still used for: `EmbeddingModel` (dense embedding generation), `DocumentSplitter` (chunking), `ApacheTikaDocumentParser` (in `rag-tika`), and core data types (`TextSegment`, `Embedding`).
+| File | Change | Reason |
+|------|--------|--------|
+| `pom.xml` (parent) | Add `<module>rag-tika</module>` | New module |
+| `rag/pom.xml` | Remove `langchain4j-qdrant` | Unified Qdrant client — langchain4j-qdrant not used |
+| `rag/pom.xml` | Remove `langchain4j-document-parser-apache-tika` | Moved to `rag-tika` |
+| `rag/pom.xml` | Remove `casehub-inference-quarkus` | App provides SparseEmbedder/CrossEncoderReranker; rag does not own CDI model resolution |
+| `rag/pom.xml` | Replace `langchain4j` with `langchain4j-core` | Only `EmbeddingModel`, `Embedding`, `TextSegment` needed — all in `langchain4j-core` |
+| `rag/pom.xml` | Remove `langchain4j-embeddings` | `EmbeddingModel` is in `langchain4j-core`, not `langchain4j-embeddings` |
+
+### What was dropped and why
+
+**`langchain4j-qdrant` removed.** LangChain4j does not support Qdrant hybrid search with named vector spaces. The generic hybrid search feature request ([langchain4j#4087](https://github.com/langchain4j/langchain4j/issues/4087)) was closed — resolved via PR #4124 for store-agnostic hybrid retrieval. But the Qdrant-specific implementation ([langchain4j#4994](https://github.com/langchain4j/langchain4j/issues/4994) — "Support Hybrid Search for Qdrant vector store") remains open with no timeline. Both dense and sparse legs use the Qdrant Java gRPC client (`io.qdrant:client`) directly for a unified architecture.
+
+**`casehub-inference-quarkus` not a dependency of `rag`.** The `@Inference` qualifier uses `@Nonbinding` value with `InjectionPoint` dispatch — CDI resolves all `@Inference`-qualified injection points through a single producer. Making `CrossEncoderReranker` optional via `Instance<>` is trivial when the app provides the bean; it requires solving the "unconfigured model throws at CDI wiring time" problem if `rag` injects `@Inference`-qualified models directly. The app-provides pattern is cleaner: 6 lines of producer code per consuming app, full control over model selection, no transitive ONNX Runtime JNI forced onto `rag` consumers.
+
+LangChain4j is still used for: `EmbeddingModel` (dense embedding generation), `Embedding`/`TextSegment` types (in `langchain4j-core`), `DocumentSplitter` + `ApacheTikaDocumentParser` (in `rag-tika`).
 
 ---
 
@@ -87,7 +104,7 @@ public record ChunkInput(String content, String sourceDocumentId, Map<String, St
 
 ### RetrievedChunk
 
-What retrieval returns. Simple relevance score — no per-leg provenance.
+What retrieval returns. Simple relevance score — no per-leg provenance. After RRF fusion, every result is hybrid; the fused score is what matters for ranking.
 
 ```java
 public record RetrievedChunk(String content, String sourceDocumentId,
@@ -174,6 +191,8 @@ Maps `CorpusRef` to Qdrant collection name + optional filter. Configurable — o
 4. Build Qdrant `PointStruct` per chunk — UUID id, both named vectors, payload containing `content`, `sourceDocumentId`, `tenantId`, and all `metadata` entries
 5. Batch upsert to Qdrant
 
+**Collection auto-creation latency:** The first `ingest()` call to a new corpus pays collection creation latency (typically 50–200ms for Qdrant collection + HNSW index initialization). Subsequent calls to the same corpus skip this check. Explicit pre-creation at app startup is not provided in v1 — add if a consumer needs warm startup guarantees.
+
 **Delete operations:**
 - `deleteDocument`: scroll + delete by `sourceDocumentId` payload filter (+ tenantId filter in shared mode)
 - `deleteCorpus`: delete collection (separate mode) or delete all points by tenantId filter (shared mode)
@@ -186,7 +205,7 @@ Maps `CorpusRef` to Qdrant collection name + optional filter. Configurable — o
 **Retrieval pipeline:**
 1. Resolve collection name + filter via `TenancyStrategy`
 2. Embed query dense via `EmbeddingModel`, sparse via `SparseEmbedder`
-3. Issue Qdrant Query API request:
+3. Issue Qdrant Query API request (gRPC):
    - Prefetch 1: dense nearest-neighbor search, top-K results
    - Prefetch 2: sparse nearest-neighbor search, top-K results
    - Fusion: RRF with configurable k constant
@@ -207,6 +226,8 @@ Both beans inject:
 ---
 
 ## rag-tika
+
+NEW MODULE — not in the original scaffold. Must be created during implementation: directory, pom.xml, parent pom `<modules>` entry.
 
 Optional module. `@ApplicationScoped` CDI bean.
 
@@ -265,6 +286,25 @@ Consumer test classpath:
 | `QdrantClient` | Produced by `rag` module from `QdrantConfig` | `rag` |
 | `TenancyStrategy` | Produced by `rag` module from config | `rag` |
 
+**Why the app provides SparseEmbedder and CrossEncoderReranker (not rag internally):**
+
+`inference-quarkus` uses `@Inference` with `@Nonbinding` value — all `@Inference`-qualified injection points route through a single `InferenceModelProducer` that extracts the model name at runtime via `InjectionPoint`. This works well for required models but makes optional injection (CrossEncoderReranker when reranking is disabled) problematic: `InferenceModelProducer.createModel()` throws `IllegalStateException` for unconfigured model names, and CDI wiring fails before any conditional logic can run.
+
+The app-provides pattern avoids this: `rag` injects `Instance<CrossEncoderReranker>` (standard CDI optional injection). The app either provides the bean or doesn't. No special handling needed.
+
+Example app producers (6 lines total):
+```java
+@Produces @ApplicationScoped
+SparseEmbedder sparseEmbedder(@Inference("splade") InferenceModel model) {
+    return new SparseEmbedder(model);
+}
+
+@Produces @ApplicationScoped
+CrossEncoderReranker reranker(@Inference("cross-encoder") InferenceModel model) {
+    return new CrossEncoderReranker(model);
+}
+```
+
 This follows the platform's established pattern: `rag` provides the runtime, the app provides the configuration and infrastructure beans.
 
 ---
@@ -293,4 +333,5 @@ The design brief confirms this split: "No code is shared between the two LangCha
 - Fact space prompt compiler integration (casehub-engine concern — consumes `CaseRetriever` SPI)
 - Dense embedding model selection (app-level concern)
 - SPLADE / cross-encoder model selection (app-level concern)
-- Native image support for Qdrant client (not a gate — Qdrant client is pure Java gRPC/REST)
+- Native image support for Qdrant client (not a gate — Qdrant client is pure Java/gRPC)
+- Explicit collection pre-creation at startup (first-ingest auto-creates; explicit warmup deferred to future need)
