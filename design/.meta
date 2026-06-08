@@ -1,0 +1,9 @@
+branch: issue-7-rag-pipeline
+project-sha: 1d90df683353680942b5364cd6ad7ccd558bdff6
+date: 2026-06-08
+issue: 7
+issue-repo: casehubio/neural-text
+covers: 7
+flyway-next-v: none
+design-repo: workspace
+design-section-hashes:
