@@ -20,6 +20,8 @@ rag-api/       Pure Java, zero deps.
                CorpusStore SPI, CaseRetriever SPI, CorpusRef, ChunkInput, RetrievedChunk.
                Package: io.casehub.rag
                (matches inference-api convention: io.casehub.inference)
+               Zero-deps for quality and testability — same reason inference-api
+               is zero-deps. Not shared with Hortora (see Hortora Boundary below).
 
 rag/           Quarkus library JAR (Jandex-indexed, not a Quarkus extension).
                QdrantCorpusStore, HybridCaseRetriever, TenancyStrategy, QdrantConfig.
@@ -108,7 +110,15 @@ What retrieval returns. Simple relevance score — no per-leg provenance. After 
 
 ```java
 public record RetrievedChunk(String content, String sourceDocumentId,
-                             double relevanceScore, Map<String, String> metadata) {}
+                             double relevanceScore, Map<String, String> metadata) {
+    public RetrievedChunk {
+        if (content == null)
+            throw new IllegalArgumentException("content must not be null");
+        if (sourceDocumentId == null)
+            throw new IllegalArgumentException("sourceDocumentId must not be null");
+        metadata = metadata == null ? Map.of() : Map.copyOf(metadata);
+    }
+}
 ```
 
 ### CorpusStore
@@ -144,6 +154,14 @@ public interface CaseRetriever {
 ---
 
 ## rag Runtime
+
+### Tenancy validation
+
+`QdrantCorpusStore` and `HybridCaseRetriever` are data access classes. Per the platform tenancy protocol (`tenancy-repository-pattern.md`), they validate tenancy internally — never trust the caller.
+
+Both beans inject `CurrentPrincipal` and call `MemoryPermissions.assertTenant(corpusRef.tenantId(), currentPrincipal)` at the top of every operation. This is the same pattern used by all `CaseMemoryStore` adapters (protocol: `casememorystore-adapter-asserttenant-contract.md`). A caller that constructs `CorpusRef` with a tenant ID that doesn't match the authenticated principal gets `SecurityException`.
+
+This is why `rag` depends on `casehub-platform-api` — not as a future placeholder, but for active defense-in-depth tenancy validation at every data access point.
 
 ### QdrantConfig
 
@@ -182,41 +200,44 @@ Maps `CorpusRef` to Qdrant collection name + optional filter. Configurable — o
 
 ### QdrantCorpusStore
 
-`@ApplicationScoped`. Implements `CorpusStore`.
+`@ApplicationScoped`. Implements `CorpusStore`. Injects `CurrentPrincipal`.
 
 **Ingest pipeline:**
-1. Resolve collection name via `TenancyStrategy`
-2. Ensure collection exists — create with two named vector spaces (`dense`: float vector at `EmbeddingModel.dimension()`, `sparse`: sparse vector) if absent
-3. For each `ChunkInput`: embed dense via `EmbeddingModel.embed()`, embed sparse via `SparseEmbedder.embed()`
-4. Build Qdrant `PointStruct` per chunk — UUID id, both named vectors, payload containing `content`, `sourceDocumentId`, `tenantId`, and all `metadata` entries
-5. Batch upsert to Qdrant
+1. Validate tenancy: `MemoryPermissions.assertTenant(corpus.tenantId(), currentPrincipal)`
+2. Resolve collection name via `TenancyStrategy`
+3. Ensure collection exists — create with two named vector spaces if absent (see Collection auto-creation below)
+4. Batch embed all chunks: dense via `EmbeddingModel.embedAll()`, sparse via `SparseEmbedder.embedBatch()`
+5. Build Qdrant `PointStruct` per chunk — UUID id, both named vectors, payload containing `content`, `sourceDocumentId`, `tenantId`, and all `metadata` entries
+6. Batch upsert to Qdrant
 
-**Collection auto-creation latency:** The first `ingest()` call to a new corpus pays collection creation latency (typically 50–200ms for Qdrant collection + HNSW index initialization). Subsequent calls to the same corpus skip this check. Explicit pre-creation at app startup is not provided in v1 — add if a consumer needs warm startup guarantees.
+**Collection auto-creation:** On first `ingest()` to a new corpus, the collection is created with two named vector spaces: `dense` (float vector) and `sparse` (sparse vector). The dense vector dimension is discovered via `EmbeddingModel.dimension()` — LangChain4j's default implementation embeds the string `"test"` and reads the result vector length. This costs one extra embedding call, once per model lifetime (`DimensionAwareEmbeddingModel` caches the result). First-ingest latency includes this dimension discovery + collection creation (typically 50–200ms total). Subsequent ingests to the same corpus skip both. Explicit pre-creation at app startup is not provided in v1.
 
 **Delete operations:**
-- `deleteDocument`: scroll + delete by `sourceDocumentId` payload filter (+ tenantId filter in shared mode)
-- `deleteCorpus`: delete collection (separate mode) or delete all points by tenantId filter (shared mode)
-- `listDocuments`: scroll with payload filter, extract distinct `sourceDocumentId` values
+- `deleteDocument`: validate tenancy, scroll + delete by `sourceDocumentId` payload filter (+ tenantId filter in shared mode)
+- `deleteCorpus`: validate tenancy, delete collection (separate mode) or delete all points by tenantId filter (shared mode)
+- `listDocuments`: validate tenancy, scroll with payload filter, extract distinct `sourceDocumentId` values
 
 ### HybridCaseRetriever
 
-`@ApplicationScoped`. Implements `CaseRetriever`.
+`@ApplicationScoped`. Implements `CaseRetriever`. Injects `CurrentPrincipal`.
 
 **Retrieval pipeline:**
-1. Resolve collection name + filter via `TenancyStrategy`
-2. Embed query dense via `EmbeddingModel`, sparse via `SparseEmbedder`
-3. Issue Qdrant Query API request (gRPC):
+1. Validate tenancy: `MemoryPermissions.assertTenant(corpus.tenantId(), currentPrincipal)`
+2. Resolve collection name + filter via `TenancyStrategy`
+3. Embed query: dense via `EmbeddingModel.embed()`, sparse via `SparseEmbedder.embed()`
+4. Issue Qdrant Query API request (gRPC):
    - Prefetch 1: dense nearest-neighbor search, top-K results
    - Prefetch 2: sparse nearest-neighbor search, top-K results
    - Fusion: RRF with configurable k constant
    - Limit: `maxResults` (or `rerank-top-n` candidates if reranking enabled)
-4. Map Qdrant scored points → `RetrievedChunk` list
-5. If reranking enabled and `CrossEncoderReranker` available: rerank candidates, re-sort by cross-encoder score, truncate to final `maxResults`
-6. Return `List<RetrievedChunk>` sorted by descending relevance
+5. Map Qdrant scored points → `RetrievedChunk` list
+6. If reranking enabled and `CrossEncoderReranker` available: rerank candidates, re-sort by cross-encoder score, truncate to final `maxResults`
+7. Return `List<RetrievedChunk>` sorted by descending relevance
 
 ### CDI injection
 
 Both beans inject:
+- `CurrentPrincipal` — for tenancy validation via `MemoryPermissions.assertTenant()`
 - `QdrantClient` — produced internally from `QdrantConfig`
 - `EmbeddingModel` — provided by the consuming app
 - `SparseEmbedder` — provided by the consuming app
@@ -311,11 +332,13 @@ This follows the platform's established pattern: `rag` provides the runtime, the
 
 ## Hortora Boundary
 
-`rag-api` is the shared contract — pure Java, zero deps. Hortora can implement `CorpusStore` and `CaseRetriever` against their own stack (different tenancy model, different Qdrant wiring, potentially different vector store).
+The sharing boundary with Hortora is the `inference-*` modules only — `inference-api`, `inference-runtime`, `inference-tasks`, `inference-splade`, `inference-inmem`. These have zero casehub dependencies (ArchUnit enforced) and are designed for cross-project consumption.
 
-`rag` is casehub-specific — depends on `casehub-platform-api`. Hortora does not take this module. They reuse `inference-splade` and `inference-tasks` (already shared, zero casehub deps) and write their own Qdrant integration.
+`rag-api`, despite being zero-deps, is NOT shared with Hortora. `CaseRetriever` embeds the "Case" domain concept — Hortora has no cases. The zero-deps design is for architectural quality and testability (the same reason `inference-api` is zero-deps), not for cross-project sharing.
 
-The design brief confirms this split: "No code is shared between the two LangChain4j wiring layers."
+`rag` is casehub-specific — depends on `casehub-platform-api` for tenancy validation. Hortora writes their own retrieval SPIs, their own Qdrant wiring, and their own tenancy model.
+
+The design brief confirms this: "No code is shared between the two LangChain4j wiring layers."
 
 ---
 
@@ -323,7 +346,7 @@ The design brief confirms this split: "No code is shared between the two LangCha
 
 - `rag-api`: zero deps on Quarkus, LangChain4j, Qdrant, casehub domain types. Same enforcement pattern as `inference-api`.
 - `rag-testing`: no Qdrant client, no LangChain4j embeddings. Pure Java + `rag-api` only.
-- `rag`: no casehub domain types beyond `casehub-platform-api` (CurrentPrincipal, TenancyConstants).
+- `rag`: no casehub domain types beyond `casehub-platform-api` (`CurrentPrincipal`, `MemoryPermissions` — used for tenancy validation).
 
 ---
 
