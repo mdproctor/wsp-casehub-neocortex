@@ -44,7 +44,7 @@ rag-testing/   In-memory CorpusStore + CaseRetriever stubs.
 | `rag-api` | nothing |
 | `rag` | `rag-api`, `inference-splade`, `inference-tasks`, `casehub-platform-api`, `quarkus-arc`, `langchain4j-core`, `io.qdrant:client` |
 | `rag-tika` | `rag-api`, `langchain4j`, `langchain4j-document-parser-apache-tika` |
-| `rag-testing` | `rag-api` |
+| `rag-testing` | `rag-api`, `jakarta.enterprise.cdi-api` (provided) |
 
 ### POM changes required at implementation time
 
@@ -157,9 +157,9 @@ public interface CaseRetriever {
 
 ### Tenancy validation
 
-`QdrantCorpusStore` and `HybridCaseRetriever` are data access classes. Per the platform tenancy protocol (`tenancy-repository-pattern.md`), they validate tenancy internally — never trust the caller.
+`QdrantCorpusStore` and `HybridCaseRetriever` are data access classes. Per the platform tenancy protocol (`casehub/garden: docs/protocols/casehub/tenancy-repository-pattern.md`), they validate tenancy internally — never trust the caller.
 
-Both beans inject `CurrentPrincipal` and call `MemoryPermissions.assertTenant(corpusRef.tenantId(), currentPrincipal)` at the top of every operation. This is the same pattern used by all `CaseMemoryStore` adapters (protocol: `casememorystore-adapter-asserttenant-contract.md`). A caller that constructs `CorpusRef` with a tenant ID that doesn't match the authenticated principal gets `SecurityException`.
+Both beans inject `CurrentPrincipal` and call `MemoryPermissions.assertTenant(corpusRef.tenantId(), currentPrincipal)` at the top of every operation. This is the same pattern used by all `CaseMemoryStore` adapters (`casehub/garden: docs/protocols/casehub/casememorystore-adapter-asserttenant-contract.md`). A caller that constructs `CorpusRef` with a tenant ID that doesn't match the authenticated principal gets `SecurityException`.
 
 This is why `rag` depends on `casehub-platform-api` — not as a future placeholder, but for active defense-in-depth tenancy validation at every data access point.
 
