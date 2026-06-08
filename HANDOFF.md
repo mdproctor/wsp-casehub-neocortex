@@ -2,26 +2,19 @@
 
 ## What Changed
 
-C4 (Task Adapters) — **DONE**. `inference-tasks` shipped with four typed adapters: `NliClassifier` (convention + explicit-index constructors), `TextClassifier` (labels at construction, softmax), `ScalarRegressor` (raw scalar), `CrossEncoderReranker` (score + batch rerank). 61 tests, ArchUnit enforced including new casehub domain exclusion rule via `DescribedPredicate`. Issue #4 closed. ARC42STORIES.MD updated (C4 ✅, L3 ✅). Spec promoted. Blog published.
-
-Also backfilled ARC42STORIES.MD L1+L2 detail sections from C3 (key files, key wiring, gotchas, pattern to replicate) — left incomplete by previous session.
+C5 (Quarkus CDI) + C6 (SPLADE) + three independents (#8, #9, #10) — **all DONE**. Five issues shipped on one branch (`issue-5-inference-quarkus-batch`). `@Inference` qualifier (named to avoid import collision with `InferenceModel` SPI), `InferenceModelProducer` with `@DefaultBean` + `@ConfigMapping`, test override via `@Alternative`. `SparseEmbedder` — log-saturation + threshold, 23 tests. token_type_ids BERT support, thread-safety tests, ArchUnit backport. ARC42STORIES.MD synced (C5 ✅, C6 ✅, L4+L5 detail sections populated). Blog published (mdp03). Garden entry GE-20260608-564065 (JNI classloader gotcha).
 
 ## Immediate Next Step
 
-Start C5 or C6. Run `/work` against #5 (Quarkus CDI wiring) or #6 (SPLADE sparse embeddings). Both unblocked by C4. C6 before C5 is viable — C6 establishes the adapter pattern for SPLADE; C5 wraps both C4 and C6 in CDI.
+Start C7 (RAG Pipeline). Run `/work` against #7. C7 is now unblocked — C6 (SparseEmbedder) is done. This is the final chapter in J1+J2: `CorpusStore`, `CaseRetriever`, hybrid RRF fusion, tenancy isolation.
 
 ## What's Left (ARC42STORIES chapter order)
 
-- **C5 Quarkus Integration (#5)** — CDI wiring, @InferenceModel qualifier, Dev Services · M · Med — blocked by C4 ✅
-- **C6 SPLADE (#6)** — SparseEmbedder, log-saturation, sparse map output · S · Med — blocked by C4 ✅
-- **C7 RAG Pipeline (#7)** — CorpusStore, CaseRetriever, hybrid RRF fusion, tenancy isolation · L · Med — blocked by C6
-- **#8** token_type_ids support for BERT models · S · Low — independent
-- **#9** thread-safety + close-ordering tests · XS · Low — independent
-- **#10** backport ArchUnit casehub domain exclusion rule to inference-api, inmem, runtime · XS · Low — independent
+- **C7 RAG Pipeline (#7)** — CorpusStore, CaseRetriever, hybrid RRF fusion, tenancy isolation · L · Med — unblocked (C6 done)
 
 ## Key References
 
-- ARC42STORIES.MD: C1–C4 ✅, C5–C7 🔲 — chapter sequencing in §9.2
-- Spec: `docs/specs/2026-06-07-task-adapters-design.md` (promoted, rev 3)
-- Blog: `blog/2026-06-08-mdp03-floats-meaning.md`
-- Garden: GE-20260607-db04c6 (requireNonNull NPE/IAE), GE-20260607-9cef08 (sequential try-catch close)
+- ARC42STORIES.MD: C1–C6 ✅, C7 🔲 — chapter sequencing in §9.2
+- Spec: `docs/specs/2026-06-08-inference-quarkus-cdi-design.md`
+- Blog: `blog/2026-06-08-mdp03-qualifier-naming.md`
+- Garden: GE-20260608-564065 (JNI classloader + @QuarkusTest reuseForks)
