@@ -1,0 +1,9 @@
+branch: issue-13-native-reactive-qdrant
+project-sha: c8eef3e41577c766d354f01b8a8668f60a3a0df7
+date: 2026-06-09
+issue: 13
+issue-repo: casehubio/neural-text
+covers: 13,14
+flyway-next-v: none
+design-repo: project
+design-section-hashes: 
