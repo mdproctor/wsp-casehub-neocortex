@@ -38,10 +38,20 @@ Two new classes in `rag/`, package `io.casehub.rag.runtime`:
 - `SparseEmbedder sparseEmbedder`
 - `TenancyStrategy tenancyStrategy`
 - `String denseVectorName`, `String sparseVectorName`
+- `int denseDimension` — cached at construction (see below)
 - `CurrentPrincipal currentPrincipal`
 - `CrossEncoderReranker reranker` (nullable — for `ReactiveHybridCaseRetriever` only)
 - Retrieval config values (`denseTopK`, `sparseTopK`, `rrfK`, `rerankEnabled`, `rerankTopN`
   — for `ReactiveHybridCaseRetriever` only)
+
+**`denseDimension` caching:** `EmbeddingModel.dimension()` is potentially blocking —
+the default implementation calls `embed("test")` (a full ONNX inference). Even
+`DimensionAwareEmbeddingModel` only caches after the first call. In the reactive path,
+`dimension()` is needed inside `ensureCollection` (collection creation request), which
+runs on the gRPC thread after `collectionExistsAsync`. Calling a blocking embedding
+on the gRPC thread is wrong. Fix: `ReactiveRagBeanProducer` calls `embeddingModel.dimension()`
+during CDI initialization (main thread, blocking is fine) and passes the cached value
+as `int denseDimension` to the constructor.
 
 #### CDI wiring — dedicated `ReactiveRagBeanProducer`
 
@@ -62,7 +72,7 @@ public class ReactiveRagBeanProducer {
     ReactiveQdrantCorpusStore corpusStore() {
         return new ReactiveQdrantCorpusStore(client, embeddingModel, sparseEmbedder,
             config.tenancyStrategy(), config.denseVectorName(), config.sparseVectorName(),
-            currentPrincipal);
+            embeddingModel.dimension(), currentPrincipal);
     }
 
     @Produces @ApplicationScoped
@@ -111,7 +121,10 @@ injection points — blocking consumers should not break when someone enables re
 CDI graph when `casehub.rag.reactive.enabled=true`:
 - `CorpusStore` → `QdrantCorpusStore` (blocking consumers unaffected)
 - `ReactiveCorpusStore` → `ReactiveQdrantCorpusStore` (native async, displaces bridge)
-- `BlockingToReactiveCorpusStore` (`@DefaultBean`) — instantiated but never injected (harmless)
+- `BlockingToReactiveCorpusStore` (`@DefaultBean`) — not installed. `@DefaultBean` means
+  "only if no other bean of this type exists." The produced `ReactiveQdrantCorpusStore`
+  satisfies `ReactiveCorpusStore`, so the bridge is removed from the bean graph entirely —
+  not instantiated, no dependency injection overhead
 
 #### ListenableFuture → Uni bridge
 
@@ -161,7 +174,7 @@ native async — no worker pool involved.
 
 | Method | Embedding | Qdrant call | Notes |
 |---|---|---|---|
-| `ingest` | Dense + sparse batch on worker pool | `upsertAsync` via `toUni()` | Build points between embed and upsert |
+| `ingest` | Dense + sparse batch on worker pool | `ensureCollection` → `upsertAsync` via `toUni()` | ensureCollection first (see below), then embed, build points, upsert |
 | `deleteDocument` | None | `deleteAsync` (by filter) via `toUni()` | Pure async |
 | `deleteCorpus` | None | `deleteCollectionAsync` or `deleteAsync` (by filter) via `toUni()` | Depends on `TenancyStrategy`. SEPARATE_COLLECTIONS mode: evicts from `ensuredCollections` after successful deletion |
 | `listDocuments` | None | `scrollAsync` via `toUni()` in recursive pagination | See pagination design below |
@@ -202,7 +215,7 @@ private Uni<Void> ensureCollection(String collection) {
         toUni(client.collectionExistsAsync(k))
             .chain(exists -> {
                 if (exists) return Uni.createFrom().voidItem();
-                return toUni(client.createCollectionAsync(buildCreateRequest(k)))
+                return toUni(client.createCollectionAsync(buildCreateRequest(k, denseDimension)))
                     .replaceWithVoid();
             })
             .onFailure().invoke(() -> ensuredCollections.remove(k))
@@ -214,7 +227,14 @@ private Uni<Void> ensureCollection(String collection) {
 - `computeIfAbsent` ensures only one Uni is created per collection name
 - `.memoize().indefinitely()` ensures the Uni is subscribed to once; subsequent callers
   get the cached result
-- `.onFailure().invoke(() -> map.remove(k))` clears the entry on failure so retries work
+- **Verified from Mutiny source (`UniMemoizeOp.onFailure()`, line 131):** `memoize().indefinitely()`
+  **DOES cache failures** — `state = CACHING; cachedResult = failure`. Without eviction,
+  a failed collection creation would be permanently cached
+- `.onFailure().invoke(() -> map.remove(k))` is placed before `.memoize()` in the pipeline.
+  On failure: (1) the map entry is removed, (2) memoize caches the failure. Threads that
+  already hold a reference to the failed Uni correctly receive the cached failure — their
+  operation genuinely failed. Subsequent calls to `ensureCollection` create a fresh Uni
+  because the map entry was removed at step (1)
 - Qdrant's idempotent collection creation is the final safety net — if two Uni chains do
   race past the guard, the second `createCollectionAsync` fails gracefully
 
@@ -315,8 +335,11 @@ assertion still fails correctly (captured == test thread). No thread name matchi
 assertion is "different thread", not "specific pool name", avoiding fragility if SmallRye
 changes its worker pool naming convention.
 
-One test method per bridge class — all methods in each bridge use the same
-`runSubscriptionOn` pattern, so verifying one method proves the wiring.
+Every method in each bridge gets its own test — matching the platform
+`BlockingToReactiveBridgeThreadingTest` precedent (which tests all 6 `CaseMemoryStore`
+methods). `BlockingToReactiveCorpusStore` has 4 methods (`ingest`, `deleteDocument`,
+`deleteCorpus`, `listDocuments`) and `BlockingToReactiveCaseRetriever` has 1 (`retrieve`).
+Total: 5 thread-offloading tests.
 
 #### Parity test — no change
 
@@ -350,8 +373,8 @@ the parity test enforces that.
 | `QdrantFuturesTest` | `rag` | Unit | `toUni()` propagates success, failure from `ListenableFuture` to `Uni`. Verifies cancellation propagation: cancelling the Uni calls `future.cancel()`. Uses Guava `SettableFuture`. |
 | `ReactiveQdrantCorpusStoreTest` | `rag` | Plain JUnit + Testcontainers | Ingest → listDocuments round-trip, deleteDocument, deleteCorpus, tenant isolation, collection auto-creation. Mirrors `QdrantCorpusStoreTest`. Not `@QuarkusTest` — constructs the class directly. |
 | `ReactiveHybridCaseRetrieverTest` | `rag` | Plain JUnit + Testcontainers | Ingest → retrieve round-trip, hybrid RRF fusion, cross-encoder reranking, tenant isolation. Mirrors `HybridCaseRetrieverTest`. Not `@QuarkusTest`. |
-| `BlockingToReactiveCorpusStoreTest` | `rag` | Unit (addition) | New: delegate executes on worker thread (thread ID), not subscribing thread. Platform `BlockingToReactiveBridgeThreadingTest` pattern. |
-| `BlockingToReactiveCaseRetrieverTest` | `rag` | Unit (addition) | Same thread-offloading assertion. |
+| `BlockingToReactiveCorpusStoreTest` | `rag` | Unit (addition) | New: all 4 methods verified — delegate executes on worker thread (thread ID), not subscribing thread. Platform `BlockingToReactiveBridgeThreadingTest` pattern. |
+| `BlockingToReactiveCaseRetrieverTest` | `rag` | Unit (addition) | New: `retrieve` verified — same thread-offloading assertion. |
 
 Tests are plain JUnit + Testcontainers, not `@QuarkusTest`. CDI wiring (build-property
 gating, `@DefaultBean` displacement) is tested implicitly by consuming apps' `@QuarkusTest`
