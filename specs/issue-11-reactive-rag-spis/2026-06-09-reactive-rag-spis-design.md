@@ -6,9 +6,11 @@
 
 ## Problem
 
-`CorpusStore` and `CaseRetriever` are blocking-only. Consumers running in reactive
-contexts (casehub-engine's `CaseContextChangedEventHandler` on the Vert.x IO thread)
-need `Uni<T>` variants or face `BlockingOperationNotAllowedException`.
+`CorpusStore` and `CaseRetriever` are blocking-only. The planned integration with
+casehub-engine's `CaseContextChangedEventHandler` (which runs on the Vert.x IO thread
+via `@ConsumeEvent`) will need `Uni<T>` variants — calling blocking SPIs from the
+event loop causes `BlockingOperationNotAllowedException`. This is proactive enablement
+ahead of parent#164 (engine-side CaseRetriever integration).
 
 ## Decision
 
@@ -61,9 +63,10 @@ public interface ReactiveCaseRetriever {
 }
 ```
 
-**Parity test** — ArchUnit test asserting every blocking method has a `Uni<T>` equivalent
-on the reactive interface. Vacuous-pass guard ensures the test cannot silently pass when
-no classes match.
+**Parity test** — ArchUnit test asserting blocking/reactive method parity. Matching rule:
+same method name + same parameter types + return type wrapped in `Uni<>` (where `void` →
+`Uni<Void>`). Vacuous-pass guard ensures the test cannot silently pass when no classes match.
+Follows ledger's `BlockingReactiveParityTest` semantics.
 
 ### `rag/` — bridge + reactive Qdrant implementations
 
@@ -76,9 +79,14 @@ no classes match.
 - `BlockingToReactiveCaseRetriever implements ReactiveCaseRetriever` — same pattern,
   injects `CaseRetriever`.
 
-These are always active. They provide a baseline reactive path by offloading blocking
-calls to the worker pool. No build property required — bridges have no Hibernate
-Reactive dependency.
+These are always active (per PP-20260529-5745c1 — bridges with no Hibernate Reactive
+dependency are `@DefaultBean` without `@IfBuildProperty`). They provide a baseline
+reactive path by offloading blocking calls to the worker pool.
+
+Void method idiom for bridges (matches ledger `BlockingToReactiveOutcomeRecorder`):
+`Uni.createFrom().<Void>item(() -> { delegate.xxx(); return null; }).runSubscriptionOn(...)`.
+In-memory stubs use the cleaner `.invoke() + .replaceWithVoid()` idiom (no `runSubscriptionOn`
+needed since they do no blocking I/O).
 
 **Reactive Qdrant implementations** (build-gated):
 
@@ -92,15 +100,24 @@ automatically — no `@Alternative` annotation needed on the reactive Qdrant imp
 
 ### `rag-testing/` — reactive in-memory stubs
 
-- `InMemoryReactiveCorpusStore implements ReactiveCorpusStore` — `@Alternative @Priority(1)`,
-  `@IfBuildProperty(name = "casehub.rag.reactive.enabled", stringValue = "true")`.
-  Injects `InMemoryCorpusStore`, delegates with `Uni.createFrom().item(...)`.
+- `InMemoryReactiveCorpusStore implements ReactiveCorpusStore` —
+  `@Alternative @Priority(1) @ApplicationScoped`. No `@IfBuildProperty` gate — these
+  stubs have no Hibernate Reactive dependency and are safe to activate unconditionally
+  (same reasoning as PP-20260529-5745c1 for bridges). Injects `InMemoryCorpusStore`,
+  delegates with `Uni.createFrom().item(...)`. Void methods use `.invoke() + .replaceWithVoid()`.
 
 - `InMemoryReactiveCaseRetriever implements ReactiveCaseRetriever` — same pattern,
   injects `InMemoryCaseRetriever`.
 
-Follows `casehub-ledger` `persistence-memory/` pattern
-(`InMemoryReactiveLedgerEntryRepository`).
+Follows `casehub-eidos` `persistence-memory/` pattern (`InMemoryReactiveAgentRegistry` —
+`@Alternative @Priority(1) @ApplicationScoped`, no build-property gate).
+
+**Pre-existing fix:** The existing blocking stubs `InMemoryCorpusStore` and
+`InMemoryCaseRetriever` are missing `@ApplicationScoped` — they are dependent-scoped
+by default. Since the reactive wrappers `@Inject` them, scope mismatch would give each
+injection point its own instance with its own backing data. Fix: add `@ApplicationScoped`
+to both existing blocking stubs in this branch. This aligns with canonical impls
+(qhorus `InMemoryChannelStore`, eidos `InMemoryAgentRegistry` — both `@ApplicationScoped`).
 
 ## Consumer dependency path
 
