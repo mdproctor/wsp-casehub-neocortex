@@ -27,11 +27,22 @@ Two new classes in `rag/`, package `io.casehub.rag.runtime`:
 **`ReactiveQdrantCorpusStore implements ReactiveCorpusStore`**
 - `@IfBuildProperty(name = "casehub.rag.reactive.enabled", stringValue = "true")`
 - `@ApplicationScoped`
+- Direct CDI bean with `@Inject` field injection (eidos `JpaReactiveAgentRegistry` pattern)
 - Displaces the `@DefaultBean` bridge when the property is set
 
 **`ReactiveHybridCaseRetriever implements ReactiveCaseRetriever`**
-- Same CDI gating
-- Same displacement behaviour
+- Same CDI gating and wiring pattern
+
+**Injected dependencies (field injection, no producer methods):**
+- `@Inject QdrantClient client`
+- `@Inject EmbeddingModel embeddingModel`
+- `@Inject SparseEmbedder sparseEmbedder`
+- `@Inject Instance<CrossEncoderReranker> rerankerInstance`
+- `@Inject CurrentPrincipal currentPrincipal`
+- `@Inject RagConfig config`
+
+Config values (`denseVectorName`, `sparseVectorName`, `tenancyStrategy`, retrieval params)
+accessed via `config.xxx()` at method call time. `RagBeanProducer` is not modified.
 
 #### CDI gating rationale
 
@@ -42,22 +53,49 @@ Matches the casehub-eidos precedent (`casehub.eidos.reactive.enabled`).
 Consuming apps opt in by setting `casehub.rag.reactive.enabled=true` in `application.properties`.
 Default is `false` — only the `@DefaultBean` bridges are active.
 
+#### Why the blocking impls do not need symmetric gating
+
+In eidos, both `JpaAgentRegistry` and `JpaReactiveAgentRegistry` are symmetrically gated
+(`@IfBuildProperty ... "false" enableIfMissing=true` / `"true"`) because they share a datasource
+where running blocking JPA and Hibernate Reactive concurrently is problematic.
+
+In neural-text, the blocking `QdrantCorpusStore` and `HybridCaseRetriever` share the same
+`QdrantClient` instance, which is fully thread-safe (Netty/gRPC under the hood). No resource
+conflict. The blocking impls must stay active because they serve `CorpusStore` and `CaseRetriever`
+injection points — blocking consumers should not break when someone enables reactive mode.
+
+CDI graph when `casehub.rag.reactive.enabled=true`:
+- `CorpusStore` → `QdrantCorpusStore` (blocking consumers unaffected)
+- `ReactiveCorpusStore` → `ReactiveQdrantCorpusStore` (native async, displaces bridge)
+- `BlockingToReactiveCorpusStore` (`@DefaultBean`) — instantiated but never injected (harmless)
+
 #### ListenableFuture → Uni bridge
 
 Package-private utility class `QdrantFutures` in `io.casehub.rag.runtime`:
 
 ```java
 static <T> Uni<T> toUni(ListenableFuture<T> future) {
-    return Uni.createFrom().emitter(em ->
+    return Uni.createFrom().emitter(em -> {
+        em.onTermination(() -> future.cancel(false));
         Futures.addCallback(future, new FutureCallback<>() {
             public void onSuccess(T result) { em.complete(result); }
             public void onFailure(Throwable t) { em.fail(t); }
-        }, MoreExecutors.directExecutor()));
+        }, MoreExecutors.directExecutor());
+    });
 }
 ```
 
 Single static method. `directExecutor()` — callback runs on the gRPC executor (Qdrant's
-internal Netty event loop), no extra thread hop. Both reactive impls use this.
+internal Netty event loop), no extra thread hop. `onTermination` wires Uni cancellation to
+`ListenableFuture.cancel()` — if the Uni is cancelled (e.g. timeout), the underlying gRPC
+call is cancelled too.
+
+**Threading contract:** `toUni()` delivers on the gRPC thread. Downstream operators after
+`toUni()` run on that gRPC thread unless explicitly switched. Only lightweight mapping and
+further async calls should follow — any blocking work (ONNX inference, etc.) must be
+explicitly offloaded via `runSubscriptionOn(workerPool)`. No `emitOn()` is added — the
+consumer controls their own execution context, consistent with the platform convention
+(neither `ReactiveCaseMemoryStore` nor `ReactiveAgentRegistry` guarantee delivery thread).
 
 #### Blocking embedding offload
 
@@ -80,9 +118,9 @@ native async — no worker pool involved.
 | Method | Embedding | Qdrant call | Notes |
 |---|---|---|---|
 | `ingest` | Dense + sparse batch on worker pool | `upsertAsync` via `toUni()` | Build points between embed and upsert |
-| `deleteDocument` | None | `deleteAsync` via `toUni()` | Pure async |
-| `deleteCorpus` | None | `deleteCollectionAsync` or `deleteAsync` via `toUni()` | Depends on `TenancyStrategy` |
-| `listDocuments` | None | `scrollAsync` via `toUni()` in a pagination loop | Recursive `Uni` chaining — each page checks `hasNextPageOffset()` and chains the next scroll or completes |
+| `deleteDocument` | None | `deleteAsync` (by filter) via `toUni()` | Pure async |
+| `deleteCorpus` | None | `deleteCollectionAsync` or `deleteAsync` (by filter) via `toUni()` | Depends on `TenancyStrategy` |
+| `listDocuments` | None | `scrollAsync` via `toUni()` in recursive pagination | See pagination design below |
 
 **`ReactiveHybridCaseRetriever`:**
 
@@ -95,20 +133,92 @@ native async — no worker pool involved.
 2. `toUni(client.collectionExistsAsync(...))` — native async
 3. If exists → offload dense + sparse embedding to worker pool
 4. Chain `toUni(client.queryAsync(queryPoints))` — build prefetch queries with RRF fusion
-5. Map `ScoredPoint` → `RetrievedChunk` — inline (CPU-only)
+5. Map `ScoredPoint` → `RetrievedChunk` — inline (CPU-only, lightweight on gRPC thread)
 6. If reranking enabled → offload `reranker.rerank()` to worker pool (blocking ONNX)
 
-#### `ensureCollection`
+**Note on collectionExistsAsync overhead (step 2):** This adds one gRPC round-trip before
+every retrieval, matching the blocking `HybridCaseRetriever` behaviour. The cost is negligible
+relative to embedding + query. Potential optimisation: catch the "collection not found" error
+from `queryAsync` directly and map to empty results — eliminates the check. Deferred.
 
-Lazy collection creation. Same `ConcurrentHashMap.newKeySet()` fast-path guard. Returns
-`Uni<Void>` — chains `collectionExistsAsync` → `createCollectionAsync` via `toUni()`.
+#### ensureCollection — concurrent-safe reactive design
 
-#### CDI producer additions
+The blocking `ensureCollection` has a check-then-act pattern (`if !known → check exists → create`)
+that is racy under concurrent calls. In the reactive context, concurrent `ingest()` calls for the
+same corpus make this race likely.
 
-`RagBeanProducer` gets two new `@Produces` methods, each annotated with the same
-`@IfBuildProperty` gate. They construct the reactive impls with the same dependencies
-as the blocking impls (same `QdrantClient`, `EmbeddingModel`, `SparseEmbedder`,
-`TenancyStrategy`, config values, `CurrentPrincipal`).
+Design: `ConcurrentHashMap<String, Uni<Void>>` with `computeIfAbsent` + `.memoize().indefinitely()`.
+Deduplicates concurrent creation attempts and caches the result.
+
+```java
+private final ConcurrentHashMap<String, Uni<Void>> ensuredCollections = new ConcurrentHashMap<>();
+
+private Uni<Void> ensureCollection(String collection) {
+    return ensuredCollections.computeIfAbsent(collection, k ->
+        toUni(client.collectionExistsAsync(k))
+            .chain(exists -> {
+                if (exists) return Uni.createFrom().voidItem();
+                return toUni(client.createCollectionAsync(buildCreateRequest(k)))
+                    .replaceWithVoid();
+            })
+            .onFailure().invoke(() -> ensuredCollections.remove(k))
+            .memoize().indefinitely()
+    );
+}
+```
+
+- `computeIfAbsent` ensures only one Uni is created per collection name
+- `.memoize().indefinitely()` ensures the Uni is subscribed to once; subsequent callers
+  get the cached result
+- `.onFailure().invoke(() -> map.remove(k))` clears the entry on failure so retries work
+- Qdrant's idempotent collection creation is the final safety net — if two Uni chains do
+  race past the guard, the second `createCollectionAsync` fails gracefully
+
+#### listDocuments — reactive scroll pagination
+
+Recursive `Uni.flatMap()` pattern. Mutiny handles this without stack overflow — each
+`.flatMap()` is Uni composition (heap-allocated continuation), not stack recursion.
+
+```java
+Uni<List<String>> listDocuments(CorpusRef corpus) {
+    // ... assertTenant, resolve collection ...
+    return toUni(client.collectionExistsAsync(collection))
+        .chain(exists -> {
+            if (!exists) return Uni.createFrom().item(List.<String>of());
+            return scrollPage(collection, tenantFilter, null, new LinkedHashSet<>())
+                .map(List::copyOf);
+        });
+}
+
+private Uni<Set<String>> scrollPage(String collection, Optional<Filter> tenantFilter,
+        PointId offset, Set<String> accumulator) {
+    ScrollPoints.Builder builder = ScrollPoints.newBuilder()
+        .setCollectionName(collection)
+        .setLimit(100)
+        .setWithPayload(WithPayloadSelectorFactory.enable(true));
+    tenantFilter.ifPresent(builder::setFilter);
+    if (offset != null) builder.setOffset(offset);
+
+    return toUni(client.scrollAsync(builder.build()))
+        .flatMap(response -> {
+            for (RetrievedPoint point : response.getResultList()) {
+                Value docId = point.getPayloadMap().get("sourceDocumentId");
+                if (docId != null && docId.hasStringValue()) {
+                    accumulator.add(docId.getStringValue());
+                }
+            }
+            if (!response.hasNextPageOffset()) {
+                return Uni.createFrom().item(accumulator);
+            }
+            return scrollPage(collection, tenantFilter,
+                response.getNextPageOffset(), accumulator);
+        });
+}
+```
+
+Each page is a native async gRPC call via `toUni()`. The `flatMap` chain composes on the
+gRPC thread (lightweight — just extracting strings and checking a boolean). No worker pool
+involvement.
 
 #### Dependencies
 
@@ -125,11 +235,34 @@ already transitive from the Qdrant client. Mutiny is already a dependency of `ra
 Both `BlockingToReactiveCorpusStoreTest` and `BlockingToReactiveCaseRetrieverTest` get
 a new test that verifies the delegate executes on a worker thread.
 
-Pattern:
-1. Create a recording delegate that captures `Thread.currentThread().getName()` during execution
-2. Subscribe from the test thread
-3. Assert the captured thread name differs from the test thread name
-4. Assert the captured thread name contains `"executor-thread"` (Mutiny worker pool convention)
+Pattern follows the platform `BlockingToReactiveBridgeThreadingTest` precedent — thread ID
+comparison via `AtomicLong`, no thread name matching:
+
+```java
+@Test
+void delegateExecutesOnWorkerThread() {
+    var capturedId = new AtomicLong(Thread.currentThread().getId());
+
+    CorpusStore blocking = new CorpusStore() {
+        public void ingest(CorpusRef corpus, List<ChunkInput> chunks) {
+            capturedId.set(Thread.currentThread().getId());
+        }
+        // ... other methods
+    };
+
+    var bridge = new BlockingToReactiveCorpusStore(blocking);
+    bridge.ingest(corpus, chunks).await().indefinitely();
+
+    assertNotEquals(Thread.currentThread().getId(), capturedId.get(),
+        "ingest() must offload delegate to a worker thread, "
+        + "not run on the subscribing thread");
+}
+```
+
+`AtomicLong` initialised to the test thread's ID — if the delegate is never called, the
+assertion still fails correctly (captured == test thread). No thread name matching — the
+assertion is "different thread", not "specific pool name", avoiding fragility if SmallRye
+changes its worker pool naming convention.
 
 One test method per bridge class — all methods in each bridge use the same
 `runSubscriptionOn` pattern, so verifying one method proves the wiring.
@@ -137,18 +270,20 @@ One test method per bridge class — all methods in each bridge use the same
 #### Parity test — no change
 
 The manual `PAIRS` map in `BlockingReactiveParityTest` is adequate for two SPI pairs.
-The issue notes "consider switching to naming-convention auto-discovery if more pairs
-are added" — no third pair is being added in this branch, so no change.
+No third pair is being added in this branch.
 
 #### Javadoc on reactive SPIs
 
-Single-line class-level Javadoc on each reactive SPI in `rag-api/`:
+Single-line class-level Javadoc on each reactive SPI in `rag-api/`. The contract is
+"non-blocking, safe to call from the event loop" — no guarantee about delivery thread,
+consistent with the platform precedent (`ReactiveCaseMemoryStore`, `ReactiveAgentRegistry`
+— neither specifies a delivery thread):
 
 ```java
-/** Reactive counterpart of {@link CorpusStore}. All methods return on the Vert.x event loop. */
+/** Non-blocking counterpart of {@link CorpusStore}. Safe to subscribe to from the Vert.x event loop. */
 public interface ReactiveCorpusStore { ... }
 
-/** Reactive counterpart of {@link CaseRetriever}. All methods return on the Vert.x event loop. */
+/** Non-blocking counterpart of {@link CaseRetriever}. Safe to subscribe to from the Vert.x event loop. */
 public interface ReactiveCaseRetriever { ... }
 ```
 
@@ -161,11 +296,15 @@ the parity test enforces that.
 
 | Test class | Module | Type | What it verifies |
 |---|---|---|---|
-| `QdrantFuturesTest` | `rag` | Unit | `toUni()` propagates success, failure, and cancellation from `ListenableFuture` to `Uni`. Uses Guava `SettableFuture`. |
-| `ReactiveQdrantCorpusStoreTest` | `rag` | Integration (Testcontainers) | Ingest → listDocuments round-trip, deleteDocument, deleteCorpus, tenant isolation, collection auto-creation. Mirrors `QdrantCorpusStoreTest`. |
-| `ReactiveHybridCaseRetrieverTest` | `rag` | Integration (Testcontainers) | Ingest → retrieve round-trip, hybrid RRF fusion, cross-encoder reranking, tenant isolation. Mirrors `HybridCaseRetrieverTest`. |
-| `BlockingToReactiveCorpusStoreTest` | `rag` | Unit (addition) | New: delegate executes on worker thread, not subscribing thread. |
-| `BlockingToReactiveCaseRetrieverTest` | `rag` | Unit (addition) | New: delegate executes on worker thread, not subscribing thread. |
+| `QdrantFuturesTest` | `rag` | Unit | `toUni()` propagates success, failure from `ListenableFuture` to `Uni`. Verifies cancellation propagation: cancelling the Uni calls `future.cancel()`. Uses Guava `SettableFuture`. |
+| `ReactiveQdrantCorpusStoreTest` | `rag` | Plain JUnit + Testcontainers | Ingest → listDocuments round-trip, deleteDocument, deleteCorpus, tenant isolation, collection auto-creation. Mirrors `QdrantCorpusStoreTest`. Not `@QuarkusTest` — constructs the class directly. |
+| `ReactiveHybridCaseRetrieverTest` | `rag` | Plain JUnit + Testcontainers | Ingest → retrieve round-trip, hybrid RRF fusion, cross-encoder reranking, tenant isolation. Mirrors `HybridCaseRetrieverTest`. Not `@QuarkusTest`. |
+| `BlockingToReactiveCorpusStoreTest` | `rag` | Unit (addition) | New: delegate executes on worker thread (thread ID), not subscribing thread. Platform `BlockingToReactiveBridgeThreadingTest` pattern. |
+| `BlockingToReactiveCaseRetrieverTest` | `rag` | Unit (addition) | Same thread-offloading assertion. |
+
+Tests are plain JUnit + Testcontainers, not `@QuarkusTest`. CDI wiring (build-property
+gating, `@DefaultBean` displacement) is tested implicitly by consuming apps' `@QuarkusTest`
+suites.
 
 Existing tests (`QdrantCorpusStoreTest`, `HybridCaseRetrieverTest`, bridge delegation tests,
 parity test) are unchanged.
@@ -176,24 +315,28 @@ parity test) are unchanged.
 
 | File | Action |
 |---|---|
-| `rag/src/main/java/io/casehub/rag/runtime/QdrantFutures.java` | New — `ListenableFuture` → `Uni` bridge utility |
-| `rag/src/main/java/io/casehub/rag/runtime/ReactiveQdrantCorpusStore.java` | New |
-| `rag/src/main/java/io/casehub/rag/runtime/ReactiveHybridCaseRetriever.java` | New |
-| `rag/src/main/java/io/casehub/rag/runtime/RagBeanProducer.java` | Modified — two new `@Produces` methods |
+| `rag/src/main/java/io/casehub/rag/runtime/QdrantFutures.java` | New — `ListenableFuture` → `Uni` bridge utility with cancellation propagation |
+| `rag/src/main/java/io/casehub/rag/runtime/ReactiveQdrantCorpusStore.java` | New — `@IfBuildProperty` + `@ApplicationScoped`, `@Inject` field injection |
+| `rag/src/main/java/io/casehub/rag/runtime/ReactiveHybridCaseRetriever.java` | New — same CDI pattern |
 | `rag/src/test/java/io/casehub/rag/runtime/QdrantFuturesTest.java` | New |
-| `rag/src/test/java/io/casehub/rag/runtime/ReactiveQdrantCorpusStoreTest.java` | New |
-| `rag/src/test/java/io/casehub/rag/runtime/ReactiveHybridCaseRetrieverTest.java` | New |
-| `rag/src/test/java/io/casehub/rag/runtime/BlockingToReactiveCorpusStoreTest.java` | Modified — thread assertion |
-| `rag/src/test/java/io/casehub/rag/runtime/BlockingToReactiveCaseRetrieverTest.java` | Modified — thread assertion |
-| `rag-api/src/main/java/io/casehub/rag/ReactiveCorpusStore.java` | Modified — class Javadoc |
+| `rag/src/test/java/io/casehub/rag/runtime/ReactiveQdrantCorpusStoreTest.java` | New — plain JUnit + Testcontainers |
+| `rag/src/test/java/io/casehub/rag/runtime/ReactiveHybridCaseRetrieverTest.java` | New — plain JUnit + Testcontainers |
+| `rag/src/test/java/io/casehub/rag/runtime/BlockingToReactiveCorpusStoreTest.java` | Modified — thread-offloading assertion (thread ID pattern) |
+| `rag/src/test/java/io/casehub/rag/runtime/BlockingToReactiveCaseRetrieverTest.java` | Modified — thread-offloading assertion (thread ID pattern) |
+| `rag-api/src/main/java/io/casehub/rag/ReactiveCorpusStore.java` | Modified — class Javadoc (non-blocking contract, no delivery thread guarantee) |
 | `rag-api/src/main/java/io/casehub/rag/ReactiveCaseRetriever.java` | Modified — class Javadoc |
+
+**Not modified:** `RagBeanProducer` — reactive impls are direct CDI beans, no producer methods.
 
 ---
 
 ## Platform coherence
 
 - **Module tier:** all changes in `rag/` (Tier 3) except Javadoc additions to `rag-api/` (Tier 1) — no tier violation.
-- **CDI gating:** follows `reactive-service-build-gating` protocol (PP-20260519-39a9a5). Matches casehub-eidos precedent for library modules without `deployment/`.
+- **CDI gating:** follows `reactive-service-build-gating` protocol (PP-20260519-39a9a5). Matches casehub-eidos precedent for library modules without `deployment/`. Blocking impls not symmetrically gated — justified by thread-safe `QdrantClient` (no resource conflict, unlike eidos's JPA/Hibernate Reactive split).
+- **CDI wiring:** direct `@Inject` field injection on CDI beans, matching eidos `JpaReactiveAgentRegistry`. No producer methods.
+- **Threading contract:** reactive SPIs are non-blocking and safe to subscribe to from the event loop. No delivery thread guarantee — consistent with `ReactiveCaseMemoryStore` and `ReactiveAgentRegistry` platform precedent.
+- **Thread-offloading test pattern:** thread ID comparison via `AtomicLong`, matching platform `BlockingToReactiveBridgeThreadingTest`.
 - **Parity:** existing `BlockingReactiveParityTest` covers structural parity. No new SPI methods.
 - **No new dependencies.** Guava is transitive from Qdrant client.
 - **Doc update needed:** `docs/repos/casehub-neural-text.md` in casehub-parent should note the reactive gating property after implementation ships.
@@ -203,3 +346,4 @@ parity test) are unchanged.
 - Engine-side `casehub-engine-rag` adapter module — created when engine integrates (parent#164)
 - Switching parity test to auto-discovery — not warranted for two pairs
 - Reactive variants of `SparseEmbedder` or `EmbeddingModel` — upstream concern, not this repo
+- Eliminating `collectionExistsAsync` check in `retrieve()` — potential optimisation, deferred
