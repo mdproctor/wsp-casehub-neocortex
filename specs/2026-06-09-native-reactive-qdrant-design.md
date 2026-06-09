@@ -51,11 +51,13 @@ the default implementation calls `embed("test")` (a full ONNX inference). Even
 runs on the gRPC thread after `collectionExistsAsync`. Calling a blocking embedding
 on the gRPC thread is wrong. Fix: `ReactiveRagBeanProducer` calls `embeddingModel.dimension()`
 at startup and passes the cached value as `int denseDimension` to the constructor.
-`ReactiveRagBeanProducer` is annotated `@Startup`, forcing bean creation at application
-startup (main thread). Without `@Startup`, `@Produces @ApplicationScoped` beans are
-lazily initialized — if the first `ReactiveCorpusStore` injection happens during a request
-on the Vert.x event loop, `embeddingModel.dimension()` would block it. `@Startup` makes
-the startup-time cost explicit and guarantees the main thread context.
+`ReactiveRagBeanProducer` is annotated `@Startup` — this eagerly creates the producer
+instance and runs its `@PostConstruct`, which caches `embeddingModel.dimension()` on the
+main thread. Note: `@Startup` on the class does NOT eagerly invoke `@Produces` methods —
+those remain lazy. But that's fine: `@PostConstruct` caches the dimension in a field, and
+the `@Produces` methods reference the cached value, not `embeddingModel.dimension()`
+directly. Without `@Startup`, the producer itself would be lazily created, and `@PostConstruct`
+would run on whatever thread first triggers injection — potentially the event loop.
 
 #### CDI wiring — dedicated `ReactiveRagBeanProducer`
 
@@ -73,11 +75,18 @@ public class ReactiveRagBeanProducer {
     @Inject Instance<CrossEncoderReranker> rerankerInstance;
     @Inject CurrentPrincipal currentPrincipal;
 
+    private int denseDimension;
+
+    @PostConstruct
+    void init() {
+        denseDimension = embeddingModel.dimension();
+    }
+
     @Produces @ApplicationScoped
     ReactiveQdrantCorpusStore corpusStore() {
         return new ReactiveQdrantCorpusStore(client, embeddingModel, sparseEmbedder,
             config.tenancyStrategy(), config.denseVectorName(), config.sparseVectorName(),
-            embeddingModel.dimension(), currentPrincipal);
+            denseDimension, currentPrincipal);
     }
 
     @Produces @ApplicationScoped
