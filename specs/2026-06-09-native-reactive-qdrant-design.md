@@ -25,24 +25,68 @@ loop with no test failure.
 Two new classes in `rag/`, package `io.casehub.rag.runtime`:
 
 **`ReactiveQdrantCorpusStore implements ReactiveCorpusStore`**
-- `@IfBuildProperty(name = "casehub.rag.reactive.enabled", stringValue = "true")`
-- `@ApplicationScoped`
-- Direct CDI bean with `@Inject` field injection (eidos `JpaReactiveAgentRegistry` pattern)
-- Displaces the `@DefaultBean` bridge when the property is set
+- Plain POJO with an explicit constructor (no CDI annotations on the class)
+- Produced by `ReactiveRagBeanProducer` (see CDI wiring below)
+- Displaces the `@DefaultBean` bridge when the build property is set
 
 **`ReactiveHybridCaseRetriever implements ReactiveCaseRetriever`**
-- Same CDI gating and wiring pattern
+- Same pattern — plain POJO, produced by `ReactiveRagBeanProducer`
 
-**Injected dependencies (field injection, no producer methods):**
-- `@Inject QdrantClient client`
-- `@Inject EmbeddingModel embeddingModel`
-- `@Inject SparseEmbedder sparseEmbedder`
-- `@Inject Instance<CrossEncoderReranker> rerankerInstance`
-- `@Inject CurrentPrincipal currentPrincipal`
-- `@Inject RagConfig config`
+**Constructor parameters (same dependencies as the blocking impls):**
+- `QdrantClient client`
+- `EmbeddingModel embeddingModel`
+- `SparseEmbedder sparseEmbedder`
+- `TenancyStrategy tenancyStrategy`
+- `String denseVectorName`, `String sparseVectorName`
+- `CurrentPrincipal currentPrincipal`
+- `CrossEncoderReranker reranker` (nullable — for `ReactiveHybridCaseRetriever` only)
+- Retrieval config values (`denseTopK`, `sparseTopK`, `rrfK`, `rerankEnabled`, `rerankTopN`
+  — for `ReactiveHybridCaseRetriever` only)
 
-Config values (`denseVectorName`, `sparseVectorName`, `tenancyStrategy`, retrieval params)
-accessed via `config.xxx()` at method call time. `RagBeanProducer` is not modified.
+#### CDI wiring — dedicated `ReactiveRagBeanProducer`
+
+A new producer class, gated at the class level:
+
+```java
+@IfBuildProperty(name = "casehub.rag.reactive.enabled", stringValue = "true")
+@ApplicationScoped
+public class ReactiveRagBeanProducer {
+    @Inject RagConfig config;
+    @Inject QdrantClient client;
+    @Inject EmbeddingModel embeddingModel;
+    @Inject SparseEmbedder sparseEmbedder;
+    @Inject Instance<CrossEncoderReranker> rerankerInstance;
+    @Inject CurrentPrincipal currentPrincipal;
+
+    @Produces @ApplicationScoped
+    ReactiveQdrantCorpusStore corpusStore() {
+        return new ReactiveQdrantCorpusStore(client, embeddingModel, sparseEmbedder,
+            config.tenancyStrategy(), config.denseVectorName(), config.sparseVectorName(),
+            currentPrincipal);
+    }
+
+    @Produces @ApplicationScoped
+    ReactiveHybridCaseRetriever caseRetriever() {
+        CrossEncoderReranker reranker = rerankerInstance.isResolvable()
+            ? rerankerInstance.get() : null;
+        return new ReactiveHybridCaseRetriever(client, embeddingModel, sparseEmbedder,
+            config.tenancyStrategy(), config.denseVectorName(), config.sparseVectorName(),
+            config.retrieval().denseTopK(), config.retrieval().sparseTopK(),
+            config.retrieval().rrfK(), config.retrieval().rerankEnabled(),
+            config.retrieval().rerankTopN(), reranker, currentPrincipal);
+    }
+}
+```
+
+`@IfBuildProperty` on the class gates all `@Produces` methods — when the property is
+false (default), the entire producer is not installed and the `@DefaultBean` bridges
+remain active. When true, the produced beans displace the bridges.
+
+The reactive impls are plain POJOs with constructors — testable via `new` in plain JUnit,
+matching the blocking impls' test pattern (`QdrantCorpusStoreTest` constructs
+`QdrantCorpusStore` directly). No `RagConfig` stubbing needed in tests.
+
+`RagBeanProducer` (blocking) is not modified.
 
 #### CDI gating rationale
 
@@ -119,7 +163,7 @@ native async — no worker pool involved.
 |---|---|---|---|
 | `ingest` | Dense + sparse batch on worker pool | `upsertAsync` via `toUni()` | Build points between embed and upsert |
 | `deleteDocument` | None | `deleteAsync` (by filter) via `toUni()` | Pure async |
-| `deleteCorpus` | None | `deleteCollectionAsync` or `deleteAsync` (by filter) via `toUni()` | Depends on `TenancyStrategy` |
+| `deleteCorpus` | None | `deleteCollectionAsync` or `deleteAsync` (by filter) via `toUni()` | Depends on `TenancyStrategy`. SEPARATE_COLLECTIONS mode: evicts from `ensuredCollections` after successful deletion |
 | `listDocuments` | None | `scrollAsync` via `toUni()` in recursive pagination | See pagination design below |
 
 **`ReactiveHybridCaseRetriever`:**
@@ -173,6 +217,13 @@ private Uni<Void> ensureCollection(String collection) {
 - `.onFailure().invoke(() -> map.remove(k))` clears the entry on failure so retries work
 - Qdrant's idempotent collection creation is the final safety net — if two Uni chains do
   race past the guard, the second `createCollectionAsync` fails gracefully
+
+**Eviction on deleteCorpus:** In `SEPARATE_COLLECTIONS` mode, `deleteCorpus` deletes the
+Qdrant collection. After successful deletion, `ensuredCollections.remove(collection)` must
+be called — otherwise a subsequent `ingest()` would skip `ensureCollection` (cached "exists"
+Uni) and the `upsertAsync` would fail against a deleted collection. This mirrors the blocking
+impl's `knownCollections.remove(collection)`. In `SHARED_COLLECTION` mode, `deleteAsync` only
+removes points by tenant filter — the collection still exists, no eviction needed.
 
 #### listDocuments — reactive scroll pagination
 
@@ -316,8 +367,9 @@ parity test) are unchanged.
 | File | Action |
 |---|---|
 | `rag/src/main/java/io/casehub/rag/runtime/QdrantFutures.java` | New — `ListenableFuture` → `Uni` bridge utility with cancellation propagation |
-| `rag/src/main/java/io/casehub/rag/runtime/ReactiveQdrantCorpusStore.java` | New — `@IfBuildProperty` + `@ApplicationScoped`, `@Inject` field injection |
-| `rag/src/main/java/io/casehub/rag/runtime/ReactiveHybridCaseRetriever.java` | New — same CDI pattern |
+| `rag/src/main/java/io/casehub/rag/runtime/ReactiveRagBeanProducer.java` | New — `@IfBuildProperty` on class, produces both reactive impls |
+| `rag/src/main/java/io/casehub/rag/runtime/ReactiveQdrantCorpusStore.java` | New — plain POJO with constructor |
+| `rag/src/main/java/io/casehub/rag/runtime/ReactiveHybridCaseRetriever.java` | New — plain POJO with constructor |
 | `rag/src/test/java/io/casehub/rag/runtime/QdrantFuturesTest.java` | New |
 | `rag/src/test/java/io/casehub/rag/runtime/ReactiveQdrantCorpusStoreTest.java` | New — plain JUnit + Testcontainers |
 | `rag/src/test/java/io/casehub/rag/runtime/ReactiveHybridCaseRetrieverTest.java` | New — plain JUnit + Testcontainers |
@@ -326,7 +378,7 @@ parity test) are unchanged.
 | `rag-api/src/main/java/io/casehub/rag/ReactiveCorpusStore.java` | Modified — class Javadoc (non-blocking contract, no delivery thread guarantee) |
 | `rag-api/src/main/java/io/casehub/rag/ReactiveCaseRetriever.java` | Modified — class Javadoc |
 
-**Not modified:** `RagBeanProducer` — reactive impls are direct CDI beans, no producer methods.
+**Not modified:** `RagBeanProducer` — blocking producers unchanged.
 
 ---
 
@@ -334,7 +386,7 @@ parity test) are unchanged.
 
 - **Module tier:** all changes in `rag/` (Tier 3) except Javadoc additions to `rag-api/` (Tier 1) — no tier violation.
 - **CDI gating:** follows `reactive-service-build-gating` protocol (PP-20260519-39a9a5). Matches casehub-eidos precedent for library modules without `deployment/`. Blocking impls not symmetrically gated — justified by thread-safe `QdrantClient` (no resource conflict, unlike eidos's JPA/Hibernate Reactive split).
-- **CDI wiring:** direct `@Inject` field injection on CDI beans, matching eidos `JpaReactiveAgentRegistry`. No producer methods.
+- **CDI wiring:** dedicated `ReactiveRagBeanProducer` with `@IfBuildProperty` on the class. Reactive impls are plain POJOs with constructors — testable in plain JUnit, matching the blocking test pattern.
 - **Threading contract:** reactive SPIs are non-blocking and safe to subscribe to from the event loop. No delivery thread guarantee — consistent with `ReactiveCaseMemoryStore` and `ReactiveAgentRegistry` platform precedent.
 - **Thread-offloading test pattern:** thread ID comparison via `AtomicLong`, matching platform `BlockingToReactiveBridgeThreadingTest`.
 - **Parity:** existing `BlockingReactiveParityTest` covers structural parity. No new SPI methods.
@@ -347,3 +399,8 @@ parity test) are unchanged.
 - Switching parity test to auto-discovery — not warranted for two pairs
 - Reactive variants of `SparseEmbedder` or `EmbeddingModel` — upstream concern, not this repo
 - Eliminating `collectionExistsAsync` check in `retrieve()` — potential optimisation, deferred
+- Replacing blocking Qdrant impls with reactive-to-blocking wrappers — when the reactive impls
+  are proven and stable, the blocking `QdrantCorpusStore` and `HybridCaseRetriever` could be
+  replaced with wrappers that `blockingAwait()` on the reactive impl. This eliminates duplicate
+  Qdrant interaction code, making the reactive impl the single source of truth. Deferred until
+  the reactive path is validated in a consuming deployment
