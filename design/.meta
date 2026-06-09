@@ -1,0 +1,9 @@
+branch: issue-11-reactive-rag-spis
+project-sha: c466fc939920aa284df24d2fb9a7847946649043
+date: 2026-06-09
+issue: 11
+issue-repo: casehubio/neural-text
+covers: 11
+flyway-next-v: none
+design-repo: workspace
+design-section-hashes: 
