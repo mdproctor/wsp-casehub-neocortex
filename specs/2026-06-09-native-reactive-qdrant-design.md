@@ -32,17 +32,17 @@ Two new classes in `rag/`, package `io.casehub.rag.runtime`:
 **`ReactiveHybridCaseRetriever implements ReactiveCaseRetriever`**
 - Same pattern — plain POJO, produced by `ReactiveRagBeanProducer`
 
-**Constructor parameters (same dependencies as the blocking impls):**
+**Constructor parameters (matching blocking impls, with additions noted):**
 - `QdrantClient client`
 - `EmbeddingModel embeddingModel`
 - `SparseEmbedder sparseEmbedder`
 - `TenancyStrategy tenancyStrategy`
 - `String denseVectorName`, `String sparseVectorName`
-- `int denseDimension` — cached at construction (see below)
+- `int denseDimension` — **new**, `ReactiveQdrantCorpusStore` only (see below)
 - `CurrentPrincipal currentPrincipal`
-- `CrossEncoderReranker reranker` (nullable — for `ReactiveHybridCaseRetriever` only)
+- `CrossEncoderReranker reranker` (nullable — `ReactiveHybridCaseRetriever` only)
 - Retrieval config values (`denseTopK`, `sparseTopK`, `rrfK`, `rerankEnabled`, `rerankTopN`
-  — for `ReactiveHybridCaseRetriever` only)
+  — `ReactiveHybridCaseRetriever` only)
 
 **`denseDimension` caching:** `EmbeddingModel.dimension()` is potentially blocking —
 the default implementation calls `embed("test")` (a full ONNX inference). Even
@@ -50,8 +50,12 @@ the default implementation calls `embed("test")` (a full ONNX inference). Even
 `dimension()` is needed inside `ensureCollection` (collection creation request), which
 runs on the gRPC thread after `collectionExistsAsync`. Calling a blocking embedding
 on the gRPC thread is wrong. Fix: `ReactiveRagBeanProducer` calls `embeddingModel.dimension()`
-during CDI initialization (main thread, blocking is fine) and passes the cached value
-as `int denseDimension` to the constructor.
+at startup and passes the cached value as `int denseDimension` to the constructor.
+`ReactiveRagBeanProducer` is annotated `@Startup`, forcing bean creation at application
+startup (main thread). Without `@Startup`, `@Produces @ApplicationScoped` beans are
+lazily initialized — if the first `ReactiveCorpusStore` injection happens during a request
+on the Vert.x event loop, `embeddingModel.dimension()` would block it. `@Startup` makes
+the startup-time cost explicit and guarantees the main thread context.
 
 #### CDI wiring — dedicated `ReactiveRagBeanProducer`
 
@@ -60,6 +64,7 @@ A new producer class, gated at the class level:
 ```java
 @IfBuildProperty(name = "casehub.rag.reactive.enabled", stringValue = "true")
 @ApplicationScoped
+@Startup
 public class ReactiveRagBeanProducer {
     @Inject RagConfig config;
     @Inject QdrantClient client;
@@ -215,6 +220,8 @@ private Uni<Void> ensureCollection(String collection) {
         toUni(client.collectionExistsAsync(k))
             .chain(exists -> {
                 if (exists) return Uni.createFrom().voidItem();
+                // buildCreateRequest: new private helper extracting the inline
+                // CreateCollection builder from blocking QdrantCorpusStore.ensureCollection()
                 return toUni(client.createCollectionAsync(buildCreateRequest(k, denseDimension)))
                     .replaceWithVoid();
             })
