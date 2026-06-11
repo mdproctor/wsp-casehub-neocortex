@@ -1,7 +1,7 @@
 # Corpus Storage Module Design
 
 **Date:** 2026-06-11
-**Status:** Draft
+**Status:** Draft (rev 2 — post-review)
 **Tracks:** casehubio/neural-text (new modules: `corpus-api/`, `corpus/`, plus ingestion bridge in `rag/`)
 
 ## Problem
@@ -13,49 +13,97 @@ The Hortora knowledge garden (~4,000 entries today, potentially millions at scal
 ## Design Principles
 
 1. **Corpus module has zero dependency on RAG/LangChain4j/Qdrant** — pure document storage
-2. **ZIP is the primary store** — flat files are a mirror, not the source of truth
-3. **Append-only** — no in-place modification, no deletes in the hot path
-4. **Chain integrity** — verifiable linked sequence of ZIP archives
+2. **ZIP is the primary store** — flat files are a mirror, not the source of truth (see §ZIP-as-Primary Justification)
+3. **Append-only with compaction** — no in-place modification in the hot path; tombstone-based deletion; periodic compaction reclaims space
+4. **Chain integrity** — verifiable linked sequence of ZIP archives with external manifest as source of truth
 5. **Developer UX** — configure a corpus in properties, inject a ready-to-use service
+6. **Per-instance tenancy** — each CorpusStore instance is inherently single-scope; multi-tenant deployments use multiple instances
+
+## Prerequisite: Rename Existing CorpusStore
+
+The existing `io.casehub.rag.CorpusStore` pushes pre-chunked text into Qdrant via `ingest(CorpusRef, List<ChunkInput>)`. It is an embedding ingestor, not a corpus store. The name is misleading.
+
+**Rename before implementing this spec:**
+
+| Current | New |
+|---------|-----|
+| `io.casehub.rag.CorpusStore` | `io.casehub.rag.EmbeddingIngestor` |
+| `io.casehub.rag.ReactiveCorpusStore` | `io.casehub.rag.ReactiveEmbeddingIngestor` |
+| `QdrantCorpusStore` | `QdrantEmbeddingIngestor` |
+| `ReactiveQdrantCorpusStore` | `ReactiveQdrantEmbeddingIngestor` |
+| `BlockingToReactiveCorpusStore` | `BlockingToReactiveEmbeddingIngestor` |
+| `InMemoryCorpusStore` (rag-testing) | `InMemoryEmbeddingIngestor` |
+| `InMemoryReactiveCorpusStore` (rag-testing) | `InMemoryReactiveEmbeddingIngestor` |
+
+19 references across 7 files — all internal to this repo. Mechanical migration. The breakage is the point: every caller becomes explicit about whether they're storing documents or pushing embeddings.
 
 ## Module Structure
 
 ```
-corpus-api/     — SPI + value types. Zero dependencies.
-corpus/         — Zip4j implementation. Depends on corpus-api + zip4j.
+corpus-api/     — SPI + value types. Zero dependencies. Hortora-eligible.
+corpus/         — Zip4j implementation. Depends on corpus-api + zip4j. Hortora-eligible.
 rag/            — Ingestion bridge additions. Depends on corpus-api + existing RAG infrastructure.
 ```
+
+### Layer Placement
+
+| Layer | Module | Tier | Hortora? |
+|---|---|---|---|
+| L1 | `inference-api`, `inference-inmem` | SPI Foundation | yes |
+| L2 | `inference-runtime` | Runtime Core | yes |
+| L3 | `inference-tasks` | Task Adapters | yes |
+| L4 | `inference-splade` | Sparse Embeddings | yes |
+| L5 | `inference-quarkus` | Quarkus Integration | casehub only |
+| L6 | `rag-api`, `rag-testing` | RAG SPI | casehub only |
+| L7 | `rag`, `rag-tika` | RAG Runtime | casehub only |
+| **L8** | **`corpus-api`** | **Corpus SPI — Pure Java, zero deps** | **yes** |
+| **L9** | **`corpus`** | **Corpus Runtime — Zip4j** | **yes** |
+
+L8 and L9 are peer layers to L6/L7, not below them. Both are Hortora-eligible (domain-free, zero casehub deps in the SPI). Same selective dependency model as inference-* (AD-001).
+
+**Repo placement decision:** stays in neural-text. Extract trigger: when a non-neural-text, non-Hortora repo needs corpus-api.
+
+### Architecture
 
 ```
 Document producers (forage, harvest, etc.)
         |
-   corpus-api SPI
+   corpus-api SPI (L8)
         |
-   corpus/ (Zip4j rolling ZIPs, chain manifest, integrity)
+   corpus/ (L9 — Zip4j rolling ZIPs, chain manifest, integrity)
         |
-   ChangeSource SPI
+   ChangeSource SPI (L8)
         |
-   rag/ CorpusIngestionService (chunk -> embed -> Qdrant)
+   rag/ CorpusIngestionService (L7 — chunk -> embed -> Qdrant)
         |
    Qdrant (vectors + metadata payloads)
 ```
 
 ## corpus-api — SPI
 
-### CorpusStore (write)
+### CorpusStore (write — data plane)
 
 ```java
 public interface CorpusStore {
     void append(String path, byte[] content);
     void append(String path, byte[] content, Map<String, String> metadata);
+    void append(String path, InputStream content);
+    void append(String path, InputStream content, Map<String, String> metadata);
+    void append(String path, Path file);
+    void delete(String path);
 }
 ```
 
-### CorpusReader (read)
+Size guidance: `byte[]` overloads for documents under 10MB. `InputStream`/`Path` overloads for larger documents (PDFs, Office docs via Tika).
+
+`delete(path)` records a tombstone — the document is marked deleted in the index. Physical removal happens during compaction.
+
+### CorpusReader (read — data plane)
 
 ```java
 public interface CorpusReader {
     Optional<byte[]> read(String path);
+    Optional<InputStream> readStream(String path);
     Optional<byte[]> readVersion(String path, int version);
     List<VersionInfo> versions(String path);
     List<String> list();
@@ -64,7 +112,9 @@ public interface CorpusReader {
 }
 ```
 
-### ChangeSource (change tracking)
+`readStream()` for large document reads without loading into heap.
+
+### ChangeSource (delta plane)
 
 ```java
 public interface ChangeSource {
@@ -74,10 +124,12 @@ public interface ChangeSource {
 
 public record ChangeSet(List<ChangedEntry> entries, String newCursor) {}
 public record ChangedEntry(String path, ChangeType type) {}
-public enum ChangeType { ADDED, MODIFIED }
+public enum ChangeType { ADDED, MODIFIED, DELETED }
 ```
 
-### CorpusIntegrity (health check)
+`DELETED` enables the ingestion bridge to sync deletions to Qdrant.
+
+### CorpusIntegrity (ops plane)
 
 ```java
 public interface CorpusIntegrity {
@@ -87,9 +139,25 @@ public interface CorpusIntegrity {
 }
 ```
 
-### Value types
+- `check()` — read-only, runs on startup. Reports issues via logging and health endpoint.
+- `checkAndRecover()` — explicit administrative action. Modifies ZIPs. Never called during boot.
+- `fullHashVerification()` — explicit, expensive. Never automatic.
+
+### Reactive Variants
 
 ```java
+public interface ReactiveCorpusStore { /* Mutiny Uni<Void> mirrors of CorpusStore */ }
+public interface ReactiveCorpusReader { /* Mutiny Uni mirrors of CorpusReader */ }
+public interface ReactiveChangeSource { /* Mutiny Uni mirrors of ChangeSource */ }
+```
+
+Follows established repo pattern (every blocking SPI has a reactive counterpart). Implementation in `corpus/` provides blocking-to-reactive bridges offloading to the worker pool.
+
+### Value Types
+
+```java
+public record CorpusIdentity(String name, Path source) {}
+
 public record VersionInfo(int version, Instant timestamp, String zipFile) {}
 
 public record IntegrityReport(
@@ -106,44 +174,23 @@ public record IntegrityIssue(Severity severity, String zipFile, String message) 
 public enum Severity { INFO, WARNING, ERROR }
 ```
 
-### Configuration
+### What is NOT in corpus-api
 
-```java
-public record CorpusConfig(
-    String name,
-    Path source,
-    StorageMode mode,
-    long maxZipSize,
-    IngestionMode ingestion,
-    Optional<IdStrategy> idStrategy
-) {}
+- `StorageMode` (ZIP/FLAT/COMPOSITE) — implementation config, lives in `corpus/`
+- `IngestionMode` (AUTO/MANUAL/NONE) — RAG pipeline config, lives in `rag/`
+- `IdStrategy` — index-builder config, lives in `corpus/`
 
-public enum StorageMode { ZIP, FLAT, COMPOSITE }
-public enum IngestionMode { AUTO, MANUAL, NONE }
-```
+### Interface Separation Justification
 
-Configured via application.properties:
+Three planes, each independently implementable:
 
-```properties
-casehub.corpus.garden.source=/path/to/garden
-casehub.corpus.garden.mode=composite
-casehub.corpus.garden.max-zip-size=104857600
-casehub.corpus.garden.ingestion=auto
+| Plane | Interfaces | Why separate |
+|-------|-----------|-------------|
+| Data | `CorpusStore`, `CorpusReader` | Write vs read separation. Ingestion bridge needs only `CorpusReader` + `ChangeSource`, never `CorpusStore`. Write/read split enables read-only consumers. |
+| Delta | `ChangeSource` | Independently implementable. Could be backed by git commit log, filesystem events, or ZIP central directory diffs. The ingestion bridge depends on this + `CorpusReader`, not on `CorpusStore`. |
+| Ops | `CorpusIntegrity` | Administrative. No document consumer uses this. Operates on chain manifest, not on documents. Separate deployment concern. |
 
-casehub.corpus.garden.id-strategy=frontmatter
-casehub.corpus.garden.id-field=id
-
-casehub.corpus.legal.source=/path/to/legal-docs
-casehub.corpus.legal.mode=zip
-casehub.corpus.legal.ingestion=manual
-```
-
-### Design constraints
-
-- No Zip4j, LangChain4j, or Qdrant dependencies in this module
-- Pure Java interfaces and records
-- ID-based lookup is optional (configured per corpus via `id-strategy`)
-- Path-based lookup always available
+Implementation split: `ZipCorpusStore` (data plane), `ZipChangeSource` (delta plane), `ZipIntegrityChecker` (ops plane).
 
 ## corpus — Implementation
 
@@ -152,16 +199,44 @@ casehub.corpus.legal.ingestion=manual
 - `corpus-api`
 - `net.lingala.zip4j:zip4j:2.11.6` (Apache-2.0, zero transitive deps)
 
-### Rolling ZIP Manager
+### Configuration (implementation-level, not SPI)
 
-`ZipCorpusStore` implements `CorpusStore`, `CorpusReader`, `ChangeSource`, `CorpusIntegrity`.
+```properties
+# Storage mode
+casehub.corpus.garden.mode=composite        # ZIP, FLAT, COMPOSITE
+casehub.corpus.garden.max-zip-size=104857600
+
+# ID strategy (optional — path-based lookup always available)
+casehub.corpus.garden.id-strategy=frontmatter
+casehub.corpus.garden.id-field=id
+casehub.corpus.garden.id-pattern=GE-\\d{8}-[0-9a-f]{6}
+```
+
+### Tenancy Model
+
+Per-instance scoping. Each `CorpusStore` instance is a single corpus. No tenant identity in the SPI. Multi-tenant deployments use separate `CorpusStore` instances per `(tenant, corpus)` pair. The ingestion bridge maps `CorpusRef(tenantId, corpusName)` to the correct `CorpusStore` instance.
+
+### Rolling ZIP Manager
 
 **ZIP lifecycle:**
 
-1. **Startup** — read `chain.json`, scan ZIP central directories, build in-memory master index
+1. **Startup** — read `chain.json`, scan ZIP central directories, build in-memory master index. Run `CorpusIntegrity.check()` (detection only, no recovery).
 2. **Append** — write entry to active ZIP via Zip4j. Check size threshold after write.
-3. **Rollover** — close active ZIP (append `_chain/meta.json` with all metadata), write new `chain.json` atomically (temp file + rename), create new active ZIP, append `_chain/successor.json` to previous ZIP
-4. **Shutdown** — flush, update `chain.json`
+3. **Delete** — record tombstone in active ZIP (a marker entry at `_tombstones/<path>.deleted`). Update index. Physical removal happens during compaction.
+4. **Rollover** — close active ZIP (append `_chain/meta.json` with all metadata), write new `chain.json` atomically (temp file + rename), create new active ZIP.
+5. **Compaction** — rewrite a closed ZIP, removing orphaned versions and tombstoned entries. Keeps only the latest version of each document. Updates `chain.json` with new content hash and entry count.
+6. **Shutdown** — flush, update `chain.json`.
+
+### Append-Only With Compaction
+
+Garden entries are written once and revised occasionally (forage REVISE when new knowledge enriches an existing entry). Each revision appends a new version at the same path. The old version becomes orphaned bytes — still in the ZIP, still accessible via version history.
+
+Over time, orphaned bytes accumulate. **Compaction** reclaims space by rewriting closed ZIPs to remove orphaned versions and tombstoned entries. Compaction is:
+
+- **Explicit** — triggered by admin action or scheduled maintenance, not automatic
+- **Per-ZIP** — each closed ZIP can be compacted independently
+- **Safe** — writes to a new temp ZIP, verifies, then replaces the original atomically
+- **Optional** — a corpus with few revisions may never need compaction
 
 ### Chain Manifest (`chain.json`)
 
@@ -178,7 +253,6 @@ External file alongside the ZIPs. Atomic source of truth for chain state. Writte
       "sequence": 0,
       "status": "closed",
       "predecessor": null,
-      "successor": "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
       "entryCount": 5200,
       "cumulativeEntryCount": 5200,
       "contentHash": "sha256:abc123...",
@@ -189,11 +263,13 @@ External file alongside the ZIPs. Atomic source of truth for chain state. Writte
 }
 ```
 
+Forward links (successor) are derived from the chain array order — not stored redundantly per entry.
+
 ### Internal ZIP Metadata
 
-Inside each closed ZIP, `_chain/meta.json` is a **copy** of the chain entry for self-describing distribution. Written once at close time when all metadata is known. Not written to active ZIPs — the active ZIP has no internal metadata.
+Inside each closed ZIP, `_chain/meta.json` is a **copy** of the chain entry for self-describing distribution. Written once at close time when all metadata is known. Not written to active ZIPs.
 
-`_chain/successor.json` is appended to a closed ZIP when the next ZIP in the chain is created.
+No `_chain/successor.json` — forward links are derived from `chain.json` only.
 
 ### ZIP States
 
@@ -205,12 +281,11 @@ Inside each closed ZIP, `_chain/meta.json` is a **copy** of the chain entry for 
 
 ### Rollover Atomicity
 
-Closing ZIP N and linking it to ZIP N+1 is atomic via `chain.json`:
+Closing ZIP N and opening ZIP N+1 is atomic via `chain.json`:
 
 1. Write new `chain.json` atomically (temp + rename) — ZIP N closed, ZIP N+1 active
 2. Append `_chain/meta.json` to ZIP N (can fail — `chain.json` is the truth)
 3. Create ZIP N+1 on disk
-4. Append `_chain/successor.json` to ZIP N (can fail — `chain.json` has the link)
 
 If the process crashes at any point, startup integrity check detects and recovers from `chain.json` or from the ZIPs themselves.
 
@@ -218,10 +293,17 @@ If the process crashes at any point, startup integrity check detects and recover
 
 ```java
 Map<String, EntryLocation> pathIndex;     // path -> (zipFile, latest)
-Map<String, List<EntryLocation>> history; // path -> all versions
+Map<String, List<EntryLocation>> history; // path -> all versions, ordered
+Set<String> tombstones;                   // deleted paths
 ```
 
-Built on startup from ZIP central directories. Rebuilt from ZIPs if lost. Central directories are small — scanning 10 ZIPs takes milliseconds.
+Built on startup from ZIP central directories. Rebuilt from ZIPs if lost.
+
+### Version Numbering
+
+Versions are 1-based, dense, path-scoped. Ordering determined by `(zip_sequence, central_directory_offset)` — files within a ZIP are ordered by append time.
+
+If `tools/git-rebase.md` is appended three times — twice in ZIP-001 and once in ZIP-003 — versions are 1, 2, 3. The master index history map stores all three locations across ZIPs.
 
 ### Composite Mode
 
@@ -229,9 +311,7 @@ Built on startup from ZIP central directories. Rebuilt from ZIPs if lost. Centra
 
 - **Writes** fan out to both ZIP and flat filesystem
 - **Reads** come from ZIP (authoritative)
-- **Flat files** are a live mirror for human browsing, grep, IDE access
-
-Modes:
+- **Drift detection** — on startup, compare flat files against ZIP index. Report divergence. Do not auto-sync — the admin decides.
 
 | Mode | Read from | Write to |
 |------|-----------|----------|
@@ -241,11 +321,11 @@ Modes:
 
 ### Integrity System
 
-Runs on startup (fast — manifest + central directories only). Full hash verification is opt-in.
+Startup runs `check()` only (detection, read-only). Recovery via `checkAndRecover()` is explicit admin action.
 
 **Detection matrix:**
 
-| Check | Detects | Severity | Recovery |
+| Check | Detects | Severity | Recovery (admin-triggered) |
 |-------|---------|----------|----------|
 | ZIP in directory, not in `chain.json` | Orphaned ZIP | WARNING | Link to chain via predecessor |
 | Entry in `chain.json`, ZIP missing | Gap in chain | ERROR | Report: sequence N missing, M entries lost |
@@ -255,41 +335,11 @@ Runs on startup (fast — manifest + central directories only). Full hash verifi
 | Content hash mismatch (opt-in) | Tampered ZIP | ERROR | Report tampered ZIP |
 | Entry count mismatch | Partial write/corruption | WARNING | Report expected vs actual |
 | `chain.json` missing entirely | Lost manifest | WARNING | Reconstruct from internal `_chain/meta.json` across all ZIPs |
-
-**Integrity report:**
-
-```
-Corpus: garden
-Chain length: 5 ZIPs (sequences 0-4)
-Total entries: 12,847
-Status: active (head: garden-005.zip)
-
-Issues:
-  [WARNING] garden-003.zip: internal meta.json missing — reconstructed from chain.json
-  [ERROR]   garden-002.zip: content hash mismatch — ZIP may have been modified after close
-  [ERROR]   gap: sequence 7 missing — garden-007.zip not found, ~2,400 entries lost
-
-Recovered:
-  [INFO] garden-003.zip: internal meta.json rewritten
-  [INFO] orphan garden-009.zip linked to chain (predecessor matched sequence 8)
-```
-
-### Versioning
-
-Append-only. New versions of a document at the same path are appended to the current ZIP. The central directory points to the latest. Previous versions are orphaned bytes — still in the ZIP, accessible via version history API.
-
-- `read(path)` — returns latest version (default, fast)
-- `readVersion(path, version)` — returns specific version
-- `versions(path)` — returns all versions with timestamps
+| Flat file drift (COMPOSITE mode) | Direct file edit outside corpus | WARNING | Report divergent files |
 
 ### ID-Based Lookup (optional)
 
-When configured with an `id-strategy`, the master index also builds `ID -> (zip, path)` mappings:
-
-- `filename-pattern` — extract ID from filename via regex
-- `frontmatter` — parse YAML frontmatter and extract a named field
-
-Path-based lookup always works regardless of ID strategy configuration.
+When configured with an `id-strategy`, the master index also builds `ID -> (zip, path)` mappings. Path-based lookup always works regardless.
 
 ## rag/ — Ingestion Bridge
 
@@ -297,22 +347,26 @@ Path-based lookup always works regardless of ID strategy configuration.
 
 New class in `rag/` module. Wires `ChangeSource` to the existing embedding + Qdrant infrastructure.
 
+**Configuration (lives in rag/, not corpus-api):**
+
+```properties
+casehub.corpus.garden.ingestion=auto           # AUTO, MANUAL, NONE
+casehub.corpus.garden.ingestion.interval=30s
+casehub.corpus.garden.chunking=none
+casehub.corpus.legal.chunking=recursive
+casehub.corpus.legal.chunking.max-tokens=300
+casehub.corpus.legal.chunking.overlap-tokens=30
+```
+
 **Flow:**
 
 1. Poll `ChangeSource.changesSince(cursor)` on configurable schedule
-2. For each changed entry: read from `CorpusReader`, extract metadata, chunk, embed, push to Qdrant
-3. Persist cursor (survives restarts)
-4. Reconciliation: `ChangeSource.fullScan()` -> compare against Qdrant -> report/fix gaps
+2. For each `ADDED`/`MODIFIED`: read from `CorpusReader`, extract metadata, chunk, embed, push to Qdrant
+3. For each `DELETED`: remove vectors from Qdrant
+4. Persist cursor (simple file alongside corpus)
+5. Reconciliation: `ChangeSource.fullScan()` -> compare against Qdrant -> report/fix gaps
 
-**Ingestion modes:**
-
-- `AUTO` — `@Scheduled` poll, configurable interval
-- `MANUAL` — application calls explicitly
-- `NONE` — no ingestion service created
-
-### Metadata Extraction
-
-Pluggable per corpus:
+### MetadataExtractor SPI
 
 ```java
 public interface MetadataExtractor {
@@ -320,26 +374,50 @@ public interface MetadataExtractor {
 }
 ```
 
-Default implementation: YAML frontmatter parser (covers garden entries). Consumers provide their own for other document types.
-
-Extracted metadata becomes filterable payload fields in Qdrant.
+Default: YAML frontmatter parser. Consumers provide their own for other document types.
 
 ### Chunking
 
-Delegates to LangChain4j `DocumentSplitter`. Configurable per corpus:
+Delegates to LangChain4j `DocumentSplitter`. `none` = whole document body is one chunk.
 
-```properties
-casehub.corpus.garden.chunking=none
-casehub.corpus.legal.chunking=recursive
-casehub.corpus.legal.chunking.max-tokens=300
-casehub.corpus.legal.chunking.overlap-tokens=30
-```
+## ZIP-as-Primary Justification
 
-`none` = whole document body (minus extracted metadata) is one chunk.
+Why ZIP-as-truth rather than flat-files-as-truth with optional ZIP export:
 
-### Cursor Persistence
+1. **Atomicity** — ZIP append via Zip4j is atomic at the file level. Flat file writes can leave partial state if the process crashes mid-write.
+2. **Distribution** — ZIPs are the distribution format. If flat files are truth, every distribution requires a full export. If ZIPs are truth, distribution is "ship the files."
+3. **Versioning** — ZIP's central directory naturally supports multiple versions at the same path. Flat files require git or a separate versioning system.
+4. **Scale** — at 1M files, flat file operations degrade (filesystem stat, directory scanning). ZIP central directories are compact indexes — scanning 10 ZIPs takes milliseconds.
+5. **Integrity** — content hashes, chain verification, and drift detection are built into the ZIP chain model. Flat files have no equivalent without external tooling.
 
-Simple file alongside the corpus (`.<corpus-name>-cursor`). Contains the cursor string from the last successful `changesSince()` call.
+COMPOSITE mode preserves flat file accessibility for browsing, grep, and IDE access while ZIPs hold the truth.
+
+## Chain Model Justification
+
+Why UUID-linked chain rather than standalone ZIPs with a flat registry:
+
+1. **Integrity verification** — each ZIP's `_chain/meta.json` carries its predecessor UUID. A receiver can verify the chain is complete and unbroken without trusting the manifest alone.
+2. **Incremental sync** — "I have up to UUID X" is precise. "I have files 1-5" relies on filename conventions that could be wrong.
+3. **Tamper detection** — content hashes per ZIP, linked by UUIDs. If a ZIP is swapped or modified, the hash breaks.
+4. **Sealed chains** — a `sealed` status on the final ZIP tells receivers "this is a complete, frozen corpus snapshot." Without it, a receiver can't distinguish "still being written" from "author forgot to send the last file."
+
+Consumers: garden distribution, Hortora knowledge corpus, casehub application-tier corpora (legal, clinical, compliance document libraries).
+
+## Integration Path for Existing Garden
+
+### Migration
+
+`CorpusMigrator.migrate(Path sourceDir, CorpusStore target)` — scans flat `.md` files, preserves directory structure as path prefixes (e.g. `tools/GE-20260412-2523eb.md`), appends each to the corpus store. One-time operation. The first thing Issue 1 tests.
+
+### Forage Integration
+
+Forage does not change initially. COMPOSITE mode catches forage's flat file writes and mirrors them to ZIP. This is the zero-change migration path.
+
+Later: forage can be updated to call the corpus SPI directly. At that point, COMPOSITE mode becomes optional (ZIP-only for resource-constrained deployments, composite for browsing convenience).
+
+### Harvest Integration
+
+No changes required. DEDUPE and REVIEW currently read entries via `git show`. They can migrate to `CorpusReader` in a follow-on change. Not gating.
 
 ## Maven Coordinates
 
@@ -352,38 +430,33 @@ Ingestion bridge lives in existing `casehub-rag`.
 
 ## Implementation Sequence
 
-**Issue 1 (Session 1):** `corpus-api` + `corpus`
-- SPI interfaces and value types
+**Issue 1 (Session 1):** Rename `CorpusStore` → `EmbeddingIngestor` across rag-api, rag, rag-testing
+
+**Issue 2 (Session 2):** `corpus-api` + `corpus`
+- SPI interfaces and value types (blocking + reactive)
 - `ZipCorpusStore` with Zip4j append
-- Rolling ZIPs with size threshold
+- `ZipChangeSource` (delta plane, separate class)
+- `ZipIntegrityChecker` (ops plane, separate class)
+- Rolling ZIPs with size threshold and rollover atomicity
 - Chain manifest (`chain.json`) with atomic writes
-- Internal `_chain/meta.json` and `_chain/successor.json`
-- Master index from central directories
-- Composite mode (ZIP + flat files)
-- Integrity check, detection, recovery, reporting
-- Versioning (latest by default, history on demand)
-- Optional ID-based lookup
+- Internal `_chain/meta.json` for self-describing distribution
+- Master index from central directories, version numbering
+- Tombstone-based deletion
+- Composite mode (ZIP + flat files) with drift detection
 - `FlatCorpusStore` implementation
-- `ChangeSource` implementation
+- Compaction for closed ZIPs
+- `CorpusMigrator` for garden onboarding
 - Unit tests, integration tests
 
-**Issue 2 (Session 2):** Ingestion bridge in `rag/`
+**Issue 3 (Session 3):** Ingestion bridge in `rag/`
 - `CorpusIngestionService` wiring `ChangeSource` to RAG pipeline
 - `MetadataExtractor` SPI + YAML frontmatter default implementation
 - Chunking configuration per corpus
 - Cursor persistence
+- Deletion sync to Qdrant
 - Reconciliation mode (full scan vs Qdrant)
 - Integration tests with Qdrant
 
 ## Upstream Dependencies
 
 Track quarkus-langchain4j composition annotations (casehubio/neural-text#16). When `@DocumentIngestion` ships, the ingestion bridge can adopt it. When `@Corpus` qualifier ships, multi-corpus CDI injection simplifies.
-
-## Distribution Model
-
-ZIP files are the distribution format:
-- Ship the set of ZIPs for a corpus
-- Each ZIP is independently browsable (standard ZIP, any tool can open it)
-- Closed ZIPs contain `_chain/meta.json` for self-describing chains
-- `chain.json` ships alongside for integrity verification
-- Incremental sync: "you have ZIPs 1-5, here's ZIP 6"
