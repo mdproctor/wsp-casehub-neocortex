@@ -1,7 +1,7 @@
 # Corpus Storage Module Design
 
 **Date:** 2026-06-11
-**Status:** Draft (rev 4 — post round-3 review)
+**Status:** Approved (rev 5 — post round-4 review)
 **Tracks:** casehubio/neural-text (new modules: `corpus-api/`, `corpus/`, plus ingestion bridge in `rag/`)
 
 ## Problem
@@ -91,15 +91,15 @@ Document producers (forage, harvest, etc.)
 ```java
 public interface CorpusStore {
     void append(String path, byte[] content);
-    void append(String path, byte[] content, Map<String, String> metadata);
     void append(String path, InputStream content);
-    void append(String path, InputStream content, Map<String, String> metadata);
     void append(String path, Path file);
     void delete(String path);
 }
 ```
 
-Size guidance: `byte[]` overloads for documents under 10MB. `InputStream`/`Path` overloads for larger documents (PDFs, Office docs via Tika).
+Size guidance: `byte[]` for documents under 10MB. `InputStream`/`Path` for larger documents (PDFs, Office docs via Tika).
+
+No metadata parameter — metadata is extracted from content by `MetadataExtractor` in the ingestion bridge (YAML frontmatter for garden entries, Tika for PDFs/Office). If out-of-band metadata is needed later (e.g. binary files), it can be added as a coherent feature: `append()` with metadata + `metadata()` on `CorpusReader` + ZIP persistence mechanism.
 
 **Path validation:** paths starting with `_` are reserved for internal use (`_chain/`, `_tombstones/`). `append()` throws `IllegalArgumentException` for reserved paths.
 
