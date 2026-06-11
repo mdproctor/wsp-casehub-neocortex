@@ -1,14 +1,14 @@
 # Corpus Storage Module Design
 
 **Date:** 2026-06-11
-**Status:** Draft (rev 2 — post-review)
+**Status:** Draft (rev 3 — post round-2 review)
 **Tracks:** casehubio/neural-text (new modules: `corpus-api/`, `corpus/`, plus ingestion bridge in `rag/`)
 
 ## Problem
 
 casehub-neural-text provides a RAG pipeline (embedding, Qdrant, hybrid search) but has no document storage layer. Consumers must manage their own document lifecycle — storage, versioning, change tracking, distribution — before feeding documents into the RAG pipeline.
 
-The Hortora knowledge garden (~4,000 entries today, potentially millions at scale) is the first consumer. Other casehub domains (legal, clinical, compliance) have the same pattern: a corpus of text documents that need ingestion, versioning, change tracking, and semantic retrieval.
+The Hortora knowledge garden (~1,900 entries today, potentially millions at scale) is the first consumer. Other casehub domains (legal, clinical, compliance) have the same pattern: a corpus of text documents that need ingestion, versioning, change tracking, and semantic retrieval.
 
 ## Design Principles
 
@@ -68,11 +68,13 @@ L8 and L9 are peer layers to L6/L7, not below them. Both are Hortora-eligible (d
 ```
 Document producers (forage, harvest, etc.)
         |
+        |  (write .md files directly to flat filesystem — no SPI call)
+        |
+   corpus/ COMPOSITE mode ChangeSource (L9)
+        |  (detects flat file changes by comparing directory state against ZIP index)
+        |  (syncs detected changes into ZIP)
+        |
    corpus-api SPI (L8)
-        |
-   corpus/ (L9 — Zip4j rolling ZIPs, chain manifest, integrity)
-        |
-   ChangeSource SPI (L8)
         |
    rag/ CorpusIngestionService (L7 — chunk -> embed -> Qdrant)
         |
@@ -114,6 +116,8 @@ public interface CorpusReader {
 
 `readStream()` for large document reads without loading into heap.
 
+`readVersion()` / `versions()` — older versions may be unavailable after FULL compaction (see §Compaction Modes).
+
 ### ChangeSource (delta plane)
 
 ```java
@@ -128,6 +132,8 @@ public enum ChangeType { ADDED, MODIFIED, DELETED }
 ```
 
 `DELETED` enables the ingestion bridge to sync deletions to Qdrant.
+
+In COMPOSITE mode, `changesSince()` scans **both** ZIP central directories and the flat file directory. New or modified flat files not yet in the ZIP are reported as `ADDED`/`MODIFIED`. This is how forage writes enter the ZIP chain without forage calling the SPI (see §Forage Integration).
 
 ### CorpusIntegrity (ops plane)
 
@@ -156,8 +162,6 @@ Follows established repo pattern (every blocking SPI has a reactive counterpart)
 ### Value Types
 
 ```java
-public record CorpusIdentity(String name, Path source) {}
-
 public record VersionInfo(int version, Instant timestamp, String zipFile) {}
 
 public record IntegrityReport(
@@ -179,6 +183,9 @@ public enum Severity { INFO, WARNING, ERROR }
 - `StorageMode` (ZIP/FLAT/COMPOSITE) — implementation config, lives in `corpus/`
 - `IngestionMode` (AUTO/MANUAL/NONE) — RAG pipeline config, lives in `rag/`
 - `IdStrategy` — index-builder config, lives in `corpus/`
+- `CorpusIdentity` / configuration records — implementation config, lives in `corpus/`
+
+The SPI contains only interfaces and value types. No configuration records.
 
 ### Interface Separation Justification
 
@@ -187,7 +194,7 @@ Three planes, each independently implementable:
 | Plane | Interfaces | Why separate |
 |-------|-----------|-------------|
 | Data | `CorpusStore`, `CorpusReader` | Write vs read separation. Ingestion bridge needs only `CorpusReader` + `ChangeSource`, never `CorpusStore`. Write/read split enables read-only consumers. |
-| Delta | `ChangeSource` | Independently implementable. Could be backed by git commit log, filesystem events, or ZIP central directory diffs. The ingestion bridge depends on this + `CorpusReader`, not on `CorpusStore`. |
+| Delta | `ChangeSource` | Independently implementable. Could be backed by git commit log, filesystem events, or ZIP central directory diffs. The ingestion bridge depends on this + `CorpusReader`, not on `CorpusStore`. In COMPOSITE mode, also scans the flat file directory. |
 | Ops | `CorpusIntegrity` | Administrative. No document consumer uses this. Operates on chain manifest, not on documents. Separate deployment concern. |
 
 Implementation split: `ZipCorpusStore` (data plane), `ZipChangeSource` (delta plane), `ZipIntegrityChecker` (ops plane).
@@ -203,6 +210,7 @@ Implementation split: `ZipCorpusStore` (data plane), `ZipChangeSource` (delta pl
 
 ```properties
 # Storage mode
+casehub.corpus.garden.source=/path/to/garden
 casehub.corpus.garden.mode=composite        # ZIP, FLAT, COMPOSITE
 casehub.corpus.garden.max-zip-size=104857600
 
@@ -224,19 +232,51 @@ Per-instance scoping. Each `CorpusStore` instance is a single corpus. No tenant 
 2. **Append** — write entry to active ZIP via Zip4j. Check size threshold after write.
 3. **Delete** — record tombstone in active ZIP (a marker entry at `_tombstones/<path>.deleted`). Update index. Physical removal happens during compaction.
 4. **Rollover** — close active ZIP (append `_chain/meta.json` with all metadata), write new `chain.json` atomically (temp file + rename), create new active ZIP.
-5. **Compaction** — rewrite a closed ZIP, removing orphaned versions and tombstoned entries. Keeps only the latest version of each document. Updates `chain.json` with new content hash and entry count.
+5. **Compaction** — rewrite a closed ZIP according to compaction mode (see §Compaction Modes). Generates a new UUID; old UUID retired in `chain.json`.
 6. **Shutdown** — flush, update `chain.json`.
 
 ### Append-Only With Compaction
 
 Garden entries are written once and revised occasionally (forage REVISE when new knowledge enriches an existing entry). Each revision appends a new version at the same path. The old version becomes orphaned bytes — still in the ZIP, still accessible via version history.
 
-Over time, orphaned bytes accumulate. **Compaction** reclaims space by rewriting closed ZIPs to remove orphaned versions and tombstoned entries. Compaction is:
+Over time, orphaned bytes accumulate. **Compaction** reclaims space by rewriting closed ZIPs. Compaction is:
 
 - **Explicit** — triggered by admin action or scheduled maintenance, not automatic
 - **Per-ZIP** — each closed ZIP can be compacted independently
 - **Safe** — writes to a new temp ZIP, verifies, then replaces the original atomically
-- **Optional** — a corpus with few revisions may never need compaction
+
+### Compaction Modes
+
+| Mode | Removes tombstones | Removes old versions | Version history preserved |
+|------|-------------------|---------------------|--------------------------|
+| `TOMBSTONES_ONLY` (default) | Yes | No | Yes |
+| `FULL` | Yes | Yes, keeps only latest | No — `readVersion()` for compacted versions returns empty |
+
+Default: `TOMBSTONES_ONLY`. `FULL` is an explicit, intentional choice for archival/distribution where space matters more than history.
+
+**Compaction and chain integrity:** compaction generates a **new UUID** for the rewritten ZIP. The old UUID is retired in `chain.json` with a `replacedBy` reference:
+
+```json
+{
+  "uuid": "old-uuid",
+  "status": "compacted",
+  "replacedBy": "new-uuid"
+}
+```
+
+This preserves the integrity property: every UUID's contentHash is immutable once written. Compaction doesn't mutate — it replaces. A receiver with a pre-compaction ZIP can see from `chain.json` that it was replaced and download the new version.
+
+### Crash Safety
+
+ZIP append via Zip4j is **not atomic**. Appending involves three sequential writes (local file header + data, central directory rewrite, end-of-central-directory). A crash mid-central-directory-rewrite can leave the active ZIP unreadable.
+
+Crash safety is provided by the chain model:
+- **Closed ZIPs** are complete and verified — their contentHash in `chain.json` confirms integrity
+- **Active ZIP** is the only one at risk during a crash. Only entries since the last rollover may be lost.
+- **COMPOSITE mode** — flat files serve as a recovery source for active ZIP content. If the active ZIP is corrupted, its entries can be reconstructed from the flat file mirror.
+- **Integrity check on startup** — `check()` detects active ZIP corruption and reports it. Admin can reconstruct from flat files or accept the loss.
+
+Mitigation: keep rollover size threshold reasonable so the window of at-risk entries is bounded.
 
 ### Chain Manifest (`chain.json`)
 
@@ -268,8 +308,6 @@ Forward links (successor) are derived from the chain array order — not stored 
 ### Internal ZIP Metadata
 
 Inside each closed ZIP, `_chain/meta.json` is a **copy** of the chain entry for self-describing distribution. Written once at close time when all metadata is known. Not written to active ZIPs.
-
-No `_chain/successor.json` — forward links are derived from `chain.json` only.
 
 ### ZIP States
 
@@ -305,19 +343,28 @@ Versions are 1-based, dense, path-scoped. Ordering determined by `(zip_sequence,
 
 If `tools/git-rebase.md` is appended three times — twice in ZIP-001 and once in ZIP-003 — versions are 1, 2, 3. The master index history map stores all three locations across ZIPs.
 
+After FULL compaction of ZIP-001, versions 1 and 2 are gone. `versions(path)` returns `[3]` only. `readVersion(path, 1)` returns empty. This is documented in the SPI.
+
 ### Composite Mode
 
 `CompositeCorpusStore` wraps `ZipCorpusStore` + `FlatCorpusStore`:
 
-- **Writes** fan out to both ZIP and flat filesystem
+- **SPI writes** fan out to both ZIP and flat filesystem
 - **Reads** come from ZIP (authoritative)
-- **Drift detection** — on startup, compare flat files against ZIP index. Report divergence. Do not auto-sync — the admin decides.
+- **Flat file detection** — `ChangeSource` in COMPOSITE mode scans both ZIP central directories AND the flat file directory. New or modified flat files not yet in the ZIP are detected and reported as changes. This is how external writers (forage) enter the ZIP chain without calling the SPI.
 
-| Mode | Read from | Write to |
-|------|-----------|----------|
-| `ZIP` | ZIP | ZIP only |
-| `FLAT` | filesystem | filesystem only |
-| `COMPOSITE` | ZIP | ZIP + filesystem |
+| Mode | Read from | Write to | ChangeSource scans |
+|------|-----------|----------|-------------------|
+| `ZIP` | ZIP | ZIP only | ZIP only |
+| `FLAT` | filesystem | filesystem only | filesystem only |
+| `COMPOSITE` | ZIP | ZIP + filesystem | ZIP + filesystem |
+
+The flat-file-to-ZIP sync flow in COMPOSITE mode:
+1. External writer (forage) creates/modifies a `.md` file in the flat directory
+2. Next `ChangeSource.changesSince()` poll detects the new/modified flat file
+3. Ingestion bridge reads the flat file, embeds it, pushes to Qdrant
+4. Ingestion bridge calls `CorpusStore.append()` to sync the entry into ZIP
+5. ZIP and flat file are now consistent
 
 ### Integrity System
 
@@ -335,7 +382,8 @@ Startup runs `check()` only (detection, read-only). Recovery via `checkAndRecove
 | Content hash mismatch (opt-in) | Tampered ZIP | ERROR | Report tampered ZIP |
 | Entry count mismatch | Partial write/corruption | WARNING | Report expected vs actual |
 | `chain.json` missing entirely | Lost manifest | WARNING | Reconstruct from internal `_chain/meta.json` across all ZIPs |
-| Flat file drift (COMPOSITE mode) | Direct file edit outside corpus | WARNING | Report divergent files |
+| Active ZIP corrupted | Crash during append | ERROR | Report; in COMPOSITE mode, flat files are recovery source |
+| Flat file not in ZIP (COMPOSITE) | External write not yet synced | INFO | Report; synced on next ChangeSource poll |
 
 ### ID-Based Lookup (optional)
 
@@ -347,15 +395,15 @@ When configured with an `id-strategy`, the master index also builds `ID -> (zip,
 
 New class in `rag/` module. Wires `ChangeSource` to the existing embedding + Qdrant infrastructure.
 
-**Configuration (lives in rag/, not corpus-api):**
+**Configuration (lives in rag/, prefix `casehub.rag.ingestion.*`):**
 
 ```properties
-casehub.corpus.garden.ingestion=auto           # AUTO, MANUAL, NONE
-casehub.corpus.garden.ingestion.interval=30s
-casehub.corpus.garden.chunking=none
-casehub.corpus.legal.chunking=recursive
-casehub.corpus.legal.chunking.max-tokens=300
-casehub.corpus.legal.chunking.overlap-tokens=30
+casehub.rag.ingestion.garden.mode=auto           # AUTO, MANUAL, NONE
+casehub.rag.ingestion.garden.interval=30s
+casehub.rag.ingestion.garden.chunking=none
+casehub.rag.ingestion.legal.chunking=recursive
+casehub.rag.ingestion.legal.chunking.max-tokens=300
+casehub.rag.ingestion.legal.chunking.overlap-tokens=30
 ```
 
 **Flow:**
@@ -363,8 +411,9 @@ casehub.corpus.legal.chunking.overlap-tokens=30
 1. Poll `ChangeSource.changesSince(cursor)` on configurable schedule
 2. For each `ADDED`/`MODIFIED`: read from `CorpusReader`, extract metadata, chunk, embed, push to Qdrant
 3. For each `DELETED`: remove vectors from Qdrant
-4. Persist cursor (simple file alongside corpus)
-5. Reconciliation: `ChangeSource.fullScan()` -> compare against Qdrant -> report/fix gaps
+4. In COMPOSITE mode: for each flat-file-detected change, also call `CorpusStore.append()` to sync into ZIP
+5. Persist cursor (simple file alongside corpus)
+6. Reconciliation: `ChangeSource.fullScan()` -> compare against Qdrant -> report/fix gaps
 
 ### MetadataExtractor SPI
 
@@ -384,13 +433,12 @@ Delegates to LangChain4j `DocumentSplitter`. `none` = whole document body is one
 
 Why ZIP-as-truth rather than flat-files-as-truth with optional ZIP export:
 
-1. **Atomicity** — ZIP append via Zip4j is atomic at the file level. Flat file writes can leave partial state if the process crashes mid-write.
-2. **Distribution** — ZIPs are the distribution format. If flat files are truth, every distribution requires a full export. If ZIPs are truth, distribution is "ship the files."
-3. **Versioning** — ZIP's central directory naturally supports multiple versions at the same path. Flat files require git or a separate versioning system.
-4. **Scale** — at 1M files, flat file operations degrade (filesystem stat, directory scanning). ZIP central directories are compact indexes — scanning 10 ZIPs takes milliseconds.
-5. **Integrity** — content hashes, chain verification, and drift detection are built into the ZIP chain model. Flat files have no equivalent without external tooling.
+1. **Distribution** — ZIPs are the distribution format. If flat files are truth, every distribution requires a full export. If ZIPs are truth, distribution is "ship the files."
+2. **Versioning** — ZIP's central directory naturally supports multiple versions at the same path. Flat files require git or a separate versioning system.
+3. **Scale** — at 1M files, flat file operations degrade (filesystem stat, directory scanning). ZIP central directories are compact indexes — scanning 10 ZIPs takes milliseconds.
+4. **Integrity** — content hashes, chain verification, and tamper detection are built into the ZIP chain model. Flat files have no equivalent without external tooling.
 
-COMPOSITE mode preserves flat file accessibility for browsing, grep, and IDE access while ZIPs hold the truth.
+COMPOSITE mode preserves flat file accessibility for browsing, grep, and IDE access while ZIPs hold the truth. Crash safety for the active ZIP comes from the chain model and COMPOSITE mode's flat file recovery source — not from ZIP write atomicity (see §Crash Safety).
 
 ## Chain Model Justification
 
@@ -398,7 +446,7 @@ Why UUID-linked chain rather than standalone ZIPs with a flat registry:
 
 1. **Integrity verification** — each ZIP's `_chain/meta.json` carries its predecessor UUID. A receiver can verify the chain is complete and unbroken without trusting the manifest alone.
 2. **Incremental sync** — "I have up to UUID X" is precise. "I have files 1-5" relies on filename conventions that could be wrong.
-3. **Tamper detection** — content hashes per ZIP, linked by UUIDs. If a ZIP is swapped or modified, the hash breaks.
+3. **Tamper detection** — content hashes per ZIP, linked by UUIDs. If a ZIP is swapped or modified, the hash breaks. Compaction generates new UUIDs rather than mutating existing ones, preserving hash immutability.
 4. **Sealed chains** — a `sealed` status on the final ZIP tells receivers "this is a complete, frozen corpus snapshot." Without it, a receiver can't distinguish "still being written" from "author forgot to send the last file."
 
 Consumers: garden distribution, Hortora knowledge corpus, casehub application-tier corpora (legal, clinical, compliance document libraries).
@@ -407,13 +455,13 @@ Consumers: garden distribution, Hortora knowledge corpus, casehub application-ti
 
 ### Migration
 
-`CorpusMigrator.migrate(Path sourceDir, CorpusStore target)` — scans flat `.md` files, preserves directory structure as path prefixes (e.g. `tools/GE-20260412-2523eb.md`), appends each to the corpus store. One-time operation. The first thing Issue 1 tests.
+`CorpusMigrator.migrate(Path sourceDir, CorpusStore target)` — scans flat `.md` files, preserves directory structure as path prefixes (e.g. `tools/GE-20260412-2523eb.md`), appends each to the corpus store. One-time operation. The first thing Issue 2 tests.
 
 ### Forage Integration
 
-Forage does not change initially. COMPOSITE mode catches forage's flat file writes and mirrors them to ZIP. This is the zero-change migration path.
+Forage does not change. In COMPOSITE mode, `ChangeSource` detects flat file writes by comparing the flat directory against the ZIP index. The ingestion bridge picks up the changes, embeds them, pushes to Qdrant, and syncs them into the ZIP via `CorpusStore.append()`. The flat file write IS the inbox. The poll IS the detection.
 
-Later: forage can be updated to call the corpus SPI directly. At that point, COMPOSITE mode becomes optional (ZIP-only for resource-constrained deployments, composite for browsing convenience).
+Later: forage can optionally be updated to call the corpus SPI directly. At that point, COMPOSITE mode becomes optional.
 
 ### Harvest Integration
 
@@ -435,23 +483,24 @@ Ingestion bridge lives in existing `casehub-rag`.
 **Issue 2 (Session 2):** `corpus-api` + `corpus`
 - SPI interfaces and value types (blocking + reactive)
 - `ZipCorpusStore` with Zip4j append
-- `ZipChangeSource` (delta plane, separate class)
+- `ZipChangeSource` (delta plane — scans ZIP + flat files in COMPOSITE mode)
 - `ZipIntegrityChecker` (ops plane, separate class)
 - Rolling ZIPs with size threshold and rollover atomicity
 - Chain manifest (`chain.json`) with atomic writes
 - Internal `_chain/meta.json` for self-describing distribution
 - Master index from central directories, version numbering
 - Tombstone-based deletion
-- Composite mode (ZIP + flat files) with drift detection
+- Compaction modes (TOMBSTONES_ONLY, FULL) with UUID replacement
+- Composite mode (ZIP + flat files) with flat-file-to-ZIP sync via ChangeSource
 - `FlatCorpusStore` implementation
-- Compaction for closed ZIPs
 - `CorpusMigrator` for garden onboarding
 - Unit tests, integration tests
 
 **Issue 3 (Session 3):** Ingestion bridge in `rag/`
 - `CorpusIngestionService` wiring `ChangeSource` to RAG pipeline
+- COMPOSITE mode sync: flat-file-detected changes synced to ZIP via `CorpusStore.append()`
 - `MetadataExtractor` SPI + YAML frontmatter default implementation
-- Chunking configuration per corpus
+- Chunking configuration per corpus (prefix: `casehub.rag.ingestion.*`)
 - Cursor persistence
 - Deletion sync to Qdrant
 - Reconciliation mode (full scan vs Qdrant)
