@@ -1,7 +1,7 @@
 # Corpus Storage Module Design
 
 **Date:** 2026-06-11
-**Status:** Draft (rev 3 — post round-2 review)
+**Status:** Draft (rev 4 — post round-3 review)
 **Tracks:** casehubio/neural-text (new modules: `corpus-api/`, `corpus/`, plus ingestion bridge in `rag/`)
 
 ## Problem
@@ -70,13 +70,16 @@ Document producers (forage, harvest, etc.)
         |
         |  (write .md files directly to flat filesystem — no SPI call)
         |
-   corpus/ COMPOSITE mode ChangeSource (L9)
-        |  (detects flat file changes by comparing directory state against ZIP index)
-        |  (syncs detected changes into ZIP)
+   corpus/ COMPOSITE mode (L9)
+        |  CompositeChangeSource.changesSince():
+        |    1. sync: detect new/modified flat files, write them into ZIP (internal)
+        |    2. report: scan ZIP state post-sync, return changes
+        |  CorpusReader reads from ZIP (always consistent post-sync)
         |
    corpus-api SPI (L8)
         |
-   rag/ CorpusIngestionService (L7 — chunk -> embed -> Qdrant)
+   rag/ CorpusIngestionService (L7 — read -> chunk -> embed -> Qdrant)
+        |  depends on CorpusReader + ChangeSource only (never CorpusStore)
         |
    Qdrant (vectors + metadata payloads)
 ```
@@ -98,6 +101,8 @@ public interface CorpusStore {
 
 Size guidance: `byte[]` overloads for documents under 10MB. `InputStream`/`Path` overloads for larger documents (PDFs, Office docs via Tika).
 
+**Path validation:** paths starting with `_` are reserved for internal use (`_chain/`, `_tombstones/`). `append()` throws `IllegalArgumentException` for reserved paths.
+
 `delete(path)` records a tombstone — the document is marked deleted in the index. Physical removal happens during compaction.
 
 ### CorpusReader (read — data plane)
@@ -116,6 +121,8 @@ public interface CorpusReader {
 
 `readStream()` for large document reads without loading into heap.
 
+`readVersion()` always returns `byte[]` — no streaming variant for historical versions. Version reads are rare (DEDUPE, audit) and the documents most likely to have version history (garden entries) are small. A streaming version read may be added if the use case materialises.
+
 `readVersion()` / `versions()` — older versions may be unavailable after FULL compaction (see §Compaction Modes).
 
 ### ChangeSource (delta plane)
@@ -133,7 +140,9 @@ public enum ChangeType { ADDED, MODIFIED, DELETED }
 
 `DELETED` enables the ingestion bridge to sync deletions to Qdrant.
 
-In COMPOSITE mode, `changesSince()` scans **both** ZIP central directories and the flat file directory. New or modified flat files not yet in the ZIP are reported as `ADDED`/`MODIFIED`. This is how forage writes enter the ZIP chain without forage calling the SPI (see §Forage Integration).
+In COMPOSITE mode, `changesSince()` first **syncs** new/modified flat files into the ZIP (internal write, not via the public `CorpusStore` SPI), then scans the combined ZIP state post-sync. This sync-then-report model ensures `CorpusReader` always finds synced content in the ZIP. The sync is internal to `CompositeChangeSource` in corpus/ — the caller only sees changes from a consistent store.
+
+This is how forage writes enter the ZIP chain without forage calling the SPI (see §Forage Integration).
 
 ### CorpusIntegrity (ops plane)
 
@@ -194,7 +203,7 @@ Three planes, each independently implementable:
 | Plane | Interfaces | Why separate |
 |-------|-----------|-------------|
 | Data | `CorpusStore`, `CorpusReader` | Write vs read separation. Ingestion bridge needs only `CorpusReader` + `ChangeSource`, never `CorpusStore`. Write/read split enables read-only consumers. |
-| Delta | `ChangeSource` | Independently implementable. Could be backed by git commit log, filesystem events, or ZIP central directory diffs. The ingestion bridge depends on this + `CorpusReader`, not on `CorpusStore`. In COMPOSITE mode, also scans the flat file directory. |
+| Delta | `ChangeSource` | Independently implementable. Could be backed by git commit log, filesystem events, or ZIP central directory diffs. The ingestion bridge depends on this + `CorpusReader`, not on `CorpusStore`. In COMPOSITE mode, `CompositeChangeSource` syncs flat files into ZIP internally before reporting — the caller only sees a consistent post-sync state. |
 | Ops | `CorpusIntegrity` | Administrative. No document consumer uses this. Operates on chain manifest, not on documents. Separate deployment concern. |
 
 Implementation split: `ZipCorpusStore` (data plane), `ZipChangeSource` (delta plane), `ZipIntegrityChecker` (ops plane).
@@ -349,22 +358,23 @@ After FULL compaction of ZIP-001, versions 1 and 2 are gone. `versions(path)` re
 
 `CompositeCorpusStore` wraps `ZipCorpusStore` + `FlatCorpusStore`:
 
-- **SPI writes** fan out to both ZIP and flat filesystem
-- **Reads** come from ZIP (authoritative)
-- **Flat file detection** — `ChangeSource` in COMPOSITE mode scans both ZIP central directories AND the flat file directory. New or modified flat files not yet in the ZIP are detected and reported as changes. This is how external writers (forage) enter the ZIP chain without calling the SPI.
+- **SPI writes** (`CorpusStore.append()`) fan out to both ZIP and flat filesystem
+- **Reads** come from ZIP (authoritative, always consistent post-sync)
+- **Flat→ZIP sync** — handled internally by `CompositeChangeSource` before reporting changes. Not visible to consumers.
 
-| Mode | Read from | Write to | ChangeSource scans |
-|------|-----------|----------|-------------------|
-| `ZIP` | ZIP | ZIP only | ZIP only |
-| `FLAT` | filesystem | filesystem only | filesystem only |
-| `COMPOSITE` | ZIP | ZIP + filesystem | ZIP + filesystem |
+| Mode | Read from | Write to | ChangeSource behaviour |
+|------|-----------|----------|----------------------|
+| `ZIP` | ZIP | ZIP only | Scans ZIP only |
+| `FLAT` | filesystem | filesystem only | Scans filesystem only |
+| `COMPOSITE` | ZIP | ZIP + filesystem | Syncs flat→ZIP internally, then scans ZIP |
 
 The flat-file-to-ZIP sync flow in COMPOSITE mode:
 1. External writer (forage) creates/modifies a `.md` file in the flat directory
-2. Next `ChangeSource.changesSince()` poll detects the new/modified flat file
-3. Ingestion bridge reads the flat file, embeds it, pushes to Qdrant
-4. Ingestion bridge calls `CorpusStore.append()` to sync the entry into ZIP
-5. ZIP and flat file are now consistent
+2. Next `ChangeSource.changesSince()` poll triggers
+3. `CompositeChangeSource` internally syncs new/modified flat files into ZIP (direct write to `ZipCorpusStore` internals — not via the public `CorpusStore` SPI)
+4. `CompositeChangeSource` scans ZIP state post-sync, reports changes
+5. Ingestion bridge reads from `CorpusReader` (finds content in ZIP) → embeds → Qdrant
+6. ZIP and flat file are consistent; ingestion bridge never touches `CorpusStore`
 
 ### Integrity System
 
@@ -406,14 +416,15 @@ casehub.rag.ingestion.legal.chunking.max-tokens=300
 casehub.rag.ingestion.legal.chunking.overlap-tokens=30
 ```
 
+**Dependencies:** `CorpusReader` + `ChangeSource` only. Never `CorpusStore`. The ingestion bridge is a read-only consumer of the corpus — flat→ZIP sync is handled internally by corpus/ in COMPOSITE mode.
+
 **Flow:**
 
-1. Poll `ChangeSource.changesSince(cursor)` on configurable schedule
+1. Poll `ChangeSource.changesSince(cursor)` on configurable schedule (in COMPOSITE mode, this triggers internal flat→ZIP sync before reporting)
 2. For each `ADDED`/`MODIFIED`: read from `CorpusReader`, extract metadata, chunk, embed, push to Qdrant
 3. For each `DELETED`: remove vectors from Qdrant
-4. In COMPOSITE mode: for each flat-file-detected change, also call `CorpusStore.append()` to sync into ZIP
-5. Persist cursor (simple file alongside corpus)
-6. Reconciliation: `ChangeSource.fullScan()` -> compare against Qdrant -> report/fix gaps
+4. Persist cursor (simple file alongside corpus)
+5. Reconciliation: `ChangeSource.fullScan()` -> compare against Qdrant -> report/fix gaps
 
 ### MetadataExtractor SPI
 
@@ -459,7 +470,7 @@ Consumers: garden distribution, Hortora knowledge corpus, casehub application-ti
 
 ### Forage Integration
 
-Forage does not change. In COMPOSITE mode, `ChangeSource` detects flat file writes by comparing the flat directory against the ZIP index. The ingestion bridge picks up the changes, embeds them, pushes to Qdrant, and syncs them into the ZIP via `CorpusStore.append()`. The flat file write IS the inbox. The poll IS the detection.
+Forage does not change. In COMPOSITE mode, `CompositeChangeSource.changesSince()` detects new/modified flat files, syncs them into ZIP internally, and reports the changes. The ingestion bridge reads the synced content from `CorpusReader` (ZIP), embeds, and pushes to Qdrant. The flat file write IS the inbox. The poll IS the detection. The sync is invisible.
 
 Later: forage can optionally be updated to call the corpus SPI directly. At that point, COMPOSITE mode becomes optional.
 
@@ -483,7 +494,7 @@ Ingestion bridge lives in existing `casehub-rag`.
 **Issue 2 (Session 2):** `corpus-api` + `corpus`
 - SPI interfaces and value types (blocking + reactive)
 - `ZipCorpusStore` with Zip4j append
-- `ZipChangeSource` (delta plane — scans ZIP + flat files in COMPOSITE mode)
+- `ZipChangeSource` (delta plane) + `CompositeChangeSource` (sync-then-report in COMPOSITE mode)
 - `ZipIntegrityChecker` (ops plane, separate class)
 - Rolling ZIPs with size threshold and rollover atomicity
 - Chain manifest (`chain.json`) with atomic writes
@@ -491,14 +502,14 @@ Ingestion bridge lives in existing `casehub-rag`.
 - Master index from central directories, version numbering
 - Tombstone-based deletion
 - Compaction modes (TOMBSTONES_ONLY, FULL) with UUID replacement
-- Composite mode (ZIP + flat files) with flat-file-to-ZIP sync via ChangeSource
+- Composite mode (ZIP + flat files) with internal flat→ZIP sync in CompositeChangeSource
+- Path validation: reject `_` prefix (reserved for `_chain/`, `_tombstones/`)
 - `FlatCorpusStore` implementation
 - `CorpusMigrator` for garden onboarding
 - Unit tests, integration tests
 
 **Issue 3 (Session 3):** Ingestion bridge in `rag/`
-- `CorpusIngestionService` wiring `ChangeSource` to RAG pipeline
-- COMPOSITE mode sync: flat-file-detected changes synced to ZIP via `CorpusStore.append()`
+- `CorpusIngestionService` wiring `ChangeSource` + `CorpusReader` to RAG pipeline (no `CorpusStore` dependency)
 - `MetadataExtractor` SPI + YAML frontmatter default implementation
 - Chunking configuration per corpus (prefix: `casehub.rag.ingestion.*`)
 - Cursor persistence
