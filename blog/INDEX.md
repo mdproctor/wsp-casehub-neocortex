@@ -7,3 +7,4 @@
 | [2026-06-08-mdp03-qualifier-naming.md](2026-06-08-mdp03-qualifier-naming.md) | 2026-06-08 | CDI wiring for inference — @Inference qualifier naming, InjectionPoint producer pattern, SPLADE adapter |
 | [2026-06-09-mdp04-rag-pipeline-unified-qdrant.md](2026-06-09-mdp04-rag-pipeline-unified-qdrant.md) | 2026-06-09 | RAG pipeline — unified Qdrant gRPC, hybrid RRF fusion, tenancy strategy, reactive SPIs |
 | [2026-06-10-mdp05-bridge-is-the-problem.md](2026-06-10-mdp05-bridge-is-the-problem.md) | 2026-06-10 | Native reactive Qdrant — ListenableFuture→Uni bridge, memoize failure caching, @Startup producer gate |
+| [2026-06-12-mdp06-storage-layer-that-wasnt-there.md](2026-06-12-mdp06-storage-layer-that-wasnt-there.md) | 2026-06-12 | Corpus storage module design — ZIP-backed rolling archives, chain integrity, CorpusStore→EmbeddingIngestor rename |
