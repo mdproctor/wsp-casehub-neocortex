@@ -1,0 +1,9 @@
+branch: issue-17-rename-corpusstore-to-embeddingingestor
+project-sha: 914e1206a0dacf656b5b4826cf84473eb57e0ae6
+date: 2026-06-12
+issue: 17
+issue-repo: casehubio/neural-text
+covers: 17
+flyway-next-v: none
+design-repo: workspace
+design-section-hashes: 
