@@ -480,10 +480,10 @@ No changes required. DEDUPE and REVIEW currently read entries via `git show`. Th
 
 ## Maven Coordinates
 
-| Module | artifactId |
-|--------|-----------|
-| Corpus API | `casehub-corpus-api` |
-| Corpus | `casehub-corpus` |
+| Module | artifactId | Root package |
+|--------|-----------|-------------|
+| Corpus API | `casehub-corpus-api` | `io.casehub.corpus` |
+| Corpus | `casehub-corpus` | `io.casehub.corpus.zip` |
 
 Ingestion bridge lives in existing `casehub-rag`.
 
