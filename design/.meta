@@ -1,0 +1,9 @@
+branch: issue-19-corpus-ingestion-bridge
+project-sha: fabc88c9b67ec8b6ceb18693d27e55bc7d3ee8f2
+date: 2026-06-12
+issue: 19
+issue-repo: casehubio/neural-text
+covers: 19
+flyway-next-v: none
+design-repo: workspace
+design-section-hashes: 
