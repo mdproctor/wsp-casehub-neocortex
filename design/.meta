@@ -1,0 +1,9 @@
+branch: issue-18-corpus-modules
+project-sha: 2d8d0973aaeb43c5a9539bfea8bbd11c9f96de30
+date: 2026-06-12
+issue: 18
+issue-repo: casehubio/neural-text
+covers: 18
+flyway-next-v: none
+design-repo: workspace
+design-section-hashes: 
