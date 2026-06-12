@@ -1,0 +1,9 @@
+branch: issue-15-reactive-test-fixes
+project-sha: 2d8d0973aaeb43c5a9539bfea8bbd11c9f96de30
+date: 2026-06-12
+issue: 15
+issue-repo: casehubio/neural-text
+covers: 15
+flyway-next-v: none
+design-repo: workspace
+design-section-hashes: 
