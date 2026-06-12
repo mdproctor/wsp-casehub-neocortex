@@ -1,29 +1,29 @@
-# Handoff — 2026-06-10
+# Handoff — 2026-06-12
 
 ## What Changed
 
-#13 (Native reactive Qdrant) + #14 (bridge thread-offloading tests) — **DONE**. `QdrantFutures.toUni()` bridges `ListenableFuture` → Mutiny `Uni` via `Futures.addCallback` + `directExecutor` with cancellation propagation. `ReactiveQdrantCorpusStore` and `ReactiveHybridCaseRetriever` — native async Qdrant I/O, blocking ONNX embedding offloaded to worker pool. `ReactiveRagBeanProducer` (`@IfBuildProperty` + `@Startup` + `@PostConstruct` for `denseDimension` caching). `ensureCollection` uses `ConcurrentHashMap<String, Uni<Void>>` + `computeIfAbsent` + `memoize().indefinitely()` with failure eviction (verified from Mutiny source: memoize caches failures). Bridge thread-offloading tests on all 5 methods. Javadoc on reactive SPIs. Code review clean (#15 filed for deferred findings). ARC42STORIES.MD synced. Blog mdp05 published. Spec went through 6 review passes before implementation.
+Corpus storage module designed through 4 spec review rounds — ZIP-backed rolling archives with chain integrity, composite mode for forage integration, append-only with compaction. Spec approved (rev 5): `specs/2026-06-11-corpus-storage-module-design.md`. #17 (rename CorpusStore → EmbeddingIngestor) implemented and closed — 29 files, 12 class renames, all docs updated. Upstream quarkus-langchain4j epic decomposed (#2574–#2578). Tracking issue #16 created with 7 additional annotation candidates.
 
 ## Immediate Next Step
 
-All planned work for `casehub-neural-text` is complete. Both #13 and #14 closed. Next action depends on consumer integration — likely `casehub-engine` for fact-space prompt compilation (parent#164).
+Run `/work` and start #18 — `corpus-api` + `corpus` modules. The spec is approved and ready for implementation planning via `writing-plans`. XL scope, expect a full session.
 
 ## What's Left
 
-- parent#214 — sync PLATFORM.md + neural-text deep-dive for reactive gating property · S · Low
+- parent#214 — sync PLATFORM.md + neural-text deep-dive for reactive gating property + EmbeddingIngestor rename · S · Low
 - #15 — assertTenant Mutiny-idiomatic wrapping, delete-reingest test, StubEmbeddingModel extraction · S · Low
-- 2 deferred forage entries (ConcurrentHashMap+memoize technique, @Startup on producer class undocumented) · XS · Low
 
 ## What's Next
 
 | # | Description | Scale | Complexity | Notes |
 |---|-------------|-------|------------|-------|
+| #18 | corpus-api + corpus modules — ZIP-backed document storage | XL | High | Spec approved, ready for implementation |
+| #19 | Corpus ingestion bridge in rag/ — ChangeSource → chunk → embed → Qdrant | L | Med | Blocked by #18 |
 | #12 | Migrate Qdrant hybrid search to LangChain4j when #4994 ships | M | Low | Blocked on external LangChain4j PR |
 
 ## Key References
 
-- ARC42STORIES.MD: C1–C7 ✅, J1+J2 ✅ — all chapters complete, L7 updated for reactive impls
-- Spec: `specs/2026-06-09-native-reactive-qdrant-design.md` (workspace, 6 review passes)
-- Blog: `blog/2026-06-10-mdp05-bridge-is-the-problem.md`
-- Review findings: #15 (deferred minor items)
-- Doc sync: parent#214 (updated with reactive details)
+- Spec: `specs/2026-06-11-corpus-storage-module-design.md` (rev 5, approved)
+- Blog: `blog/2026-06-12-mdp06-storage-layer-that-wasnt-there.md`
+- Tracking: #16 (upstream annotation tracking), #18 (corpus modules), #19 (ingestion bridge)
+- Upstream: quarkiverse/quarkus-langchain4j#2572 (epic), #2574–#2578 (child issues)
