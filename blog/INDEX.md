@@ -8,3 +8,4 @@
 | [2026-06-09-mdp04-rag-pipeline-unified-qdrant.md](2026-06-09-mdp04-rag-pipeline-unified-qdrant.md) | 2026-06-09 | RAG pipeline — unified Qdrant gRPC, hybrid RRF fusion, tenancy strategy, reactive SPIs |
 | [2026-06-10-mdp05-bridge-is-the-problem.md](2026-06-10-mdp05-bridge-is-the-problem.md) | 2026-06-10 | Native reactive Qdrant — ListenableFuture→Uni bridge, memoize failure caching, @Startup producer gate |
 | [2026-06-12-mdp06-storage-layer-that-wasnt-there.md](2026-06-12-mdp06-storage-layer-that-wasnt-there.md) | 2026-06-12 | Corpus storage module design — ZIP-backed rolling archives, chain integrity, CorpusStore→EmbeddingIngestor rename |
+| [2026-06-12-mdp07-fifty-six-files-and-a-hash-bug.md](2026-06-12-mdp07-fifty-six-files-and-a-hash-bug.md) | 2026-06-12 | Corpus implementation — 56 files, 136 tests, hash ordering bug, versioned ZIP entries, zero-dep JSON |
