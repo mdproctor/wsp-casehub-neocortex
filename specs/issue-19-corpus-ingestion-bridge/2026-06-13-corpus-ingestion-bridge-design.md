@@ -1,7 +1,7 @@
 # Corpus Ingestion Bridge Design
 
 **Date:** 2026-06-13
-**Status:** Draft
+**Status:** Draft (rev 2 — post review)
 **Tracks:** casehubio/neural-text#19
 **Parent spec:** `specs/2026-06-11-corpus-storage-module-design.md` (rev 5, §rag/ — Ingestion Bridge)
 
@@ -11,7 +11,7 @@ The corpus modules (`corpus-api/`, `corpus/`) provide document storage with chan
 
 ## Solution
 
-A config-driven ingestion bridge in `rag/` that polls `ChangeSource`, reads from `CorpusReader`, extracts metadata, chunks, and pushes to Qdrant via the existing `EmbeddingIngestor`. Three new SPIs in `rag-api` provide the extension points: `MetadataExtractor`, `CursorStore`, and `CorpusIngestionBinding`.
+A config-driven ingestion bridge in `rag/` that polls `ChangeSource`, reads from `CorpusReader`, extracts metadata, chunks, and pushes to Qdrant via the existing `EmbeddingIngestor`. Two new SPIs in `rag-api` provide format-level extension points: `MetadataExtractor` and `CursorStore`. A `CorpusIngestionBinding` record in `rag/` carries the complete per-corpus descriptor.
 
 ## Design Principles
 
@@ -19,16 +19,32 @@ A config-driven ingestion bridge in `rag/` that polls `ChangeSource`, reads from
 2. **Per-binding MetadataExtractor** — different corpora have different document formats (YAML frontmatter, Tika, CSV). The extractor belongs per-corpus in the binding, not as a global CDI bean.
 3. **Blocking pipeline** — every operation (ZIP I/O, embedding inference, Qdrant gRPC) is blocking. No reactive variant needed for a background poller.
 4. **Delete-then-reingest for MODIFIED** — `EmbeddingIngestor` generates random UUIDs per point. Re-ingesting without deleting first creates duplicates. The bridge always deletes old vectors before ingesting new ones for MODIFIED entries.
-5. **All-or-nothing cursor advancement** — cursor advances only when the entire ChangeSet succeeds. On partial failure, the entire set is retried next poll. Safe because delete-then-reingest is idempotent.
+5. **Cursor advances only on full success** — cursor advances when every entry in the ChangeSet was either successfully processed or legitimately skipped (document gone between detect and read). Any actual error blocks cursor advancement — the entire set is retried next poll. Safe because delete-then-reingest is idempotent.
+6. **Explicit bootstrapping** — when no cursor exists, the service calls `fullScan()`, not `changesSince(null)`. Does not rely on ChangeSource implementations treating null cursors as full scans.
+
+## Prerequisite: Fix assertTenant in EmbeddingIngestor + CaseRetriever
+
+`QdrantEmbeddingIngestor`, `ReactiveQdrantEmbeddingIngestor`, `HybridCaseRetriever`, and `ReactiveHybridCaseRetriever` use the 2-arg `MemoryPermissions.assertTenant(tenantId, principal)` on every operation. This assumes a request context is active. The ingestion bridge runs on a `@Scheduled` timer — no request context, no authenticated user. Every call would throw `SecurityException`.
+
+**Fix:** Switch all four classes to the 3-arg form: `MemoryPermissions.assertTenant(tenantId, principal, requestContextActive())`, with a private helper:
+
+```java
+private boolean requestContextActive() {
+    var c = Arc.container();
+    return c == null || c.requestContext().isActive();
+}
+```
+
+This is the established platform pattern — protocol `PP-20260529-57cc3b` (`casememorystore-adapter-asserttenant-contract`). When request context is absent (background poller), the tenantId is trusted from config. When present (REST endpoint), the tenantId is validated against the authenticated principal. 10 call sites across 4 classes. File a separate issue before implementing.
 
 ## rag-api Additions (Tier 1)
+
+rag-api remains "pure Java, Mutiny provided" — no new module dependencies.
 
 ### MetadataExtractor SPI
 
 ```java
 package io.casehub.rag;
-
-import java.util.Map;
 
 public interface MetadataExtractor {
     ExtractionResult extract(String path, byte[] content);
@@ -68,13 +84,17 @@ public interface CursorStore {
 
 Persists the ChangeSource cursor per corpus. Pluggable backend — file-based default, in-memory for tests, DB-backed for multi-instance deployments.
 
+## rag/ Additions (Tier 3)
+
 ### CorpusIngestionBinding
 
 ```java
-package io.casehub.rag;
+package io.casehub.rag.runtime;
 
 import io.casehub.corpus.ChangeSource;
 import io.casehub.corpus.CorpusReader;
+import io.casehub.rag.CorpusRef;
+import io.casehub.rag.MetadataExtractor;
 import java.util.Objects;
 
 public record CorpusIngestionBinding(
@@ -95,17 +115,13 @@ public record CorpusIngestionBinding(
 }
 ```
 
-The bridge's input contract. Each bean is a complete descriptor of one corpus to ingest. CDI-discovered via `Instance<CorpusIngestionBinding>`. Applications can produce bindings manually for custom backends; the auto-wiring producer creates them from config for the common case.
+Lives in `rag/` (not `rag-api`) because it references corpus-api types (`ChangeSource`, `CorpusReader`). Placing it in rag-api would break rag-api's zero-dep invariant. Any consumer producing custom bindings already depends on `rag/` for `CorpusIngestionService` — no additional coupling.
 
-### New dependency
-
-rag-api → corpus-api (Tier 1 → Tier 1, both pure Java, same repo).
-
-## rag/ Additions (Tier 3)
+**`name` vs `corpusRef.corpusName()`:** `name` is the binding identity — used for cursor storage and config lookup. `corpusRef.corpusName()` is the Qdrant collection identity. They can differ in multi-tenant scenarios: binding `garden-default` targets `CorpusRef("default", "garden")`, binding `garden-acme` targets `CorpusRef("acme-corp", "garden")`. Same corpus name, different tenants, different bindings and cursors.
 
 ### CorpusIngestionService
 
-`@ApplicationScoped`. Discovers `CorpusIngestionBinding` beans via `Instance<CorpusIngestionBinding>`.
+`@ApplicationScoped`. Discovers `CorpusIngestionBinding` beans via `Instance<CorpusIngestionBinding>`. Injects `EmbeddingIngestor`, `CursorStore`, `EmbeddingModel` (used as `TokenCountEstimator` for recursive chunking).
 
 **Poll loop:**
 
@@ -114,9 +130,10 @@ Single `@Scheduled` method with configurable global interval (`casehub.rag.inges
 **Processing a ChangeSet:**
 
 ```
-1. CursorStore.load(binding.name()) → cursor
-2. ChangeSource.changesSince(cursor) → ChangeSet
-3. If empty → return
+1. CursorStore.load(binding.name()) → Optional<String>
+2. If empty → ChangeSource.fullScan() → ChangeSet
+   If present → ChangeSource.changesSince(cursor) → ChangeSet
+3. If ChangeSet.entries() is empty → return
 
 4. Phase 1 — Deletions:
    For DELETED: EmbeddingIngestor.deleteDocument(corpusRef, path)
@@ -124,14 +141,17 @@ Single `@Scheduled` method with configurable global interval (`casehub.rag.inges
 
 5. Phase 2 — Ingestion:
    For each ADDED/MODIFIED:
-     a. CorpusReader.read(path) → byte[] (skip if empty)
-     b. MetadataExtractor.extract(path, content) → ExtractionResult
+     a. CorpusReader.read(path) → Optional<byte[]>
+        If empty → skip (document deleted between detect and read — legitimate, not an error)
+     b. MetadataExtractor.extract(path, content) → ExtractionResult(body, metadata)
      c. Chunk body via DocumentSplitter (resolved from config per corpus name)
      d. Create ChunkInput(chunkText, sourceDocumentId=path, metadata) per chunk
    Batch all ChunkInputs → EmbeddingIngestor.ingest(corpusRef, allChunks)
 
-6. ALL succeeded → CursorStore.save(name, changeSet.newCursor())
-   ANY failed → log failures, do NOT advance cursor
+6. If all entries either succeeded or were legitimately skipped (read returned empty):
+     CursorStore.save(name, changeSet.newCursor())
+   If any entry threw an exception:
+     Log failures, do NOT advance cursor — retry entire set next poll
 ```
 
 **sourceDocumentId:** the corpus path (e.g. `tools/git-rebase.md`). Stable across updates, unique within a corpus.
@@ -150,12 +170,12 @@ Separate from the poll loop. Triggerable via `reconcile(String corpusName)` or `
 
 **Error handling:**
 
-| Failure | Action |
-|---------|--------|
-| ChangeSource throws | Log error, skip this corpus, continue to next binding |
-| CorpusReader.read() returns empty | Log warning, skip entry (doc deleted between detect and read) |
-| MetadataExtractor throws | Log error, skip entry, mark ChangeSet as partially failed |
-| EmbeddingIngestor throws | Log error, mark ChangeSet as failed, don't advance cursor |
+| Failure | Action | Cursor |
+|---------|--------|--------|
+| ChangeSource throws | Log error, skip this corpus, continue to next binding | Not advanced |
+| CorpusReader.read() returns `Optional.empty()` | Log info, skip entry — document gone, not an error | Advances (legitimate skip) |
+| MetadataExtractor throws | Log error, skip entry | Not advanced (actual error) |
+| EmbeddingIngestor throws | Log error | Not advanced (actual error) |
 
 ### YamlFrontmatterExtractor
 
@@ -197,6 +217,8 @@ public interface IngestionConfig {
 }
 ```
 
+**Config key deviation from parent spec:** the parent spec uses `casehub.rag.ingestion.garden.mode=auto`. This spec uses `casehub.rag.ingestion.corpora.garden.mode=auto` — the extra `corpora` level is required for Quarkus `@ConfigMapping` with `Map<String, CorpusIngestionConfig>`. The parent spec should be updated to match.
+
 Config example:
 ```properties
 casehub.rag.ingestion.interval=30s
@@ -225,14 +247,18 @@ public enum IngestionMode { AUTO, MANUAL, NONE }
 
 This is the only class in `rag/` that depends on `casehub-corpus` implementation types. The rest of the ingestion service depends only on corpus-api types via the binding.
 
+**Design debt:** Corpus instance construction (choosing between `ZipCorpusStore`, `FlatCorpusStore`, `CompositeCorpusStore` based on config) is a corpus concern, not a RAG concern. It lives here because there is no corpus CDI integration layer yet (analogous to `inference-quarkus/` for inference). When the second consumer materialises (harvest via `CorpusReader`, engine fact retrieval), extract this to a dedicated `corpus-quarkus/` module. Track extraction as a follow-on issue.
+
 ### Chunking
 
-Resolved internally by `CorpusIngestionService` from `IngestionConfig` per corpus name. Maps config values to LangChain4j `DocumentSplitter` implementations:
+Resolved internally by `CorpusIngestionService` from `IngestionConfig` per corpus name. Uses LangChain4j `DocumentSplitters` API:
 
 | Config value | DocumentSplitter |
 |---|---|
 | `none` | null — whole body is one chunk |
-| `recursive` | `RecursiveCharacterTextSplitter(maxTokens, overlapTokens)` |
+| `recursive` | `DocumentSplitters.recursive(maxSegmentSizeInTokens, maxOverlapSizeInTokens, embeddingModel)` |
+
+`EmbeddingModel` implements `TokenCountEstimator`, so it serves as the third argument for token-based splitting. The `EmbeddingModel` is already available in `rag/` via `RagBeanProducer` and is injected into `CorpusIngestionService`.
 
 LangChain4j types stay internal to `rag/` — never leak into rag-api or the binding.
 
@@ -248,21 +274,28 @@ No MetadataExtractor test stub — tests construct bindings with inline implemen
 
 ## Dependency Changes
 
-**rag-api pom.xml — new:**
+**rag/ pom.xml — new dependencies:**
 ```xml
-<dependency>
-    <groupId>io.casehub</groupId>
-    <artifactId>casehub-corpus-api</artifactId>
-</dependency>
-```
-
-**rag/ pom.xml — new:**
-```xml
+<!-- Corpus implementation — used only by CorpusBindingProducer -->
 <dependency>
     <groupId>io.casehub</groupId>
     <artifactId>casehub-corpus</artifactId>
 </dependency>
+
+<!-- LangChain4j full — DocumentSplitters for chunking -->
+<dependency>
+    <groupId>dev.langchain4j</groupId>
+    <artifactId>langchain4j</artifactId>
+</dependency>
+
+<!-- Quarkus scheduler — @Scheduled for polling loop -->
+<dependency>
+    <groupId>io.quarkus</groupId>
+    <artifactId>quarkus-scheduler</artifactId>
+</dependency>
 ```
+
+**rag-api pom.xml — no changes.** rag-api retains its zero-dep invariant (Mutiny `provided` only).
 
 **No new modules.** All changes are additions to existing modules.
 
@@ -273,22 +306,36 @@ No MetadataExtractor test stub — tests construct bindings with inline implemen
 | rag-api | `MetadataExtractor.java` | SPI |
 | rag-api | `ExtractionResult.java` | Value type |
 | rag-api | `CursorStore.java` | SPI |
-| rag-api | `CorpusIngestionBinding.java` | Bridge input contract |
+| rag | `CorpusIngestionBinding.java` | Bridge input contract (references corpus-api types) |
 | rag | `CorpusIngestionService.java` | Poll loop + reconciliation orchestrator |
 | rag | `YamlFrontmatterExtractor.java` | `@DefaultBean` MetadataExtractor |
 | rag | `FileCursorStore.java` | `@DefaultBean` CursorStore |
 | rag | `IngestionConfig.java` | `@ConfigMapping` |
 | rag | `IngestionMode.java` | Enum |
-| rag | `CorpusBindingProducer.java` | Auto-wires bindings from config |
+| rag | `CorpusBindingProducer.java` | Auto-wires bindings from config (design debt — extract to corpus-quarkus/ when second consumer appears) |
 | rag-testing | `InMemoryCursorStore.java` | Test stub |
+
+## Prerequisite Issues
+
+| Issue | Description | Scope |
+|-------|-------------|-------|
+| TBD | Fix assertTenant 2-arg → 3-arg in QdrantEmbeddingIngestor, ReactiveQdrantEmbeddingIngestor, HybridCaseRetriever, ReactiveHybridCaseRetriever | S / Low — 10 call sites, 1 helper method per class |
+| TBD | Update parent spec config keys: `casehub.rag.ingestion.garden.*` → `casehub.rag.ingestion.corpora.garden.*` | XS / Low |
+
+## Follow-on Issues
+
+| Issue | Description | Trigger |
+|-------|-------------|---------|
+| TBD | Extract corpus CDI integration to `corpus-quarkus/` module | When second consumer of corpus instances materialises |
 
 ## Coherence Review
 
 | Check | Result |
 |-------|--------|
-| Module-tier-structure (PP-20260512) | rag-api stays Tier 1 (pure Java + Mutiny provided). corpus-api dep is Tier 1. rag/ stays Tier 3. rag-testing @Alternative @Priority(1). |
+| Module-tier-structure (PP-20260512) | rag-api stays Tier 1 (pure Java + Mutiny provided, zero new deps). CorpusIngestionBinding in rag/ (Tier 3) because it references corpus-api types. rag-testing @Alternative @Priority(1). |
 | Reactive SPI bridge (PP-20260529-5745c1) | No reactive variants — background poller, all ops blocking. |
 | Persistence-backend-cdi-priority | FileCursorStore @DefaultBean → InMemoryCursorStore @Alternative @Priority(1). Standard ladder. |
+| assertTenant contract (PP-20260529-57cc3b) | Prerequisite fix aligns EmbeddingIngestor + CaseRetriever with the established 3-arg pattern. |
 | CursorStore as store SPI | File-based default is the production backend (analogous to casehub-platform-config). Cursor data is ephemeral — no persistence-memory/ module needed. |
 | Plane separation (parent spec) | Bridge depends on CorpusReader + ChangeSource only. CorpusBindingProducer is the sole corpus/ dependent. |
 | Platform capability ownership | Extends existing "Knowledge corpus retrieval (RAG)" capability. No new ownership entry. Deep-dive update tracked as parent#214. |
