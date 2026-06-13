@@ -9,3 +9,4 @@
 | [2026-06-10-mdp05-bridge-is-the-problem.md](2026-06-10-mdp05-bridge-is-the-problem.md) | 2026-06-10 | Native reactive Qdrant — ListenableFuture→Uni bridge, memoize failure caching, @Startup producer gate |
 | [2026-06-12-mdp06-storage-layer-that-wasnt-there.md](2026-06-12-mdp06-storage-layer-that-wasnt-there.md) | 2026-06-12 | Corpus storage module design — ZIP-backed rolling archives, chain integrity, CorpusStore→EmbeddingIngestor rename |
 | [2026-06-12-mdp07-fifty-six-files-and-a-hash-bug.md](2026-06-12-mdp07-fifty-six-files-and-a-hash-bug.md) | 2026-06-12 | Corpus implementation — 56 files, 136 tests, hash ordering bug, versioned ZIP entries, zero-dep JSON |
+| [2026-06-13-mdp08-four-reviews-and-a-fake-class.md](2026-06-13-mdp08-four-reviews-and-a-fake-class.md) | 2026-06-13 | Ingestion bridge — ChangeSource→chunk→embed→Qdrant, four spec review rounds, assertTenant fix, EmbeddingModel≠TokenCountEstimator |
