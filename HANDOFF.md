@@ -1,29 +1,30 @@
-# Handoff — 2026-06-12
+# Handoff — 2026-06-13
 
 ## What Changed
 
-Closed #15 (S/Low — assertTenant Mutiny-idiomatic wrapping, StubEmbeddingModel extraction, delete-reingest test) and #18 (XL/High — corpus-api + corpus modules). corpus-api provides CorpusStore, CorpusReader, ChangeSource, CorpusIntegrity SPIs with reactive variants. corpus implements them with Zip4j — rolling ZIPs, chain manifest, flat + composite modes, compaction, migration. 56 files, 136 tests, zero deps beyond Zip4j. CLAUDE.md updated with new module entries. Garden gotcha submitted (GE-20260612-87d173 — ZIP hash ordering). Blog entry published.
+Closed #19 (L/Med — corpus ingestion bridge in `rag/`). `CorpusIngestionService` polls `ChangeSource`, reads via `CorpusReader`, extracts metadata (`MetadataExtractor` SPI → `ExtractionResult` with body+metadata separation), chunks via `DocumentSplitters.recursive()`, pushes to Qdrant via `EmbeddingIngestor`. Config-driven with `CursorStore` SPI for cursor persistence. Two-source binding discovery (config-driven + custom CDI). Also closed #21 (assertTenant 3-arg fix — 10 call sites, `RequestContextCheck` shared utility). Garden entry submitted (GE-20260613-1e5ba4 — EmbeddingModel≠TokenCountEstimator). Blog entry published (mdp08).
 
 ## Immediate Next Step
 
-Run `/work` and start #19 — corpus ingestion bridge in `rag/`. Wires `ChangeSource` + `CorpusReader` to the existing embedding + Qdrant infrastructure. `MetadataExtractor` SPI, chunking config, cursor persistence, deletion sync. L/Med scope.
+Pick next work from What's Next. `parent#214` and `parent#236` (platform doc sync) are low-effort trailing obligations that could be batched.
 
 ## What's Left
 
-- parent#214 — sync PLATFORM.md + neural-text deep-dive for corpus modules + EmbeddingIngestor rename · S · Low
-- ARC42STORIES.MD — add L8/L9 corpus layers to the layer taxonomy (§4) · S · Low
+- parent#214 — sync PLATFORM.md + neural-text deep-dive for reactive SPIs + EmbeddingIngestor rename · S · Low
+- parent#236 — sync PLATFORM.md + neural-text deep-dive for ingestion bridge · S · Low
+- #22 — extract corpus CDI integration to `corpus-quarkus/` module (trigger: second consumer) · M · Low
+- #23 — update parent spec config keys `casehub.rag.ingestion.corpora.*` · XS · Low
+- ARC42STORIES.MD — add L8/L9 corpus layers + update for #19 ingestion bridge · S · Low
 
 ## What's Next
 
 | # | Description | Scale | Complexity | Notes |
 |---|-------------|-------|------------|-------|
-| #19 | Corpus ingestion bridge in rag/ — ChangeSource → chunk → embed → Qdrant | L | Med | Unblocked by #18 |
 | #12 | Migrate Qdrant hybrid search to LangChain4j when #4994 ships | M | Low | Blocked on external LangChain4j PR |
 
 ## Key References
 
-- Spec: `specs/2026-06-11-corpus-storage-module-design.md` (rev 5, approved)
-- Blog: `blog/2026-06-12-mdp07-fifty-six-files-and-a-hash-bug.md`
-- Plan: `plans/attic/issue-18-corpus-modules/2026-06-12-corpus-storage-modules.md`
-- Garden: `GE-20260612-87d173` (ZIP hash ordering gotcha)
-- Tracking: #19 (ingestion bridge), #16 (upstream annotation tracking)
+- Spec: `docs/specs/issue-19-corpus-ingestion-bridge/2026-06-13-corpus-ingestion-bridge-design.md`
+- Blog: `blog/2026-06-13-mdp08-four-reviews-and-a-fake-class.md`
+- Plan: `plans/attic/issue-19-corpus-ingestion-bridge/2026-06-13-corpus-ingestion-bridge.md`
+- Garden: `GE-20260613-1e5ba4` (EmbeddingModel≠TokenCountEstimator), `GE-20260612-87d173` (ZIP hash ordering)
