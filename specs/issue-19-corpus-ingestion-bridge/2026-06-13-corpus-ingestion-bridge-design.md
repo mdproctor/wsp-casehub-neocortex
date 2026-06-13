@@ -1,7 +1,7 @@
 # Corpus Ingestion Bridge Design
 
 **Date:** 2026-06-13
-**Status:** Draft (rev 2 — post review)
+**Status:** Draft (rev 3 — post second review)
 **Tracks:** casehubio/neural-text#19
 **Parent spec:** `specs/2026-06-11-corpus-storage-module-design.md` (rev 5, §rag/ — Ingestion Bridge)
 
@@ -19,7 +19,7 @@ A config-driven ingestion bridge in `rag/` that polls `ChangeSource`, reads from
 2. **Per-binding MetadataExtractor** — different corpora have different document formats (YAML frontmatter, Tika, CSV). The extractor belongs per-corpus in the binding, not as a global CDI bean.
 3. **Blocking pipeline** — every operation (ZIP I/O, embedding inference, Qdrant gRPC) is blocking. No reactive variant needed for a background poller.
 4. **Delete-then-reingest for MODIFIED** — `EmbeddingIngestor` generates random UUIDs per point. Re-ingesting without deleting first creates duplicates. The bridge always deletes old vectors before ingesting new ones for MODIFIED entries.
-5. **Cursor advances only on full success** — cursor advances when every entry in the ChangeSet was either successfully processed or legitimately skipped (document gone between detect and read). Any actual error blocks cursor advancement — the entire set is retried next poll. Safe because delete-then-reingest is idempotent.
+5. **Cursor advances only on full success** — cursor advances when every entry in the ChangeSet was either successfully processed or legitimately skipped (document gone between detect and read). Any actual error blocks cursor advancement — the entire set is retried next poll. Safe because delete-then-reingest is idempotent. **Stuck cursor escape hatch:** if a single entry blocks cursor advancement across multiple polls (e.g. chronically corrupted content), triggering `reconcile()` resets the cursor via `fullScan()`. Reconciliation has best-effort error semantics (see §Reconciliation), so it advances past the stuck entry and restores normal incremental operation.
 6. **Explicit bootstrapping** — when no cursor exists, the service calls `fullScan()`, not `changesSince(null)`. Does not rely on ChangeSource implementations treating null cursors as full scans.
 
 ## Prerequisite: Fix assertTenant in EmbeddingIngestor + CaseRetriever
@@ -35,7 +35,9 @@ private boolean requestContextActive() {
 }
 ```
 
-This is the established platform pattern — protocol `PP-20260529-57cc3b` (`casememorystore-adapter-asserttenant-contract`). When request context is absent (background poller), the tenantId is trusted from config. When present (REST endpoint), the tenantId is validated against the authenticated principal. 10 call sites across 4 classes. File a separate issue before implementing.
+This extends the established platform pattern from protocol `PP-20260529-57cc3b` (`casememorystore-adapter-asserttenant-contract`). That protocol scopes to `CaseMemoryStore` implementations; applying it to `EmbeddingIngestor` and `CaseRetriever` implementations is a scope extension of the same security principle. The prerequisite issue should also update the protocol's `applies_to` field to include RAG adapter implementations.
+
+When request context is absent (background poller), the tenantId is trusted from config. When present (REST endpoint), the tenantId is validated against the authenticated principal. 10 call sites across 4 classes. File a separate issue before implementing.
 
 ## rag-api Additions (Tier 1)
 
@@ -121,11 +123,18 @@ Lives in `rag/` (not `rag-api`) because it references corpus-api types (`ChangeS
 
 ### CorpusIngestionService
 
-`@ApplicationScoped`. Discovers `CorpusIngestionBinding` beans via `Instance<CorpusIngestionBinding>`. Injects `EmbeddingIngestor`, `CursorStore`, `EmbeddingModel` (used as `TokenCountEstimator` for recursive chunking).
+`@ApplicationScoped`. Injects `EmbeddingIngestor`, `CursorStore`, `EmbeddingModel` (used as `TokenCountEstimator` for recursive chunking), `CorpusBindingProducer`, and `Instance<CorpusIngestionBinding>`.
+
+**Binding discovery — two sources:**
+
+1. **Config-driven:** `CorpusBindingProducer.bindings()` returns a `List<CorpusIngestionBinding>` built from `IngestionConfig.corpora()`. This is a regular method call, not CDI producer resolution — standard CDI `@Produces` creates one bean per method and cannot dynamically produce N beans from a config map.
+2. **Custom:** `Instance<CorpusIngestionBinding>` discovers any manually-produced CDI beans from application code (e.g. a custom `ChangeSource` backed by git or an external API).
+
+The service merges both sources. The two are semantically distinct: config-driven bindings are deterministic startup state; custom bindings are application-produced CDI beans for non-standard corpus backends.
 
 **Poll loop:**
 
-Single `@Scheduled` method with configurable global interval (`casehub.rag.ingestion.interval`, default `30s`). Iterates all discovered bindings, processes each independently. Per-corpus `ReentrantLock` prevents concurrent processing (poll vs reconciliation overlap). Only runs for corpora with `mode=AUTO` in config. `MANUAL` corpora are processed on explicit trigger. `NONE` are skipped.
+Single `@Scheduled` method with configurable global interval (`casehub.rag.ingestion.interval`, default `30s`). Iterates all merged bindings, processes each independently. Per-corpus `ReentrantLock` prevents concurrent processing (poll vs reconciliation overlap). Only runs for corpora with `mode=AUTO` in config (config-driven bindings) or unconditionally (custom bindings — no config entry to check). `MANUAL` corpora are processed on explicit trigger. `NONE` are skipped.
 
 **Processing a ChangeSet:**
 
@@ -158,17 +167,17 @@ Single `@Scheduled` method with configurable global interval (`casehub.rag.inges
 
 **Reconciliation:**
 
-Separate from the poll loop. Triggerable via `reconcile(String corpusName)` or `reconcileAll()`.
+Separate from the poll loop. Triggerable via `reconcile(String corpusName)` or `reconcileAll()`. Best-effort error semantics — failed entries are logged but do not block cursor advancement. A subsequent reconciliation will re-detect and retry them, because reconciliation compares Qdrant state against corpus state every time. This is intentionally different from the poll loop's all-or-nothing semantics: reconciliation is an admin-triggered corrective operation where blocking on a single corrupted document would prevent fixing all other gaps.
 
 ```
 1. ChangeSource.fullScan() → all paths in corpus
 2. EmbeddingIngestor.listDocuments(corpusRef) → all sourceDocumentIds in Qdrant
-3. In corpus but not in Qdrant → reingest
-4. In Qdrant but not in corpus → deleteDocument()
-5. CursorStore.save(name, fullScan.newCursor())
+3. In corpus but not in Qdrant → reingest (failures logged, not fatal)
+4. In Qdrant but not in corpus → deleteDocument() (failures logged, not fatal)
+5. CursorStore.save(name, fullScan.newCursor()) — always, regardless of entry-level failures
 ```
 
-**Error handling:**
+**Error handling (poll loop):**
 
 | Failure | Action | Cursor |
 |---------|--------|--------|
@@ -176,6 +185,15 @@ Separate from the poll loop. Triggerable via `reconcile(String corpusName)` or `
 | CorpusReader.read() returns `Optional.empty()` | Log info, skip entry — document gone, not an error | Advances (legitimate skip) |
 | MetadataExtractor throws | Log error, skip entry | Not advanced (actual error) |
 | EmbeddingIngestor throws | Log error | Not advanced (actual error) |
+
+**Error handling (reconciliation):**
+
+| Failure | Action | Cursor |
+|---------|--------|--------|
+| ChangeSource.fullScan() throws | Log error, abort reconciliation for this corpus | Not advanced |
+| CorpusReader.read() returns `Optional.empty()` | Skip entry — document gone | N/A |
+| MetadataExtractor throws | Log error, skip entry, continue | Advances (best-effort) |
+| EmbeddingIngestor throws | Log error, skip entry, continue | Advances (best-effort) |
 
 ### YamlFrontmatterExtractor
 
@@ -243,7 +261,7 @@ public enum IngestionMode { AUTO, MANUAL, NONE }
 
 ### CorpusBindingProducer
 
-`@ApplicationScoped`. Reads `IngestionConfig.corpora()` map. For each named corpus entry, constructs the corpus implementation objects (`ZipCorpusStore`, `FlatCorpusStore`, or `CompositeCorpusStore` depending on corpus-level config at `casehub.corpus.<name>.*`) and produces a `CorpusIngestionBinding` CDI bean. The corpus-level config (`casehub.corpus.<name>.source`, `casehub.corpus.<name>.mode`, etc.) is read via a separate `@ConfigMapping` within this producer. Uses `YamlFrontmatterExtractor` as the default extractor for each binding.
+`@ApplicationScoped` bean (not a CDI producer). Exposes `List<CorpusIngestionBinding> bindings()` which reads `IngestionConfig.corpora()` map and constructs a binding per entry. For each named corpus entry, it creates the corpus implementation objects (`ZipCorpusStore`, `FlatCorpusStore`, or `CompositeCorpusStore` depending on corpus-level config at `casehub.corpus.<name>.*`). The corpus-level config (`casehub.corpus.<name>.source`, `casehub.corpus.<name>.mode`, etc.) is read via a separate `@ConfigMapping` within this class. Uses `YamlFrontmatterExtractor` as the default extractor for each binding.
 
 This is the only class in `rag/` that depends on `casehub-corpus` implementation types. The rest of the ingestion service depends only on corpus-api types via the binding.
 
@@ -274,21 +292,23 @@ No MetadataExtractor test stub — tests construct bindings with inline implemen
 
 ## Dependency Changes
 
-**rag/ pom.xml — new dependencies:**
+**rag/ pom.xml — changes:**
 ```xml
-<!-- Corpus implementation — used only by CorpusBindingProducer -->
-<dependency>
-    <groupId>io.casehub</groupId>
-    <artifactId>casehub-corpus</artifactId>
-</dependency>
-
-<!-- LangChain4j full — DocumentSplitters for chunking -->
+<!-- REPLACE langchain4j-core with langchain4j (full artifact) -->
+<!-- langchain4j transitively includes langchain4j-core -->
+<!-- Needed: DocumentSplitters for chunking + EmbeddingModel/TextSegment from core -->
 <dependency>
     <groupId>dev.langchain4j</groupId>
     <artifactId>langchain4j</artifactId>
 </dependency>
 
-<!-- Quarkus scheduler — @Scheduled for polling loop -->
+<!-- NEW: Corpus implementation — used only by CorpusBindingProducer -->
+<dependency>
+    <groupId>io.casehub</groupId>
+    <artifactId>casehub-corpus</artifactId>
+</dependency>
+
+<!-- NEW: Quarkus scheduler — @Scheduled for polling loop -->
 <dependency>
     <groupId>io.quarkus</groupId>
     <artifactId>quarkus-scheduler</artifactId>
@@ -312,14 +332,14 @@ No MetadataExtractor test stub — tests construct bindings with inline implemen
 | rag | `FileCursorStore.java` | `@DefaultBean` CursorStore |
 | rag | `IngestionConfig.java` | `@ConfigMapping` |
 | rag | `IngestionMode.java` | Enum |
-| rag | `CorpusBindingProducer.java` | Auto-wires bindings from config (design debt — extract to corpus-quarkus/ when second consumer appears) |
+| rag | `CorpusBindingProducer.java` | Regular bean — builds bindings from config (design debt — extract to corpus-quarkus/ when second consumer appears) |
 | rag-testing | `InMemoryCursorStore.java` | Test stub |
 
 ## Prerequisite Issues
 
 | Issue | Description | Scope |
 |-------|-------------|-------|
-| TBD | Fix assertTenant 2-arg → 3-arg in QdrantEmbeddingIngestor, ReactiveQdrantEmbeddingIngestor, HybridCaseRetriever, ReactiveHybridCaseRetriever | S / Low — 10 call sites, 1 helper method per class |
+| TBD | Fix assertTenant 2-arg → 3-arg in QdrantEmbeddingIngestor, ReactiveQdrantEmbeddingIngestor, HybridCaseRetriever, ReactiveHybridCaseRetriever. Update protocol PP-20260529-57cc3b `applies_to` to include RAG adapter implementations. | S / Low — 10 call sites, 1 helper method per class, 1 protocol update |
 | TBD | Update parent spec config keys: `casehub.rag.ingestion.garden.*` → `casehub.rag.ingestion.corpora.garden.*` | XS / Low |
 
 ## Follow-on Issues
@@ -335,7 +355,7 @@ No MetadataExtractor test stub — tests construct bindings with inline implemen
 | Module-tier-structure (PP-20260512) | rag-api stays Tier 1 (pure Java + Mutiny provided, zero new deps). CorpusIngestionBinding in rag/ (Tier 3) because it references corpus-api types. rag-testing @Alternative @Priority(1). |
 | Reactive SPI bridge (PP-20260529-5745c1) | No reactive variants — background poller, all ops blocking. |
 | Persistence-backend-cdi-priority | FileCursorStore @DefaultBean → InMemoryCursorStore @Alternative @Priority(1). Standard ladder. |
-| assertTenant contract (PP-20260529-57cc3b) | Prerequisite fix aligns EmbeddingIngestor + CaseRetriever with the established 3-arg pattern. |
+| assertTenant contract (PP-20260529-57cc3b) | Prerequisite fix extends the protocol's scope from CaseMemoryStore to include EmbeddingIngestor + CaseRetriever implementations. Same security principle, explicitly noted as a scope extension. Protocol `applies_to` update included in the prerequisite. |
 | CursorStore as store SPI | File-based default is the production backend (analogous to casehub-platform-config). Cursor data is ephemeral — no persistence-memory/ module needed. |
 | Plane separation (parent spec) | Bridge depends on CorpusReader + ChangeSource only. CorpusBindingProducer is the sole corpus/ dependent. |
 | Platform capability ownership | Extends existing "Knowledge corpus retrieval (RAG)" capability. No new ownership entry. Deep-dive update tracked as parent#214. |
