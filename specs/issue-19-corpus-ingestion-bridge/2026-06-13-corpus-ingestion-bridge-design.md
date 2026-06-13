@@ -1,7 +1,7 @@
 # Corpus Ingestion Bridge Design
 
 **Date:** 2026-06-13
-**Status:** Draft (rev 3 — post second review)
+**Status:** Approved (rev 4)
 **Tracks:** casehubio/neural-text#19
 **Parent spec:** `specs/2026-06-11-corpus-storage-module-design.md` (rev 5, §rag/ — Ingestion Bridge)
 
@@ -123,7 +123,7 @@ Lives in `rag/` (not `rag-api`) because it references corpus-api types (`ChangeS
 
 ### CorpusIngestionService
 
-`@ApplicationScoped`. Injects `EmbeddingIngestor`, `CursorStore`, `EmbeddingModel` (used as `TokenCountEstimator` for recursive chunking), `CorpusBindingProducer`, and `Instance<CorpusIngestionBinding>`.
+`@ApplicationScoped`. Injects `EmbeddingIngestor`, `CursorStore`, `CorpusBindingProducer`, and `Instance<CorpusIngestionBinding>`.
 
 **Binding discovery — two sources:**
 
@@ -229,8 +229,8 @@ public interface IngestionConfig {
         @WithDefault("none")
         String chunking();
 
-        Optional<Integer> chunkingMaxTokens();
-        Optional<Integer> chunkingOverlapTokens();
+        Optional<Integer> chunkingMaxSize();
+        Optional<Integer> chunkingOverlapSize();
     }
 }
 ```
@@ -247,8 +247,8 @@ casehub.rag.ingestion.corpora.garden.chunking=none
 casehub.rag.ingestion.corpora.legal.tenant-id=acme-corp
 casehub.rag.ingestion.corpora.legal.corpus-name=legal
 casehub.rag.ingestion.corpora.legal.chunking=recursive
-casehub.rag.ingestion.corpora.legal.chunking-max-tokens=300
-casehub.rag.ingestion.corpora.legal.chunking-overlap-tokens=30
+casehub.rag.ingestion.corpora.legal.chunking-max-size=1000
+casehub.rag.ingestion.corpora.legal.chunking-overlap-size=200
 ```
 
 ### IngestionMode
@@ -274,9 +274,9 @@ Resolved internally by `CorpusIngestionService` from `IngestionConfig` per corpu
 | Config value | DocumentSplitter |
 |---|---|
 | `none` | null — whole body is one chunk |
-| `recursive` | `DocumentSplitters.recursive(maxSegmentSizeInTokens, maxOverlapSizeInTokens, embeddingModel)` |
+| `recursive` | `DocumentSplitters.recursive(maxSegmentSizeInChars, maxOverlapSizeInChars)` |
 
-`EmbeddingModel` implements `TokenCountEstimator`, so it serves as the third argument for token-based splitting. The `EmbeddingModel` is already available in `rag/` via `RagBeanProducer` and is injected into `CorpusIngestionService`.
+Uses the character-based 2-arg overload. `EmbeddingModel` does not implement `TokenCountEstimator`, so the token-based 3-arg overload is not available without a separate tokenizer. Character-based splitting is sufficient — segment sizes are approximate by nature, and character counts avoid coupling the chunking step to a specific tokenizer implementation.
 
 LangChain4j types stay internal to `rag/` — never leak into rag-api or the binding.
 
