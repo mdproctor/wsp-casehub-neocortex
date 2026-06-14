@@ -1,0 +1,9 @@
+branch: issue-25-embeddingmodel-bean
+project-sha: ea5a6d585c5a363b2d9504cd517eb3e2b596da7f
+date: 2026-06-14
+issue: 25
+issue-repo: casehubio/neural-text
+covers: 25,26,23,21
+flyway-next-v: unknown
+design-repo: project
+design-section-hashes: 
