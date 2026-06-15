@@ -1,34 +1,31 @@
-# Handoff — 2026-06-14
+# Handoff — 2026-06-15
 
 ## What Changed
 
-Closed #24 (L/Med — examples project). Two modules: `example-text-analysis` (5 standalone demos: NLI, zero-shot classification, scoring, reranking, SPLADE) and `example-rag-pipeline` (CDI wiring, 15 corpus docs, 3 demos: flat ingest, zip ingest, hybrid search). Architecture justification doc with state-of-the-art citations (`docs/architecture-justification.md`). Spec went through 3 review rounds. 23 smoke tests passing in ~29s. Also created `docs/specs/2026-06-14-examples-project-design.md`. Two garden entries submitted (GE-20260614-b94048 — SPLADE licensing trap, GE-20260614-d9a38f — Xenova gated exports). Blog entry published (mdp09).
+Closed #25, #26, #23, #21 on a single branch (`issue-25-embeddingmodel-bean`). Key discovery: `langchain4j-embeddings` uses independent versioning from the main `langchain4j` library — version 1.14.1 doesn't exist; fixed to `1.0.0-beta5` with a separate property. Also: `CorpusTestSupport` API redesigned to accept `Path` (caller-owned lifecycle via `@TempDir`), `ExampleCorpus.FILES` extracted to deduplicate corpus file list, NliClassifier smoke tests aligned to DeBERTa indices, protocol PP-20260529-57cc3b scope extended to RAG adapters. Code review skill updated — all findings (warnings, notes) must now be fixed, not just criticals. Garden entry GE-20260615-0d2eda submitted. Blog entry mdp10 published.
 
 ## Immediate Next Step
 
-Fix #25 (S/Low — `ExampleModelProducer` missing `EmbeddingModel` bean + uncomment `langchain4j-embeddings` dependency). Required for `RagPipelineIT` to work under the `examples` profile with real models. Then #26 (XS/Low — batched minor review findings).
+Pick from remaining backlog — all items are discretionary, none urgent. Run `/work` to start.
 
 ## What's Left
 
-- #25 — ExampleModelProducer missing EmbeddingModel bean for full-profile integration tests · S · Low
-- #26 — batched minor review findings (NliClassifier constructor consistency, temp dir cleanup, CORPUS_FILES duplication) · XS · Low
 - parent#247 — sync neural-text deep-dive for examples modules · XS · Low
 - parent#214 — sync PLATFORM.md for reactive SPIs + EmbeddingIngestor rename · S · Low
-- parent#236 — sync PLATFORM.md for ingestion bridge · S · Low
-- #22 — extract corpus CDI integration to corpus-quarkus/ module (trigger: second consumer) · M · Low
-- #23 — update parent spec config keys for ingestion bridge · XS · Low
+- parent#236 — sync PLATFORM.MD for ingestion bridge · S · Low
 - ARC42STORIES.MD — add L8/L9 corpus layers + update for #19 ingestion bridge · S · Low
+- README.md — status section massively stale ("no source code yet", all epics 🔲) · S · Low
 
 ## What's Next
 
 | # | Description | Scale | Complexity | Notes |
 |---|-------------|-------|------------|-------|
-| #12 | Migrate Qdrant hybrid search to LangChain4j when #4994 ships | M | Low | Blocked on external LangChain4j PR |
+| #22 | Extract corpus CDI to corpus-quarkus/ module | M | Low | Deferred until second consumer materialises |
+| #20 | CaseRetriever CBR contract — feature vector, similarity | L | High | Design questions open; depends on engine TBD |
+| #12 | Migrate Qdrant hybrid search to LangChain4j | M | Low | Blocked on external LangChain4j #4994 |
 
 ## Key References
 
-- Spec: `docs/specs/2026-06-14-examples-project-design.md`
-- Architecture justification: `docs/architecture-justification.md`
-- Plan: `plans/2026-06-14-examples-project.md` (workspace)
-- Blog: `blog/2026-06-14-mdp09-showing-the-work.md`
+- Blog: `blog/2026-06-15-mdp10-trailing-edges.md`
+- Garden: `GE-20260615-0d2eda` (langchain4j-embeddings versioning)
 - Garden: `GE-20260614-b94048` (SPLADE licensing), `GE-20260614-d9a38f` (Xenova gated exports)
