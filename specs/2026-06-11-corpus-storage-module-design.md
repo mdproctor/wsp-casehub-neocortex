@@ -408,12 +408,12 @@ New class in `rag/` module. Wires `ChangeSource` to the existing embedding + Qdr
 **Configuration (lives in rag/, prefix `casehub.rag.ingestion.*`):**
 
 ```properties
-casehub.rag.ingestion.garden.mode=auto           # AUTO, MANUAL, NONE
-casehub.rag.ingestion.garden.interval=30s
-casehub.rag.ingestion.garden.chunking=none
-casehub.rag.ingestion.legal.chunking=recursive
-casehub.rag.ingestion.legal.chunking.max-tokens=300
-casehub.rag.ingestion.legal.chunking.overlap-tokens=30
+casehub.rag.ingestion.corpora.garden.mode=auto           # AUTO, MANUAL, NONE
+casehub.rag.ingestion.interval=30s
+casehub.rag.ingestion.corpora.garden.chunking=none
+casehub.rag.ingestion.corpora.legal.chunking=recursive
+casehub.rag.ingestion.corpora.legal.chunking-max-size=300
+casehub.rag.ingestion.corpora.legal.chunking-overlap-size=30
 ```
 
 **Dependencies:** `CorpusReader` + `ChangeSource` only. Never `CorpusStore`. The ingestion bridge is a read-only consumer of the corpus — flat→ZIP sync is handled internally by corpus/ in COMPOSITE mode.
@@ -511,7 +511,7 @@ Ingestion bridge lives in existing `casehub-rag`.
 **Issue 3 (Session 3):** Ingestion bridge in `rag/`
 - `CorpusIngestionService` wiring `ChangeSource` + `CorpusReader` to RAG pipeline (no `CorpusStore` dependency)
 - `MetadataExtractor` SPI + YAML frontmatter default implementation
-- Chunking configuration per corpus (prefix: `casehub.rag.ingestion.*`)
+- Chunking configuration per corpus (prefix: `casehub.rag.ingestion.corpora.<name>.*`)
 - Cursor persistence
 - Deletion sync to Qdrant
 - Reconciliation mode (full scan vs Qdrant)
