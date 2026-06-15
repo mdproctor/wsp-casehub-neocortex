@@ -10,3 +10,5 @@
 | [2026-06-12-mdp06-storage-layer-that-wasnt-there.md](2026-06-12-mdp06-storage-layer-that-wasnt-there.md) | 2026-06-12 | Corpus storage module design — ZIP-backed rolling archives, chain integrity, CorpusStore→EmbeddingIngestor rename |
 | [2026-06-12-mdp07-fifty-six-files-and-a-hash-bug.md](2026-06-12-mdp07-fifty-six-files-and-a-hash-bug.md) | 2026-06-12 | Corpus implementation — 56 files, 136 tests, hash ordering bug, versioned ZIP entries, zero-dep JSON |
 | [2026-06-13-mdp08-four-reviews-and-a-fake-class.md](2026-06-13-mdp08-four-reviews-and-a-fake-class.md) | 2026-06-13 | Ingestion bridge — ChangeSource→chunk→embed→Qdrant, four spec review rounds, assertTenant fix, EmbeddingModel≠TokenCountEstimator |
+| [2026-06-14-mdp09-showing-the-work.md](2026-06-14-mdp09-showing-the-work.md) | 2026-06-14 | Examples project — two demo modules, architecture justification with cited benchmarks, 23 smoke tests |
+| [2026-06-15-mdp10-trailing-edges.md](2026-06-15-mdp10-trailing-edges.md) | 2026-06-15 | Post-review cleanup — langchain4j-embeddings versioning gotcha, CorpusTestSupport API redesign, protocol scope extension |
