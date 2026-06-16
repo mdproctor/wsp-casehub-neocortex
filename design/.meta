@@ -1,0 +1,9 @@
+branch: issue-34-directory-watcher
+project-sha: 705bfc7b0ebcb9fd9a66d1a92f581caf24e4dba9
+date: 2026-06-16
+issue: 34
+issue-repo: casehubio/neural-text
+covers: 34
+flyway-next-v: none
+design-repo: project
+design-section-hashes: 
