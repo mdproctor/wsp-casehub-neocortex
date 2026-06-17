@@ -30,15 +30,19 @@ public sealed interface PayloadFilter {
     record In(String field, List<String> values) implements PayloadFilter {}
     record Not(PayloadFilter inner) implements PayloadFilter {}
     record And(List<PayloadFilter> filters) implements PayloadFilter {}
+    record Or(List<PayloadFilter> filters) implements PayloadFilter {}
 
     static PayloadFilter eq(String field, String value) { return new Eq(field, value); }
     static PayloadFilter in(String field, List<String> values) { return new In(field, List.copyOf(values)); }
     static PayloadFilter not(PayloadFilter inner) { return new Not(inner); }
     static PayloadFilter and(PayloadFilter... filters) { return new And(List.of(filters)); }
+    static PayloadFilter or(PayloadFilter... filters) { return new Or(List.of(filters)); }
 }
 ```
 
-Tier 1 pure — zero dependencies beyond `java.util`. Sealed for exhaustive pattern matching in implementations. Four operations: keyword equality, multi-value membership, negation, conjunction.
+Tier 1 pure — zero dependencies beyond `java.util`. Sealed for exhaustive pattern matching in implementations. Five operations: keyword equality, multi-value membership, negation, conjunction, disjunction. Adding `Or` now avoids a source-breaking SPI change later — sealed interfaces force exhaustive pattern matches in every consumer, so the first release must be algebraically complete.
+
+`PayloadFilter` operates on **user-provided metadata only** — the fields present in `ChunkInput.metadata()`. Synthetic payload fields added by the ingestor (`content`, `sourceDocumentId`, `tenantId`) are not filterable via `PayloadFilter`. Tenancy isolation is handled separately via `CorpusRef` and `TenancyStrategy`.
 
 ---
 
@@ -103,7 +107,20 @@ SparseEmbedder sparseEmbedder = sparseEmbedderInstance.isResolvable()
 
 Follows the pattern already used for `CrossEncoderReranker`.
 
-### QdrantEmbeddingIngestor
+### Constructor signature changes — nullable SparseEmbedder
+
+All four implementation constructors change from requiring non-null `SparseEmbedder` to accepting nullable:
+
+| Class | Parameter change |
+|---|---|
+| `QdrantEmbeddingIngestor(QdrantClient, EmbeddingModel, SparseEmbedder, ...)` | `SparseEmbedder` becomes `@Nullable` |
+| `HybridCaseRetriever(QdrantClient, EmbeddingModel, SparseEmbedder, ...)` | `SparseEmbedder` becomes `@Nullable` |
+| `ReactiveQdrantEmbeddingIngestor(QdrantClient, EmbeddingModel, SparseEmbedder, ...)` | `SparseEmbedder` becomes `@Nullable` |
+| `ReactiveHybridCaseRetriever(QdrantClient, EmbeddingModel, SparseEmbedder, ...)` | `SparseEmbedder` becomes `@Nullable` |
+
+When `sparseEmbedder` is null, the class operates in dense-only mode (see below).
+
+### QdrantEmbeddingIngestor — dense-only mode
 
 `sparseEmbedder` field becomes nullable:
 
@@ -111,17 +128,41 @@ Follows the pattern already used for `CrossEncoderReranker`.
 - **`ensureCollection()`**: skip `SparseVectorConfig` when null. Collection gets dense `VectorParamsMap` only.
 - **`buildPoint()`**: when sparse map is null, named vectors contains only `denseVectorName`.
 
-### HybridCaseRetriever
+### HybridCaseRetriever — dense-only query path
 
-`sparseEmbedder` field becomes nullable:
+`sparseEmbedder` field becomes nullable. When null, the retriever uses a fundamentally different query shape:
 
-- **When null**: skip sparse query embedding, skip sparse prefetch, use direct dense nearest-neighbor query instead of RRF fusion. Retriever degrades to dense-only search.
-- **When present**: unchanged — full hybrid RRF.
-- Reranking remains independently controlled.
+**Hybrid mode (sparseEmbedder present) — unchanged:**
+
+```java
+QueryPoints queryPoints = QueryPoints.newBuilder()
+    .setCollectionName(collection)
+    .addPrefetch(densePrefetch)     // dense nearest-neighbor
+    .addPrefetch(sparsePrefetch)    // sparse nearest-neighbor
+    .setQuery(QueryFactory.rrf(Rrf.newBuilder().setK(rrfK).build()))
+    .setLimit(queryLimit)
+    .setWithPayload(WithPayloadSelectorFactory.enable(true))
+    .build();
+```
+
+**Dense-only mode (sparseEmbedder null) — new code path:**
+
+```java
+QueryPoints.Builder builder = QueryPoints.newBuilder()
+    .setCollectionName(collection)
+    .setQuery(QueryFactory.nearest(denseEmbedding.vectorAsList()))
+    .setUsing(denseVectorName)
+    .setLimit(queryLimit)
+    .setWithPayload(WithPayloadSelectorFactory.enable(true));
+mergedFilter.ifPresent(builder::setFilter);
+QueryPoints queryPoints = builder.build();
+```
+
+No prefetch, no RRF, no fusion. Direct dense nearest-neighbor query with optional payload + tenancy filter. This is a different `QueryPoints` structure, not a subset of the hybrid path.
 
 ### Reactive variants
 
-`ReactiveQdrantEmbeddingIngestor` and `ReactiveHybridCaseRetriever` — same changes mirrored.
+`ReactiveQdrantEmbeddingIngestor` and `ReactiveHybridCaseRetriever` — same changes mirrored, including the dense-only query path.
 
 ### Config
 
@@ -131,7 +172,7 @@ Follows the pattern already used for `CrossEncoderReranker`.
 
 ## Change 4: Deterministic point IDs
 
-### QdrantEmbeddingIngestor.buildPoint()
+### QdrantEmbeddingIngestor.ingest() and buildPoint()
 
 Replace `UUID.randomUUID()` with `UUID.nameUUIDFromBytes()` (v3, JDK built-in):
 
@@ -147,7 +188,14 @@ Same change in `ReactiveQdrantEmbeddingIngestor`.
 
 ### Migration
 
-Existing Qdrant collections have random UUIDs. After this change, re-ingesting creates new deterministic points alongside old random ones. A one-time `reconcileAll()` cleans up — deletes stale points, reingests with new IDs. No special migration code needed.
+Existing Qdrant collections have random UUIDs. After this change:
+
+- **Documents modified after the upgrade:** the normal ingestion cycle calls `deleteDocument()` (which deletes by `sourceDocumentId` payload filter, not by point ID), then `ingest()` creates new points with deterministic IDs. Old random-UUID points are correctly cleaned up.
+- **Unchanged documents:** old random-UUID points persist but are functionally correct — they have the right content, metadata, and `sourceDocumentId` payload. They just have non-deterministic point IDs.
+- **Over time:** as documents are modified, all points converge to deterministic IDs through the normal delete-then-ingest cycle.
+- **Immediate full migration:** drop the Qdrant collection, clear the cursor file, restart the service. Full re-ingest creates all points with deterministic IDs.
+
+`reconcile()` does NOT help with this migration — it compares by `sourceDocumentId` (via `listDocuments()` which extracts from payload), so existing points look "already present" and are not re-ingested. `reconcile()` is a selective diff (ingest missing, delete stale), not a delete-all + re-ingest.
 
 ---
 
@@ -172,6 +220,11 @@ final class PayloadFilterTranslator {
             case PayloadFilter.And and -> {
                 var nested = Filter.newBuilder();
                 for (var f : and.filters()) nested.addMust(toCondition(f));
+                yield ConditionFactory.filter(nested.build());
+            }
+            case PayloadFilter.Or or -> {
+                var nested = Filter.newBuilder();
+                for (var f : or.filters()) nested.addShould(toCondition(f));
                 yield ConditionFactory.filter(nested.build());
             }
         };
@@ -200,7 +253,51 @@ Applied to both dense and sparse prefetch queries (hybrid mode) or the single de
 
 ### InMemoryCaseRetriever
 
-Filter applied to in-memory chunk list via metadata matching. `Eq` checks `metadata.get(field).equals(value)`, `In` checks `values.contains(metadata.get(field))`, etc. Keeps test behavior consistent without Qdrant.
+Filter applied to in-memory chunk list via metadata matching. `Eq` checks `metadata.get(field).equals(value)`, `In` checks `values.contains(metadata.get(field))`, `Or` matches if any sub-filter matches, etc. Operates on `ChunkInput.metadata()` only — synthetic payload fields (`content`, `sourceDocumentId`, `tenantId`) are not present in the in-memory metadata map, consistent with the `PayloadFilter` scope defined in Change 1.
+
+---
+
+## Test Plan
+
+### PayloadFilter (rag-api)
+
+- Unit tests for all five record types: null field/value rejection, `In` defensive copy (`List.copyOf`), factory method correctness
+- `And` and `Or` with empty lists — edge case behavior
+- Nested composition: `And(Eq, Not(In))`, `Or(Eq, And(Eq, Eq))`
+
+### PayloadFilterTranslator (rag)
+
+- Unit tests verifying correct Qdrant `Filter`/`Condition` construction for each variant:
+  - `Eq` → `ConditionFactory.matchKeyword`
+  - `In` → `ConditionFactory.matchKeywords`
+  - `Not(Eq)` → `ConditionFactory.not(matchKeyword)`
+  - `And(Eq, Eq)` → `Filter` with two `must` conditions
+  - `Or(Eq, Eq)` → `Filter` with two `should` conditions
+  - Nested: `And(Eq, Or(Eq, Not(In)))` — verify structure
+- `null` input → `Optional.empty()`
+
+### InMemoryCaseRetriever with filter (rag-testing)
+
+- `Eq`: matching and non-matching metadata
+- `In`: value in set, value not in set
+- `Not`: inverted match
+- `And`: all conditions must match
+- `Or`: any condition matches
+- `null` filter: returns unfiltered results (backward-compatible behavior)
+- Filtering on a field not present in metadata: no match (not an error)
+
+### Dense-only mode (rag)
+
+- **Ingestion:** when no `SparseEmbedder` bean, collection created without sparse vector config, points built with dense vector only
+- **Retrieval:** when no `SparseEmbedder` bean, query uses direct dense nearest-neighbor (no prefetch, no RRF), results correctly returned and ranked
+- **Hybrid mode unchanged:** when `SparseEmbedder` present, full prefetch + RRF behavior preserved
+
+### Deterministic point IDs (rag)
+
+- Same `sourceDocumentId` + same chunk index → same UUID every time
+- Different `sourceDocumentId` → different UUID
+- Multi-chunk document: each chunk gets a distinct deterministic UUID
+- Re-ingest same content → idempotent (same point IDs, upsert overwrites)
 
 ---
 
@@ -212,14 +309,16 @@ Filter applied to in-memory chunk list via metadata matching. `Eq` checks `metad
 | `GardenIndexer` | `CorpusIngestionService` startup lifecycle |
 | `FileCursorStore` | `rag:FileCursorStore` |
 | `ExtractionResult` | `rag-api:ExtractionResult` |
-| `QdrantClientProducer` | `rag:QdrantClientProducer` |
+| `QdrantClientProducer` | `rag:QdrantClientProducer` (`rag/src/main/java/io/casehub/rag/runtime/QdrantClientProducer.java`) |
 | `GardenMetadataExtractor` | Own impl of `MetadataExtractor` SPI (stays in engine) |
+
+**ExtractionResult field name change:** neural-text's `ExtractionResult` uses `body()`, Hortora's uses `content()`. When Hortora adopts neural-text's type, `GardenMetadataExtractor.extract()` must return `ExtractionResult(body, metadata)` instead of `ExtractionResult(content, metadata)`. Mechanical rename — Hortora-side only.
 
 ## What stays in Hortora
 
 - Federation: `ChainWalker`, `FederationConfig`, `FederationConfigParser`, `RemoteGardenClient`
 - MCP server: `GardenMcpTools`
-- REST: `SearchResource` — slimmed to delegate to `CaseRetriever` + federate via `ChainWalker`
+- REST: `SearchResource` — slimmed to delegate local search to `CaseRetriever` + federate via `ChainWalker`
 - CDI: `CorpusIngestionBinding` producer, no-op `CurrentPrincipal` `@Alternative`
 
 ---
@@ -227,6 +326,12 @@ Filter applied to in-memory chunk list via metadata matching. `Eq` checks `metad
 ## Tenancy
 
 Not in scope. `CorpusRef.tenantId` remains required. Hortora provides a constant tenant ID and a matching no-op `CurrentPrincipal` `@Alternative`. `MemoryPermissions.assertTenant()` is already a no-op for background operations (watcher/startup) where `RequestContextCheck.isActive()` returns false.
+
+---
+
+## ARC42STORIES impact
+
+After this ships, ARC42STORIES §2 constraint "Hortora shares inference-* only — rag-* modules are casehub-specific" becomes stale. Hortora will consume `rag-api` and `rag` directly. Update §2, §5 layer table (L6/L7 Hortora column → ✅ yes), and §1 stakeholders table (Hortora row: add rag consumption).
 
 ---
 
