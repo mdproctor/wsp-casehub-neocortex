@@ -29,8 +29,12 @@ public sealed interface PayloadFilter {
     record Eq(String field, String value) implements PayloadFilter {}
     record In(String field, List<String> values) implements PayloadFilter {}
     record Not(PayloadFilter inner) implements PayloadFilter {}
-    record And(List<PayloadFilter> filters) implements PayloadFilter {}
-    record Or(List<PayloadFilter> filters) implements PayloadFilter {}
+    record And(List<PayloadFilter> filters) implements PayloadFilter {
+        public And { if (filters.isEmpty()) throw new IllegalArgumentException("And requires at least one filter"); filters = List.copyOf(filters); }
+    }
+    record Or(List<PayloadFilter> filters) implements PayloadFilter {
+        public Or { if (filters.isEmpty()) throw new IllegalArgumentException("Or requires at least one filter"); filters = List.copyOf(filters); }
+    }
 
     static PayloadFilter eq(String field, String value) { return new Eq(field, value); }
     static PayloadFilter in(String field, List<String> values) { return new In(field, List.copyOf(values)); }
@@ -174,15 +178,22 @@ No prefetch, no RRF, no fusion. Direct dense nearest-neighbor query with optiona
 
 ### QdrantEmbeddingIngestor.ingest() and buildPoint()
 
-Replace `UUID.randomUUID()` with `UUID.nameUUIDFromBytes()` (v3, JDK built-in):
+Replace `UUID.randomUUID()` with `UUID.nameUUIDFromBytes()` (v3, JDK built-in). Use per-document chunk counters, not batch position — `CorpusIngestionService` batches chunks from multiple documents into a single `ingest()` call, so batch position is unstable across different ingestion paths (bootstrap vs watcher vs reconcile).
 
 ```java
-// In ingest(), where i is the chunk's position in the list:
-String idInput = chunk.sourceDocumentId() + "#" + i;
-UUID pointId = UUID.nameUUIDFromBytes(idInput.getBytes(StandardCharsets.UTF_8));
+// In ingest():
+Map<String, Integer> counters = new HashMap<>();
+for (int i = 0; i < chunks.size(); i++) {
+    ChunkInput chunk = chunks.get(i);
+    int chunkIndex = counters.merge(chunk.sourceDocumentId(), 0, Integer::sum);
+    counters.put(chunk.sourceDocumentId(), chunkIndex + 1);
+    String idInput = chunk.sourceDocumentId() + "#" + chunkIndex;
+    UUID pointId = UUID.nameUUIDFromBytes(idInput.getBytes(StandardCharsets.UTF_8));
+    // ... build point with pointId
+}
 ```
 
-Every chunk gets a deterministic ID from `sourceDocumentId + "#" + listIndex`. Single-chunk documents get `sourceDocumentId + "#0"`. Stable as long as the same splitter produces the same chunk count and order — which `DocumentSplitters.recursive()` guarantees for the same input.
+Every chunk gets a deterministic ID from `sourceDocumentId + "#" + perDocumentIndex`. Document A with 3 chunks always gets `A#0`, `A#1`, `A#2` regardless of whether it's ingested alone or batched with other documents. Stable as long as the same splitter produces the same chunk count and order — which `DocumentSplitters.recursive()` guarantees for the same input.
 
 Same change in `ReactiveQdrantEmbeddingIngestor`.
 
@@ -216,7 +227,8 @@ final class PayloadFilterTranslator {
         return switch (filter) {
             case PayloadFilter.Eq eq -> ConditionFactory.matchKeyword(eq.field(), eq.value());
             case PayloadFilter.In in -> ConditionFactory.matchKeywords(in.field(), in.values());
-            case PayloadFilter.Not not -> ConditionFactory.not(toCondition(not.inner()));
+            case PayloadFilter.Not not -> ConditionFactory.filter(
+                Filter.newBuilder().addMustNot(toCondition(not.inner())).build());
             case PayloadFilter.And and -> {
                 var nested = Filter.newBuilder();
                 for (var f : and.filters()) nested.addMust(toCondition(f));
@@ -262,7 +274,7 @@ Filter applied to in-memory chunk list via metadata matching. `Eq` checks `metad
 ### PayloadFilter (rag-api)
 
 - Unit tests for all five record types: null field/value rejection, `In` defensive copy (`List.copyOf`), factory method correctness
-- `And` and `Or` with empty lists — edge case behavior
+- `And` and `Or` with empty lists — `IllegalArgumentException` (empty conjunction/disjunction is a caller bug; Qdrant treats empty `should` as match-all which is semantically wrong for `Or`)
 - Nested composition: `And(Eq, Not(In))`, `Or(Eq, And(Eq, Eq))`
 
 ### PayloadFilterTranslator (rag)
@@ -270,7 +282,7 @@ Filter applied to in-memory chunk list via metadata matching. `Eq` checks `metad
 - Unit tests verifying correct Qdrant `Filter`/`Condition` construction for each variant:
   - `Eq` → `ConditionFactory.matchKeyword`
   - `In` → `ConditionFactory.matchKeywords`
-  - `Not(Eq)` → `ConditionFactory.not(matchKeyword)`
+  - `Not(Eq)` → `ConditionFactory.filter(Filter.newBuilder().addMustNot(matchKeyword).build())`
   - `And(Eq, Eq)` → `Filter` with two `must` conditions
   - `Or(Eq, Eq)` → `Filter` with two `should` conditions
   - Nested: `And(Eq, Or(Eq, Not(In)))` — verify structure
