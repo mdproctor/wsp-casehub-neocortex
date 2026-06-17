@@ -1,0 +1,9 @@
+branch: issue-35-rag-hortora-gaps
+project-sha: 1a97dc9e02b054c72550acd65e352f241fec5ab9
+date: 2026-06-17
+issue: 35
+issue-repo: casehubio/neural-text
+covers: 35
+flyway-next-v: none
+design-repo: project
+design-section-hashes: 
