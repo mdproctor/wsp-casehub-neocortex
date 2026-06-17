@@ -2,11 +2,11 @@
 
 ## What Changed
 
-Closed #34 — replaced `@Scheduled` polling in `CorpusIngestionService` with event-driven filesystem watching via `gmethvin/directory-watcher`. New `WatchableChangeSource` SPI in `corpus-api`. `FlatChangeSource` and `CompositeChangeSource` implement it. Service uses hybrid model: event-driven for filesystem corpora, polling fallback for ZIP-based. Also added examples modules to default pom.xml build, created 5 new feature issues (#29–#33: ColBERT, BGE-M3, Matryoshka, HyDE, CRAG), and fixed Podman/Testcontainers socket configuration.
+Closed #35 — made rag modules consumable by Hortora engine. Three gaps closed: (1) `PayloadFilter` sealed algebra (Eq, In, Not, And, Or) in `rag-api` with query-time payload filtering on `CaseRetriever`/`ReactiveCaseRetriever`, (2) optional `SparseEmbedder` via `Instance<>` for dense-only mode, (3) deterministic point IDs from `sourceDocumentId` + per-document chunk index. Cross-repo issues filed: casehubio/engine#521 (CaseRetriever call-site update), casehubio/parent#270 (PLATFORM.md dependency map). Spec went through 3 rounds of Hortora engine review.
 
 ## Immediate Next Step
 
-Pick from remaining backlog — all items are discretionary, none urgent. Run `/work` to start.
+Pick from remaining backlog — all items are discretionary. Run `/work` to start.
 
 ## What's Next
 
@@ -23,4 +23,7 @@ Pick from remaining backlog — all items are discretionary, none urgent. Run `/
 
 ## Key References
 
-- Garden: `GE-20260616-fd338a` (FSEvents catch-up), `GE-20260616-bb6aac` (fileHashing DELETE), `GE-20260616-bb45d5` (Podman Testcontainers)
+- Spec: `specs/2026-06-17-rag-hortora-shared-code-gaps-design.md`
+- Plan: `plans/attic/issue-35-rag-hortora-gaps/2026-06-17-rag-hortora-gaps.md`
+- Cross-repo: casehubio/engine#521, casehubio/parent#270
+- ARC42STORIES: §2 constraint needs updating (Hortora now consumes rag-* modules)
