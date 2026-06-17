@@ -1,0 +1,9 @@
+branch: issue-36-hortora-integration-gaps
+project-sha: 5f9179d214a31f2cb85ae64f65b39ee8e4bdfa94
+date: 2026-06-17
+issue: 36
+issue-repo: casehubio/neural-text
+covers: 36
+flyway-next-v: none
+design-repo: workspace
+design-section-hashes: 
