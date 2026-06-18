@@ -1,8 +1,8 @@
-# Handoff — 2026-06-17
+# Handoff — 2026-06-18
 
 ## What Changed
 
-Closed #35 — made rag modules consumable by Hortora engine. Three gaps closed: (1) `PayloadFilter` sealed algebra (Eq, In, Not, And, Or) in `rag-api` with query-time payload filtering on `CaseRetriever`/`ReactiveCaseRetriever`, (2) optional `SparseEmbedder` via `Instance<>` for dense-only mode, (3) deterministic point IDs from `sourceDocumentId` + per-document chunk index. Cross-repo issues filed: casehubio/engine#521 (CaseRetriever call-site update), casehubio/parent#270 (PLATFORM.md dependency map). Spec went through 3 rounds of Hortora engine review.
+Closed #36 — made rag modules consumable without `CurrentPrincipal`. `TenantGuard` strategy captures the deployment-time tenancy decision once at CDI producer time — no scattered null-guards. Bean producers use `Instance<CurrentPrincipal>`; implementation constructors are now package-private. ARC42STORIES updated across 12 sections to reflect the Hortora boundary shift (L6/L7 → shared). Cross-repo: casehubio/parent#272 filed for PLATFORM.MD deep-dive update; engine#521 clarified as not relevant to Hortora.
 
 ## Immediate Next Step
 
@@ -23,7 +23,7 @@ Pick from remaining backlog — all items are discretionary. Run `/work` to star
 
 ## Key References
 
-- Spec: `specs/2026-06-17-rag-hortora-shared-code-gaps-design.md`
-- Plan: `plans/attic/issue-35-rag-hortora-gaps/2026-06-17-rag-hortora-gaps.md`
-- Cross-repo: casehubio/engine#521, casehubio/parent#270
-- ARC42STORIES: §2 constraint needs updating (Hortora now consumes rag-* modules)
+- Spec: `specs/2026-06-17-hortora-integration-gaps-design.md`
+- Plan: `plans/attic/issue-36-hortora-integration-gaps/2026-06-18-hortora-integration-gaps.md`
+- Cross-repo: casehubio/parent#272 (PLATFORM.MD deep-dive update)
+- Blog: `blog/2026-06-18-mdp12-guard-that-isnt-a-guard.md`
