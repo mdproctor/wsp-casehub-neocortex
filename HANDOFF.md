@@ -1,3 +1,5 @@
+*Updated: casehubio/parent#272 closed — removed from references.*
+
 # Handoff — 2026-06-18
 
 ## What Changed
@@ -17,4 +19,4 @@ Pick from remaining backlog — all items are discretionary. Run `/work` to star
 ## Key References
 
 - Blog: `blog/2026-06-18-mdp13-fifteen-branches-and-nine-missing-posts.md`
-- Cross-repo: casehubio/parent#272 (PLATFORM.MD deep-dive update — still open)
+- Cross-repo: casehubio/parent#272 — closed (PLATFORM.MD deep-dive shipped)
