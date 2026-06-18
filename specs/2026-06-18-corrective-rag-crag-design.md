@@ -2,7 +2,7 @@
 
 **Issue:** casehubio/neural-text#33
 **Date:** 2026-06-18
-**Status:** Approved (rev 3 — post code review round 2)
+**Status:** Approved (rev 4 — post code review round 3)
 
 ## Problem
 
@@ -129,6 +129,8 @@ public record RetrievalQuality(
         new RetrievalQuality(0, 0, 0, 0, false, false);
 }
 ```
+
+Consumers may use `RetrievalQuality.NONE` as a default when no event has been received — the non-CRAG path never fires this event.
 
 `evaluated=true` means CRAG was active and grading happened. `evaluated=false` means no evaluation (non-CRAG path). Lives in `rag-api` (pure Java record — CDI event infrastructure is provided by the container, not the event type).
 
@@ -285,7 +287,10 @@ public class CorrectiveCaseRetriever implements CaseRetriever {
             }
         }
 
-        // 6. Truncate to maxResults
+        // 6. Sort by grade (CORRECT first, then AMBIGUOUS), preserving
+        //    retrieval order within each grade. Truncate to maxResults.
+        surviving.sort(Comparator.comparingInt(
+            (RetrievedChunk c) -> c.grade() == RelevanceGrade.CORRECT ? 0 : 1));
         List<RetrievedChunk> result = surviving.stream()
             .limit(maxResults)
             .toList();
@@ -303,7 +308,9 @@ public class CorrectiveCaseRetriever implements CaseRetriever {
 }
 ```
 
-**Dedup strategy:** `sourceDocumentId` + `content.hashCode()` combined as a `String` key in a `HashSet<String>`. Content strings are already in heap from the initial retrieval; the set adds only the concatenated key overhead. `hashCode()` avoids storing duplicate full-content strings in the set. Collision probability is negligible for <100 chunks within a single retrieval call.
+**Dedup strategy:** `sourceDocumentId` + `content.hashCode()` combined as a `String` key in a `HashSet<String>`. Content strings are already in heap from the initial retrieval; the set adds only the concatenated key overhead. `hashCode()` avoids storing duplicate full-content strings in the set. Collision probability is negligible for <100 chunks within a single retrieval call. A collision means a distinct chunk is incorrectly skipped during expansion — acceptable, as colliding chunks share a sourceDocumentId and likely similar content.
+
+**Truncation ordering:** Before `limit(maxResults)`, the surviving set is sorted by grade: CORRECT first, then AMBIGUOUS. Within the same grade, retrieval order (Qdrant ranking) is preserved via a stable sort. This ensures that when truncation cuts chunks, AMBIGUOUS ones are dropped before CORRECT ones — grade quality takes precedence over retrieval rank.
 
 ### ReactiveCorrectiveCaseRetriever
 
@@ -412,6 +419,8 @@ Constructor injection enables direct instantiation without a CDI container. Test
 - Expansion deduplication — chunks from initial retrieval not re-evaluated
 - Quality event `totalRetrieved`, `totalCorrect`, `totalAmbiguous`, `totalIncorrect` reflect combined initial + expansion counts
 - Grades populated on returned chunks
+- Truncation ordering — CORRECT chunks from expansion preferred over AMBIGUOUS chunks from initial retrieval when both exceed maxResults
+- Empty initial retrieval → expansion triggered, quality counters correct (`totalRetrieved=0` from initial, expansion counts added)
 - Backed by `InMemoryCaseRetriever` + `InMemoryRelevanceEvaluator`
 
 ### Unit tests in rag (RetrievedChunk enrichment)
