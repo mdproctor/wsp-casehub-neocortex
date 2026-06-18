@@ -1,0 +1,9 @@
+branch: issue-33-corrective-rag-crag
+project-sha: 56a672430303643c817540dfc0c2c393c57f355d
+date: 2026-06-18
+issue: 33
+issue-repo: casehubio/neural-text
+covers: 33
+flyway-next-v: none
+design-repo: workspace
+design-section-hashes: 
