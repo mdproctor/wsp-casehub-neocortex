@@ -13,3 +13,4 @@
 | [2026-06-14-mdp09-showing-the-work.md](2026-06-14-mdp09-showing-the-work.md) | 2026-06-14 | Examples project — two demo modules, architecture justification with cited benchmarks, 23 smoke tests |
 | [2026-06-15-mdp10-trailing-edges.md](2026-06-15-mdp10-trailing-edges.md) | 2026-06-15 | Post-review cleanup — langchain4j-embeddings versioning gotcha, CorpusTestSupport API redesign, protocol scope extension |
 | [2026-06-15-mdp11-six-wrong-fields.md](2026-06-15-mdp11-six-wrong-fields.md) | 2026-06-15 | Doc sync — ARC42 corpus layers written from memory had 6 wrong API names; code review caught all of them |
+| [2026-06-18-mdp12-guard-that-isnt-a-guard.md](2026-06-18-mdp12-guard-that-isnt-a-guard.md) | 2026-06-18 | TenantGuard — deployment-time tenancy strategy replaces null-guards; ARC42 boundary shift for Hortora rag-* adoption |
