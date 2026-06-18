@@ -2,7 +2,7 @@
 
 **Issue:** casehubio/neural-text#33
 **Date:** 2026-06-18
-**Status:** Approved (rev 2 — post code review)
+**Status:** Approved (rev 3 — post code review round 2)
 
 ## Problem
 
@@ -26,34 +26,39 @@ Three components:
 
 | Module | Contains | Tier | Hortora? |
 |--------|----------|------|----------|
-| `rag-api` | `RelevanceEvaluator` SPI, `RelevanceGrade`, enriched `RetrievedChunk` | 1 (pure Java) | ✅ yes |
+| `rag-api` | `RelevanceEvaluator` SPI, `RelevanceGrade`, `RetrievalQuality`, enriched `RetrievedChunk` | 1 (pure Java) | ✅ yes |
 | `rag-crag` | `CorrectiveCaseRetriever` (`@Decorator`), `ReactiveCorrectiveCaseRetriever` (`@Decorator`), `CrossEncoderRelevanceEvaluator`, `CragBeanProducer`, `CragConfig` | CDI library | ✅ yes |
 | `rag-testing` | `InMemoryRelevanceEvaluator` stub | 1 | ✅ yes |
-| `rag` | Updated return types on `HybridCaseRetriever`, `ReactiveHybridCaseRetriever`, `BlockingToReactiveCaseRetriever` — no structural change | 3 | ✅ yes |
+| `rag` | No structural change — `RetrievedChunk` gains a 5th field, existing 4-arg construction defaults to `UNGRADED` | 3 | ✅ yes |
 
 ### Activation
 
 Classpath presence — add `casehub-rag-crag` as a compile dependency. `CorrectiveCaseRetriever` is a CDI `@Decorator` — it intercepts the active `CaseRetriever` bean (whatever it is). Remove the dependency → zero cost, no CRAG code loaded.
 
+**Prerequisite:** Adding `casehub-rag-crag` to the classpath requires a `CrossEncoderReranker` bean to be available (the default `RelevanceEvaluator` delegates to it). If no cross-encoder model is configured, the application will fail at startup with a descriptive error. In test scope, `InMemoryRelevanceEvaluator` (from `rag-testing`) replaces the real evaluator — no cross-encoder required.
+
 ### CDI wiring — @Decorator, not @Alternative
 
 CRAG uses the CDI `@Decorator` pattern, not `@Alternative`. This solves three problems:
 
-1. **No circular dependency** — `@Delegate @Any @Inject CaseRetriever delegate` is CDI-managed; resolves to the underlying bean without self-injection
+1. **No circular dependency** — constructor-injected `@Delegate` is CDI-managed; resolves to the underlying bean without self-injection
 2. **No priority collision** — decorators don't compete with alternatives in bean resolution. `InMemoryCaseRetriever` (`@Alternative @Priority(1)` in rag-testing) and the CRAG decorator coexist: in `@QuarkusTest`, the decorator wraps the in-memory stub; in production, it wraps `HybridCaseRetriever`
 3. **Classpath activation** — the decorator only exists when `rag-crag` is on the classpath
 
 ### Framework dependency split
 
-The blocking `@Decorator` uses only CDI annotations (`jakarta.decorator.Decorator`, `jakarta.decorator.Delegate`) — no Quarkus-specific dependency. The reactive `@Decorator` uses `@IfBuildProperty(name = "casehub.rag.reactive.enabled", stringValue = "true")` which is Quarkus-specific. This matches the existing codebase pattern — blocking path is framework-independent, reactive path requires Quarkus Arc.
+The blocking `@Decorator` uses only CDI annotations (`jakarta.decorator.Decorator`, `jakarta.decorator.Delegate` — both in `jakarta.enterprise.cdi-api`) — no Quarkus-specific dependency. The reactive `@Decorator` uses `@IfBuildProperty(name = "casehub.rag.reactive.enabled", stringValue = "true")` which is Quarkus-specific. This matches the existing codebase pattern — blocking path is framework-independent, reactive path requires Quarkus Arc.
+
+**Note on `CragConfig`:** The `@ConfigMapping` interface is SmallRye Config API. The decorator class references `CragConfig` as a plain interface — no SmallRye annotations on the decorator itself. However, `CragConfig` bean resolution requires SmallRye Config's CDI integration, which in practice means Quarkus. This is the same pattern as `RagConfig` in the existing codebase.
+
+**Verification note:** `@IfBuildProperty` on a `@Decorator` class is a first-use pattern in this codebase. Quarkus Arc processes decorators via `DecoratorBuildItem` separately from normal beans. Both annotations target `ElementType.TYPE` and should compose, but verify during implementation. If it fails, the fallback is to gate the reactive decorator via a separate `@IfBuildProperty`-gated producer (same pattern as `ReactiveRagBeanProducer`), though that composes less cleanly with `@Decorator`.
 
 ### Dependencies
 
 ```
 rag-crag → rag-api (compile)
 rag-crag → inference-tasks (compile, for CrossEncoderReranker)
-rag-crag → jakarta.enterprise.cdi-api (provided)
-rag-crag → jakarta.decorator-api (provided)
+rag-crag → jakarta.enterprise.cdi-api (provided) — includes jakarta.decorator.* annotations
 rag-crag → inference-inmem (test)
 rag-crag → rag-testing (test)
 ```
@@ -125,7 +130,9 @@ public record RetrievalQuality(
 }
 ```
 
-`evaluated=true` means CRAG was active and grading happened. `evaluated=false` means no evaluation (non-CRAG path). Lives in `rag-api` (pure Java record — CDI event infrastructure is provided by the container, not the event type). The decorator fires `Event<RetrievalQuality>.fire(quality)` after each retrieval.
+`evaluated=true` means CRAG was active and grading happened. `evaluated=false` means no evaluation (non-CRAG path). Lives in `rag-api` (pure Java record — CDI event infrastructure is provided by the container, not the event type).
+
+**Event dispatch:** The blocking decorator fires `qualityEvent.fire(quality)` (synchronous — safe, as the blocking path runs on a worker thread). The reactive decorator fires `qualityEvent.fireAsync(quality)` (asynchronous — avoids blocking the Vert.x event loop if any observer does blocking work). Observers of `RetrievalQuality` should use `@ObservesAsync` when the reactive path is active.
 
 ### RelevanceEvaluator SPI
 
@@ -155,6 +162,24 @@ Pure Java, Tier 1. No inference dependency — implementations bring their own. 
 | artifactId | `casehub-rag-crag` |
 | Package | `io.casehub.rag.crag` |
 
+### CragConfig
+
+```java
+@ConfigMapping(prefix = "casehub.rag.crag")
+public interface CragConfig {
+    @WithDefault("0.7")
+    double correctThreshold();
+
+    @WithDefault("0.3")
+    double incorrectThreshold();
+
+    @WithDefault("3")
+    int expansionMultiplier();
+}
+```
+
+`@ConfigMapping` is `io.smallrye.config.ConfigMapping`. CDI integration requires SmallRye Config (present in Quarkus). For unit tests outside a CDI container, provide a stub implementation of the interface.
+
 ### CrossEncoderRelevanceEvaluator
 
 Default `RelevanceEvaluator` implementation. Reuses the cross-encoder model already deployed for reranking — no new model required. Scores each (query, chunk) pair and maps to `RelevanceGrade` via two configurable thresholds:
@@ -169,28 +194,43 @@ Batch evaluation uses `CrossEncoderReranker.rerank()` for efficient batched infe
 
 ### CorrectiveCaseRetriever — CDI @Decorator
 
+Constructor injection — all dependencies are constructor parameters, enabling pure Java unit tests without a CDI container.
+
 ```java
 @Decorator
 @Priority(100)
 public class CorrectiveCaseRetriever implements CaseRetriever {
 
-    @Delegate @Any @Inject CaseRetriever delegate;
-    @Inject RelevanceEvaluator evaluator;
-    @Inject CragConfig config;
-    @Inject Event<RetrievalQuality> qualityEvent;
+    private final CaseRetriever delegate;
+    private final RelevanceEvaluator evaluator;
+    private final CragConfig config;
+    private final Event<RetrievalQuality> qualityEvent;
+
+    @Inject
+    CorrectiveCaseRetriever(@Delegate @Any CaseRetriever delegate,
+                            RelevanceEvaluator evaluator,
+                            CragConfig config,
+                            Event<RetrievalQuality> qualityEvent) {
+        this.delegate = delegate;
+        this.evaluator = evaluator;
+        this.config = config;
+        this.qualityEvent = qualityEvent;
+    }
 
     @Override
     public List<RetrievedChunk> retrieve(String query, CorpusRef corpus,
                                           int maxResults, PayloadFilter filter) {
         // 1. Initial retrieval
         List<RetrievedChunk> chunks = delegate.retrieve(query, corpus, maxResults, filter);
+        int totalRetrieved = chunks.size();
 
         // 2. Evaluate each chunk
         List<String> contents = chunks.stream().map(RetrievedChunk::content).toList();
         List<RelevanceGrade> grades = evaluator.evaluateBatch(query, contents);
 
-        // 3. Grade each chunk
+        // 3. Grade each chunk, build seen set for dedup
         List<RetrievedChunk> graded = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
         int correct = 0, ambiguous = 0, incorrect = 0;
         for (int i = 0; i < chunks.size(); i++) {
             RelevanceGrade grade = grades.get(i);
@@ -200,23 +240,49 @@ public class CorrectiveCaseRetriever implements CaseRetriever {
                 case INCORRECT -> incorrect++;
                 default -> {}
             }
-            graded.add(chunks.get(i).withGrade(grade));
+            RetrievedChunk c = chunks.get(i);
+            seen.add(dedupKey(c));
+            graded.add(c.withGrade(grade));
         }
 
         // 4. Filter: keep CORRECT + AMBIGUOUS, discard INCORRECT
-        List<RetrievedChunk> surviving = graded.stream()
+        List<RetrievedChunk> surviving = new ArrayList<>(graded.stream()
             .filter(c -> c.grade() != RelevanceGrade.INCORRECT)
-            .toList();
+            .toList());
 
         // 5. Top-K expansion if too few survive
         boolean expanded = false;
         if (surviving.size() < maxResults) {
+            expanded = true;
             int expandedLimit = maxResults * config.expansionMultiplier();
             List<RetrievedChunk> expandedChunks = delegate.retrieve(
                 query, corpus, expandedLimit, filter);
-            // Re-evaluate only new chunks (exact content hash match for dedup)
-            // Merge into surviving set
-            expanded = true;
+
+            // Filter to only new chunks (not already seen)
+            List<RetrievedChunk> newChunks = expandedChunks.stream()
+                .filter(c -> !seen.contains(dedupKey(c)))
+                .toList();
+
+            // Evaluate new chunks
+            if (!newChunks.isEmpty()) {
+                List<String> newContents = newChunks.stream()
+                    .map(RetrievedChunk::content).toList();
+                List<RelevanceGrade> newGrades = evaluator.evaluateBatch(query, newContents);
+
+                totalRetrieved += newChunks.size();
+                for (int i = 0; i < newChunks.size(); i++) {
+                    RelevanceGrade grade = newGrades.get(i);
+                    switch (grade) {
+                        case CORRECT   -> correct++;
+                        case AMBIGUOUS -> ambiguous++;
+                        case INCORRECT -> incorrect++;
+                        default -> {}
+                    }
+                    if (grade != RelevanceGrade.INCORRECT) {
+                        surviving.add(newChunks.get(i).withGrade(grade));
+                    }
+                }
+            }
         }
 
         // 6. Truncate to maxResults
@@ -224,16 +290,26 @@ public class CorrectiveCaseRetriever implements CaseRetriever {
             .limit(maxResults)
             .toList();
 
-        // 7. Fire quality event
+        // 7. Fire quality event (synchronous — blocking path runs on worker thread)
         qualityEvent.fire(new RetrievalQuality(
-            chunks.size(), correct, ambiguous, incorrect, true, expanded));
+            totalRetrieved, correct, ambiguous, incorrect, true, expanded));
 
         return result;
+    }
+
+    private static String dedupKey(RetrievedChunk c) {
+        return c.sourceDocumentId() + "\0" + c.content().hashCode();
     }
 }
 ```
 
-`ReactiveCorrectiveCaseRetriever` mirrors the same logic with `Uni<>` chains, running evaluation on the worker pool. Gated by `@IfBuildProperty(name = "casehub.rag.reactive.enabled", stringValue = "true")`.
+**Dedup strategy:** `sourceDocumentId` + `content.hashCode()` combined as a `String` key in a `HashSet<String>`. Content strings are already in heap from the initial retrieval; the set adds only the concatenated key overhead. `hashCode()` avoids storing duplicate full-content strings in the set. Collision probability is negligible for <100 chunks within a single retrieval call.
+
+### ReactiveCorrectiveCaseRetriever
+
+Mirrors the same logic with `Uni<>` chains, running evaluation on the worker pool. Uses `qualityEvent.fireAsync(quality)` instead of `fire()` — asynchronous dispatch avoids blocking the Vert.x event loop. Gated by `@IfBuildProperty(name = "casehub.rag.reactive.enabled", stringValue = "true")`.
+
+Constructor injection, same pattern as the blocking decorator.
 
 ### CragBeanProducer
 
@@ -311,13 +387,15 @@ public class InMemoryRelevanceEvaluator implements RelevanceEvaluator {
 
 ### Consumer migration
 
-**No cross-repo migration required.** `CaseRetriever.retrieve()` still returns `List<RetrievedChunk>`. casehub-engine and Hortora call sites are unchanged. Per-chunk grades are available via `chunk.grade()` if consumers choose to inspect them. `RetrievalQuality` is observable via CDI `@Observes RetrievalQuality` for consumers that want it.
+**No cross-repo migration required.** `CaseRetriever.retrieve()` still returns `List<RetrievedChunk>`. casehub-engine and Hortora call sites are unchanged. Per-chunk grades are available via `chunk.grade()` if consumers choose to inspect them. `RetrievalQuality` is observable via CDI `@ObservesAsync RetrievalQuality` for consumers that want it.
 
 Issue #40 (consumer migration) can be closed or repurposed as "consumer adoption of CRAG quality metadata" rather than a mechanical migration.
 
 ## Testing Strategy
 
 ### Unit tests in rag-crag (pure Java, no CDI)
+
+Constructor injection enables direct instantiation without a CDI container. Tests provide `InMemoryCaseRetriever`, `InMemoryRelevanceEvaluator`, a stub `CragConfig` implementation, and a no-op `Event<RetrievalQuality>` (lambda capturing the fired value for assertion).
 
 `CrossEncoderRelevanceEvaluatorTest`:
 - Score above correctThreshold → CORRECT
@@ -328,17 +406,17 @@ Issue #40 (consumer migration) can be closed or repurposed as "consumer adoption
 
 `CorrectiveCaseRetrieverTest`:
 - All CORRECT → all chunks returned with grades, quality event has `evaluated=true`, `expandedSearch=false`
-- All INCORRECT → all filtered, expansion triggered
+- All INCORRECT → all filtered, expansion triggered, quality counters reflect both initial and expansion evaluation
 - Mixed grades → INCORRECT filtered, CORRECT + AMBIGUOUS kept
 - Expansion triggered when surviving < maxResults
-- Deduplication on expansion (exact content hash match)
+- Expansion deduplication — chunks from initial retrieval not re-evaluated
+- Quality event `totalRetrieved`, `totalCorrect`, `totalAmbiguous`, `totalIncorrect` reflect combined initial + expansion counts
 - Grades populated on returned chunks
-- `RetrievalQuality` event counts match
 - Backed by `InMemoryCaseRetriever` + `InMemoryRelevanceEvaluator`
 
 ### Unit tests in rag (RetrievedChunk enrichment)
 
-`RetrievedChunkTest` — verify 4-arg convenience constructor defaults to `UNGRADED`, `withGrade()` produces correct copy.
+`RetrievedChunkTest` — verify 4-arg convenience constructor defaults to `UNGRADED`, `withGrade()` produces correct copy, canonical 5-arg validation (null checks, `Map.copyOf()`).
 
 Existing `HybridCaseRetrieverTest`, `BlockingToReactiveCaseRetrieverTest` — verify returned chunks have `grade == UNGRADED`.
 
@@ -371,10 +449,11 @@ CRAG starts **Journey J4: Retrieval Quality** — the first post-completion exte
 ### Updated chapter flow
 
 ```
-C9 → C10["C10: CRAG\n+ L10, L6 (enriched)"]
+C7 → C10["C10: CRAG\n+ L10, L6 (enriched)"]
+C4 → C10
 ```
 
-C10 depends on C7 (RAG pipeline must exist) and C4 (CrossEncoderReranker from inference-tasks).
+C10 depends on C7 (RAG pipeline — `CaseRetriever` SPI) and C4 (Task Adapters — `CrossEncoderReranker`). No dependency on C9 (Ingestion Bridge) — CRAG decorates retrieval, not ingestion.
 
 ### Accountability gaps closed by C10
 
