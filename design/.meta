@@ -1,0 +1,9 @@
+branch: issue-38-cursorstore-delete-reactive-crag
+project-sha: 87de686cfca510acb226e720b3c17720411133ca
+date: 2026-06-19
+issue: 38
+issue-repo: casehubio/neural-text
+covers: 38,41
+flyway-next-v: none
+design-repo: workspace
+design-section-hashes: 
