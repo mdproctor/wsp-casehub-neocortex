@@ -1,10 +1,14 @@
-# Handoff — 2026-06-18
+# Handoff — 2026-06-20
 
 ## What Changed
 
-Closed #33 — Corrective RAG (CRAG). New `rag-crag` module: CDI `@Decorator` on `CaseRetriever` that evaluates retrieval quality via `RelevanceEvaluator` SPI, filters INCORRECT chunks, expands search when too few survive, fires `RetrievalQuality` CDI events. Default `CrossEncoderRelevanceEvaluator` — threshold-based grading reusing deployed cross-encoder. `rag-api` enriched with `RelevanceGrade`, `RetrievalQuality`, and graded `RetrievedChunk`. `InMemoryRelevanceEvaluator` stub in `rag-testing`. ARC42STORIES: J4, C10, L10. Three rounds of spec review refined the design: CDI `@Decorator` (not `@Alternative`), `List<RetrievedChunk>` return type (not `RetrievalResult` wrapper), CDI event for quality metadata, constructor injection for testability.
+Closed #38 and #41 on branch `issue-38-cursorstore-delete-reactive-crag`.
 
-Filed: #39 (dedicated evaluator model), #40 (consumer adoption), #41 (reactive decorator), parent#286 (PLATFORM.MD update). Garden: GE-20260618-fe1853 (float-to-double threshold comparison), GE-20260618-d84391 (CDI decorator testing technique).
+**#38 — CursorStore.delete()**: `void delete(String corpusName)` on the SPI with no default body. `FileCursorStore` deletes the `.cursor` file; `InMemoryCursorStore` removes from map. Unblocks Hortora engine#9 hybrid search migration (replaces `save(name, "")` workaround).
+
+**#41 — ReactiveCorrectiveCaseRetriever**: CDI `@Decorator @Priority(100)` on `ReactiveCaseRetriever`, classpath-activated. Mutiny `Uni` chains with worker-thread offload for blocking `RelevanceEvaluator`. Uses `fireAsync()`. Already-graded guard prevents double CRAG when the blocking bridge is active — `RelevanceGrade.UNGRADED` as idempotency signal. `CragEvaluationLogic` shared helper extracted from blocking decorator (pure static functions, `GradeResult` record). Dedup key fixed from `content.hashCode()` to full content string. ARC42STORIES updated: C10, L10 marked ✅.
+
+Spec: 3 review rounds, 12 findings. Critical: double CRAG through blocking-to-reactive bridge. Garden: GE-20260620-9d043b (CDI decorator double-application gotcha).
 
 ## Immediate Next Step
 
@@ -14,7 +18,8 @@ Pick from remaining backlog — all items are discretionary. Run `/work` to star
 
 | # | Description | Scale | Complexity | Notes |
 |---|-------------|-------|------------|-------|
-| #41 | ReactiveCorrectiveCaseRetriever — reactive path CRAG | S | Med | Verify @IfBuildProperty + @Decorator composition in Quarkus Arc |
+| #40 | Consumer migration for CaseRetriever return type (CRAG) | S | Low | Cross-repo: casehub-engine + Hortora/engine |
+| #39 | Dedicated RelevanceEvaluator model — CRAG accuracy upgrade | L | High | R&D — triggered when cross-encoder thresholds insufficient |
 | #29 | ColBERT late interaction retrieval — inference-colbert module | L | High | New retrieval mode, ONNX export + MaxSim scoring |
 | #30 | BGE-M3 single-model multi-mode (dense + sparse + ColBERT) | L | High | Replaces separate embedding + SPLADE pipeline |
 | #31 | Matryoshka embeddings + binary quantization for tiered search | M | Med | Qdrant already supports binary vectors |
@@ -25,6 +30,7 @@ Pick from remaining backlog — all items are discretionary. Run `/work` to star
 
 ## Key References
 
-- Spec: `specs/2026-06-18-corrective-rag-crag-design.md`
-- Plan: `plans/attic/issue-33-corrective-rag-crag/2026-06-18-corrective-rag-crag.md`
-- Garden: GE-20260618-fe1853, GE-20260618-d84391
+- Spec: `specs/2026-06-20-cursorstore-delete-reactive-crag-design.md`
+- Plan: `plans/attic/issue-38-cursorstore-delete-reactive-crag/2026-06-20-cursorstore-delete-reactive-crag.md`
+- Garden: GE-20260620-9d043b
+- Blog: `blog/2026-06-20-mdp14-guard-that-wasnt-obvious.md`
