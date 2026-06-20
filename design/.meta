@@ -1,0 +1,9 @@
+branch: issue-32-hyde-query-expansion
+project-sha: 1a48d4d994d01b243b5b7eacfb0166b538baa08b
+date: 2026-06-20
+issue: 32
+issue-repo: casehubio/neural-text
+covers: 32
+flyway-next-v: none
+design-repo: project
+design-section-hashes: 
