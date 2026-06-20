@@ -3,7 +3,7 @@
 **Date:** 2026-06-20
 **Issues:** casehubio/neural-text#38, casehubio/neural-text#41
 **Branch:** issue-38-cursorstore-delete-reactive-crag
-**Revision:** 2 (post-review — 8 findings addressed)
+**Revision:** 3 (post-review — 8 + 4 findings addressed)
 
 ---
 
@@ -81,7 +81,14 @@ static boolean isAlreadyGraded(List<RetrievedChunk> chunks) {
 }
 ```
 
-Both decorators check this before evaluating. If chunks arrive pre-graded, CRAG returns them as-is with a `RetrievalQuality.NONE` event. The `RelevanceGrade` field on `RetrievedChunk` is the natural idempotency signal — CRAG's job is to grade UNGRADED chunks.
+Both decorators check this before evaluating. If chunks arrive pre-graded, the decorator returns them as-is and fires no event. The decorator did no work — silence is the right signal. No `RetrievalQuality.NONE`, no phantom event. One retrieval, one event, from the decorator that actually evaluated.
+
+**Contract for both decorators when guard fires:**
+- Return chunks unchanged
+- Do not invoke `evaluator`
+- Do not fire any `RetrievalQuality` event
+
+The `RelevanceGrade` field on `RetrievedChunk` is the natural idempotency signal — CRAG's job is to grade UNGRADED chunks.
 
 When native reactive is active (`casehub.rag.reactive.enabled=true`), `ReactiveHybridCaseRetriever` is the `ReactiveCaseRetriever` bean directly — no bridge, no blocking decorator, guard never fires. Correct in both modes.
 
@@ -133,7 +140,7 @@ The reactive decorator orchestrates the same logic as the blocking decorator, bu
 ```
 delegate.retrieve(query, corpus, maxResults, filter)           → Uni<List<RetrievedChunk>>
   │
-  ├─ isAlreadyGraded? → return chunks as-is + NONE event      → Uni<List<RetrievedChunk>>
+  ├─ isAlreadyGraded? → return chunks as-is, no event          → Uni<List<RetrievedChunk>>
   │
   └─ transformToUni: offload evaluateBatch to worker thread    → Uni<GradeResult>
        │
@@ -159,7 +166,7 @@ Three async boundaries (delegate call, first evaluation offload, conditional sec
 
 | Test | Assertion |
 |------|-----------|
-| `alreadyGradedChunksPassThrough` | Pre-graded chunks returned as-is, no evaluation, NONE event |
+| `alreadyGradedChunksPassThrough` | Pre-graded chunks returned as-is, no evaluation, no event fired |
 | `allCorrectChunksPassThrough` | No filtering, no expansion |
 | `allIncorrectTriggersExpansion` | Delegate called again with `maxResults * config.expansionMultiplier()` |
 | `mixedGradesFilterIncorrect` | INCORRECT removed, CORRECT + AMBIGUOUS kept |
@@ -174,9 +181,33 @@ Event mock implements `fireAsync()` returning `CompletableFuture.completedFuture
 
 **Integration test** (`example-rag-pipeline`): `CragReactivePipelineIT` — exercises reactive decorator end-to-end with `InMemoryRelevanceEvaluator`.
 
-### Additional Assertions (from issue body)
+### CragEvaluationLogic Direct Tests
 
-Add `grade == UNGRADED` assertions to existing tests:
+The shared helper has 6 static methods and a `GradeResult` record — pure functions independently testable without CDI or Uni orchestration. Direct tests isolate the logic and survive decorator refactors.
+
+| Test | Method | Assertion |
+|------|--------|-----------|
+| `isAlreadyGraded_emptyList` | `isAlreadyGraded` | Empty list → false |
+| `isAlreadyGraded_allGraded` | `isAlreadyGraded` | All CORRECT/AMBIGUOUS/INCORRECT → true |
+| `isAlreadyGraded_allUngraded` | `isAlreadyGraded` | All UNGRADED → false |
+| `isAlreadyGraded_mixed` | `isAlreadyGraded` | Mix of graded + UNGRADED → false |
+| `gradeChunks_countsAccumulate` | `gradeChunks` | Correct/ambiguous/incorrect counts match input grades |
+| `gradeChunks_dedupKeysUseFullContent` | `gradeChunks` | Seen set uses `sourceDocumentId + "\0" + content`, not hashCode |
+| `deduplicateExpanded_filtersSeen` | `deduplicateExpanded` | Chunks in seen set filtered, unseen pass through |
+| `sortAndTruncate_correctBeforeAmbiguous` | `sortAndTruncate` | CORRECT-graded chunks precede AMBIGUOUS |
+| `sortAndTruncate_truncatesAtMax` | `sortAndTruncate` | Result size <= maxResults |
+| `needsExpansion_thresholdBoundaries` | `needsExpansion` | survivors == maxResults → false; incorrect == 0 → false |
+| `buildQualityEvent_fields` | `buildQualityEvent` | All fields propagated correctly, evaluated=true |
+
+### Additional Tests on Existing Classes
+
+**CorrectiveCaseRetrieverTest** (blocking decorator — new test):
+
+| Test | Assertion |
+|------|-----------|
+| `alreadyGradedChunksPassThrough` | Pre-graded chunks returned as-is, no evaluator invocation, no event fired |
+
+**Existing tests** (from issue body) — add `grade == UNGRADED` assertions:
 - `HybridCaseRetrieverTest` — confirms without CRAG, chunks are ungraded
 - `BlockingToReactiveCaseRetrieverTest` — same confirmation on reactive bridge path
 
@@ -189,7 +220,7 @@ Add `grade == UNGRADED` assertions to existing tests:
 | `rag-api` | `CursorStore.delete()` — no default body |
 | `rag` | `FileCursorStore.delete()` + tests |
 | `rag-testing` | `InMemoryCursorStore.delete()` + tests |
-| `rag-crag` | `ReactiveCorrectiveCaseRetriever`, `CragEvaluationLogic` (shared logic extraction + dedup fix), refactor blocking `CorrectiveCaseRetriever`, Mutiny provided dependency, tests |
+| `rag-crag` | `ReactiveCorrectiveCaseRetriever`, `CragEvaluationLogic` (shared logic extraction + dedup fix + direct tests), refactor blocking `CorrectiveCaseRetriever` (use shared logic + add guard test), Mutiny provided dependency, tests |
 | `example-rag-pipeline` | `CragReactivePipelineIT` |
 
 ## Decisions
@@ -198,6 +229,7 @@ Add `grade == UNGRADED` assertions to existing tests:
 |----------|--------|-----------|
 | Activation model | Classpath-activated | Matches blocking decorator; avoids untested `@IfBuildProperty` on `@Decorator` |
 | Double-CRAG prevention | Already-graded guard via `isAlreadyGraded()` | `RelevanceGrade.UNGRADED` is the natural idempotency signal — CRAG grades UNGRADED chunks |
+| Guard pass-through event | No event fired | Decorator did no work — silence is the right signal. One retrieval, one event, from the decorator that evaluated |
 | CursorStore.delete() | No default body | Two known implementations, both in-repo. Default `save("")` is the hack the issue exists to eliminate |
 | CDI event | `fireAsync()` fire-and-forget | Reactive path should not block on observer completion |
 | Blocking evaluation | Worker thread offload | `RelevanceEvaluator` is blocking (cross-encoder); same pattern as `BlockingToReactiveCaseRetriever` |
@@ -217,3 +249,7 @@ Add `grade == UNGRADED` assertions to existing tests:
 | 6 | Reactive Uni chain complexity | Replaced "mirrors" with explicit nesting diagram, 3 async boundaries |
 | 7 | Worker thread offload test missing | Added `evaluatorRunsOnWorkerThread` test |
 | 8 | dedupKey collision risk | Fixed to full content string in shared helper |
+| A | Blocking guard behavior unspecified | Explicit contract: return as-is, no evaluator, no event |
+| B | NONE event on pass-through is noise | No event on pass-through for both decorators |
+| C | CragEvaluationLogic needs direct tests | Added 11 direct unit tests for pure functions |
+| D | Blocking decorator needs guard test | Added `alreadyGradedChunksPassThrough` to CorrectiveCaseRetrieverTest |
