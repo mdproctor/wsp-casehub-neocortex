@@ -3,6 +3,7 @@
 **Date:** 2026-06-20
 **Issues:** casehubio/neural-text#38, casehubio/neural-text#41
 **Branch:** issue-38-cursorstore-delete-reactive-crag
+**Revision:** 2 (post-review — 8 findings addressed)
 
 ---
 
@@ -14,11 +15,11 @@ Hortora engine needs to reset the ingestion cursor when migrating from dense-onl
 
 ### Design
 
-**SPI change** (`rag-api`): Add `default void delete(String corpusName)` to `CursorStore`. Default body calls `save(corpusName, "")` for backward compatibility with custom implementations.
+**SPI change** (`rag-api`): Add `void delete(String corpusName)` to `CursorStore` — no default body. Every implementation must provide a semantically correct delete. There are exactly two implementations (`FileCursorStore`, `InMemoryCursorStore`), both in this repo. No external implementations exist (verified: casehub-engine has no CursorStore usage; Hortora uses `FileCursorStore` via the `casehub-rag` dependency). A default body of `save(corpusName, "")` would be the same implementation-coupling hack the problem statement identifies as wrong.
 
-**FileCursorStore override** (`rag`): Delete the `{baseDir}/{corpusName}.cursor` file. No-op if the file doesn't exist. Throws `UncheckedIOException` on I/O failure, matching existing `save`/`load` error handling.
+**FileCursorStore** (`rag`): Delete the `{baseDir}/{corpusName}.cursor` file. No-op if the file doesn't exist. Throws `UncheckedIOException` on I/O failure, matching existing `save`/`load` error handling.
 
-**InMemoryCursorStore override** (`rag-testing`): `cursors.remove(corpusName)`.
+**InMemoryCursorStore** (`rag-testing`): `cursors.remove(corpusName)`.
 
 ### Tests
 
@@ -48,39 +49,109 @@ CRAG (#33) ships with a blocking `CorrectiveCaseRetriever` `@Decorator`. The rea
 - `CragConfig config`
 - `Event<RetrievalQuality> qualityEvent`
 
+**Maven dependency** (`rag-crag/pom.xml`): Add Mutiny as provided scope. The reactive decorator needs `Uni` and `Infrastructure`. `rag-api` has Mutiny as provided — not transitive in Maven. Explicit dependency required:
+
+```xml
+<dependency>
+    <groupId>io.smallrye.reactive</groupId>
+    <artifactId>mutiny</artifactId>
+    <scope>provided</scope>
+</dependency>
+```
+
+### Double-CRAG Prevention
+
+In default mode (no native reactive), the CDI chain is:
+
+```
+ReactiveCorrectiveCaseRetriever (@Decorator on ReactiveCaseRetriever)
+  → BlockingToReactiveCaseRetriever (@DefaultBean, injects CaseRetriever)
+    → CorrectiveCaseRetriever (@Decorator on CaseRetriever)
+      → HybridCaseRetriever
+```
+
+Without a guard, CRAG applies twice — the blocking decorator grades chunks, then the reactive decorator re-grades already-graded chunks. This corrupts quality counts, may re-expand, and fires two `RetrievalQuality` events.
+
+**Fix:** Already-graded guard as a shared precondition in `CragEvaluationLogic`:
+
+```java
+static boolean isAlreadyGraded(List<RetrievedChunk> chunks) {
+    return !chunks.isEmpty()
+        && chunks.stream().noneMatch(c -> c.grade() == RelevanceGrade.UNGRADED);
+}
+```
+
+Both decorators check this before evaluating. If chunks arrive pre-graded, CRAG returns them as-is with a `RetrievalQuality.NONE` event. The `RelevanceGrade` field on `RetrievedChunk` is the natural idempotency signal — CRAG's job is to grade UNGRADED chunks.
+
+When native reactive is active (`casehub.rag.reactive.enabled=true`), `ReactiveHybridCaseRetriever` is the `ReactiveCaseRetriever` bean directly — no bridge, no blocking decorator, guard never fires. Correct in both modes.
+
+### Shared Logic Extraction: CragEvaluationLogic
+
+Package-private helper class in `io.casehub.rag.crag`. Pure functions — no CDI, no Uni dependencies. Both decorators delegate to this shared logic. Refactor blocking `CorrectiveCaseRetriever` to use it too.
+
+**State carrier:**
+
+```java
+record GradeResult(List<RetrievedChunk> graded, Set<String> seen,
+                   int correct, int ambiguous, int incorrect) {}
+```
+
+Bundles graded chunks, dedup seen-set, and per-grade counts so state flows cleanly between operations.
+
+**Methods:**
+
+```java
+static boolean isAlreadyGraded(List<RetrievedChunk> chunks);
+
+static GradeResult gradeChunks(List<RetrievedChunk> chunks,
+                               List<RelevanceGrade> grades);
+
+static List<RetrievedChunk> filterIncorrect(List<RetrievedChunk> graded);
+
+static boolean needsExpansion(int survivorCount, int maxResults,
+                              int incorrectCount);
+
+static List<RetrievedChunk> deduplicateExpanded(
+    List<RetrievedChunk> expanded, Set<String> seen);
+
+static List<RetrievedChunk> sortAndTruncate(
+    List<RetrievedChunk> merged, int maxResults);
+
+static RetrievalQuality buildQualityEvent(
+    int totalRetrieved, int correct, int ambiguous,
+    int incorrect, boolean expanded);
+```
+
+**Dedup key fix:** The existing code uses `sourceDocumentId + "\0" + content.hashCode()` — a 32-bit hash that can incorrectly deduplicate two chunks with different content but colliding hashCodes. Since dedup sets are small (<100 entries), use the full content: `sourceDocumentId + "\0" + content`. Both decorators get the fix via the shared helper.
+
 ### Retrieve Flow
 
-Mirrors the blocking decorator as a Uni chain:
+The reactive decorator orchestrates the same logic as the blocking decorator, but with nested conditional `Uni` chains and worker-thread offloads. This is materially more complex than the blocking version — not a simple mirror.
 
-1. `delegate.retrieve(query, corpus, maxResults, filter)` — returns `Uni<List<RetrievedChunk>>`
-2. `.onItem().transformToUni()` → offload `evaluator.evaluateBatch()` to worker thread via `Uni.createFrom().item(() -> ...).runSubscriptionOn(Infrastructure.getDefaultWorkerPool())`
-3. Grade chunks with evaluation results
-4. Filter out INCORRECT grades
-5. If surviving count < maxResults AND there were incorrect chunks → expand:
-   - Delegate again with `maxResults * config.expansionFactor()`
-   - Offload second evaluation to worker thread
-   - Deduplicate using `sourceDocumentId + "\0" + content.hashCode()` key
-   - Merge expanded results
-6. Sort: CORRECT before AMBIGUOUS, then by relevance score
-7. Truncate to `maxResults`
-8. `qualityEvent.fireAsync(...)` — fire-and-forget, do not chain `CompletionStage` into result
-9. Return `Uni<List<RetrievedChunk>>` with graded results
+**Uni chain structure:**
 
-### Shared Logic Extraction
+```
+delegate.retrieve(query, corpus, maxResults, filter)           → Uni<List<RetrievedChunk>>
+  │
+  ├─ isAlreadyGraded? → return chunks as-is + NONE event      → Uni<List<RetrievedChunk>>
+  │
+  └─ transformToUni: offload evaluateBatch to worker thread    → Uni<GradeResult>
+       │
+       ├─ needsExpansion = false:
+       │    map: filterIncorrect, sortAndTruncate              → Uni<List<RetrievedChunk>>
+       │
+       └─ needsExpansion = true:
+            transformToUni: delegate.retrieve(expanded limit)  → Uni<List<RetrievedChunk>>
+              │
+              transformToUni: offload 2nd evaluateBatch        → Uni<GradeResult>
+                │
+                map: deduplicateExpanded, merge,
+                     filterIncorrect, sortAndTruncate          → Uni<List<RetrievedChunk>>
+       │
+       invoke: qualityEvent.fireAsync() — fire-and-forget
+```
 
-The evaluate → filter → expand → deduplicate → sort logic is identical between blocking and reactive decorators. Extract a package-private `CragEvaluationLogic` helper class:
-
-- Pure functions operating on `List<RetrievedChunk>` and `List<RelevanceGrade>`
-- No CDI, no Uni dependencies
-- Both decorators call into this shared logic
-- Refactor blocking `CorrectiveCaseRetriever` to use it too
-
-Methods:
-- `gradeChunks(List<RetrievedChunk>, List<RelevanceGrade>)` → `List<RetrievedChunk>` with grades applied
-- `filterAndPartition(List<RetrievedChunk>)` → survivors + whether expansion needed
-- `deduplicateAndMerge(List<RetrievedChunk> original, List<RetrievedChunk> expanded)` → merged list
-- `sortAndTruncate(List<RetrievedChunk>, int maxResults)` → final result
-- `buildQualityEvent(...)` → `RetrievalQuality` record
+Three async boundaries (delegate call, first evaluation offload, conditional second delegate + evaluation). The `CragEvaluationLogic` extraction keeps the pure computation in the helper — the Uni chain is orchestration only.
 
 ### Testing
 
@@ -88,14 +159,16 @@ Methods:
 
 | Test | Assertion |
 |------|-----------|
+| `alreadyGradedChunksPassThrough` | Pre-graded chunks returned as-is, no evaluation, NONE event |
 | `allCorrectChunksPassThrough` | No filtering, no expansion |
-| `allIncorrectTriggersExpansion` | Delegate called again with expanded maxResults |
+| `allIncorrectTriggersExpansion` | Delegate called again with `maxResults * config.expansionMultiplier()` |
 | `mixedGradesFilterIncorrect` | INCORRECT removed, CORRECT + AMBIGUOUS kept |
 | `truncationPrefersCORRECT` | CORRECT sorted before AMBIGUOUS |
 | `emptyCorpusReturnsEmpty` | Empty delegate result → empty output |
 | `smallCorpusNoExpansion` | Below threshold, no expansion triggered |
 | `qualityEventFired` | `fireAsync()` called with correct counters |
 | `expansionDeduplicates` | Same chunk from original + expansion appears once |
+| `evaluatorRunsOnWorkerThread` | Verify evaluator executes off subscribing thread (event loop safety) |
 
 Event mock implements `fireAsync()` returning `CompletableFuture.completedFuture()`.
 
@@ -113,10 +186,10 @@ Add `grade == UNGRADED` assertions to existing tests:
 
 | Module | Changes |
 |--------|---------|
-| `rag-api` | `CursorStore.delete()` default method |
-| `rag` | `FileCursorStore.delete()` override + tests |
-| `rag-testing` | `InMemoryCursorStore.delete()` override + tests |
-| `rag-crag` | `ReactiveCorrectiveCaseRetriever`, `CragEvaluationLogic`, refactor blocking decorator, tests |
+| `rag-api` | `CursorStore.delete()` — no default body |
+| `rag` | `FileCursorStore.delete()` + tests |
+| `rag-testing` | `InMemoryCursorStore.delete()` + tests |
+| `rag-crag` | `ReactiveCorrectiveCaseRetriever`, `CragEvaluationLogic` (shared logic extraction + dedup fix), refactor blocking `CorrectiveCaseRetriever`, Mutiny provided dependency, tests |
 | `example-rag-pipeline` | `CragReactivePipelineIT` |
 
 ## Decisions
@@ -124,7 +197,23 @@ Add `grade == UNGRADED` assertions to existing tests:
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Activation model | Classpath-activated | Matches blocking decorator; avoids untested `@IfBuildProperty` on `@Decorator` |
+| Double-CRAG prevention | Already-graded guard via `isAlreadyGraded()` | `RelevanceGrade.UNGRADED` is the natural idempotency signal — CRAG grades UNGRADED chunks |
+| CursorStore.delete() | No default body | Two known implementations, both in-repo. Default `save("")` is the hack the issue exists to eliminate |
 | CDI event | `fireAsync()` fire-and-forget | Reactive path should not block on observer completion |
 | Blocking evaluation | Worker thread offload | `RelevanceEvaluator` is blocking (cross-encoder); same pattern as `BlockingToReactiveCaseRetriever` |
-| Shared logic | Extract `CragEvaluationLogic` | Avoids duplicating grading/filtering/sorting between decorators |
+| Shared logic | Extract `CragEvaluationLogic` with `GradeResult` record | Avoids duplicating grading/filtering/sorting; carries state cleanly between operations |
+| Dedup key | Full content string, not hashCode() | Eliminates 32-bit collision risk; dedup sets are small (<100) |
 | Reactive evaluator SPI | Deferred | YAGNI — can be added later without changing the decorator |
+
+## Review Findings Addressed
+
+| # | Finding | Resolution |
+|---|---------|------------|
+| 1 | Double CRAG in default mode | Added already-graded guard as shared precondition |
+| 2 | CursorStore.delete() should be abstract | Dropped default body — no backward-compat shim |
+| 3 | expansionFactor → expansionMultiplier | Fixed to `config.expansionMultiplier()` |
+| 4 | Mutiny dependency missing in rag-crag | Added explicit provided-scope dependency |
+| 5 | CragEvaluationLogic under-specified | Added `GradeResult` record, explicit method signatures with types |
+| 6 | Reactive Uni chain complexity | Replaced "mirrors" with explicit nesting diagram, 3 async boundaries |
+| 7 | Worker thread offload test missing | Added `evaluatorRunsOnWorkerThread` test |
+| 8 | dedupKey collision risk | Fixed to full content string in shared helper |
