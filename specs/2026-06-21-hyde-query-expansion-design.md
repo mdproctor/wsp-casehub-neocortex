@@ -368,7 +368,7 @@ private Uni<List<RetrievedChunk>> maybeRerank(RetrievalQuery query,
 
 **InMemoryQueryExpander** — `@Alternative @Priority(1) @ApplicationScoped`. Deterministic stub: returns `query.withExpansion("hypothetical: " + query.text())`. Records expanded queries for test assertions. Follows `InMemoryRelevanceEvaluator` pattern.
 
-**InMemoryCaseRetriever / InMemoryReactiveCaseRetriever** — signature change to `RetrievalQuery`, uses `query.searchText()` for matching.
+**InMemoryCaseRetriever / InMemoryReactiveCaseRetriever** — signature change only (`String query` → `RetrievalQuery query`). The query parameter remains unused — these stubs return stored chunks or a fixed response, applying only `PayloadFilter`.
 
 **All existing tests** — mechanical `"query"` → `RetrievalQuery.of("query")` migration.
 
@@ -405,8 +405,6 @@ rag/                               (modified)
   ~ HybridCaseRetriever            — searchText() for dense, text() for sparse + reranking
   ~ ReactiveHybridCaseRetriever    — same
   ~ BlockingToReactiveCaseRetriever — pass-through signature change
-  ~ RagBeanProducer                — signature change
-  ~ ReactiveRagBeanProducer        — signature change
 
 rag-crag/                          (modified)
   ~ CorrectiveCaseRetriever        — RetrievalQuery + @IfBuildProperty
@@ -429,6 +427,66 @@ rag-api  ←── rag-hyde  (+ langchain4j-core for ChatModel)
    ├──── rag-crag
    └──── rag-testing
 ```
+
+## ARC42STORIES update plan
+
+### Journey placement
+
+HyDE belongs in **J4 Retrieval Quality** — the same journey as CRAG (C10). Both are retrieval pipeline enhancements that improve result quality through different mechanisms (pre-retrieval expansion vs post-retrieval correction).
+
+### New chapter: C11 — HyDE Query Expansion
+
+| Field | Value |
+|---|---|
+| Journey | J4 |
+| Sequence | after C10 |
+| Layers touched | L6 (Med), L7 (Med), L10 (Low), L11 (High) |
+| Dependencies | C7 (CaseRetriever SPI), C10 (CRAG exists — activation model retrofit) |
+| Issues | #32 |
+
+**Delta summary:** `rag-hyde` module — CDI `@Decorator` on `CaseRetriever` that expands queries via `QueryExpander` SPI before retrieval. LLM-backed (default) and template-based expanders. Classpath + config activated. `rag-api` enriched with `RetrievalQuery` value type and `QueryExpander` SPI. `CaseRetriever`/`ReactiveCaseRetriever` SPI breaking change: `String query` → `RetrievalQuery query`. CRAG retrofitted to classpath + config activation. `HybridCaseRetriever` split: dense embedding uses `searchText()`, sparse uses `text()`.
+
+### New layer: L11 HyDE
+
+| Layer | Module | Tier | Hortora? |
+|---|---|---|---|
+| L11 HyDE | `rag-hyde` | CDI library, classpath + config activated | ✅ yes |
+
+### Layer updates
+
+- **L6 RAG SPI:** + `RetrievalQuery` value type, + `QueryExpander` SPI interface, `CaseRetriever`/`ReactiveCaseRetriever` signature change (`String` → `RetrievalQuery`). `rag-testing` gains `InMemoryQueryExpander` stub.
+- **L7 RAG Runtime:** `HybridCaseRetriever`/`ReactiveHybridCaseRetriever` updated — dense embedding uses `searchText()`, sparse embedding uses `text()`, reranking uses `text()`. `BlockingToReactiveCaseRetriever` signature passthrough.
+- **L10 CRAG:** Activation model changes from classpath-only to classpath + `casehub.rag.crag.enabled=true`. All three beans (`CorrectiveCaseRetriever`, `ReactiveCorrectiveCaseRetriever`, `CragBeanProducer`) gain `@IfBuildProperty`. Description changes from "classpath-activated" to "classpath + config activated". Signature updated for `RetrievalQuery`.
+
+### Chapter flow update
+
+```
+C7 --> C10["C10: CRAG\n+ L10, L6 (enriched)"]
+C4 --> C10
+C7 --> C11["C11: HyDE\n+ L11, L6 (enriched), L7, L10 (retrofitted)"]
+C10 --> C11
+```
+
+C11 depends on C10 because the CRAG activation model retrofit is part of C11's scope — it wouldn't make sense to retrofit CRAG without HyDE motivating the change.
+
+### Chapter sequencing rationale addition
+
+- C11 after C7 and C10: **hard** — HyDE decorates CaseRetriever (C7) and retrofits CRAG's activation model (C10); both must exist first. The `RetrievalQuery` SPI change affects L6 and L7 which were established in C7, and L10 which was established in C10.
+
+### Layer × Chapter matrix update
+
+Add column C11:
+
+| Layer | C11 |
+|---|---|
+| L6 RAG SPI | Med |
+| L7 RAG Runtime | Med |
+| L10 CRAG | Low |
+| L11 HyDE | High |
+
+### §9.1 Journey Overview update
+
+| J4 Retrieval Quality | Self-healing and expanded retrieval — evaluate, filter, correct, and expand queries | C10, C11 | 🔲 pending |
 
 ## Behavioral changes
 
