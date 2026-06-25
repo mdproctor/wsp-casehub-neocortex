@@ -32,6 +32,8 @@ public interface QueryExpander {
 
 Single-query expansion returns `List.of(expanded)`. Multi-query returns N items. Step-back returns `[original, abstract]`. The cardinality decision belongs to the implementation, not the framework.
 
+**SPI contract:** `expand()` must return a non-empty list. An expander that returns nothing is a contract violation, not "no expansion." Implementations that have nothing to expand should return `List.of(query)` (the original unchanged).
+
 `RetrievalQuery` is unchanged — each element in the returned list is a complete `RetrievalQuery` with its own `text()` and optional `expandedText()`.
 
 ### 2. RRF Fusion Utility in `rag-api`
@@ -97,6 +99,10 @@ public class QueryExpandingCaseRetriever implements CaseRetriever {
             expanded = List.of(query);
         }
 
+        if (expanded.isEmpty()) {
+            expanded = List.of(query);
+        }
+
         if (expanded.size() == 1) {
             return delegate.retrieve(expanded.get(0), corpus, maxResults, filter);
         }
@@ -133,6 +139,7 @@ public class ReactiveQueryExpandingCaseRetriever implements ReactiveCaseRetrieve
                 LOG.log(Level.WARNING, "Query expansion failed, using original query", t);
                 return List.of(query);
             })
+            .map(expanded -> expanded.isEmpty() ? List.of(query) : expanded)
             .chain(expanded -> {
                 if (expanded.size() == 1) {
                     return delegate.retrieve(expanded.get(0), corpus, maxResults, filter);
