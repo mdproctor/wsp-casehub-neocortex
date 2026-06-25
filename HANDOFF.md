@@ -1,5 +1,7 @@
 # Handoff — 2026-06-25
 
+*Updated: casehubio/parent#306 and hortora/engine#20 closed — removed from cross-module.*
+
 ## What Changed
 
 Closed `issue-43-step-back-multi-query-expander` — #43 (step-back prompting) and #42 (multi-query HyDE) merged, squashed (23→6 commits), pushed to fork and blessed repo. Issues closed.
@@ -9,12 +11,6 @@ Key changes: `QueryExpander` SPI returns `List<RetrievalQuery>`. `rag-hyde` → 
 ## Immediate Next Step
 
 Pick from backlog — run `/work` to start.
-
-## Cross-Module
-
-**We owe:**
-- `parent` — casehubio/parent#306: update `docs/repos/casehub-neural-text.md` — now includes QueryExpander, CRAG, expansion module · S · Low
-- `hortora/engine` — hortora/engine#20: drop native image CI/docs · S · Low
 
 ## What's Next
 
