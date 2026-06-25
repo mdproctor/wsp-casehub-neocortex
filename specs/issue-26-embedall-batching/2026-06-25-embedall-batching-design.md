@@ -2,7 +2,7 @@
 
 **Issue:** hortora/engine#26
 **Date:** 2026-06-25
-**Status:** Approved (rev 2 — post review)
+**Status:** Approved (rev 3 — post review)
 
 ## Problem
 
@@ -94,7 +94,7 @@ Config key: `casehub.rag.embedding-batch-size`
 
 One batch size for all three operations — they're lockstep, and the tightest constraint (Ollama HTTP) determines the effective limit.
 
-**Default 100 justification:** At 100 items x ~500 chars average, the Ollama HTTP body is ~50 KB (well within limits). ONNX Runtime allocates ~100 x 512 x 3 x 8 bytes ≈ 1.2 MB for token arrays (trivial). Qdrant upsert with 100 points at ~3 KB each (768-dim dense + sparse + payload) is ~300 KB (well under the 256 MB gRPC default max message size).
+**Default 100 justification:** At 100 items x ~500 chars average, the Ollama HTTP body is ~50 KB (well within limits). ONNX Runtime total memory per batch: input token arrays ~1.2 MB (`long[100][512]` x 3) + output buffer ~11.6 MB (`float[100][30522]` for SPLADE vocab) ≈ 13 MB total at worst case (SPLADE); ~1.5 MB for dense-only (768-dim output). Trivial either way. Qdrant upsert with 100 points at ~3 KB each (768-dim dense + sparse + payload) is ~300 KB (well under the 256 MB gRPC default max message size).
 
 ## Constructor Changes
 
@@ -115,11 +115,12 @@ Both `QdrantEmbeddingIngestor` and `ReactiveQdrantEmbeddingIngestor` gain a `int
 | `RagBeanProducer.java` | Pass `config.embeddingBatchSize()` to constructor |
 | `ReactiveRagBeanProducer.java` | Pass `config.embeddingBatchSize()` to constructor |
 
-### Tests (5 files — constructor signature change)
+### Tests (6 files)
 
 | File | Change |
 |------|--------|
-| `QdrantEmbeddingIngestorTest.java` | Add `batchSize` to constructors, add batching tests |
+| `QdrantPointBuilderTest.java` | **New** — unit tests for `computeChunkIndices()` and `buildPoint()`: pure computation, no Testcontainers |
+| `QdrantEmbeddingIngestorTest.java` | Add `batchSize` to constructors, add batching integration tests |
 | `ReactiveQdrantEmbeddingIngestorTest.java` | Same |
 | `HybridCaseRetrieverTest.java` | Add `batchSize` to ingestor constructors |
 | `ReactiveHybridCaseRetrieverTest.java` | Same |
@@ -134,7 +135,14 @@ Both `QdrantEmbeddingIngestor` and `ReactiveQdrantEmbeddingIngestor` gain a `int
 
 ### New tests
 
-1. **Batching splits correctly**: Ingest N chunks with batchSize M < N, verify all chunks land in Qdrant with correct deterministic IDs
-2. **Cross-batch document continuity**: A single document's chunks span two batches, verify chunk indices are continuous (pre-computed, not reset per batch)
-3. **batchSize >= chunks**: Degenerates to single batch — same as current behaviour
-4. **batchSize = 1**: Every chunk gets its own batch — exercises maximum iterations and single-element subList
+**QdrantPointBuilderTest** (unit — no Testcontainers):
+
+1. `computeChunkIndices` — empty list, single chunk, all chunks from one document, all chunks from different documents, interleaved multi-document (the spec example: `[A#0, A#1, B#0, A#2, B#1]` → `[0, 1, 0, 2, 1]`)
+2. `buildPoint` — correct deterministic UUID generation, dense-only vector construction, dense+sparse vector construction, payload mapping with metadata
+
+**Integration tests** (Testcontainers Qdrant — on both blocking and reactive ingestors):
+
+3. **Batching splits correctly**: Ingest N chunks with batchSize M < N, verify all chunks land in Qdrant with correct deterministic IDs
+4. **Cross-batch document continuity**: A single document's chunks span two batches, verify chunk indices are continuous (pre-computed, not reset per batch)
+5. **batchSize >= chunks**: Degenerates to single batch — same as current behaviour
+6. **batchSize = 1**: Every chunk gets its own batch — exercises maximum iterations and single-element subList
