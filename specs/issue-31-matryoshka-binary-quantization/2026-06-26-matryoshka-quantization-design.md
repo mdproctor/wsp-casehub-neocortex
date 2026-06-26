@@ -89,7 +89,7 @@ Named `DenseQuantization` (not `QuantizationType`) because Qdrant client 1.18.1 
 
 - `BINARY` → Qdrant `BinaryQuantization` — 32x compression, uses hamming distance for
   first-pass, rescores with float32 originals. Best RAM savings.
-- `SCALAR` → Qdrant `ScalarQuantization` with `type=Float8` — 4x compression (float32→uint8),
+- `SCALAR` → Qdrant `ScalarQuantization` with `type=Int8` — 4x compression (float32→uint8),
   less aggressive but better quality preservation. Recommended for quality-sensitive deployments.
 - `NONE` → current behaviour, no quantization.
 
