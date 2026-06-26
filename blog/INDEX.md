@@ -16,3 +16,4 @@
 | [2026-06-18-mdp12-guard-that-isnt-a-guard.md](2026-06-18-mdp12-guard-that-isnt-a-guard.md) | 2026-06-18 | TenantGuard — deployment-time tenancy strategy replaces null-guards; ARC42 boundary shift for Hortora rag-* adoption |
 | [2026-06-18-mdp13-fifteen-branches-and-nine-missing-posts.md](2026-06-18-mdp13-fifteen-branches-and-nine-missing-posts.md) | 2026-06-18 | Code review fixes (#37), cross-repo branch audit, blog-routing.yaml for all 15 casehub workspaces, 9 unpublished entries recovered |
 | [2026-06-24-mdp16-gate-that-didnt-need-opening.md](2026-06-24-mdp16-gate-that-didnt-need-opening.md) | 2026-06-24 | JVM mode by design — native image gate passed but service doesn't need it; cross-repo doc sync |
+| [2026-06-26-mdp18-embedall-batching.md](2026-06-26-mdp18-embedall-batching.md) | 2026-06-26 | embedAll batching — tier placement analysis, QdrantPointBuilder extraction, Integer.MAX_VALUE ceiling division overflow |
