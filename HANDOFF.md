@@ -1,12 +1,12 @@
-# Handoff — 2026-06-25
-
-*Updated: casehubio/parent#306 and hortora/engine#20 closed — removed from cross-module.*
+# Handoff — 2026-06-26
 
 ## What Changed
 
-Closed `issue-43-step-back-multi-query-expander` — #43 (step-back prompting) and #42 (multi-query HyDE) merged, squashed (23→6 commits), pushed to fork and blessed repo. Issues closed.
+Closed `issue-26-embedall-batching` — hortora/engine#26 (embedAll batching). `QdrantEmbeddingIngestor` and `ReactiveQdrantEmbeddingIngestor` now batch `embedAll`/`embedBatch`/`upsertAsync` into configurable windows (default 100, via `casehub.rag.embedding-batch-size`). Fixes 400 Bad Request from Ollama on ~6,500-entry garden corpus.
 
-Key changes: `QueryExpander` SPI returns `List<RetrievalQuery>`. `rag-hyde` → `rag-expansion` (module, package, classes, config). `RrfFusion` utility in `rag-api`. Multi-query fan-out + RRF merge in decorators. `StepBackQueryExpander` + `hypotheticalCount` on `LlmQueryExpander`. Filed #45 (parallel LLM calls).
+Extracted `QdrantPointBuilder` — shared `buildPoint()` + `computeChunkIndices()` utility, eliminating duplication between blocking and reactive implementations. Pre-computed chunk indices ensure deterministic UUIDs are batch-size-independent.
+
+Also verified: `@QuarkusMain` removal (cf7f381) survived the issue-43 merge.
 
 ## Immediate Next Step
 
@@ -27,6 +27,6 @@ Pick from backlog — run `/work` to start.
 
 ## Key References
 
-- Spec: `specs/issue-43-step-back-multi-query-expander/2026-06-25-query-expansion-redesign.md` (promoted to project `docs/specs/`)
-- Blog: `blog/2026-06-25-mdp17-query-expansion-grows-up.md`
-- Garden: `jvm/GE-20260625-85a3aa.md`, `tools/GE-20260625-6b49f5.md`
+- Spec: `docs/specs/2026-06-25-embedall-batching-design.md`
+- Blog: `blog/2026-06-26-mdp18-embedall-batching.md`
+- Garden: `jvm/GE-20260626-25963a.md`
