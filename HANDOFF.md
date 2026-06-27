@@ -1,32 +1,24 @@
-# Handoff — 2026-06-26
+# Handoff — 2026-06-27
 
 ## What Changed
 
-Closed `issue-26-embedall-batching` — hortora/engine#26 (embedAll batching). `QdrantEmbeddingIngestor` and `ReactiveQdrantEmbeddingIngestor` now batch `embedAll`/`embedBatch`/`upsertAsync` into configurable windows (default 100, via `casehub.rag.embedding-batch-size`). Fixes 400 Bad Request from Ollama on ~6,500-entry garden corpus.
+Branch `issue-31-matryoshka-binary-quantization` implements #31 — Matryoshka embeddings + Qdrant quantization. Six commits, 15 files, 146 tests passing, full build green. Implementation complete; branch needs `work-end` to close.
 
-Extracted `QdrantPointBuilder` — shared `buildPoint()` + `computeChunkIndices()` utility, eliminating duplication between blocking and reactive implementations. Pre-computed chunk indices ensure deterministic UUIDs are batch-size-independent.
-
-Also verified: `@QuarkusMain` removal (cf7f381) survived the issue-43 merge.
+Key design decisions: dual-vector tiered search rejected (HNSW overhead offsets binary index savings below 10M vectors). Instead: `MatryoshkaEmbeddingModel` decorator (truncation + renormalization) + Qdrant `DenseQuantization` config (binary/scalar at collection creation). Search-time oversampling on dense prefetch leg. Reactive `denseDimension` bug fixed (was capturing raw model dimension in `@PostConstruct`, not effective model).
 
 ## Immediate Next Step
 
-Pick from backlog — run `/work` to start.
+Run `work-end` on branch `issue-31-matryoshka-binary-quantization` to close. Journal has 5 entries ready for ARC42 merge.
 
 ## What's Next
 
-| # | Description | Scale | Complexity | Notes |
-|---|-------------|-------|------------|-------|
-| #45 | Parallel LLM calls for multi-query HyDE | S | Med | Blocked on async ChatModel API |
-| #39 | Dedicated RelevanceEvaluator model — CRAG accuracy | L | High | R&D |
-| #29 | ColBERT late interaction retrieval | L | High | ONNX export + MaxSim |
-| #30 | BGE-M3 single-model multi-mode | L | High | Replaces separate embedding + SPLADE |
-| #31 | Matryoshka embeddings + binary quantization | M | Med | Qdrant supports binary vectors |
-| #22 | Extract corpus CDI to corpus-quarkus/ | M | Low | Deferred until second consumer |
-| #20 | CaseRetriever CBR contract | L | High | Depends on engine TBD |
-| #12 | Migrate Qdrant hybrid search to LangChain4j | M | Low | Blocked on LangChain4j #4994 |
+*Unchanged — retrieve with: `git show HEAD~1:HANDOFF.md`*
+
+Remove #31 from the backlog after close.
 
 ## Key References
 
-- Spec: `docs/specs/2026-06-25-embedall-batching-design.md`
-- Blog: `blog/2026-06-26-mdp18-embedall-batching.md`
-- Garden: `jvm/GE-20260626-25963a.md`
+- Spec: `specs/issue-31-matryoshka-binary-quantization/2026-06-26-matryoshka-quantization-design.md`
+- Blog: `blog/2026-06-27-mdp17-matryoshka-and-the-math-that-didnt-add-up.md`
+- Garden: `intellij-platform/GE-20260627-fed7cf.md`, `jvm/GE-20260627-8b0fb8.md`
+- Journal: `design/JOURNAL.md` (5 entries, §4, §6, §7, §8 anchors)
