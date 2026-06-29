@@ -2,7 +2,7 @@
 
 ## What Changed
 
-Closed `issue-45-parallel-hyde-expansion` — #45 (parallel LLM calls for multi-query HyDE expansion). `LlmQueryExpander` now runs N `chatModel.chat()` calls concurrently via Java 21 virtual threads when `hypotheticalCount > 1`. Fast path for n=1 avoids executor overhead. Deterministic parallelism test via `CountDownLatch`. Updated #45 issue body to document that the original "async ChatModel API" blocker was already solved by the platform `agent-api` module — virtual threads chosen over AgentProvider dependency to avoid coupling rag-expansion to platform. 1 commit, 2 files, all tests pass. Pushed to upstream.
+Closed `issue-47-qdrant-fulltext-index` — #47 (full-text index on content) and #50 (keyword indexes on sourceDocumentId and tenantId). `ensureCollection()` in both blocking and reactive ingestors now creates three payload indexes after collection creation: `TextIndexParams` (Word tokenizer, lowercase, BM25-enabling) on `content`, `KeywordIndexParams` on `sourceDocumentId` and `tenantId`. Lazy migration detects missing indexes on existing collections via `payload_schema` and adds them on next ingest. Type mismatch throws `IllegalStateException`. Design review (4 rounds, 15 issues) drove spec improvements: retrieval path motivation, camelCase limitation (#53 filed), type validation, concurrency semantics, metadata key collision (#54 filed). 1 garden entry submitted (GE-20260629-0a321f — Qdrant createCollectionAsync idempotency asymmetry).
 
 ## Immediate Next Step
 
@@ -12,6 +12,9 @@ Pick from backlog — run `/work` to start.
 
 | # | Description | Scale | Complexity | Notes |
 |---|-------------|-------|------------|-------|
+| #48 | BM25 as third RRF prefetch leg | M | Med | Depends on #47 (done) — full-text index now exists |
+| #53 | Word tokenizer camelCase limitation | S | Med | Mitigation options for partial identifier search |
+| #54 | Metadata key collision with reserved payload fields | S | Low | Pre-existing; amplified by payload indexes |
 | #46 | SPLADE/reranker tuning for garden retrieval | ? | ? | Blocked on Hortora/engine#28 |
 | #39 | Dedicated RelevanceEvaluator model — CRAG accuracy | L | High | R&D |
 | #29 | ColBERT late interaction retrieval | L | High | ONNX export + MaxSim |
@@ -22,5 +25,6 @@ Pick from backlog — run `/work` to start.
 
 ## Key References
 
-- Platform Agent API: `casehub-platform/agent-api/` — reactive LLM primitives that unblocked #45's conceptual blocker
-- Garden: GE-20260618-c4f95a (ClaudeAsyncClient.close() thread blocking — relevant context for Agent API concurrency)
+- Design spec: `specs/2026-06-29-qdrant-payload-indexes-design.md` (workspace)
+- Garden: GE-20260629-0a321f (Qdrant createCollectionAsync idempotency asymmetry)
+- Blog: `blog/2026-06-29-mdp01-index-qdrant-wont-build.md`
