@@ -101,7 +101,13 @@ client.createPayloadIndexAsync(collection, "sourceDocumentId",
 
 ### Concurrency
 
-The blocking ingestor's `ensureCollection()` has a pre-existing check-then-act race on `knownCollections` — two concurrent `ingest()` calls for the same new collection can both attempt collection creation and index creation. This is benign: Qdrant's `createCollectionAsync` and `createPayloadIndexAsync` are idempotent for existing collections/indexes. The reactive ingestor avoids this via `ConcurrentHashMap.computeIfAbsent()` + `memoize().indefinitely()`. This spec adds index creation inside the racy section but does not introduce the race.
+The blocking ingestor's `ensureCollection()` has a pre-existing check-then-act race on `knownCollections` — two concurrent `ingest()` calls for the same new collection can both attempt collection creation and index creation.
+
+For new collections, the race is benign via retry recovery: `createCollectionAsync` is NOT idempotent — the losing thread's call fails with an error because the collection already exists. The exception propagates before `knownCollections.add()`, so the collection is not cached. The next `ingest()` call retries, finds the collection exists via `collectionExistsAsync`, and proceeds through the existing-collection path (which validates dimension, checks indexes, and creates any missing).
+
+For existing collections missing indexes, concurrent threads may both detect the same missing indexes and both call `createPayloadIndexAsync` for the same fields. This is benign because `createPayloadIndexAsync` is idempotent for existing indexes of the same type — Qdrant returns success. The existing code relies on this: there is no guard against concurrent index creation in the existing-collection path.
+
+The reactive ingestor avoids both races via `ConcurrentHashMap.computeIfAbsent()` + `memoize().indefinitely()`. This spec adds index creation inside the racy section but does not introduce the race.
 
 ### Migration
 
