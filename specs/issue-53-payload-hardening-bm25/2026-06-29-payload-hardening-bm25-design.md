@@ -178,14 +178,20 @@ This fixes a pre-existing gap (SPLADE validation was also missing) and prevents 
 
 ### Ingestion
 
-`QdrantPointBuilder.buildPoint()` adds a BM25 named vector using `Document` for server-side inference:
+`QdrantPointBuilder` defines a shared constant for the Qdrant built-in BM25 model name, used at both ingest and query time:
+
+```java
+static final String BM25_MODEL = "qdrant/bm25";
+```
+
+`buildPoint()` adds a BM25 named vector using `Document` for server-side inference:
 
 ```java
 String expandedContent = CamelCaseExpander.expand(chunk.content());
 Vector bm25Vector = VectorFactory.vector(
     Document.newBuilder()
         .setText(expandedContent)
-        .setModel("qdrant/bm25")
+        .setModel(BM25_MODEL)
         .build());
 ```
 
@@ -193,22 +199,58 @@ The named vectors map grows from 1-2 to 1-3 entries depending on which sparse em
 
 ### Retrieval
 
-Both `HybridCaseRetriever` and `ReactiveHybridCaseRetriever` add a BM25 prefetch leg:
+The mode selection conditional in both `HybridCaseRetriever` and `ReactiveHybridCaseRetriever` must support all four modes — including BM25-only (no SPLADE). The current code branches on `sparseEmbedder != null`, which drops BM25 when SPLADE is absent. The restructured logic:
 
 ```java
-String expandedQuery = CamelCaseExpander.expand(query.text());
-PrefetchQuery.Builder bm25Prefetch = PrefetchQuery.newBuilder()
-    .setQuery(QueryFactory.nearest(
-        Document.newBuilder()
-            .setText(expandedQuery)
-            .setModel("qdrant/bm25")
-            .build()))
-    .setUsing(bm25VectorName)
-    .setLimit(bm25TopK);
-mergedFilter.ifPresent(bm25Prefetch::setFilter);
+boolean useRrf = sparseEmbedder != null || config.bm25Enabled();
+if (useRrf) {
+    QueryPoints.Builder qb = QueryPoints.newBuilder()
+        .setCollectionName(collection);
+
+    // Dense prefetch (always present in RRF mode)
+    PrefetchQuery.Builder densePrefetch = PrefetchQuery.newBuilder()
+        .setQuery(QueryFactory.nearest(denseEmbedding.vectorAsList()))
+        .setUsing(config.denseVectorName())
+        .setLimit(config.retrieval().denseTopK());
+    if (quantizationType != DenseQuantization.NONE && oversampling.isPresent()) {
+        densePrefetch.setParams(quantizationSearchParams());
+    }
+    mergedFilter.ifPresent(densePrefetch::setFilter);
+    qb.addPrefetch(densePrefetch);
+
+    // SPLADE prefetch (when SPLADE embedder is available)
+    if (sparseEmbedder != null) {
+        PrefetchQuery.Builder sparsePrefetch = /* ... sparse vector construction ... */;
+        mergedFilter.ifPresent(sparsePrefetch::setFilter);
+        qb.addPrefetch(sparsePrefetch);
+    }
+
+    // BM25 prefetch (when BM25 is enabled)
+    if (config.bm25Enabled()) {
+        String expandedQuery = CamelCaseExpander.expand(query.text());
+        PrefetchQuery.Builder bm25Prefetch = PrefetchQuery.newBuilder()
+            .setQuery(QueryFactory.nearest(
+                Document.newBuilder()
+                    .setText(expandedQuery)
+                    .setModel(QdrantPointBuilder.BM25_MODEL)
+                    .build()))
+            .setUsing(config.bm25VectorName())
+            .setLimit(config.retrieval().bm25TopK());
+        mergedFilter.ifPresent(bm25Prefetch::setFilter);
+        qb.addPrefetch(bm25Prefetch);
+    }
+
+    qb.setQuery(QueryFactory.rrf(Rrf.newBuilder().setK(config.retrieval().rrfK()).build()))
+       .setLimit(queryLimit)
+       .setWithPayload(WithPayloadSelectorFactory.enable(true));
+    queryPoints = qb.build();
+} else {
+    // Dense-only: direct nearest-neighbor query (no fusion)
+    /* ... existing dense-only code ... */
+}
 ```
 
-Three-way RRF fusion: dense + sparse + bm25 → `QueryFactory.rrf(Rrf.newBuilder().setK(rrfK).build())`. RRF handles N legs transparently.
+RRF handles N legs transparently — 2 (dense+SPLADE or dense+BM25) or 3 (dense+SPLADE+BM25).
 
 **Query text selection:** BM25 uses `query.text()` (original user query), not `query.searchText()` (which may include HyDE expansion). BM25 is keyword matching — hypothetical documents from HyDE would add noise.
 
@@ -258,7 +300,7 @@ public interface RagConfig {
 
 `bm25Enabled` is at the `RagConfig` top level because it governs both ingestion (collection creation, point building) and retrieval (prefetch leg). This parallels how SPLADE enablement works — `SparseEmbedder` bean presence controls both paths. BM25 doesn't have a separate bean (it's server-side), so an explicit top-level flag is the equivalent mechanism. `bm25TopK` stays in `RetrievalConfig` — it is retrieval-specific.
 
-BM25 is enabled by default. The `"qdrant/bm25"` model string is a constant — it's a Qdrant built-in, not configurable.
+BM25 is enabled by default. The `"qdrant/bm25"` model string is defined as `QdrantPointBuilder.BM25_MODEL` — a named constant shared by both ingest and query paths. It's a Qdrant built-in, not configurable.
 
 ### Constructor redesign — pass `RagConfig` directly
 
@@ -312,7 +354,7 @@ No changes. The `EmbeddingIngestor` and `CaseRetriever` SPI signatures are uncha
 - `ChunkInput.java` — add metadata key validation against record field names
 
 ### rag (Tier 3)
-- `QdrantPointBuilder.java` — add `tenantId` metadata validation, add BM25 vector, add `RESERVED_PAYLOAD_KEYS` shared constant
+- `QdrantPointBuilder.java` — add `tenantId` metadata validation, add BM25 vector, add `RESERVED_PAYLOAD_KEYS` shared constant, add `BM25_MODEL` shared constant
 - `CamelCaseExpander.java` — **new**, package-private utility
 - `HybridCaseRetriever.java` — add BM25 prefetch leg, use shared `RESERVED_PAYLOAD_KEYS`
 - `ReactiveHybridCaseRetriever.java` — add BM25 prefetch leg, use shared `RESERVED_PAYLOAD_KEYS`
@@ -326,8 +368,8 @@ No changes. The `EmbeddingIngestor` and `CaseRetriever` SPI signatures are uncha
 - `ChunkInputTest.java` — test reserved metadata key rejection
 - `CamelCaseExpanderTest.java` — **new**, test splitting rules (including `XMLHTTPRequest` edge case documenting actual behavior)
 - `QdrantPointBuilderTest.java` — test `tenantId` metadata rejection, test BM25 vector inclusion
-- `HybridCaseRetrieverTest.java` — test BM25 prefetch leg, test three-way RRF
-- `ReactiveHybridCaseRetrieverTest.java` — test BM25 prefetch leg
+- `HybridCaseRetrieverTest.java` — test BM25 prefetch leg, test three-way RRF, test BM25-only mode (no SPLADE, verify RRF with dense+BM25)
+- `ReactiveHybridCaseRetrieverTest.java` — test BM25 prefetch leg, test BM25-only mode (no SPLADE)
 - `QdrantEmbeddingIngestorTest.java` — test BM25 sparse config in collection creation, test fail-fast for missing BM25/SPLADE sparse vectors
 - `ReactiveQdrantEmbeddingIngestorTest.java` — test BM25 sparse config in collection creation, test fail-fast for missing BM25/SPLADE sparse vectors
 
