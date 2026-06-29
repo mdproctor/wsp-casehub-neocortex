@@ -1,8 +1,8 @@
-# Handoff — 2026-06-27
+# Handoff — 2026-06-29
 
 ## What Changed
 
-Closed `issue-31-matryoshka-binary-quantization` — #31 (Matryoshka embeddings + Qdrant quantization). `MatryoshkaEmbeddingModel` decorator truncates and renormalizes embeddings. `DenseQuantization` enum configures binary/scalar quantization at collection creation. Search-time oversampling on dense prefetch. Reactive `denseDimension` bug fixed. 5 commits (post-squash), 15 files, all tests pass. Pushed to upstream.
+Closed `issue-45-parallel-hyde-expansion` — #45 (parallel LLM calls for multi-query HyDE expansion). `LlmQueryExpander` now runs N `chatModel.chat()` calls concurrently via Java 21 virtual threads when `hypotheticalCount > 1`. Fast path for n=1 avoids executor overhead. Deterministic parallelism test via `CountDownLatch`. Updated #45 issue body to document that the original "async ChatModel API" blocker was already solved by the platform `agent-api` module — virtual threads chosen over AgentProvider dependency to avoid coupling rag-expansion to platform. 1 commit, 2 files, all tests pass. Pushed to upstream.
 
 ## Immediate Next Step
 
@@ -12,7 +12,7 @@ Pick from backlog — run `/work` to start.
 
 | # | Description | Scale | Complexity | Notes |
 |---|-------------|-------|------------|-------|
-| #45 | Parallel LLM calls for multi-query HyDE | S | Med | Blocked on async ChatModel API |
+| #46 | SPLADE/reranker tuning for garden retrieval | ? | ? | Blocked on Hortora/engine#28 |
 | #39 | Dedicated RelevanceEvaluator model — CRAG accuracy | L | High | R&D |
 | #29 | ColBERT late interaction retrieval | L | High | ONNX export + MaxSim |
 | #30 | BGE-M3 single-model multi-mode | L | High | Replaces separate embedding + SPLADE |
@@ -22,6 +22,5 @@ Pick from backlog — run `/work` to start.
 
 ## Key References
 
-- Spec: `docs/specs/issue-31-matryoshka-binary-quantization/2026-06-26-matryoshka-quantization-design.md`
-- Blog: `blog/2026-06-27-mdp17-matryoshka-and-the-math-that-didnt-add-up.md`
-- Garden: `intellij-platform/GE-20260627-fed7cf.md`, `jvm/GE-20260627-8b0fb8.md`
+- Platform Agent API: `casehub-platform/agent-api/` — reactive LLM primitives that unblocked #45's conceptual blocker
+- Garden: GE-20260618-c4f95a (ClaudeAsyncClient.close() thread blocking — relevant context for Agent API concurrency)
