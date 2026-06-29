@@ -143,6 +143,7 @@ Four new test cases per ingestor class (8 total), using Testcontainers with Qdra
 
 - casehubio/neural-text#48 — BM25 as third RRF leg (depends on this index existing)
 - casehubio/neural-text#53 — camelCase tokenizer limitation (deferred; affects #48's BM25 retrieval quality)
+- casehubio/neural-text#54 — metadata key collision with reserved payload fields (pre-existing; amplified by payload indexes)
 - Hortora/engine#27 — dense-only benchmark proving the keyword gap
 - Hortora/engine#28 — SPLADE hybrid benchmark (in progress)
 - GE-20260627-4712de — garden entry documenting the nomic-embed-text keyword gap
