@@ -97,15 +97,31 @@ Splitting rules:
 - Underscores/hyphens: already split by the Word tokenizer, no action needed
 - Tokens without camelCase boundaries: passed through unchanged
 
+**Why only BM25, not SPLADE?** SPLADE uses WordPiece subword tokenization (BERT-based), which already decomposes camelCase at the subword level — `ConcurrentHashMap` becomes tokens like `con`, `##current`, `##hash`, `##map`. Expanding before SPLADE would produce redundant tokens with no retrieval benefit. BM25's word tokenizer treats identifiers as opaque single tokens, so explicit expansion is necessary.
+
 Used at two points:
 1. **Ingest** — `QdrantPointBuilder`: text passed to `Document.newBuilder().setText(expanded)` for the BM25 named vector.
 2. **Query** — both retrievers: text passed to `Document.newBuilder().setText(expanded)` for the BM25 prefetch.
 
-### Known limitation
+### Known limitations
 
-The text payload index on `content` still uses the Word tokenizer without camelCase splitting. Text filters (`matchText("content", "HashMap")`) will not match documents containing only `ConcurrentHashMap`. This is a documented known behavior — text filtering is boolean narrowing, not scored retrieval. BM25 handles the scored keyword retrieval case.
+**Text payload index:** The text payload index on `content` still uses the Word tokenizer without camelCase splitting. Text filters (`matchText("content", "HashMap")`) will not match documents containing only `ConcurrentHashMap`. This is a documented known behavior — text filtering is boolean narrowing, not scored retrieval. BM25 handles the scored keyword retrieval case.
+
+**Consecutive uppercase abbreviations:** The single-pass algorithm splits at uppercase-run-to-lowercase transitions. For standard Java camelCase (`XMLHttpRequest`), this correctly produces `XML` + `Http` + `Request`. For non-standard consecutive abbreviations like `XMLHTTPRequest`, the algorithm produces `XMLHTTP` + `Request` instead of `XML` + `HTTP` + `Request` — the inner `XMLHTTP` boundary has no lowercase transition to split on. This is accepted: `XMLHTTPRequest` violates Java naming conventions (the correct form is `XMLHttpRequest`), and a multi-pass or recursive algorithm adds complexity for negligible real-world benefit.
+
+Test case: `XMLHTTPRequest` → `XMLHTTPRequest XMLHTTP Request` (documenting actual behavior, not ideal).
 
 ## 3. BM25 as Third RRF Retrieval Leg (#48)
+
+### Approach divergence from #48
+
+Issue #48 describes BM25 via Qdrant's full-text payload index — a filter-based prefetch on the `content` field using `match: { text: "query" }`. That approach produces boolean matches (every matching document gets equal rank), which defeats the purpose of an RRF fusion leg — RRF needs meaningfully different scores per document to produce useful rank-based merging.
+
+This design uses server-side BM25 sparse vectors via the `Document` inference API with `"qdrant/bm25"`. This produces real BM25 scores (term frequency × inverse document frequency) as a named sparse vector, giving RRF the scored input it needs. The text payload index from #47 continues to serve `matchText()` filtering; the BM25 retrieval leg is independent.
+
+Consequence: #48's blocker on #47 is obsolete — the BM25 vector is independent of the text payload index. Issue #48 should be updated to remove the #47 dependency and describe the server-side sparse vector approach.
+
+**Minimum Qdrant version:** v1.12+ (server-side inference with built-in models including `"qdrant/bm25"`). The Qdrant Java client 1.18.1 includes the `Document` proto, `VectorFactory.vector(Document)`, and `QueryFactory.nearest(Document)` — verified in the client source.
 
 ### Problem
 
@@ -133,6 +149,32 @@ if (bm25Enabled) {
 SPLADE and BM25 are independently optional. The sparse config includes whichever are enabled.
 
 No migration path for existing collections — drop and re-create. This platform has no end users; breaking changes cost nothing.
+
+### Existing collection validation
+
+`ensureCollection()` already validates that the dense vector dimension matches. Add validation for sparse vectors: when BM25 is enabled, check that the collection's `sparseVectorsConfig` includes `bm25VectorName`. When SPLADE is enabled (`sparseEmbedder != null`), check for `sparseVectorName`. If missing, throw `IllegalStateException` with a clear message:
+
+```java
+Map<String, SparseVectorParams> sparseVectors = info.getConfig().getParams()
+    .getSparseVectorsConfig().getMapMap();
+
+if (config.bm25Enabled() && !sparseVectors.containsKey(config.bm25VectorName())) {
+    throw new IllegalStateException(
+        "BM25 is enabled but collection '" + collection
+            + "' was created without sparse vector '"
+            + config.bm25VectorName()
+            + "'. Drop and re-create the collection.");
+}
+if (sparseEmbedder != null && !sparseVectors.containsKey(config.sparseVectorName())) {
+    throw new IllegalStateException(
+        "SPLADE is enabled but collection '" + collection
+            + "' was created without sparse vector '"
+            + config.sparseVectorName()
+            + "'. Drop and re-create the collection.");
+}
+```
+
+This fixes a pre-existing gap (SPLADE validation was also missing) and prevents confusing Qdrant-level errors on upsert.
 
 ### Ingestion
 
@@ -170,6 +212,19 @@ Three-way RRF fusion: dense + sparse + bm25 → `QueryFactory.rrf(Rrf.newBuilder
 
 **Query text selection:** BM25 uses `query.text()` (original user query), not `query.searchText()` (which may include HyDE expansion). BM25 is keyword matching — hypothetical documents from HyDE would add noise.
 
+**BM25 tokenizer behavior:** The `"qdrant/bm25"` model uses word-level tokenization: splits on whitespace and punctuation, lowercases all tokens. This matches the Word tokenizer used for the text payload index (#47). CamelCaseExpander output is designed for this tokenizer:
+
+Token-level example (document ingestion):
+- Source text: `"ConcurrentHashMap is thread-safe"`
+- After CamelCaseExpander: `"ConcurrentHashMap Concurrent Hash Map is thread-safe"`
+- BM25 tokens: `[concurrenthashmap, concurrent, hash, map, is, thread, safe]`
+
+Token-level example (query):
+- Query: `"HashMap"`
+- After CamelCaseExpander: `"HashMap Hash Map"`
+- BM25 tokens: `[hashmap, hash, map]`
+- Term overlap with document: `hash`, `map` → BM25 match with scored relevance
+
 **Retrieval mode matrix:**
 
 | SPLADE | BM25 | Mode |
@@ -186,14 +241,14 @@ Three-way RRF fusion: dense + sparse + bm25 → `QueryFactory.rrf(Rrf.newBuilder
 public interface RagConfig {
     // existing: denseVectorName, sparseVectorName, ...
 
+    @WithDefault("true")
+    boolean bm25Enabled();
+
     @WithDefault("bm25")
     String bm25VectorName();
 
     interface RetrievalConfig {
         // existing: denseTopK, sparseTopK, rrfK, rerankEnabled, rerankTopN
-
-        @WithDefault("true")
-        boolean bm25Enabled();
 
         @WithDefault("40")
         int bm25TopK();
@@ -201,11 +256,51 @@ public interface RagConfig {
 }
 ```
 
+`bm25Enabled` is at the `RagConfig` top level because it governs both ingestion (collection creation, point building) and retrieval (prefetch leg). This parallels how SPLADE enablement works — `SparseEmbedder` bean presence controls both paths. BM25 doesn't have a separate bean (it's server-side), so an explicit top-level flag is the equivalent mechanism. `bm25TopK` stays in `RetrievalConfig` — it is retrieval-specific.
+
 BM25 is enabled by default. The `"qdrant/bm25"` model string is a constant — it's a Qdrant built-in, not configurable.
+
+### Constructor redesign — pass `RagConfig` directly
+
+Adding BM25 would push `HybridCaseRetriever` from 15 to 18 constructor parameters. The root problem: CDI producers unpack `RagConfig` into individual arguments, creating a wall of positional `int`/`String`/`boolean` parameters that are trivially swappable with no compile-time error.
+
+**Fix:** Retrievers and ingestors take `RagConfig` directly instead of individual config values. These classes are package-private in the same package as `RagConfig` — no tier crossing, no abstraction leak. The constructor signatures become:
+
+```java
+// HybridCaseRetriever / ReactiveHybridCaseRetriever
+HybridCaseRetriever(QdrantClient client, EmbeddingModel embeddingModel,
+    SparseEmbedder sparseEmbedder, TenantGuard tenantGuard,
+    CrossEncoderReranker reranker, RagConfig config)
+
+// QdrantEmbeddingIngestor / ReactiveQdrantEmbeddingIngestor
+QdrantEmbeddingIngestor(QdrantClient client, EmbeddingModel embeddingModel,
+    SparseEmbedder sparseEmbedder, TenantGuard tenantGuard, RagConfig config)
+```
+
+6 parameters for retrievers, 5 for ingestors. Adding future config properties is zero-cost — no constructor changes needed. The classes read what they need: `config.retrieval().denseTopK()`, `config.bm25Enabled()`, `config.tenancyStrategy()`, etc.
+
+`QdrantPointBuilder.buildPoint()` remains a pure static method. It gains a `bm25Enabled` and `bm25VectorName` parameter alongside the existing `denseVectorName` and `sparseVectorName` — the method signature grows from 7 to 9 parameters, but these are all semantically distinct types (`ChunkInput`, `CorpusRef`, `Embedding`, `Map<Integer,Float>`, `int`, `String`, `String`, `boolean`, `String`), not a soup of interchangeable `int` values.
 
 ### CDI producers
 
-Both `RagBeanProducer` and `ReactiveRagBeanProducer` pass `bm25Enabled`, `bm25TopK`, and `bm25VectorName` to the ingestors and retrievers.
+With `RagConfig` passed directly, the producer methods simplify:
+
+```java
+@Produces @ApplicationScoped
+HybridCaseRetriever caseRetriever() {
+    return new HybridCaseRetriever(client, effectiveEmbeddingModel(),
+        resolveSparseEmbedder(), resolveTenantGuard(),
+        resolveReranker(), config);
+}
+
+@Produces @ApplicationScoped
+QdrantEmbeddingIngestor corpusStore() {
+    return new QdrantEmbeddingIngestor(client, effectiveEmbeddingModel(),
+        resolveSparseEmbedder(), resolveTenantGuard(), config);
+}
+```
+
+Same pattern for both `RagBeanProducer` and `ReactiveRagBeanProducer`.
 
 ### In-memory stubs
 
@@ -229,18 +324,19 @@ No changes. The `EmbeddingIngestor` and `CaseRetriever` SPI signatures are uncha
 
 ### Tests
 - `ChunkInputTest.java` — test reserved metadata key rejection
-- `CamelCaseExpanderTest.java` — **new**, test splitting rules
+- `CamelCaseExpanderTest.java` — **new**, test splitting rules (including `XMLHTTPRequest` edge case documenting actual behavior)
 - `QdrantPointBuilderTest.java` — test `tenantId` metadata rejection, test BM25 vector inclusion
 - `HybridCaseRetrieverTest.java` — test BM25 prefetch leg, test three-way RRF
 - `ReactiveHybridCaseRetrieverTest.java` — test BM25 prefetch leg
-- `QdrantEmbeddingIngestorTest.java` — test BM25 sparse config in collection creation
-- `ReactiveQdrantEmbeddingIngestorTest.java` — test BM25 sparse config in collection creation
+- `QdrantEmbeddingIngestorTest.java` — test BM25 sparse config in collection creation, test fail-fast for missing BM25/SPLADE sparse vectors
+- `ReactiveQdrantEmbeddingIngestorTest.java` — test BM25 sparse config in collection creation, test fail-fast for missing BM25/SPLADE sparse vectors
 
 ## Protocols Checked
 
 - `qdrant-client-library.md` — using `io.qdrant:client` directly (not langchain4j-qdrant). Confirmed.
 - `spi-signature-change-all-impls-same-commit.md` — SPI signatures unchanged. N/A.
 - `module-tier-structure.md` — `ChunkInput` validation is in Tier 1 (pure Java). Implementation validation is in Tier 3 (Qdrant). Correct tier placement.
+- Issue #48 approach divergence — original #48 describes filter-based BM25 via text payload index; this spec supersedes with server-side BM25 sparse vectors for scored retrieval. See §3 "Approach divergence from #48".
 
 ## Garden Entries Referenced
 
