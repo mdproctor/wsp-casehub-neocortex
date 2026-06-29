@@ -76,6 +76,8 @@ Lazy — triggered when `ensureCollection` encounters an existing collection wit
 
 `createPayloadIndexAsync` builds the index from existing payload data — no re-ingestion needed. The `wait=true` parameter ensures the index is built before returning.
 
+If index creation fails mid-way (e.g., content index created but tenantId fails), the exception propagates before the collection is added to `knownCollections`. The next `ingest()` call retries `ensureCollection`, which re-checks `payload_schema` and only creates the still-missing indexes. This is the existing error-handling pattern — no new retry logic needed.
+
 ## Tests
 
 Three new test cases per ingestor class (6 total), using Testcontainers with Qdrant v1.18.0:
