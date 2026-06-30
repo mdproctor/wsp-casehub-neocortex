@@ -153,7 +153,7 @@ public interface FeatureField {
 |-----------|-----------|-----------------|
 | `Categorical` | Qdrant keyword payload index | Exact match filter |
 | `Numeric` | Qdrant float payload index | Range filter |
-| `Text` | Dense embedding | Cosine similarity |
+| `Text` | Qdrant full-text payload index | Keyword filter (see §4.2) |
 
 Applications provide a schema per case type alongside `CbrFeatureVectorBuilder` (engine#478). Without a schema, backends fall back to text-only similarity on `problem()`.
 
@@ -271,10 +271,12 @@ Throws `IllegalArgumentException` with a descriptive message on type mismatch. E
 
 `erase()` and `eraseEntity()` cascade to both the CBR index (Qdrant points, in-memory maps) and the delegate `CaseMemoryStore`. Applications performing GDPR Art.17 erasure on CBR data should call `CbrCaseMemoryStore.erase*()`, not `CaseMemoryStore.erase*()` directly, to ensure the Qdrant index is purged alongside the durable store.
 
-Implementations:
-1. Delete matching Qdrant points (by tenant + entity + domain scope)
-2. Delegate to `CaseMemoryStore.erase*()` for the durable store
-3. Return the count from the delegate (Qdrant deletion is best-effort — point count may differ from JPA row count due to indexing lag)
+Implementations erase **delegate first, then Qdrant** — this order prevents the reconciliation job from reindexing data that was supposed to be erased:
+1. Delegate to `CaseMemoryStore.erase*()` for the durable store
+2. Delete matching Qdrant points (best-effort, by tenant + entity + domain scope)
+3. Return the count from the delegate
+
+Failure analysis: JPA success + Qdrant failure → JPA record gone, Qdrant point orphaned temporarily. Reconciliation (§7.1) detects orphan (backing record gone) → deletes point. Data is erased, just with latency. JPA failure → exception propagates, Qdrant not attempted, nothing changed — clean retry. No failure case reindexes data that was supposed to be erased.
 
 `eraseEntityAcrossTenants()` is not on `CbrCaseMemoryStore` — it requires `isCrossTenantAdmin()` and is an administrative operation that goes through the platform's `CaseMemoryStore` directly. A reconciliation job (§7.1) handles Qdrant cleanup for points whose backing records are gone.
 
@@ -314,7 +316,7 @@ The delegate `CaseMemoryStore` (JPA/SQLite) is the **source of truth**. Qdrant i
 
 **Recovery:** `store()` retries Qdrant indexing with bounded backoff (3 attempts) before logging the failure and returning the memoryId from the delegate. A periodic **reconciliation job** scans `CaseMemoryStore` entries with `cbr.type` discriminator attribute and reindexes any cases missing from Qdrant. This follows the same pattern as `CorpusIngestionService` reconciliation in the RAG pipeline.
 
-**Erasure consistency:** `erase*()` (§6.5) deletes from Qdrant first (best-effort), then from the delegate. If Qdrant deletion fails, the reconciliation job cleans up orphaned points (points whose backing records are gone). The durable store is never left with data that should have been erased.
+**Erasure consistency:** `erase*()` (§6.5) deletes from the delegate first (durable store), then from Qdrant (best-effort). This delegate-first order ensures the reconciliation job never reindexes data that was supposed to be erased — reconciliation only ever deletes orphaned points (points whose backing records are gone), never recreates them.
 
 ---
 
@@ -360,7 +362,7 @@ Existing memory backends (JPA, SQLite, inmem, mem0, graphiti) remain in `casehub
 
 ### Tier 1 — Feature-Vector CBR (immediate)
 
-- `memory-api`: `CbrCase` interface (with `toMemoryInput()`), `TextualCbrCase`, `FeatureVectorCbrCase`, `CbrQuery`, `CbrFeatureSchema`, `CbrCaseMemoryStore` (standalone — does not extend `CaseMemoryStore`), `ReactiveCbrCaseMemoryStore`
+- `memory-api`: `CbrCase` interface, `TextualCbrCase`, `FeatureVectorCbrCase`, `CbrQuery`, `CbrFeatureSchema`, `CbrCaseMemoryStore` (standalone — does not extend `CaseMemoryStore`), `ReactiveCbrCaseMemoryStore`
 - `memory`: `NoOpCbrCaseMemoryStore @DefaultBean` (delegates to injected `CaseMemoryStore`), `BlockingToReactiveCbrBridge`
 - `memory-cbr-inmem`: `CbrCaseMemoryStore` implementation (in-memory field matching)
 - `memory-qdrant`: `CbrCaseMemoryStore` implementation (Approach 3)
