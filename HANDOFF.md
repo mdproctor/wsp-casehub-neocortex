@@ -1,8 +1,8 @@
-# Handoff — 2026-06-29
+# Handoff — 2026-06-30
 
 ## What Changed
 
-Closed `issue-47-qdrant-fulltext-index` — #47 (full-text index on content) and #50 (keyword indexes on sourceDocumentId and tenantId). `ensureCollection()` in both blocking and reactive ingestors now creates three payload indexes after collection creation: `TextIndexParams` (Word tokenizer, lowercase, BM25-enabling) on `content`, `KeywordIndexParams` on `sourceDocumentId` and `tenantId`. Lazy migration detects missing indexes on existing collections via `payload_schema` and adds them on next ingest. Type mismatch throws `IllegalStateException`. Design review (4 rounds, 15 issues) drove spec improvements: retrieval path motivation, camelCase limitation (#53 filed), type validation, concurrency semantics, metadata key collision (#54 filed). 1 garden entry submitted (GE-20260629-0a321f — Qdrant createCollectionAsync idempotency asymmetry).
+Closed `issue-53-payload-hardening-bm25` — #53 (camelCase tokenization), #54 (metadata key collision), #48 (BM25 third RRF leg). Server-side BM25 sparse vectors via Qdrant `Document` inference with `Modifier.Idf` — not the filter-based approach from the original #48 description. Two-layer metadata validation: `ChunkInput` rejects field-name shadows at API tier, `QdrantPointBuilder` rejects `tenantId` at impl tier. `CamelCaseExpander` splits identifiers for BM25 only (SPLADE uses WordPiece). Constructor redesign: `RagConfig` passed directly, replacing 15+ individual parameters. Design review (4 rounds, 12 issues). 1 garden entry (GE-20260629-114162 — Qdrant Java client BM25 API underdocumented).
 
 ## Immediate Next Step
 
@@ -12,9 +12,6 @@ Pick from backlog — run `/work` to start.
 
 | # | Description | Scale | Complexity | Notes |
 |---|-------------|-------|------------|-------|
-| #48 | BM25 as third RRF prefetch leg | M | Med | Depends on #47 (done) — full-text index now exists |
-| #53 | Word tokenizer camelCase limitation | S | Med | Mitigation options for partial identifier search |
-| #54 | Metadata key collision with reserved payload fields | S | Low | Pre-existing; amplified by payload indexes |
 | #46 | SPLADE/reranker tuning for garden retrieval | ? | ? | Blocked on Hortora/engine#28 |
 | #39 | Dedicated RelevanceEvaluator model — CRAG accuracy | L | High | R&D |
 | #29 | ColBERT late interaction retrieval | L | High | ONNX export + MaxSim |
@@ -25,6 +22,6 @@ Pick from backlog — run `/work` to start.
 
 ## Key References
 
-- Design spec: `specs/2026-06-29-qdrant-payload-indexes-design.md` (workspace)
-- Garden: GE-20260629-0a321f (Qdrant createCollectionAsync idempotency asymmetry)
-- Blog: `blog/2026-06-29-mdp01-index-qdrant-wont-build.md`
+- Design spec: `docs/specs/issue-53-payload-hardening-bm25/2026-06-29-payload-hardening-bm25-design.md` (project)
+- Garden: GE-20260629-114162 (Qdrant Java client BM25 API underdocumented)
+- Blog: `blog/2026-06-30-mdp01-three-legs-flat-namespace.md`
