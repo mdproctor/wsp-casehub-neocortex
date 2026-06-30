@@ -64,13 +64,12 @@ public interface CbrCase {
     String solution();      // NL summary — human-readable
     String outcome();       // result label (nullable)
     Double confidence();    // reliability [0.0, 1.0] (nullable)
-
-    MemoryInput toMemoryInput(String entityId, MemoryDomain domain,
-                              String tenantId, String caseId);
 }
 ```
 
-Base fields are universal across all CBR paradigms. `problem()` is always NL text — it serves as the fallback retrieval path that works with every backend. `toMemoryInput()` encapsulates the serialization contract (§3.4) — callers never manually construct `MemoryInput` attributes for CBR cases. Follows the existing `CbrCaseEntry.toMemoryInput()` pattern in `platform-api`.
+Base fields are universal across all CBR paradigms. `problem()` is always NL text — it serves as the fallback retrieval path that works with every backend.
+
+No `toMemoryInput()` on the interface — serialization is implementation-internal (see §6.1). `memory-api` is Tier 1 pure Java; `FeatureVectorCbrCase.features` (`Map<String, Object>`) and `PlanCbrCase.planTrace` (`List<PlanTrace>`) require JSON serialization to fit `MemoryInput.attributes` (`Map<String, String>`). The implementation has access to Jackson; the SPI interface does not. This is symmetric with the R1-03 settled decision — deserialization is backend-internal, serialization is too.
 
 ### 3.1 TextualCbrCase
 
@@ -221,6 +220,10 @@ public interface CbrCaseMemoryStore {
                  String tenantId, String caseId);
 
     <C extends CbrCase> List<C> retrieveSimilar(CbrQuery query, Class<C> caseType);
+
+    int erase(EraseRequest request);
+
+    int eraseEntity(String entityId, String tenantId);
 }
 
 // memory-api (io.casehub.memory.cbr)
@@ -232,17 +235,21 @@ public interface ReactiveCbrCaseMemoryStore {
                       String tenantId, String caseId);
 
     <C extends CbrCase> Uni<List<C>> retrieveSimilar(CbrQuery query, Class<C> caseType);
+
+    Uni<Integer> erase(EraseRequest request);
+
+    Uni<Integer> eraseEntity(String entityId, String tenantId);
 }
 ```
 
 ### 6.1 Typed Store Path
 
 `store(CbrCase, ...)` is the single entry point for CBR case storage. Implementations:
-1. Call `cbrCase.toMemoryInput(entityId, domain, tenantId, caseId)` to serialize
+1. Serialize the `CbrCase` to `MemoryInput` internally (the implementation has access to Jackson for `features`/`planTrace` JSON serialization — the SPI interface does not, since `memory-api` is Tier 1 pure Java)
 2. Delegate to the injected `CaseMemoryStore` for durable memory storage (JPA, SQLite, etc.)
-3. Optionally index in their own backend for CBR-specific retrieval (Qdrant payload indexes, in-memory maps)
+3. Index in their own backend for CBR-specific retrieval (Qdrant payload indexes, in-memory maps)
 
-Applications call only `CbrCaseMemoryStore.store()` — never manually construct `MemoryInput` for CBR cases.
+The serialization contract (§3.4 attribute mapping) is enforced by the implementation, not the `CbrCase` interface. Applications call only `CbrCaseMemoryStore.store()` — never manually construct `MemoryInput` for CBR cases.
 
 ### 6.2 Schema Validation
 
@@ -260,7 +267,18 @@ Throws `IllegalArgumentException` with a descriptive message on type mismatch. E
 
 `NoOpCbrCaseMemoryStore @DefaultBean` in `neural-text/memory` — `store()` delegates to injected `CaseMemoryStore` only (no CBR indexing), `retrieveSimilar()` returns `List.of()`. No CDI conflict with `NoOpCaseMemoryStore` in platform — they are independent types.
 
-### 6.4 Backend Matrix
+### 6.5 Erasure Cascade
+
+`erase()` and `eraseEntity()` cascade to both the CBR index (Qdrant points, in-memory maps) and the delegate `CaseMemoryStore`. Applications performing GDPR Art.17 erasure on CBR data should call `CbrCaseMemoryStore.erase*()`, not `CaseMemoryStore.erase*()` directly, to ensure the Qdrant index is purged alongside the durable store.
+
+Implementations:
+1. Delete matching Qdrant points (by tenant + entity + domain scope)
+2. Delegate to `CaseMemoryStore.erase*()` for the durable store
+3. Return the count from the delegate (Qdrant deletion is best-effort — point count may differ from JPA row count due to indexing lag)
+
+`eraseEntityAcrossTenants()` is not on `CbrCaseMemoryStore` — it requires `isCrossTenantAdmin()` and is an administrative operation that goes through the platform's `CaseMemoryStore` directly. A reconciliation job (§7.1) handles Qdrant cleanup for points whose backing records are gone.
+
+### 6.6 Backend Matrix
 
 | Backend | Repo | Implements | CBR Capability |
 |---------|------|-----------|----------------|
@@ -280,13 +298,23 @@ CBR backends coexist with any platform `CaseMemoryStore` backend — no priority
 
 New module. Implements `CbrCaseMemoryStore` using Qdrant with the recommended Approach 3 from the analysis document (payload filters + optional dense vector). Delegates regular memory storage to the platform's `CaseMemoryStore` (injected via CDI) — `memory-qdrant` handles only CBR-specific indexing and retrieval, not the full `CaseMemoryStore` contract.
 
-**Storage:** `store()` calls `delegate.store(cbrCase.toMemoryInput(...))` for durable memory, then indexes the case as a Qdrant point. Categorical features → keyword payload indexes. Numeric features → float payload indexes. `problem()` text → dense vector. Full case record (including plan traces) in payload JSON.
+**Storage:** `store()` serializes the `CbrCase` to `MemoryInput` (using Jackson for features/planTrace JSON), calls `delegate.store(memoryInput)` for durable memory, then indexes the case as a Qdrant point. Categorical features → keyword payload indexes. Numeric features → float payload indexes. `problem()` text → dense vector. Full case record (including plan traces) in payload JSON.
 
 **Retrieval:** `CbrFeatureSchema` drives query construction — categorical features become exact-match `PayloadFilter.Eq` filters, numeric features become `PayloadFilter.Range` filters (see §8.1 prerequisite), text features use Qdrant full-text payload indexes for keyword filtering. Dense vector search on `problem()` embedding ranks the filtered set by semantic similarity.
 
 **Single dense vector model:** Each Qdrant point has one dense vector from `problem()` text. No per-feature embeddings — categorical/numeric features use payload filters, not vectors. This keeps the model simple and avoids multi-vector scoring complexity.
 
 **Shared infrastructure with RAG:** Qdrant client, embedding models, `PayloadFilter` algebra, collection management, tenant isolation. Both `memory-qdrant` and `rag` modules are in the same repo and share these components.
+
+### 7.1 Consistency Model
+
+The delegate `CaseMemoryStore` (JPA/SQLite) is the **source of truth**. Qdrant is a **derived index** — eventually consistent, rebuildable.
+
+**Failure mode:** JPA write succeeds, Qdrant indexing fails (network blip, Qdrant restart). The case is durably stored but invisible to `retrieveSimilar()` until reindexed.
+
+**Recovery:** `store()` retries Qdrant indexing with bounded backoff (3 attempts) before logging the failure and returning the memoryId from the delegate. A periodic **reconciliation job** scans `CaseMemoryStore` entries with `cbr.type` discriminator attribute and reindexes any cases missing from Qdrant. This follows the same pattern as `CorpusIngestionService` reconciliation in the RAG pipeline.
+
+**Erasure consistency:** `erase*()` (§6.5) deletes from Qdrant first (best-effort), then from the delegate. If Qdrant deletion fails, the reconciliation job cleans up orphaned points (points whose backing records are gone). The durable store is never left with data that should have been erased.
 
 ---
 
