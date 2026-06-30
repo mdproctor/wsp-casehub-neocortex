@@ -2,26 +2,29 @@
 
 ## What Changed
 
-Closed `issue-53-payload-hardening-bm25` — #53 (camelCase tokenization), #54 (metadata key collision), #48 (BM25 third RRF leg). Server-side BM25 sparse vectors via Qdrant `Document` inference with `Modifier.Idf` — not the filter-based approach from the original #48 description. Two-layer metadata validation: `ChunkInput` rejects field-name shadows at API tier, `QdrantPointBuilder` rejects `tenantId` at impl tier. `CamelCaseExpander` splits identifiers for BM25 only (SPLADE uses WordPiece). Constructor redesign: `RagConfig` passed directly, replacing 15+ individual parameters. Design review (4 rounds, 12 issues). 1 garden entry (GE-20260629-114162 — Qdrant Java client BM25 API underdocumented).
+Closed `issue-20-caseretriever-cbr-contract` — CBR retrieval architecture. Standalone `CbrCaseMemoryStore` SPI in neural-text (does not extend `CaseMemoryStore` — CDI displacement avoidance via composition). Open `CbrCase` type hierarchy (`TextualCbrCase`, `FeatureVectorCbrCase`). `CbrFeatureSchema` drives Qdrant payload index creation (categorical exact-match, numeric range). In-memory + Qdrant implementations, contract test (12 behavioural tests). `PayloadFilter` extended with `Gte`, `Lte`, `Range`. Design review (5 rounds, 23 issues, all resolved). 1 garden entry (GE-20260630-815259 — CDI bean displacement across repos).
+
+Also created epic #55 (unified knowledge retrieval) with two children: #20 (done) and #56 (memory backend migration — Phase 2). Filed #57 (repo rename to neocortex) and #58/#59 (spec update + reconstructCase fragility).
+
+Paused #46 (SPLADE/reranker tuning) — still in pause stack.
 
 ## Immediate Next Step
 
-Pick from backlog — run `/work` to start.
+Pick from backlog — run `/work` to start. Pause stack has #46 (SPLADE tuning).
 
 ## What's Next
 
 | # | Description | Scale | Complexity | Notes |
 |---|-------------|-------|------------|-------|
-| #46 | SPLADE/reranker tuning for garden retrieval | ? | ? | Blocked on Hortora/engine#28 |
+| #56 | Memory backend migration from platform to neural-text | L | Med | Phase 2 of unified knowledge retrieval. Blocked by #20 (done) |
+| #57 | Rename neural-text to neocortex | M | Low | Mechanical — repo, artifactIds, consumer deps |
+| #46 | SPLADE/reranker tuning for garden retrieval | M | Med | Paused. Hortora/engine#28 blocker resolved |
 | #39 | Dedicated RelevanceEvaluator model — CRAG accuracy | L | High | R&D |
 | #29 | ColBERT late interaction retrieval | L | High | ONNX export + MaxSim |
-| #30 | BGE-M3 single-model multi-mode | L | High | Replaces separate embedding + SPLADE |
-| #22 | Extract corpus CDI to corpus-quarkus/ | M | Low | Deferred until second consumer |
-| #20 | CaseRetriever CBR contract | L | High | Depends on engine TBD |
-| #12 | Migrate Qdrant hybrid search to LangChain4j | M | Low | Blocked on LangChain4j #4994 |
 
 ## Key References
 
-- Design spec: `docs/specs/issue-53-payload-hardening-bm25/2026-06-29-payload-hardening-bm25-design.md` (project)
-- Garden: GE-20260629-114162 (Qdrant Java client BM25 API underdocumented)
-- Blog: `blog/2026-06-30-mdp01-three-legs-flat-namespace.md`
+- Design spec: `specs/issue-20-cbr-retrieval-architecture/2026-06-30-cbr-retrieval-architecture.md` (project)
+- Analysis: `specs/issue-20-cbr-retrieval-architecture/2026-06-30-cbr-paradigms-and-analysis.md` (project)
+- Garden: GE-20260630-815259 (CDI bean displacement across repos)
+- Blog: `blog/2026-06-30-mdp02-the-memory-that-retrieves.md`
