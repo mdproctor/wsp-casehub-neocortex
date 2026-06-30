@@ -14,7 +14,7 @@ CaseHub has three independent "find similar things" systems — `CaseMemoryStore
 
 ## 2. Decision
 
-Build CBR retrieval as a natural extension of the existing `CaseMemoryStore` memory system. Add CBR-specific SPIs and types in `casehub-neural-text` that extend `CaseMemoryStore` (which stays in `casehub-platform`). The Qdrant-backed CBR implementation naturally belongs in neural-text alongside the existing Qdrant/embedding infrastructure.
+Build CBR retrieval as a natural extension of the existing `CaseMemoryStore` memory system. Add CBR-specific SPIs and types in `casehub-neural-text` that compose with `CaseMemoryStore` (which stays in `casehub-platform`) via delegation. The Qdrant-backed CBR implementation naturally belongs in neural-text alongside the existing Qdrant/embedding infrastructure.
 
 **Why not CaseRetriever?** Issue #20 and engine#478 originally proposed `CaseRetriever` as the CBR retrieval SPI. Design analysis revealed these are fundamentally different contracts: `CaseRetriever` is a RAG SPI operating on text queries against document corpora (`RetrievalQuery` + `CorpusRef` → `RetrievedChunk`). CBR retrieval operates on structured feature vectors against case memories — different input types, output types, storage models, and similarity functions. `CbrCaseMemoryStore.retrieveSimilar()` is the right abstraction because CBR retrieval is a memory operation, not a corpus operation. Engine#478's integration point changes from `CaseRetriever` to `CbrCaseMemoryStore.retrieveSimilar()`.
 
@@ -45,7 +45,9 @@ Also stays: `CurrentPrincipal`, `Preferences`, `Path`, `EndpointRegistry`, `Grou
 
 ### 2.3 Dependencies
 
-`memory-api` (neural-text) depends on `platform-api` for `CaseMemoryStore` (which `CbrCaseMemoryStore` extends) and `CurrentPrincipal`. Package: `io.casehub.memory.cbr`. No circular dependency — neural-text depends on platform, never the reverse.
+`memory-api` (neural-text) depends on `platform-api` for `MemoryInput`, `MemoryDomain`, `MemoryPermissions`, and `CurrentPrincipal`. Package: `io.casehub.memory.cbr`. No circular dependency — neural-text depends on platform, never the reverse.
+
+`CbrCaseMemoryStore` does NOT extend `CaseMemoryStore`. It is a standalone SPI that internally delegates regular memory storage to an injected `CaseMemoryStore`. This avoids CDI bean displacement conflicts — a `CbrCaseMemoryStore` bean (e.g., Qdrant) coexists with any platform `CaseMemoryStore` bean (e.g., JPA) without ambiguity or priority displacement.
 
 Consumers that need CBR retrieval add `casehub-memory-api` alongside `casehub-platform-api`. Existing `CaseMemoryStore` imports and usage are unchanged.
 
@@ -62,10 +64,13 @@ public interface CbrCase {
     String solution();      // NL summary — human-readable
     String outcome();       // result label (nullable)
     Double confidence();    // reliability [0.0, 1.0] (nullable)
+
+    MemoryInput toMemoryInput(String entityId, MemoryDomain domain,
+                              String tenantId, String caseId);
 }
 ```
 
-Base fields are universal across all CBR paradigms. `problem()` is always NL text — it serves as the fallback retrieval path that works with every backend.
+Base fields are universal across all CBR paradigms. `problem()` is always NL text — it serves as the fallback retrieval path that works with every backend. `toMemoryInput()` encapsulates the serialization contract (§3.4) — callers never manually construct `MemoryInput` attributes for CBR cases. Follows the existing `CbrCaseEntry.toMemoryInput()` pattern in `platform-api`.
 
 ### 3.1 TextualCbrCase
 
@@ -202,29 +207,60 @@ public record CbrQuery(
 
 ## 6. CbrCaseMemoryStore SPI
 
-Extends `CaseMemoryStore` following the existing `GraphCaseMemoryStore extends CaseMemoryStore` pattern:
+Standalone SPI — does NOT extend `CaseMemoryStore`. Implementations internally delegate regular memory storage to an injected `CaseMemoryStore` from platform.
+
+**Why not extend?** The `GraphCaseMemoryStore extends CaseMemoryStore` pattern works within one repo where you pick one backend (Graphiti subsumes everything). With CBR in neural-text and base memory in platform, the `extends` relationship creates CDI bean displacement conflicts: a `CbrCaseMemoryStore` bean would also be a `CaseMemoryStore` bean, causing priority displacement with JPA/SQLite/inmem, dual `@DefaultBean` ambiguity between `NoOpCaseMemoryStore` and `NoOpCbrCaseMemoryStore`, and `@DefaultBean` removal cascades. Composition via delegation avoids all of these.
 
 ```java
 // memory-api (io.casehub.memory.cbr)
-public interface CbrCaseMemoryStore extends CaseMemoryStore {
+public interface CbrCaseMemoryStore {
 
     void registerSchema(CbrFeatureSchema schema);
+
+    String store(CbrCase cbrCase, String entityId, MemoryDomain domain,
+                 String tenantId, String caseId);
 
     <C extends CbrCase> List<C> retrieveSimilar(CbrQuery query, Class<C> caseType);
 }
 
 // memory-api (io.casehub.memory.cbr)
-public interface ReactiveCbrCaseMemoryStore extends ReactiveCaseMemoryStore {
+public interface ReactiveCbrCaseMemoryStore {
 
     Uni<Void> registerSchema(CbrFeatureSchema schema);
+
+    Uni<String> store(CbrCase cbrCase, String entityId, MemoryDomain domain,
+                      String tenantId, String caseId);
 
     <C extends CbrCase> Uni<List<C>> retrieveSimilar(CbrQuery query, Class<C> caseType);
 }
 ```
 
+### 6.1 Typed Store Path
+
+`store(CbrCase, ...)` is the single entry point for CBR case storage. Implementations:
+1. Call `cbrCase.toMemoryInput(entityId, domain, tenantId, caseId)` to serialize
+2. Delegate to the injected `CaseMemoryStore` for durable memory storage (JPA, SQLite, etc.)
+3. Optionally index in their own backend for CBR-specific retrieval (Qdrant payload indexes, in-memory maps)
+
+Applications call only `CbrCaseMemoryStore.store()` — never manually construct `MemoryInput` for CBR cases.
+
+### 6.2 Schema Validation
+
+`retrieveSimilar()` validates query features against the registered `CbrFeatureSchema` before dispatching to the backend:
+- Categorical fields: value must be `String`
+- Numeric fields: value must be `Number`, within `[min, max]`
+- Text fields: value must be `String`
+- Unknown fields (not in schema): ignored (forward compatible)
+
+Throws `IllegalArgumentException` with a descriptive message on type mismatch. Enforced by `CbrCaseMemoryStoreContractTest`.
+
+### 6.3 Bridge and No-Op
+
 `BlockingToReactiveCbrBridge @DefaultBean` in `neural-text/memory` wraps blocking `CbrCaseMemoryStore` as `ReactiveCbrCaseMemoryStore`, following the same `runSubscriptionOn(workerPool)` pattern as `BlockingToReactiveBridge` in platform.
 
-Backends that support structured retrieval implement `CbrCaseMemoryStore`. Others implement `CaseMemoryStore` only (in platform). Consumers check `capabilities()`.
+`NoOpCbrCaseMemoryStore @DefaultBean` in `neural-text/memory` — `store()` delegates to injected `CaseMemoryStore` only (no CBR indexing), `retrieveSimilar()` returns `List.of()`. No CDI conflict with `NoOpCaseMemoryStore` in platform — they are independent types.
+
+### 6.4 Backend Matrix
 
 | Backend | Repo | Implements | CBR Capability |
 |---------|------|-----------|----------------|
@@ -236,13 +272,15 @@ Backends that support structured retrieval implement `CbrCaseMemoryStore`. Other
 | mem0 | platform | `CaseMemoryStore` | Text similarity via vector embedding |
 | graphiti | platform | `GraphCaseMemoryStore` | Graph proximity (extend later) |
 
+CBR backends coexist with any platform `CaseMemoryStore` backend — no priority displacement.
+
 ---
 
 ## 7. Qdrant-Backed Memory (memory-qdrant)
 
-New module. Implements `CbrCaseMemoryStore` using Qdrant with the recommended Approach 3 from the analysis document (payload filters + optional dense vector).
+New module. Implements `CbrCaseMemoryStore` using Qdrant with the recommended Approach 3 from the analysis document (payload filters + optional dense vector). Delegates regular memory storage to the platform's `CaseMemoryStore` (injected via CDI) — `memory-qdrant` handles only CBR-specific indexing and retrieval, not the full `CaseMemoryStore` contract.
 
-**Storage:** Each case is a Qdrant point. Categorical features → keyword payload indexes. Numeric features → float payload indexes. `problem()` text → optional dense vector. Full case record (including plan traces) in payload JSON.
+**Storage:** `store()` calls `delegate.store(cbrCase.toMemoryInput(...))` for durable memory, then indexes the case as a Qdrant point. Categorical features → keyword payload indexes. Numeric features → float payload indexes. `problem()` text → dense vector. Full case record (including plan traces) in payload JSON.
 
 **Retrieval:** `CbrFeatureSchema` drives query construction — categorical features become exact-match `PayloadFilter.Eq` filters, numeric features become `PayloadFilter.Range` filters (see §8.1 prerequisite), text features use Qdrant full-text payload indexes for keyword filtering. Dense vector search on `problem()` embedding ranks the filtered set by semantic similarity.
 
@@ -294,8 +332,8 @@ Existing memory backends (JPA, SQLite, inmem, mem0, graphiti) remain in `casehub
 
 ### Tier 1 — Feature-Vector CBR (immediate)
 
-- `memory-api`: `CbrCase` interface, `TextualCbrCase`, `FeatureVectorCbrCase`, `CbrQuery`, `CbrFeatureSchema`, `CbrCaseMemoryStore`, `ReactiveCbrCaseMemoryStore`
-- `memory`: `NoOpCbrCaseMemoryStore @DefaultBean`, `BlockingToReactiveCbrBridge`
+- `memory-api`: `CbrCase` interface (with `toMemoryInput()`), `TextualCbrCase`, `FeatureVectorCbrCase`, `CbrQuery`, `CbrFeatureSchema`, `CbrCaseMemoryStore` (standalone — does not extend `CaseMemoryStore`), `ReactiveCbrCaseMemoryStore`
+- `memory`: `NoOpCbrCaseMemoryStore @DefaultBean` (delegates to injected `CaseMemoryStore`), `BlockingToReactiveCbrBridge`
 - `memory-cbr-inmem`: `CbrCaseMemoryStore` implementation (in-memory field matching)
 - `memory-qdrant`: `CbrCaseMemoryStore` implementation (Approach 3)
 - `memory-testing`: `CbrCaseMemoryStoreContractTest` — both `memory-cbr-inmem` and `memory-qdrant` must pass
