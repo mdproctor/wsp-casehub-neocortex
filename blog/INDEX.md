@@ -1,4 +1,4 @@
-# Blog — casehub-neural-text
+# Blog — casehub-neocortex
 
 | Entry | Date | Summary |
 |-------|------|---------|
@@ -17,3 +17,4 @@
 | [2026-06-18-mdp13-fifteen-branches-and-nine-missing-posts.md](2026-06-18-mdp13-fifteen-branches-and-nine-missing-posts.md) | 2026-06-18 | Code review fixes (#37), cross-repo branch audit, blog-routing.yaml for all 15 casehub workspaces, 9 unpublished entries recovered |
 | [2026-06-24-mdp16-gate-that-didnt-need-opening.md](2026-06-24-mdp16-gate-that-didnt-need-opening.md) | 2026-06-24 | JVM mode by design — native image gate passed but service doesn't need it; cross-repo doc sync |
 | [2026-06-29-mdp01-index-qdrant-wont-build.md](2026-06-29-mdp01-index-qdrant-wont-build.md) | 2026-06-29 | Qdrant payload indexes — full-text on content (Word tokenizer for Java identifiers), keyword on tenantId/sourceDocumentId |
+| [2026-07-01-mdp01-the-rename-that-touched-everything.md](2026-07-01-mdp01-the-rename-that-touched-everything.md) | 2026-07-01 | neural-text → neocortex — full rename: repo, 28 module artifactIds, all Java packages, parent repo CI/docs |
