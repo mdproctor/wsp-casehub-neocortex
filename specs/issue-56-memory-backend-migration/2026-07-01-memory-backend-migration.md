@@ -82,7 +82,7 @@ Two separate package renames (distinct IntelliJ refactoring operations):
 
 Breaking change. Rename in platform first (IntelliJ propagates imports across all open repos), then move files to neural-text.
 
-**Prerequisite:** all consumer repos (including neural-text itself) must be open in the same IntelliJ workspace before step 1, so import propagation reaches all source trees.
+**Prerequisite:** all consumer repos (including neural-text and casehub-all) must be open in the same IntelliJ workspace before step 1, so import propagation reaches all source trees.
 
 ### Module layout after migration
 
@@ -129,7 +129,7 @@ Everything non-memory: CurrentPrincipal, Path, Preferences, EndpointRegistry, ag
 
 ### Execution sequence
 
-**Prerequisite:** open all consumer repos (neural-text, engine, devtown, aml, clinical, soc, fsitrading, parent) in the same IntelliJ workspace before step 1.
+**Prerequisite:** open all consumer repos (neural-text, devtown, aml, clinical, soc, fsitrading, parent, casehub-all) in the same IntelliJ workspace before step 1.
 
 1. Delete `CbrCaseEntry.java` and `CbrCaseEntryTest.java` from platform-api (superseded by `TextualCbrCase` — zero external consumers)
 2. Rename package `io.casehub.platform.api.memory` → `io.casehub.memory` in platform-api (IntelliJ propagates all imports across workspace)
@@ -145,6 +145,18 @@ Everything non-memory: CurrentPrincipal, Path, Preferences, EndpointRegistry, ag
 12. Update `neural-text/ARC42STORIES.MD` — add memory-* module entries (memory-api, memory, memory-testing, memory-inmem, memory-jpa, memory-sqlite, memory-mem0, memory-graphiti) as a new layer
 13. Build all affected repos to verify
 
+### Push strategy
+
+All changes are made locally across all repos simultaneously (IntelliJ workspace). CI will see intermediate states during the push window. This is a research project with no production deployments — temporary CI breakage during migration is accepted.
+
+Recommended push order (dependency-first):
+1. `casehub-parent` (BOM with new `casehub-memory-*` coordinates)
+2. `casehub-neural-text` (publishes new memory modules)
+3. `casehub-platform` (memory modules removed)
+4. All consumers in any order (devtown, aml, clinical, soc, fsitrading, casehub-all)
+
+Pushes 1 and 2 should land before 3 and 4, so consumers can resolve the new artifacts. In practice, push all repos in rapid succession — CI pipelines take minutes to start, giving enough time for artifacts to publish.
+
 ### Consumer changes (mechanical — rebuilt from POM search)
 
 | Repo | Current platform-memory deps | Action |
@@ -156,6 +168,7 @@ Everything non-memory: CurrentPrincipal, Path, Preferences, EndpointRegistry, ag
 | clinical | `casehub-platform-memory-jpa` + `casehub-platform-memory-inmem` (runtime/pom.xml + parent pom.xml) | Swap → `casehub-memory-jpa` + `casehub-memory-inmem` (both runtime and parent POM) |
 | soc | `casehub-platform-memory-jpa` + `casehub-platform-memory-inmem` (app/pom.xml) | Swap → `casehub-memory-jpa` + `casehub-memory-inmem` |
 | fsitrading | `casehub-platform-memory-jpa` (app/pom.xml) | Swap → `casehub-memory-jpa` |
+| casehub-all | Aggregator POMs mirroring devtown, aml, clinical deps + self-referential `all/platform/memory-*` modules | Swap artifact coordinates in aggregator POMs; remove or redirect `all/platform/memory-*` aggregates to `all/neural-text/memory-*` |
 
 **Not affected (verified):**
 - **engine** — no `casehub-platform-memory-*` deps. `casehub-engine-persistence-memory` is engine's own in-memory persistence module (case instances), unrelated to CaseMemoryStore.
