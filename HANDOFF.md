@@ -2,31 +2,39 @@
 
 ## What Changed
 
-Completed #58 (CBR spec update), #59 (reconstructCase discriminator fix), and the bulk of #56 (memory backend migration). All CaseMemoryStore SPI types (17) and five backend modules (inmem, jpa, sqlite, mem0, graphiti) moved from casehub-platform to casehub-neural-text. Package renamed `io.casehub.platform.api.memory` → `io.casehub.memory` across 10 repos (63 files). CbrCaseEntry deleted (zero consumers). `cbrType()` discriminator added to CbrCase interface. All repos pushed to mdproctor and casehubio remotes.
+Closed #57 (rename neural-text → neocortex), #58 (CBR spec update), #59 (reconstructCase). Closed #46 (SPLADE tuning — dead, BGE-M3 replaced it). Merged #56 (memory backend migration) into the rename branch — both landed on main together. All 28 module artifactIds now carry `neocortex-` prefix, all Java packages under `io.casehub.neocortex.*`, parent repo fully updated (CI, docs, dependency management).
 
-Design review ran (4 rounds, 15 issues, all resolved, $15.16). Garden entry GE-20260701-30e901 (IntelliJ workspace move gotcha).
+Consumer issues filed: engine#627 (casehub engine — 2 artifacts), engine#628 (Hortora engine — 8 artifacts).
+
+Parent repo committed directly to main: pom.xml deps, aggregator.xml, CI workflows, PLATFORM.md, all docs.
 
 ## Immediate Next Step
 
-Branch `issue-56-memory-backend-migration` needs work-end completion: squash commits, rebase onto main, push. Then start #57 (rename neural-text → neocortex) while IntelliJ workspace is still configured.
+**⚠️ Post-merge coordinated steps — do these before any other work:**
 
-## What's Left
+1. `gh repo rename neocortex --repo casehubio/neural-text`
+2. `mv ~/claude/casehub/neural-text ~/claude/casehub/neocortex`
+3. `mv ~/claude/public/casehub/neural-text ~/claude/public/casehub/neocortex`
+4. Update git remotes in both repos (origin + upstream → neocortex URLs)
+5. Recreate `wksp` and `proj` symlinks with new paths
+6. `mv ~/.claude/projects/-Users-mdproctor-claude-casehub-neural-text ~/.claude/projects/-Users-mdproctor-claude-casehub-neocortex`
+7. Close neural-text project in IntelliJ, re-open from `~/claude/casehub/neocortex`
 
-- PLATFORM.md update — filed as casehubio/parent#336 · S · Low
-- ARC42STORIES.MD update — add memory-* module layers · S · Low
-- Hortora/engine stashed rag changes — `git stash pop` on `issue-30-bge-m3-multi-modal` branch · XS · Low
+**⚠️ Drop #56 from pause stack** — its content merged via #57. The pause stack still has it. Remove it so `work-start` doesn't offer to resume a branch whose work already landed.
+
+**⚠️ Drop #46 from pause stack** — closed (SPLADE tuning dead). Same reason.
 
 ## What's Next
 
 | # | Description | Scale | Complexity | Notes |
 |---|-------------|-------|------------|-------|
-| #57 | Rename neural-text to neocortex | M | Low | Do while IntelliJ workspace is hot |
-| #46 | SPLADE/reranker tuning | M | Med | Paused in stack |
-| #39 | Dedicated RelevanceEvaluator model | L | High | R&D |
+| engine#627 | Update engine memory-api imports for neocortex rename | S | Low | 2 POM lines, 3 Java files |
+| engine#628 | Update Hortora engine imports for neocortex rename | S | Low | 8 POM lines, 20 Java files |
+| #39 | Dedicated RelevanceEvaluator model — CRAG accuracy | L | High | R&D |
+| #29 | ColBERT late interaction retrieval | L | High | ONNX export + MaxSim |
 
 ## Key References
 
-- Spec: `specs/issue-56-memory-backend-migration/2026-07-01-memory-backend-migration.md`
-- Plan: `plans/2026-07-01-memory-backend-migration.md`
-- Blog: `blog/2026-07-01-mdp03-the-great-memory-migration.md`
-- Garden: GE-20260701-30e901 (IntelliJ workspace move gotcha)
+- Blog: `blog/2026-07-01-mdp01-the-rename-that-touched-everything.md`
+- Parent commit: `67ab09b7` (refactor: rename neural-text → neocortex across parent repo)
+- Plan: `~/.claude/plans/jolly-wondering-wind.md`
