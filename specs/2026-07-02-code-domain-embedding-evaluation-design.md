@@ -13,23 +13,32 @@ tokens. BERT WordPiece splits them into meaningless subwords (`con`, `##current`
 like the knowledge garden.
 
 Since #49 was filed, two significant changes occurred:
-1. **BGE-M3 adoption** (neural-text#30) — replaces nomic-embed-text + separate SPLADE
+1. **Three-leg retrieval** — the current production system uses nomic-embed-text (dense,
+   768-dim, Ollama) + Splade_PP_en_v1 (sparse, ONNX) + BM25 (Qdrant Document vectors)
+   via server-side RRF fusion. This pushed precision from 45% to 94%, with BM25 doing
+   the heavy lifting on keyword-gap scenarios (Hortora/engine#29 research →
+   neural-text#47/#48 implementation; benchmark in `retrieval-research.md` line 27).
+2. **BGE-M3 planned** (neural-text#30, still open) — will replace the three-model stack
    with a single model producing dense (1024d) + sparse + ColBERT embeddings. Uses
-   XLM-RoBERTa BPE tokenizer (SentencePiece), not BERT WordPiece.
-2. **Three-leg retrieval** — dense + sparse + BM25 via RRF fusion pushed precision from
-   45% to 94%, with BM25 doing the heavy lifting on keyword-gap scenarios
-   (Hortora/engine#29 research → neural-text#47/#48 implementation; benchmark results
-   in `retrieval-research.md` at line 27).
+   XLM-RoBERTa BPE tokenizer (SentencePiece), not BERT WordPiece. Not yet deployed.
 
-The precision figures come from the three-leg benchmark run (2026-06-30) documented in
+The 94% precision figure comes from the current nomic+SPLADE+BM25 system, documented in
 `~/claude/hortora/engine/docs/comparison/retrieval-research.md` and
 `~/claude/hortora/engine/docs/comparison/hybrid-benchmark.md`. Methodology: 14 scenarios
 (6 real issues + 2 spec domains × keyword + natural-language queries) scored against
 human-judged relevance baselines from Hortora/engine#27.
 
+**Sequencing rationale:** `retrieval-research.md` line 165 says "Evaluate [code-domain
+models] only if BGE-M3 dense doesn't handle Java identifiers." This evaluation runs the
+two questions simultaneously rather than sequentially: it includes BGE-M3 as a baseline
+alongside nomic-embed-text, so Layers 1–3 answer both "does BGE-M3 improve over
+nomic-embed-text on Java identifiers?" AND "does any code-domain model beat BGE-M3?"
+in a single evaluation pass. If BGE-M3 proves sufficient, the evaluation concludes
+without needing a second round.
+
 This evaluation answers: does BGE-M3's tokenizer handle Java identifiers better than
 nomic's WordPiece? Can a code-domain model beat BGE-M3's dense embeddings? And does
-any dense-only model approach what three-head retrieval already delivers?
+any dense-only model approach what the current three-leg system already delivers?
 
 ## Goal
 
@@ -39,10 +48,11 @@ scripts and a findings report. No code changes to neocortex inference/rag module
 
 ## Model Roster
 
-### Baseline
-| Model | Params | Tokenizer | Training data | Dimensions |
-|-------|--------|-----------|---------------|------------|
-| BGE-M3 | ~568M | XLM-RoBERTa BPE | Web + multilingual | 1024 (dense+sparse+ColBERT) |
+### Baselines
+| Model | Params | Tokenizer | Training data | Dimensions | Status |
+|-------|--------|-----------|---------------|------------|--------|
+| nomic-embed-text | 137M | BERT WordPiece | Web text | 768 (dense) | **Current** — deployed via Ollama |
+| BGE-M3 | ~568M | XLM-RoBERTa BPE | Web + multilingual | 1024 (dense+sparse+ColBERT) | **Planned** — #30 open |
 
 ### Original #49 candidates (continuity)
 | Model | Params | Tokenizer | Training data | Dimensions |
@@ -74,8 +84,9 @@ with a note in the report explaining the gap.
 ### Layer 1 — Tokenizer Analysis
 
 Tokenize Java identifiers from the garden benchmark scenarios and compare how each
-model's tokenizer splits them. BGE-M3 (XLM-RoBERTa BPE) is included as baseline —
-its tokenization is the reference point candidates must improve upon.
+model's tokenizer splits them. Both baselines are included: nomic-embed-text (BERT
+WordPiece, current) and BGE-M3 (XLM-RoBERTa BPE, planned). Candidates must improve
+upon at least the current baseline; improvement over BGE-M3 is a higher bar.
 
 **Test vocabulary:**
 - Class names: `ConcurrentHashMap`, `CopyOnWriteArrayList`, `ExceptionMapper`,
@@ -89,12 +100,13 @@ its tokenization is the reference point candidates must improve upon.
 - Token count per identifier (fewer = better preservation)
 - Whether meaningful subwords survive (e.g. does `HashMap` stay intact?)
 - Tokenizer type classification: WordPiece, BPE, SentencePiece, Unigram
-- Delta vs BGE-M3 baseline: which candidates produce fewer tokens or preserve
-  more meaningful subwords than BGE-M3?
+- Delta vs baselines: which candidates produce fewer tokens or preserve more
+  meaningful subwords than nomic-embed-text (current)? Than BGE-M3 (planned)?
 
-**Output:** Table of model × identifier → token sequence, with BGE-M3 as the first
-row. Diagnostic — explains the mechanism of vocabulary gap. No models eliminated
-at this stage.
+**Output:** Table of model × identifier → token sequence, with nomic-embed-text and
+BGE-M3 as the first two rows. Diagnostic — explains the mechanism of vocabulary gap
+and whether BGE-M3's BPE tokenizer already resolves it. No models eliminated at this
+stage.
 
 ### Layer 2 — Embedding Discrimination
 
@@ -132,13 +144,15 @@ and ColBERT outputs on the same pairs:
   better separation than dense cosine? ColBERT preserves subword relationships that
   dense pooling destroys.
 
-**Decision criteria:** Models that fail to separate `@DefaultBean` from `default`
-(cosine similarity > 0.85) have the same vocabulary gap as nomic-embed-text,
-regardless of tokenizer. These are flagged but not automatically eliminated —
-Layer 3 tests whether the gap matters for retrieval.
+**Decision criteria:** First, measure nomic-embed-text's cosine similarity on the
+`@DefaultBean` / `default` pair as the vocabulary-gap reference score. Models
+producing "should be far" scores within ±0.05 of nomic-embed-text's score on this
+pair are flagged as having an equivalent vocabulary gap. This calibrates the
+threshold to observed data rather than an arbitrary number. Flagged models are not
+automatically eliminated — Layer 3 tests whether the gap matters for retrieval.
 
-**Output:** Similarity scores per model per pair, with BGE-M3 dense/sparse/ColBERT
-as baseline rows.
+**Output:** Similarity scores per model per pair, with nomic-embed-text and BGE-M3
+dense/sparse/ColBERT as baseline rows.
 
 ### Layer 3 — Full Benchmark
 
@@ -157,26 +171,38 @@ grows during evaluation.
 4. Calculate precision metrics matching Hortora/engine#27 methodology
 
 **Comparisons:**
-- Each candidate dense-only vs BGE-M3 dense-only (isolates embedding quality)
+- Each candidate dense-only vs nomic-embed-text dense-only vs BGE-M3 dense-only
+  (isolates embedding quality across current, planned, and candidate models)
 - Each candidate dense-only vs BGE-M3 three-head (dense+sparse+ColBERT) — answers
   "can a better dense model match multi-modal retrieval?"
-- **Each candidate dense + existing BM25 via RRF** — answers the deployment question:
-  "would swapping the dense model into `HybridCaseRetriever` improve end-to-end
-  retrieval?" This uses CamelCaseExpander-processed BM25 matching alongside candidate
-  dense retrieval, simulating the actual pipeline.
+- **Each candidate dense + BM25 via RRF** vs **nomic dense + BM25** vs **BGE-M3
+  dense + BM25** — answers the deployment question: "would swapping the dense model
+  into `HybridCaseRetriever` improve end-to-end retrieval?" This uses
+  CamelCaseExpander-processed BM25 matching alongside each dense model.
+- **Current three-leg baseline** (nomic + SPLADE + BM25 = 94%) as the reference ceiling
 - Breakdown by failure mode: VOCABULARY_GAP / POLYSEMY / SEMANTIC_WIN / DOMAIN_ABSENCE
 
-**Key question:** Does any code-domain model's dense embedding beat BGE-M3's dense
-embedding on vocabulary gap scenarios? More importantly, does swapping the dense model
-improve end-to-end retrieval beyond what BGE-M3 dense + BM25 already delivers?
+**Why the sparse leg is omitted from the pipeline comparison:** Code-domain models
+produce dense-only embeddings. In any deployment, the sparse model (SPLADE currently,
+BGE-M3 sparse after #30) would be the same regardless of which dense model is used.
+Adding identical sparse scores to both sides of a comparison shifts both scores equally
+and does not change which dense model wins. The dense + BM25 comparison isolates the
+variable that actually differs between candidates.
+
+**Key questions:**
+1. Does BGE-M3 dense itself improve over nomic-embed-text dense on vocabulary-gap
+   scenarios? (If yes, BGE-M3 adoption alone may suffice.)
+2. Does any code-domain model beat BGE-M3 dense? (If no, code-domain models add no value.)
+3. Does the best candidate dense + BM25 approach the current three-leg 94% baseline?
 
 **Decision criteria:** A candidate advances to Layer 4 if it demonstrates at least one of:
 - Higher precision than BGE-M3 dense-only on VOCABULARY_GAP scenarios
 - Higher end-to-end precision than BGE-M3 dense + BM25 on any scenario class
 - Comparable precision with materially lower dimensionality or inference cost
 
-If no candidate meets any criterion, the evaluation concludes with "stay with BGE-M3
-three-head" recommendation — no Layer 4 needed.
+If BGE-M3 dense-only already closes the vocabulary gap (Layer 1 tokenization +
+Layer 2 discrimination confirm this), and no candidate exceeds it, the evaluation
+concludes with "adopt BGE-M3, skip code-domain models" — no Layer 4 needed.
 
 **Output:** Precision table per model per scenario, with aggregate scores and
 failure-mode breakdowns. Directly comparable to Hortora/engine#27 baseline.
@@ -272,10 +298,11 @@ This evaluation produces data and a recommendation. The three possible outcomes:
 2. **Supplement BGE-M3** — BGE-M3 dense handles Java identifiers adequately (XLM-RoBERTa
    BPE is better than BERT WordPiece), but a code-domain model adds marginal value on
    specific scenario classes. Worth the two-model cost only if the gap is significant.
-3. **Stay with three-head retrieval** — BGE-M3 three-head (dense + sparse + ColBERT)
-   with BM25 already delivers 94% precision. No code-domain model improves end-to-end
-   retrieval enough to justify added complexity. This is the most likely outcome and is
-   a valid, defensible conclusion.
+3. **Stay with current multi-leg retrieval** — the current system (nomic-embed-text +
+   SPLADE + BM25) already delivers 94% precision. If BGE-M3 adoption (#30) further
+   improves the dense leg, there is even less room for a code-domain model to add value.
+   No code-domain model improves end-to-end retrieval enough to justify added complexity.
+   This is the most likely outcome and is a valid, defensible conclusion.
 
 Specific numeric thresholds are not set a priori — the evaluation is research, not a
 go/no-go gate. The report will present the data and argue for one of the three outcomes
