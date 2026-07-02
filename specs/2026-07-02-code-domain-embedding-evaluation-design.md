@@ -279,7 +279,7 @@ evaluation/code-domain-embeddings/REPORT.md
 ```
 
 Synthesizes all four layers. Written after evaluation runs. Answers: adopt a code-domain
-model, supplement BGE-M3, or stay with three-head retrieval?
+model, supplement BGE-M3, or stay with current multi-leg retrieval?
 
 ## Non-goals
 
