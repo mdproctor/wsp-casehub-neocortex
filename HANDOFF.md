@@ -2,15 +2,13 @@
 
 ## What Changed
 
-Built the code-domain embedding evaluation harness (#49). Four Python scripts covering Layers 1–4 (tokenizer analysis, embedding discrimination, 14-scenario benchmark, deployment feasibility). 58 unit tests. All 6 candidate model weights downloaded and cached. Execution deferred to #63. Design spec reviewed adversarially (24 issues, all resolved, $14.78). Landed on main as `ea5b32b`.
+Completed CbrCase type hierarchy (#66). Added `PlanCbrCase` + `PlanTrace` to memory-api, default `features()` method on `CbrCase` interface, all backends updated (inmem, Qdrant). 4 new contract tests (16 total). Per-app CBR integration guides in `docs/cbr/` for DevTown, AML, Clinical, and Engine. Landed on main as `997feb5`.
 
-engine#627 and engine#628 (rename consumer updates) — done in a separate engine session.
-
-Pause stack cleared — #46 (closed) and #56 (merged via #57) removed.
+Cleaned up platform memory issues: closed platform #28, #29, #30, #40 — Mem0 and Graphiti already implemented here; Memori consolidated into neocortex #65 (blocked on upstream API).
 
 ## Immediate Next Step
 
-**⚠️ Post-merge coordinated steps from last session are still pending:**
+**⚠️ Post-merge coordinated steps from previous session are still pending:**
 
 1. `gh repo rename neocortex --repo casehubio/neural-text`
 2. `mv ~/claude/casehub/neural-text ~/claude/casehub/neocortex`
@@ -22,7 +20,8 @@ Pause stack cleared — #46 (closed) and #56 (merged via #57) removed.
 
 ## What's Left
 
-- #63 — Run code-domain embedding evaluation (Layers 1–4) + write REPORT.md · M · Med · venv and models ready, just needs execution time
+- #65 — Memori adapter (default backend) · XL · Med · blocked on Memori shipping stable REST API
+- #63 — Run code-domain embedding evaluation (Layers 1–4) + write REPORT.md · M · Med · venv and models ready
 
 ## What's Next
 
@@ -34,7 +33,6 @@ Pause stack cleared — #46 (closed) and #56 (merged via #57) removed.
 
 ## Key References
 
-- Spec: `specs/2026-07-02-code-domain-embedding-evaluation-design.md` (workspace)
-- Plan: `plans/2026-07-02-code-domain-embedding-evaluation.md` (workspace)
+- CBR guides: `docs/cbr/` (project)
+- CBR paradigms: `specs/issue-20-cbr-retrieval-architecture/2026-06-30-cbr-paradigms-and-analysis.md` (workspace)
 - Evaluation scripts: `evaluation/code_domain_embeddings/` (project)
-- Venv: `evaluation/code_domain_embeddings/.venv/`
