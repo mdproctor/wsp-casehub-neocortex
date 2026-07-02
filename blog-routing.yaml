@@ -1,4 +1,4 @@
 extends: ~/.claude/blog-routing.yaml
 
-# casehub-neural-text workspace — blog entries live in blog/
+# casehub-neocortex workspace — blog entries live in blog/
 # All entries are entry_type: note → routed to _notes/ in mdproctor.github.io
