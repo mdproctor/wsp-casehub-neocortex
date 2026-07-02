@@ -18,3 +18,4 @@
 | [2026-06-24-mdp16-gate-that-didnt-need-opening.md](2026-06-24-mdp16-gate-that-didnt-need-opening.md) | 2026-06-24 | JVM mode by design — native image gate passed but service doesn't need it; cross-repo doc sync |
 | [2026-06-29-mdp01-index-qdrant-wont-build.md](2026-06-29-mdp01-index-qdrant-wont-build.md) | 2026-06-29 | Qdrant payload indexes — full-text on content (Word tokenizer for Java identifiers), keyword on tenantId/sourceDocumentId |
 | [2026-07-01-mdp01-the-rename-that-touched-everything.md](2026-07-01-mdp01-the-rename-that-touched-everything.md) | 2026-07-01 | neural-text → neocortex — full rename: repo, 28 module artifactIds, all Java packages, parent repo CI/docs |
+| [2026-07-02-mdp01-the-remote-that-pointed-somewhere-else.md](2026-07-02-mdp01-the-remote-that-pointed-somewhere-else.md) | 2026-07-02 | Completing the rename — GitHub repos, directories, remotes, symlinks; workspace remote gotcha |
