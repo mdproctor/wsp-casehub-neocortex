@@ -63,6 +63,16 @@ public record CbrQuery(
         return new CbrQuery(tenantId, domain, caseType, features, topK,
                             minSimilarity, notBefore, problem);
     }
+
+    public CbrQuery withMinSimilarity(double minSimilarity) {
+        return new CbrQuery(tenantId, domain, caseType, features, topK,
+                            minSimilarity, notBefore, problem);
+    }
+
+    public CbrQuery withNotBefore(Instant notBefore) {
+        return new CbrQuery(tenantId, domain, caseType, features, topK,
+                            minSimilarity, notBefore, problem);
+    }
 }
 ```
 
@@ -76,7 +86,11 @@ public record CbrQuery(
 
 ```java
 // memory-api
-public record ScoredCbrCase<C extends CbrCase>(C cbrCase, double score) {}
+public record ScoredCbrCase<C extends CbrCase>(C cbrCase, double score) {
+    public ScoredCbrCase {
+        Objects.requireNonNull(cbrCase, "cbrCase required");
+    }
+}
 ```
 
 Updated SPI signatures:
@@ -156,7 +170,7 @@ When `query.problem() != null` but `embeddingModel == null`, log at `Level.INFO`
 3. `ensureCollection()` finds existing dim=1 collection → **dimension mismatch**
 4. `store()` builds a 384-dim vector → Qdrant rejects the upsert
 
-**Fix:** When `ensureCollection()` finds an existing collection with a vector dimension that differs from the expected dimension, it recreates the collection with the correct dimension. This drops existing Qdrant points — acceptable for a pre-production system with no end users. The delegate `CaseMemoryStore` (JPA/SQLite) retains the durable records; the reconciliation job (parent spec §7.1) reindexes them into the new collection.
+**Fix:** When `ensureCollection()` finds an existing collection with a vector dimension that differs from the expected dimension, it recreates the collection with the correct dimension. This drops existing Qdrant points — acceptable for a pre-production system with no end users. The delegate `CaseMemoryStore` (JPA/SQLite) retains the durable records. Until the reconciliation job (#74) is implemented, manual reindexing is required — call `store()` for each affected case to rebuild the Qdrant index. Automated recovery from dimension migration is blocked by #74.
 
 The recreation is logged at `Level.WARNING` with the old and new dimensions.
 
@@ -189,7 +203,7 @@ Testcontainers Qdrant + deterministic EmbeddingModel stub:
 
 ### Existing tests
 
-`CbrQuery.of()` returns `problem=null`, so 22 of 23 contract tests compile unchanged. The `retrieveSimilar_notBefore_filtersOlderCases` test uses the direct 7-arg `CbrQuery` constructor and must be updated to the 8-arg form (with `null` for `problem`). All tests must also update their result type handling from `List<C>` to `List<ScoredCbrCase<C>>` (consequence of §3.5).
+`CbrQuery.of()` returns `problem=null`, so CbrQuery construction in tests that use `of()` compiles unchanged. The `retrieveSimilar_notBefore_filtersOlderCases` test uses the direct 7-arg constructor and needs the 8th argument added. All 19 tests calling `retrieveSimilar()` must update result access from `result.problem()` to `result.cbrCase().problem()` due to the `ScoredCbrCase` wrapper (§3.5). Only 3 tests that don't call `retrieveSimilar()` (`store_returnsNonBlankId`, `erase_removesMatchingCases`, `eraseEntity_removesAllEntityCases`) compile unchanged.
 
 ## 7. Spec Update (#58)
 
