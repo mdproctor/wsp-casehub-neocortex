@@ -70,6 +70,34 @@ public record CbrQuery(
 
 **Breaking change:** Direct `new CbrQuery(...)` calls gain an 8th argument. `CbrQuery.of()` factory returns `problem=null`, so factory users compile unchanged. The compile error on direct construction is intentional — forces each caller to decide whether to provide a problem.
 
+## 3.5 Scored Return Type
+
+`retrieveSimilar()` return type changes from `List<C>` to `List<ScoredCbrCase<C>>`:
+
+```java
+// memory-api
+public record ScoredCbrCase<C extends CbrCase>(C cbrCase, double score) {}
+```
+
+Updated SPI signatures:
+
+```java
+// CbrCaseMemoryStore
+<C extends CbrCase> List<ScoredCbrCase<C>> retrieveSimilar(CbrQuery query, Class<C> caseType);
+
+// ReactiveCbrCaseMemoryStore
+<C extends CbrCase> Uni<List<ScoredCbrCase<C>>> retrieveSimilar(CbrQuery query, Class<C> caseType);
+```
+
+**Why:** CBR retrieval's core value is ranking by similarity. The score is the retrieval signal — callers need it for adaptation confidence weighting, business-logic thresholds beyond the binary `minSimilarity` cutoff, and retrieval quality observability. Without scores, a 0.95 match is indistinguishable from a 0.51 match.
+
+**Score semantics by path:**
+- Dense search: actual cosine similarity from Qdrant `ScoredPoint.getScore()`
+- Filter-only: `score = 1.0` (synthetic — all matches equally ranked)
+- InMemory: `score = 1.0` (no scoring capability)
+
+**Breaking change:** All `CbrCaseMemoryStore` and `ReactiveCbrCaseMemoryStore` implementations update their return type. Callers unwrap via `scoredCase.cbrCase()` and `scoredCase.score()`.
+
 ## 4. Dual-Path Retrieval
 
 `QdrantCbrCaseMemoryStore.retrieveSimilar()` selects between two paths:
@@ -84,7 +112,8 @@ retrieveSimilar(query, caseClass)
   │   ├─ YES → executeDenseSearch(collection, filter, query)
   │   └─ NO  → executeFilterQuery(collection, filter, query.topK())
   │
-  └─ reconstruct cases from ScoredPoints
+  ├─ reconstruct cases from ScoredPoints
+  └─ wrap each result in ScoredCbrCase(case, point.getScore())
 ```
 
 ### Dense search path
@@ -106,8 +135,30 @@ Current `scrollAsync` behavior unchanged. Synthetic `score = 1.0` for all matche
 
 - `CbrPointBuilder` — store-time embedding already works
 - `CbrQueryTranslator` — filter construction unchanged
-- `CbrCollectionManager` — collection management unchanged
 - `reconstructCase` — payload reconstruction unchanged
+
+### Embedding failure behavior
+
+If `embeddingModel.embed()` fails during `retrieveSimilar()`, the exception propagates to the caller. No silent fallback to filter-only — the caller explicitly requested semantic ranking by providing `problem` text, and silent degradation would mask infrastructure failures and produce misleadingly unranked results. Callers that want degraded results can catch the exception and retry with `query.withProblem(null)`.
+
+This is consistent with store-time behavior: `embeddingModel.embed()` failures in `store()` also propagate immediately.
+
+### Missing embedding model logging
+
+When `query.problem() != null` but `embeddingModel == null`, log at `Level.INFO`: "Dense search unavailable — problem text ignored, returning filter-only results for caseType={caseType}". This ensures operators are aware the system is running without semantic ranking capability when callers expect it. Additionally, with `ScoredCbrCase`, callers see `score = 1.0` on all results — an implicit signal that dense search was not used.
+
+### Collection dimension validation
+
+`CbrCollectionManager.ensureCollection()` must validate the vector dimension of existing collections. Upgrade scenario:
+
+1. System starts without an embedding model → collection created with dim=1 (placeholder)
+2. System upgraded to include an embedding model (dim=384)
+3. `ensureCollection()` finds existing dim=1 collection → **dimension mismatch**
+4. `store()` builds a 384-dim vector → Qdrant rejects the upsert
+
+**Fix:** When `ensureCollection()` finds an existing collection with a vector dimension that differs from the expected dimension, it recreates the collection with the correct dimension. This drops existing Qdrant points — acceptable for a pre-production system with no end users. The delegate `CaseMemoryStore` (JPA/SQLite) retains the durable records; the reconciliation job (parent spec §7.1) reindexes them into the new collection.
+
+The recreation is logged at `Level.WARNING` with the old and new dimensions.
 
 ## 5. minSimilarity Wiring
 
@@ -117,13 +168,14 @@ Current `scrollAsync` behavior unchanged. Synthetic `score = 1.0` for all matche
 
 **InMemory:** No change. No scoring capability. `minSimilarity` is structurally a no-op (implicit score 1.0).
 
-**Score semantics:** Collection uses `Distance.Cosine`. Qdrant returns similarity in [0, 1]. Maps directly to `minSimilarity`'s [0, 1] range — no normalization.
+**Score semantics:** Collection uses `Distance.Cosine`. Qdrant returns cosine similarity in [-1, 1] mathematically. In practice, text embedding models (BGE, sentence-transformers, etc.) produce vectors with non-negative components, yielding scores in [0, 1] for all semantically meaningful inputs. The `minSimilarity` validation range of [0, 1] is sufficient — negative cosine similarity indicates anti-correlated content that should never be a CBR match. `score_threshold = 0.0` (the default when `minSimilarity == 0.0` is omitted) correctly excludes any negative-similarity results.
 
 ## 6. Contract Tests
 
 ### CbrCaseMemoryStoreContractTest (new tests)
 
 - `retrieveSimilar_withProblem_null_returnsFilteredResults` — `problem=null` still works (all backends)
+- `retrieveSimilar_withProblem_nonNull_returnsFilteredResults` — non-null `problem` doesn't break filter-only backends; stores a case, queries with `problem` text and matching features, asserts results are returned (all backends)
 - `retrieveSimilar_minSimilarity_zero_returnsAllMatches` — default threshold never filters (all backends)
 
 ### QdrantCbrDenseSearchTest (new test class)
@@ -137,7 +189,7 @@ Testcontainers Qdrant + deterministic EmbeddingModel stub:
 
 ### Existing tests
 
-All 23 contract tests pass unchanged. `CbrQuery.of()` returns `problem=null`.
+`CbrQuery.of()` returns `problem=null`, so 22 of 23 contract tests compile unchanged. The `retrieveSimilar_notBefore_filtersOlderCases` test uses the direct 7-arg `CbrQuery` constructor and must be updated to the 8-arg form (with `null` for `problem`). All tests must also update their result type handling from `List<C>` to `List<ScoredCbrCase<C>>` (consequence of §3.5).
 
 ## 7. Spec Update (#58)
 
@@ -152,6 +204,9 @@ Divergences to fix in `specs/issue-20-cbr-retrieval-architecture/2026-06-30-cbr-
 | §5 | No `minSimilarity` semantics | Document wiring to `score_threshold` |
 | §6 | `store()` missing `caseType` parameter | Add parameter |
 | §6 | `erase()`/`eraseEntity()` return `int` | Update to `Integer` (boxed for reactive parity) |
+| §3 | No `cbrType()` method on CbrCase interface | Add — discriminator for type-based reconstruction (#59) |
+| §3 | No `features()` default method on CbrCase interface | Add — enables type-safe feature access without casting |
+| §6 | `retrieveSimilar()` returns `List<C>` | Change to `List<ScoredCbrCase<C>>` — scored wrapper carries similarity |
 | §6.3 | NoOp "delegates to CaseMemoryStore" | Update: no delegation, standalone no-op |
 | §7 | Retrieval: single path | Document dual-path (dense + filter-only) |
 
@@ -160,7 +215,12 @@ Divergences to fix in `specs/issue-20-cbr-retrieval-architecture/2026-06-30-cbr-
 | Module | File | Change |
 |--------|------|--------|
 | memory-api | `CbrQuery.java` | Add `problem` field, `withProblem()` builder, validation |
-| memory-qdrant | `QdrantCbrCaseMemoryStore.java` | Add `executeDenseSearch()`, branch in `retrieveSimilar()` |
-| memory-testing | `CbrCaseMemoryStoreContractTest.java` | 2 new contract tests |
+| memory-api | `ScoredCbrCase.java` (NEW) | Scored wrapper for retrieval results |
+| memory-api | `CbrCaseMemoryStore.java` | Return type `List<C>` → `List<ScoredCbrCase<C>>` |
+| memory-api | `ReactiveCbrCaseMemoryStore.java` | Return type `Uni<List<C>>` → `Uni<List<ScoredCbrCase<C>>>` |
+| memory-qdrant | `QdrantCbrCaseMemoryStore.java` | Add `executeDenseSearch()`, branch in `retrieveSimilar()`, wrap results in `ScoredCbrCase` |
+| memory-qdrant | `CbrCollectionManager.java` | Add dimension validation in `ensureCollection()` |
+| memory-cbr-inmem | `InMemoryCbrCaseMemoryStore.java` | Return type update, `score = 1.0` for all results |
+| memory-testing | `CbrCaseMemoryStoreContractTest.java` | 3 new contract tests, fix `notBefore` test constructor, update result type assertions |
 | memory-qdrant | `QdrantCbrDenseSearchTest.java` (NEW) | Dense search integration tests |
 | workspace/specs | CBR spec | Divergence fixes per §7 |
