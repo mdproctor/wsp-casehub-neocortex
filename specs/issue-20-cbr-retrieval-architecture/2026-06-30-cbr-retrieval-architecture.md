@@ -60,10 +60,12 @@ Open interface (not sealed — extensible for future paradigms without modifying
 ```java
 // memory-api
 public interface CbrCase {
+    String cbrType();       // discriminator: "textual", "feature-vector", "plan"
     String problem();       // NL text — embedded for text similarity (common denominator)
     String solution();      // NL summary — human-readable
     String outcome();       // result label (nullable)
     Double confidence();    // reliability [0.0, 1.0] (nullable)
+    default Map<String, Object> features() { return Map.of(); }
 }
 ```
 
@@ -97,7 +99,7 @@ public record FeatureVectorCbrCase(String problem, String solution,
 Adds plan composition for CHEF-style adaptation.
 
 ```java
-// engine-api
+// memory-api
 public record PlanCbrCase(String problem, String solution,
                           String outcome, Double confidence,
                           Map<String, Object> features,
@@ -152,8 +154,16 @@ public interface FeatureField {
 | Field Type | Index Type | Query Operation |
 |-----------|-----------|-----------------|
 | `Categorical` | Qdrant keyword payload index | Exact match filter |
-| `Numeric` | Qdrant float payload index | Range filter |
+| `Numeric` | Qdrant float payload index | Range filter (Number for exact, NumericRange for range) |
 | `Text` | Qdrant full-text payload index | Keyword filter (see §4.2) |
+
+```java
+public record NumericRange(double min, double max) {
+    public static NumericRange exact(double value) { ... }
+    public static NumericRange within(double center, double toleranceFraction) { ... }
+    public static NumericRange of(double min, double max) { ... }
+}
+```
 
 Applications provide a schema per case type alongside `CbrFeatureVectorBuilder` (engine#478). Without a schema, backends fall back to text-only similarity on `problem()`.
 
@@ -185,7 +195,8 @@ public record CbrQuery(
     Map<String, Object> features,
     int topK,
     double minSimilarity,
-    Instant notBefore                 // nullable
+    Instant notBefore,                // nullable — filter cases before this instant
+    String problem                    // nullable — NL text for dense vector search
 ) {
     public CbrQuery {
         Objects.requireNonNull(tenantId, "tenantId required");
@@ -195,12 +206,16 @@ public record CbrQuery(
 
     public static CbrQuery of(String tenantId, MemoryDomain domain,
                                String caseType, Map<String, Object> features, int topK) {
-        return new CbrQuery(tenantId, domain, caseType, features, topK, 0.0, null);
+        return new CbrQuery(tenantId, domain, caseType, features, topK, 0.0, null, null);
     }
 }
 ```
 
 **No `entityIds` by design.** CBR retrieval is cross-entity within a tenant — the point is to find similar past cases across ALL entities (e.g., all past games in QuarkMind, all past investigations in AML), not just one entity's history. This differs from `MemoryQuery` which scopes to specific entities. `MemoryPermissions.assertTenant()` enforces the tenant boundary.
+
+**`problem` field — optional dense vector search.** When present AND an `EmbeddingModel` is available, enables dense vector search with cosine similarity ranking. When absent, retrieval uses payload filters only.
+
+**`minSimilarity` field.** Maps to Qdrant `score_threshold`. Always set, even at 0.0 (excludes negative cosine similarity). Structurally a no-op in filter-only mode (all scores are 1.0).
 
 ---
 
@@ -216,14 +231,14 @@ public interface CbrCaseMemoryStore {
 
     void registerSchema(CbrFeatureSchema schema);
 
-    String store(CbrCase cbrCase, String entityId, MemoryDomain domain,
+    String store(CbrCase cbrCase, String caseType, String entityId, MemoryDomain domain,
                  String tenantId, String caseId);
 
-    <C extends CbrCase> List<C> retrieveSimilar(CbrQuery query, Class<C> caseType);
+    <C extends CbrCase> List<ScoredCbrCase<C>> retrieveSimilar(CbrQuery query, Class<C> caseType);
 
-    int erase(EraseRequest request);
+    Integer erase(EraseRequest request);
 
-    int eraseEntity(String entityId, String tenantId);
+    Integer eraseEntity(String entityId, String tenantId);
 }
 
 // memory-api (io.casehub.memory.cbr)
@@ -231,14 +246,19 @@ public interface ReactiveCbrCaseMemoryStore {
 
     Uni<Void> registerSchema(CbrFeatureSchema schema);
 
-    Uni<String> store(CbrCase cbrCase, String entityId, MemoryDomain domain,
+    Uni<String> store(CbrCase cbrCase, String caseType, String entityId, MemoryDomain domain,
                       String tenantId, String caseId);
 
-    <C extends CbrCase> Uni<List<C>> retrieveSimilar(CbrQuery query, Class<C> caseType);
+    <C extends CbrCase> Uni<List<ScoredCbrCase<C>>> retrieveSimilar(CbrQuery query, Class<C> caseType);
 
     Uni<Integer> erase(EraseRequest request);
 
     Uni<Integer> eraseEntity(String entityId, String tenantId);
+}
+
+// memory-api (io.casehub.memory.cbr)
+public record ScoredCbrCase<C extends CbrCase>(C cbrCase, double score) {
+    public ScoredCbrCase { Objects.requireNonNull(cbrCase, "cbrCase required"); }
 }
 ```
 
@@ -265,7 +285,7 @@ Throws `IllegalArgumentException` with a descriptive message on type mismatch. E
 
 `BlockingToReactiveCbrBridge @DefaultBean` in `neural-text/memory` wraps blocking `CbrCaseMemoryStore` as `ReactiveCbrCaseMemoryStore`, following the same `runSubscriptionOn(workerPool)` pattern as `BlockingToReactiveBridge` in platform.
 
-`NoOpCbrCaseMemoryStore @DefaultBean` in `neural-text/memory` — `store()` delegates to injected `CaseMemoryStore` only (no CBR indexing), `retrieveSimilar()` returns `List.of()`. No CDI conflict with `NoOpCaseMemoryStore` in platform — they are independent types.
+`NoOpCbrCaseMemoryStore @DefaultBean` in `neural-text/memory` — standalone no-op: `store()` returns empty string, `retrieveSimilar()` returns empty list. No delegation to `CaseMemoryStore` (pragmatically correct — no hard dependency on platform bean). No CDI conflict with `NoOpCaseMemoryStore` in platform — they are independent types.
 
 ### 6.5 Erasure Cascade
 
@@ -307,6 +327,10 @@ New module. Implements `CbrCaseMemoryStore` using Qdrant with the recommended Ap
 **Single dense vector model:** Each Qdrant point has one dense vector from `problem()` text. No per-feature embeddings — categorical/numeric features use payload filters, not vectors. This keeps the model simple and avoids multi-vector scoring complexity.
 
 **Shared infrastructure with RAG:** Qdrant client, embedding models, `PayloadFilter` algebra, collection management, tenant isolation. Both `memory-qdrant` and `rag` modules are in the same repo and share these components.
+
+**Dual-path retrieval:** When `EmbeddingModel` is present and `query.problem()` is non-null, retrieval uses Qdrant `searchAsync` with the embedded query vector for cosine similarity ranking. Payload filters (categorical, numeric, notBefore) reduce the candidate set; the dense vector ranks within it. When either is absent, retrieval falls back to `scrollAsync` (payload-filter-only, all scores 1.0). If `query.problem()` is non-null but no `EmbeddingModel` is available, an INFO log is emitted.
+
+**Collection dimension validation:** `ensureCollection()` validates vector dimension of existing collections. If a dimension mismatch is detected (e.g., upgrading from no-model dim=1 to model dim=384), the collection is deleted and recreated with a WARNING log.
 
 ### 7.1 Consistency Model
 
