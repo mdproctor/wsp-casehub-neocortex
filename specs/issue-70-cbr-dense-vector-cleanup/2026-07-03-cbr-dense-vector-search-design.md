@@ -137,7 +137,7 @@ retrieveSimilar(query, caseClass)
    - Named vector (`config.denseVectorName()`) + query vector
    - Payload filter from `CbrQueryTranslator.toFilter()` (unchanged)
    - `limit` = `query.topK()`
-   - `score_threshold` = `query.minSimilarity()` (when > 0.0)
+   - `score_threshold` = `query.minSimilarity()`
    - `with_payload` = true
 3. `searchAsync()` returns `List<ScoredPoint>` ordered by cosine similarity descending
 
@@ -176,13 +176,13 @@ The recreation is logged at `Level.WARNING` with the old and new dimensions.
 
 ## 5. minSimilarity Wiring
 
-**Qdrant dense path:** `score_threshold` on `SearchPoints`. Server-side filtering — results below threshold never returned. `minSimilarity == 0.0` (default) → omit `score_threshold`.
+**Qdrant dense path:** `score_threshold = query.minSimilarity()` on `SearchPoints`. Always set, even when 0.0. Server-side filtering — results below threshold never returned. When `minSimilarity == 0.0` (default), `score_threshold = 0.0` excludes any negative-similarity results while passing all non-negative scores.
 
 **Qdrant filter-only path:** No-op. All results score 1.0. Any `minSimilarity ≤ 1.0` passes.
 
 **InMemory:** No change. No scoring capability. `minSimilarity` is structurally a no-op (implicit score 1.0).
 
-**Score semantics:** Collection uses `Distance.Cosine`. Qdrant returns cosine similarity in [-1, 1] mathematically. In practice, text embedding models (BGE, sentence-transformers, etc.) produce vectors with non-negative components, yielding scores in [0, 1] for all semantically meaningful inputs. The `minSimilarity` validation range of [0, 1] is sufficient — negative cosine similarity indicates anti-correlated content that should never be a CBR match. `score_threshold = 0.0` (the default when `minSimilarity == 0.0` is omitted) correctly excludes any negative-similarity results.
+**Score semantics:** Collection uses `Distance.Cosine`. Qdrant returns cosine similarity in [-1, 1] mathematically. In practice, text embedding models (BGE, sentence-transformers, etc.) produce vectors with non-negative components, yielding scores in [0, 1] for all semantically meaningful inputs. The `minSimilarity` validation range of [0, 1] is sufficient — negative cosine similarity indicates anti-correlated content that should never be a CBR match. `score_threshold = 0.0` (the default) correctly excludes any negative-similarity results.
 
 ## 6. Contract Tests
 
@@ -228,7 +228,7 @@ Divergences to fix in `specs/issue-20-cbr-retrieval-architecture/2026-06-30-cbr-
 
 | Module | File | Change |
 |--------|------|--------|
-| memory-api | `CbrQuery.java` | Add `problem` field, `withProblem()` builder, validation |
+| memory-api | `CbrQuery.java` | Add `problem` field, `withProblem()`, `withMinSimilarity()`, `withNotBefore()` builders, validation |
 | memory-api | `ScoredCbrCase.java` (NEW) | Scored wrapper for retrieval results |
 | memory-api | `CbrCaseMemoryStore.java` | Return type `List<C>` → `List<ScoredCbrCase<C>>` |
 | memory-api | `ReactiveCbrCaseMemoryStore.java` | Return type `Uni<List<C>>` → `Uni<List<ScoredCbrCase<C>>>` |
