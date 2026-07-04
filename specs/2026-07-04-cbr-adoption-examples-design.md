@@ -522,7 +522,10 @@ schemas registered, six queries run.
 - `notBefore` temporal filtering works
 - Plan trace round-trip through Qdrant preserves full structure
 
-Downloads embedding model via `download-maven-plugin` (same pattern as `example-rag-pipeline`).
+Uses `langchain4j-embeddings-all-minilm-l6-v2` which bundles the ONNX model in the jar —
+no `download-maven-plugin` needed. This differs from `example-rag-pipeline` which downloads
+models separately because it also needs SPLADE and reranker models; the CBR example only
+needs dense embeddings for `problem()` similarity.
 
 ### Dependencies
 
@@ -660,8 +663,9 @@ Dependencies: E → F, G, H (scaffold first, demos parallel) → I (integration 
 | Issue | Description | Scale | Complexity |
 |-------|-------------|-------|------------|
 | J | Link example-cbr from app-side epics — comment on aml#92, devtown#129, clinical#115, life#52, iot#48, parent#227 | XS | Low |
+| K | TextualCbrCase demo — Qdrant-only, deferred to a future spec targeting semantic similarity scenarios (filed as neocortex#TBD) | S | Med |
 
-After Wave 2 merges.
+After Wave 2 merges. Issue K is independent and can be filed at any time.
 
 ### Dependency Graph
 
