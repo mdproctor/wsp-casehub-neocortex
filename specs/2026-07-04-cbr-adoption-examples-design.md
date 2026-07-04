@@ -15,7 +15,7 @@ three backends (NoOp, InMemory, Qdrant). Per-app integration guides exist for fo
 3. `EmbeddingModel` dependency for dense vector search on `problem()` undocumented in guides
 4. Qdrant-only vs Qdrant+CaseMemoryStore dual-storage modes undocumented from consumer side
 5. InMemory backend scoped to `test` only — no dev-mode guidance for rapid prototyping
-6. Top-level README has no CBR section — discoverable only via `docs/cbr/`
+6. Top-level README introduction mentions only `inference-*` and `rag-*` — the `memory-*` module set is not in the opening summary
 7. No guides for Life or IoT domains
 
 ## Solution
@@ -33,13 +33,26 @@ from `example-text-analysis`: static seed data, `run(dependency)` method, `print
 This structure itself proves the SPI is domain-agnostic — same store instance, six schemas,
 six result profiles.
 
+### Backend Tiers
+
+`main()` runs with `InMemoryCbrCaseMemoryStore` — no Docker, no models, instant startup.
+InMemory provides categorical exact match and numeric range filtering only. All similarity
+scores are 1.0 (no ranking). Text fields and `problem()` are ignored in matching. Demo
+queries filter on 1-2 key categorical features for useful result sets; remaining schema
+fields are scenario context used by Qdrant for similarity ranking.
+
+Integration tests run with Qdrant + `OnnxEmbeddingModel` via Testcontainers. Qdrant
+provides graded similarity scores, dense vector search on `problem()` and text fields,
+and cross-category retrieval. Expected output in each demo below reflects InMemory
+behavior. The integration test tier verifies the full retrieval quality story.
+
 ---
 
 ## Demo Domains
 
 ### 1. AML Investigation (`AmlInvestigationDemo`)
 
-**Paradigm:** Feature-Vector
+**Paradigm:** Textual + Feature-Vector
 **Case type:** `FeatureVectorCbrCase`
 **App epic:** aml#92
 
@@ -60,35 +73,37 @@ jurisdictions, PEP and non-PEP entities. Realistic narratives: "Multiple cash de
 $10,000 across 3 branches within 48 hours, beneficial owner linked to shell company in Cyprus."
 Outcomes: SAR_FILED, CLEARED, ESCALATED with confidence scores.
 
-**Query scenario:** New STRUCTURING alert on HIGH-risk PEP entity in CY.
+**Query scenario:** New STRUCTURING alert on HIGH-risk PEP entity in CY. Demo query
+filters on `transaction_pattern` only — broader categorical match for useful InMemory
+results. Integration tests add all features for Qdrant-ranked retrieval.
 
-**Expected output:**
+**Expected output (InMemory):**
 ```
 AML Investigation — CBR Results
 ================================
-Query: STRUCTURING / HIGH / CY — new PEP entity alert
+Query: transaction_pattern=STRUCTURING — new PEP entity alert
 
 4 similar investigations found (of 10 in case base)
 
-  #1 [0.95] SAR_FILED — Structuring via 3 branches, PEP beneficial owner, Cyprus
+  #1 [1.00] SAR_FILED — Structuring via 3 branches, PEP beneficial owner, Cyprus
             Evidence path: bank statement analysis → beneficial ownership → SAR
             Duration: 8 days
 
-  #2 [0.91] SAR_FILED — Structuring $9K deposits, HIGH risk, Cyprus shell company
+  #2 [1.00] SAR_FILED — Structuring $9K deposits, HIGH risk, Cyprus shell company
             Evidence path: transaction pattern → KYC gaps → SAR
             Duration: 14 days
 
-  #3 [0.88] SAR_FILED — Layering through PEP-linked accounts, Cyprus/Malta corridor
-            Evidence path: network analysis → beneficial ownership → SAR
-            Duration: 11 days
+  #3 [1.00] SAR_FILED — Structuring via cash deposits, PEP entity, United Kingdom
+            Evidence path: transaction analysis → enhanced due diligence → SAR
+            Duration: 12 days
 
-  #4 [0.82] CLEARED — Structuring pattern but legitimate business (seasonal cash business)
+  #4 [1.00] CLEARED — Structuring pattern but legitimate business (seasonal cash business)
             Evidence path: bank statement → business verification → cleared
             Duration: 6 days
 
-Summary: 75% SAR filing rate for similar cases.
+Summary: 75% SAR filing rate for STRUCTURING cases.
          Most common first step: bank statement analysis (3/4).
-         Average duration: 9.8 days.
+         Average duration: 10 days.
 ```
 
 **Future phases:** Phase 2 (#82) — weighted scoring ranks by pattern+jurisdiction relevance.
@@ -118,25 +133,26 @@ CbrFeatureSchema.of("clinical-adverse-event",
 treatment/control arms. Varying severity (grade 1-4) and onset timing (day 7 to day 180).
 Outcomes: SAFETY_PROTOCOL, CLEARED, MONITORING with causality assessments.
 
-**Query scenario:** New grade 3 hepatotoxicity in treatment arm at day 21.
+**Query scenario:** New grade 3 hepatotoxicity in treatment arm at day 21. Demo query
+filters on `adverse_event_type` and `trial_arm` (categorical features).
 
-**Expected output:**
+**Expected output (InMemory):**
 ```
 Clinical Adverse Event — CBR Results
 =====================================
-Query: Hepatotoxicity / TREATMENT / Grade 3 / Onset day 21
+Query: adverse_event_type=Hepatotoxicity, trial_arm=TREATMENT
 
 3 similar adverse events found (of 10 in case base)
 
-  #1 [0.93] SAFETY_PROTOCOL — Grade 3 hepatotoxicity, treatment arm, day 18
+  #1 [1.00] SAFETY_PROTOCOL — Grade 3 hepatotoxicity, treatment arm, day 18
             Causality: Probable. Action: dose reduction + liver function monitoring
             Note: no concurrent hepatotoxic medications
 
-  #2 [0.89] SAFETY_PROTOCOL — Grade 3 hepatotoxicity, treatment arm, day 24
+  #2 [1.00] SAFETY_PROTOCOL — Grade 3 hepatotoxicity, treatment arm, day 24
             Causality: Possible. Action: treatment hold pending liver panel
             Note: concurrent statin use — different causal mechanism
 
-  #3 [0.84] SAFETY_PROTOCOL — Grade 2 hepatotoxicity progressed to grade 3, treatment, day 14
+  #3 [1.00] SAFETY_PROTOCOL — Grade 2 hepatotoxicity progressed to grade 3, treatment, day 14
             Causality: Probable. Action: dose modification protocol activated
             Note: rapid progression from grade 2 (day 10) to grade 3 (day 14)
 
@@ -173,37 +189,37 @@ refactors, TypeScript features, Python bugfixes. Outcomes: APPROVED, CHANGES_REQ
 reviewer counts, common findings, review durations.
 
 **Query scenario:** New Java refactor, 45 files, 2800 lines, "Extract transaction handling
-into a dedicated service layer."
+into a dedicated service layer." Demo query filters on `change_type=REFACTOR` only.
 
-**Expected output:**
+**Expected output (InMemory):**
 ```
 DevTown PR Review — CBR Results
 =================================
-Query: JAVA / REFACTOR / 45 files / 2800 lines
+Query: change_type=REFACTOR — Java, 45 files, 2800 lines
 
 5 similar past reviews found (of 10 in case base)
 
-  #1 [0.94] CHANGES_REQUESTED — Java refactor, 52 files, 3100 lines
+  #1 [1.00] CHANGES_REQUESTED — Java refactor, 52 files, 3100 lines
             "Extract persistence layer from service classes"
             Reviewers: 3. Finding: missing transaction boundaries at new layer edge
             Duration: 3 days
 
-  #2 [0.91] APPROVED — Java refactor, 38 files, 2200 lines
+  #2 [1.00] APPROVED — Java refactor, 38 files, 2200 lines
             "Separate domain model from REST DTOs"
             Reviewers: 2. Finding: clean separation, minor naming issues
             Duration: 1.5 days
 
-  #3 [0.87] CHANGES_REQUESTED — Java refactor, 41 files, 2900 lines
+  #3 [1.00] CHANGES_REQUESTED — Java refactor, 41 files, 2900 lines
             "Extract auth middleware into dedicated module"
             Reviewers: 2. Finding: circular dependency introduced between modules
             Duration: 2.5 days
 
-  #4 [0.85] APPROVED — Java refactor, 60 files, 4100 lines
+  #4 [1.00] APPROVED — Java refactor, 60 files, 4100 lines
             "Consolidate 3 payment services into unified payment gateway"
             Reviewers: 3. Finding: integration test coverage gaps
             Duration: 4 days
 
-  #5 [0.80] CHANGES_REQUESTED — Kotlin refactor, 35 files, 1800 lines
+  #5 [1.00] CHANGES_REQUESTED — Kotlin refactor, 35 files, 1800 lines
             "Migrate repository layer to coroutines"
             Reviewers: 2. Finding: blocking calls remaining in suspend functions
             Duration: 2 days
@@ -240,29 +256,30 @@ CbrFeatureSchema.of("life-contractor",
 appliance installs. Realistic outcomes: COMPLETED_ON_TIME, DELAYED, OVERCHARGED, EXCELLENT
 with contractor identifiers, actual costs, SLA adherence data.
 
-**Query scenario:** New routine boiler repair request in winter.
+**Query scenario:** New routine boiler repair request in winter. Demo query filters on
+`job_type=PLUMBING` and `property_area=HVAC` (categorical features).
 
-**Expected output:**
+**Expected output (InMemory):**
 ```
 Life Contractor Coordination — CBR Results
 ============================================
-Query: PLUMBING / ROUTINE / HVAC / winter — boiler repair needed
+Query: job_type=PLUMBING, property_area=HVAC — boiler repair needed
 
 4 similar past jobs found (of 10 in case base)
 
-  #1 [0.95] COMPLETED_ON_TIME — Routine boiler service, winter, HVAC
+  #1 [1.00] COMPLETED_ON_TIME — Routine boiler service, winter, HVAC
             Contractor: ABC Heating. Cost: £165 (quoted £180). SLA: 48h, completed in 36h.
             "Annual boiler service plus replacement of pressure valve"
 
-  #2 [0.92] COMPLETED_ON_TIME — Routine boiler repair, winter, HVAC
+  #2 [1.00] COMPLETED_ON_TIME — Routine boiler repair, winter, HVAC
             Contractor: ABC Heating. Cost: £195 (quoted £200). SLA: 48h, completed in 24h.
             "Intermittent ignition failure — replaced ignitor and flame sensor"
 
-  #3 [0.88] COMPLETED_ON_TIME — Routine boiler repair, autumn, HVAC
+  #3 [1.00] COMPLETED_ON_TIME — Routine boiler repair, autumn, HVAC
             Contractor: ABC Heating. Cost: £210 (quoted £200). SLA: 72h, completed in 48h.
             "Boiler losing pressure — repressurised and replaced expansion vessel"
 
-  #4 [0.79] DELAYED — Routine boiler service, winter, HVAC
+  #4 [1.00] DELAYED — Routine boiler service, winter, HVAC
             Contractor: QuickFix Ltd. Cost: £240 (quoted £150). SLA: 48h, completed in 120h.
             "Boiler service — contractor delayed due to parts availability"
 
@@ -300,33 +317,34 @@ CbrFeatureSchema.of("iot-situation",
 smoke detections. Mix of genuine incidents and false positives. Outcomes: RESOLVED_AUTOMATICALLY,
 OPERATOR_DISMISSED, ESCALATED, WORK_ITEM_CREATED.
 
-**Query scenario:** Temperature anomaly from kitchen thermostat in the evening.
+**Query scenario:** Temperature anomaly from kitchen thermostat in the evening. Demo query
+filters on `situation_type` and `room_type` (categorical features).
 
-**Expected output:**
+**Expected output (InMemory):**
 ```
 IoT Situation Handling — CBR Results
 ======================================
-Query: TEMPERATURE_ANOMALY / THERMOSTAT / KITCHEN / EVENING / MEDIUM severity
+Query: situation_type=TEMPERATURE_ANOMALY, room_type=KITCHEN
 
 5 similar past situations found (of 10 in case base)
 
-  #1 [0.96] OPERATOR_DISMISSED — Temperature spike, kitchen thermostat, evening
+  #1 [1.00] OPERATOR_DISMISSED — Temperature spike, kitchen thermostat, evening
             "Kitchen temperature rose 8°C in 15 minutes — oven preheating for dinner"
             Resolution: false positive, operator dismissed within 2 minutes
 
-  #2 [0.93] OPERATOR_DISMISSED — Temperature anomaly, kitchen thermostat, evening
+  #2 [1.00] OPERATOR_DISMISSED — Temperature anomaly, kitchen thermostat, evening
             "Rapid temperature increase during cooking — opened window resolved"
             Resolution: false positive, auto-resolved after window opened
 
-  #3 [0.90] OPERATOR_DISMISSED — Temperature spike, kitchen thermostat, afternoon
+  #3 [1.00] OPERATOR_DISMISSED — Temperature spike, kitchen thermostat, afternoon
             "Temperature spike coincided with dishwasher steam cycle"
             Resolution: false positive, operator added suppression rule
 
-  #4 [0.82] WORK_ITEM_CREATED — Temperature anomaly, kitchen thermostat, morning
+  #4 [1.00] WORK_ITEM_CREATED — Temperature anomaly, kitchen thermostat, morning
             "Kitchen temperature dropped 5°C overnight — boiler pilot light out"
             Resolution: work item created, contractor dispatched, resolved in 4 hours
 
-  #5 [0.78] ESCALATED — Temperature anomaly, kitchen thermostat, night
+  #5 [1.00] ESCALATED — Temperature anomaly, kitchen thermostat, night
             "Sustained high temperature, no cooking activity — extractor fan failure"
             Resolution: escalated to maintenance, fan motor replaced
 
@@ -362,24 +380,26 @@ CbrFeatureSchema.of("quarkmind-battle",
 Bindings: scout, assess-threat, bunker-up, early-pressure, expand, counter-push, macro-up.
 Workers: various unit compositions. Mix of wins and losses across matchups.
 
-**Query scenario:** New game vs Zerg, detected ROACH_RUSH, army ratio 0.8, resource advantage -200.
+**Query scenario:** New game vs Zerg, detected ROACH_RUSH, army ratio 0.8, resource
+advantage -200. Demo query filters on `opponent_race` and `detected_build` (categorical
+features).
 
-**Expected output:**
+**Expected output (InMemory):**
 ```
 QuarkMind Battle — CBR Results (Plan-Based)
 =============================================
-Query: vs ZERG / ROACH_RUSH / army ratio 0.8 / resources -200
+Query: opponent_race=ZERG, detected_build=ROACH_RUSH — army 0.8, resources -200
 
 5 similar past games found (of 10 in case base)
 
-  #1 [0.94] WIN — vs Zerg, Roach Rush, army 0.75, resources -150
+  #1 [1.00] WIN — vs Zerg, Roach Rush, army 0.75, resources -150
      Plan trace:
        1. scout        → reconnaissance  → overlord-scout  → SUCCESS (pri 1)
        2. assess-threat → threat-analysis → zerg-analyzer   → SUCCESS (pri 2)
        3. bunker-up    → static-defence  → bunker-wall     → SUCCESS (pri 3)
        4. counter-push → offensive       → marine-medivac  → SUCCESS (pri 4)
 
-  #2 [0.91] WIN — vs Zerg, Roach Rush, army 0.85, resources -300
+  #2 [1.00] WIN — vs Zerg, Roach Rush, army 0.85, resources -300
      Plan trace:
        1. scout        → reconnaissance  → reaper-scout    → SUCCESS (pri 1)
        2. bunker-up    → static-defence  → bunker-wall     → SUCCESS (pri 2)
@@ -387,13 +407,13 @@ Query: vs ZERG / ROACH_RUSH / army ratio 0.8 / resources -200
        4. expand       → economy         → natural-expand   → SUCCESS (pri 4)
        5. counter-push → offensive       → bio-push        → SUCCESS (pri 5)
 
-  #3 [0.88] WIN — vs Zerg, Roach Rush, army 0.70, resources -100
+  #3 [1.00] WIN — vs Zerg, Roach Rush, army 0.70, resources -100
      Plan trace:
        1. scout        → reconnaissance  → scan-sweep      → SUCCESS (pri 1)
        2. bunker-up    → static-defence  → bunker-wall     → SUCCESS (pri 2)
        3. counter-push → offensive       → siege-tank-push → SUCCESS (pri 3)
 
-  #4 [0.85] WIN — vs Zerg, Roach Rush, army 0.90, resources 100
+  #4 [1.00] WIN — vs Zerg, Roach Rush, army 0.90, resources 100
      Plan trace:
        1. scout        → reconnaissance  → overlord-scout  → SUCCESS (pri 1)
        2. assess-threat → threat-analysis → zerg-analyzer   → SUCCESS (pri 2)
@@ -401,7 +421,7 @@ Query: vs ZERG / ROACH_RUSH / army ratio 0.8 / resources -200
        4. bunker-up    → static-defence  → bunker-wall     → SUCCESS (pri 4)
        5. counter-push → offensive       → bio-push        → SUCCESS (pri 5)
 
-  #5 [0.76] LOSS — vs Zerg, Roach Rush, army 0.65, resources -500
+  #5 [1.00] LOSS — vs Zerg, Roach Rush, army 0.65, resources -500
      Plan trace:
        1. expand       → economy         → natural-expand   → SUCCESS (pri 1)
        2. macro-up     → economy         → double-refinery  → SUCCESS (pri 2)
@@ -464,6 +484,16 @@ Each demo class is `public final class` with:
   `run()` then `printResults()`
 - Inner `record Result(ScoredCbrCase<?> scored, ...)` — domain-specific result
 
+**Platform parameters** used by all demos:
+- `tenantId`: `"demo"` — real applications obtain from `CurrentPrincipal`
+- `entityId`: per-case UUID — real applications use the entity's lifecycle ID
+- `domain`: `new MemoryDomain("cbr-examples")` — real applications register a domain per app
+- `caseId`: per-case UUID — real applications use the case's business ID (e.g., investigation ID)
+
+These parameters are required by `CbrCaseMemoryStore.store()` and `CbrQuery.of()` but are
+orthogonal to CBR schema design. The demos use fixed values; the comments explain what real
+applications substitute.
+
 QuarkMind additionally includes plan trace analysis logic in `printResults()` — binding
 frequency across wins/losses, opening pattern extraction.
 
@@ -476,9 +506,10 @@ schemas registered, six queries run.
 ### Test Tiers
 
 **Smoke (`-Pexamples-smoke`):** `InMemoryCbrCaseMemoryStore`. Verifies:
-- All six demos produce results
-- Result counts match expected (filtered by schema features)
-- Scores are in valid range
+- All six demos run without error (store/retrieve round-trip)
+- Schema registration and query validation work (bad inputs rejected)
+- Result counts match expected (categorical exact-match filtering)
+- All scores are 1.0 (InMemory provides no similarity ranking)
 - QuarkMind results include plan traces with expected structure
 - No Docker, no models, runs in seconds
 
@@ -562,6 +593,12 @@ casehub.memory.cbr.qdrant.max-retries=3
 ```
 
 **Dev Mode section:**
+
+InMemory is for **compile-time validation and SPI wiring** in local development — it
+verifies schema registration, store/retrieve round-trip, and query validation. It does
+not provide similarity ranking (all scores 1.0), text matching, or persistence. For
+retrieval quality evaluation, use Qdrant via Testcontainers or Docker.
+
 ```properties
 # Use InMemory backend in dev mode (no Docker needed)
 %dev.quarkus.arc.selected-alternatives=io.casehub.neocortex.memory.cbr.inmem.InMemoryCbrCaseMemoryStore
@@ -587,13 +624,9 @@ Each guide gets:
 
 ### 4. Top-Level README
 
-Add "CBR Memory" section under existing module descriptions:
-```
-### 3. CBR Memory (`memory-*` modules)
-
-Agent memory SPI for structured feature-vector similarity search over past cases.
-[... brief description ...] See [CBR Integration Guide](docs/cbr/README.md).
-```
+Update introduction paragraph to mention all three module sets (`inference-*`, `rag-*`,
+`memory-*`). The body already has a full `memory-*` section with CBR description and
+module table — the gap is only the opening summary.
 
 ---
 
@@ -642,7 +675,9 @@ Wave 3: J (after Wave 2)
 
 ## Forward Compatibility with Neocortex Roadmap (#81)
 
-The seed data and demo structure accommodate future phases without rework:
+The seed data and demo structure accommodate future phases. Each phase requires a new
+platform capability (#82–#93) and a corresponding demo method — but the seed data and
+demo class structure are designed once with enough richness to serve all phases:
 
 | Phase | Neocortex Issue | What Changes in Examples |
 |-------|----------------|------------------------|
@@ -665,7 +700,7 @@ changes.
 - [ ] `mvn test -Pexamples-smoke` passes — InMemory backend, no Docker, under 10 seconds
 - [ ] `mvn test -Pexamples` passes — Qdrant Testcontainers, dense vector assertions pass
 - [ ] A developer reading any demo class can see: schema, seed data, query, results, interpretation
-- [ ] A developer copying any demo class into their app has a working CBR integration
+- [ ] A developer copying any demo class has a working InMemory CBR integration for local development
 - [ ] `docs/cbr/README.md` answers: how to configure Qdrant, how to enable dense vector search,
   what dual storage means, how to use InMemory in dev mode
 - [ ] Every app with a CBR epic (aml, clinical, devtown, life, iot, quarkmind) has either a
