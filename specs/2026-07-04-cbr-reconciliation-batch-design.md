@@ -85,7 +85,9 @@ ORDER BY memory_id ASC
 LIMIT :limit
 ```
 
-When `attributeKey` is null (no attribute filter), the `AND attributes::jsonb->>...` clause is omitted entirely — the query scans all entries for the tenant (optionally filtered by domain). Implemented as conditional SQL builder logic: append the JSON clause only when `attributeKey != null`.
+Conditional clauses (same SQL builder pattern for both):
+- When `afterMemoryId` is null (first page), the `AND memory_id > :cursor` clause is omitted entirely.
+- When `attributeKey` is null (no attribute filter), the `AND attributes::jsonb->>...` clause is omitted entirely.
 
 `->>` is a top-level key lookup, not a path expression — dotted keys like `cbr.caseType` work correctly.
 
@@ -105,7 +107,7 @@ ORDER BY memory_id ASC
 LIMIT :limit
 ```
 
-Quoted key syntax (`$."cbr.caseType"`) prevents SQLite from interpreting `.` as a JSON path separator. Same conditional SQL builder pattern as §2.1 — JSON clause omitted when `attributeKey` is null.
+Quoted key syntax (`$."cbr.caseType"`) prevents SQLite from interpreting `.` as a JSON path separator. Same conditional SQL builder pattern as §2.1 — `afterMemoryId` cursor clause and JSON attribute clause both omitted when their respective parameters are null.
 
 Declares `MemoryCapability.SCAN` in `capabilities()`.
 
@@ -125,11 +127,10 @@ public class CbrReconciliationService {
     private final EmbeddingModel embeddingModel;          // nullable
     private final QdrantCbrConfig config;
     private final CaseMemoryStore delegate;               // nullable
-    private final Map<String, CbrFeatureSchema> schemas;
 }
 ```
 
-Produced by `QdrantCbrBeanProducer` — shares `CbrCollectionManager`, `EmbeddingModel`, config, delegate, and schema registry with `QdrantCbrCaseMemoryStore`.
+Produced by `QdrantCbrBeanProducer` — shares `CbrCollectionManager`, `EmbeddingModel`, config, and delegate with `QdrantCbrCaseMemoryStore`. Does not need the schema registry — the reconciliation algorithm operates on raw Memory attributes and Qdrant points, not typed CbrFeatureSchema fields.
 
 Apps inject via `Instance<CbrReconciliationService>` — only resolvable when `memory-qdrant` is on the classpath.
 
@@ -244,13 +245,13 @@ Hoist `effectiveDim` computation to method top (fixes #79 duplication). Gate dim
 Add `[-1, 1]` range validation in compact constructor:
 
 ```java
-if (score < -1.0 || score > 1.0)
+if (!(score >= -1.0 && score <= 1.0))
     throw new IllegalArgumentException("score must be in [-1,1], got: " + score);
 ```
 
 Add Javadoc: `@param score similarity score in [-1, 1] — 1.0 for filter-only matches, cosine similarity for dense vector search results`.
 
-Cosine similarity is mathematically [-1, 1] for unit vectors. Current NLP embeddings produce [0, 1] in practice (positive-component vectors), but the validation must respect the mathematical range to avoid rejecting valid scores from future embedding models or domains. Validation catches NaN/infinity and out-of-range bugs without constraining valid cosine similarity values.
+Cosine similarity is mathematically [-1, 1] for unit vectors. Current NLP embeddings produce [0, 1] in practice (positive-component vectors), but the validation must respect the mathematical range to avoid rejecting valid scores from future embedding models or domains. The inverted range check (`!(score >= -1.0 && score <= 1.0)`) naturally rejects NaN (IEEE 754: all NaN comparisons are false) and infinity without a separate `Double.isNaN()` check.
 
 **§5.2 Duplicate effectiveDim**
 
