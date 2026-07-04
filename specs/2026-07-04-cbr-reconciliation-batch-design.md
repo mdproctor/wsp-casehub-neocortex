@@ -45,6 +45,8 @@ public record MemoryScanRequest(
             throw new IllegalArgumentException("limit must be >= 1, got: " + limit);
         if (attributeValue != null && attributeKey == null)
             throw new IllegalArgumentException("attributeValue requires attributeKey");
+        if (attributeKey != null && attributeValue == null)
+            throw new IllegalArgumentException("attributeKey requires attributeValue for filtered scan");
     }
 }
 ```
@@ -155,6 +157,8 @@ Delete orphans in bulk at end of each scroll page. If the collection does not ex
 3. Build point via `CbrPointBuilder`
 4. Batch upsert (call `ensureCollection()` before first upsert if collection didn't exist)
 
+**Error handling:** Each entry is processed independently. On any failure (deserialization, embedding, upsert): log WARNING with `memoryId` and failure reason, increment `errors` count, continue with remaining entries. No per-entry retry — reconciliation is idempotent, so the operator re-runs to pick up failures. This is simpler and more resilient than nested retries during a bulk recovery operation.
+
 Memory bound: O(delegate entries) for the map. For typical CBR volumes per (tenantId, caseType) — hundreds to low thousands of cases — this is well within heap. If volumes grow beyond reasonable heap limits, degrade to batched existence-check: collect a page of IDs from Qdrant, query delegate with an IN clause.
 
 **§3.4 Deserialization (Memory → CbrCase)**
@@ -172,6 +176,8 @@ Static utility `CbrMemoryDeserializer` in `memory-qdrant`. Inverse of `QdrantCbr
 | `attributes["cbr.planTrace"]` | `planTrace` (JSON deserialization, PlanCbrCase only) |
 
 Extraction of `entityId`, `domain`, `caseId` comes from the `Memory` record fields directly (not attributes).
+
+**Error handling:** `CbrMemoryDeserializer` returns `Optional<CbrCase>`. On failure — unknown `cbr.type` discriminator, malformed JSON in `cbr.features`/`cbr.planTrace`, missing required attributes — returns `Optional.empty()`. The caller (§3.3 Step 3) logs WARNING with `memoryId` and reason, increments `errors`. A single corrupt delegate entry must not abort reconciliation of the remaining entries.
 
 CBR-specific attribute key constants (`"cbr.type"`, `"cbr.features"`, `"cbr.planTrace"`, `"cbr.caseType"`) must be shared constants in a `CbrAttributeKeys` class in `memory-qdrant`. Both `serializeToMemoryInput()` and `CbrMemoryDeserializer` reference these keys — string literals in both locations is a maintenance hazard.
 
@@ -272,7 +278,7 @@ No changes to: memory-mem0, memory-graphiti, memory-cbr-inmem, memory-testing, r
 
 - `spi-signature-change-all-impls-same-commit` — default method avoids compilation breakage; no signature change to existing methods
 - `spi-default-method-contract-test` — contract test for scan() default
-- `persistence-backend-cdi-priority` — reconciliation service follows CDI priority ladder
+- `persistence-backend-cdi-priority` — applies to `CaseMemoryStore` delegate resolution in `QdrantCbrBeanProducer`: the CDI priority ladder determines which delegate (NoOp / JPA / SQLite) is injected into the reconciliation service
 - `module-tier-structure` — scan SPI addition is Tier 1 (memory-api), implementations are Tier 3
 - `qdrant-client-library` — direct `io.qdrant:client` usage, no LangChain4j abstraction
 - `reactive-blocking-tier-separation` — reconciliation is blocking; no reactive variant in this iteration
