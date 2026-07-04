@@ -65,7 +65,13 @@ No reactive variant (`ReactiveCaseMemoryStore`) in this iteration — reconcilia
 
 ### §2 Scan implementations
 
-**§2.1 JpaMemoryStore** — native SQL against PostgreSQL jsonb:
+**§2.1 JpaMemoryStore** — native SQL against PostgreSQL:
+
+Calls `MemoryPermissions.assertTenant(request.tenantId(), principal, requestContextActive())` before executing, matching the pattern of every other `CaseMemoryStore` method in `JpaMemoryStore`. The 3-arg form allows async/batch callers (no request context) to bypass principal comparison while preserving tenant-scoped data filtering.
+
+The `attributes` column is stored as TEXT (per `MemoryEntry.columnDefinition = "TEXT"`). The `::jsonb` cast converts at query time. No GIN index is possible on a TEXT column; if scan performance becomes a concern, migrating the column to native JSONB would enable indexing.
+
+SQL (filtered case — when `attributeKey` is non-null):
 
 ```sql
 SELECT * FROM memory_entry
@@ -77,13 +83,15 @@ ORDER BY memory_id ASC
 LIMIT :limit
 ```
 
-`->>` is a top-level key lookup, not a path expression — dotted keys like `cbr.caseType` work correctly. No GIN index needed; reconciliation is infrequent.
+When `attributeKey` is null (no attribute filter), the `AND attributes::jsonb->>...` clause is omitted entirely — the query scans all entries for the tenant (optionally filtered by domain). Implemented as conditional SQL builder logic: append the JSON clause only when `attributeKey != null`.
+
+`->>` is a top-level key lookup, not a path expression — dotted keys like `cbr.caseType` work correctly.
 
 Declares `MemoryCapability.SCAN` in `capabilities()`.
 
-When `attributeKey` is null (no attribute filter), omit the JSON clause — scan all entries for the tenant.
-
 **§2.2 SqliteMemoryStore** — `json_extract` with quoted key syntax:
+
+Calls `MemoryPermissions.assertTenant(request.tenantId(), principal, requestContextActive())` before executing, matching the pattern of every other `CaseMemoryStore` method in `SqliteMemoryStore`.
 
 ```sql
 SELECT * FROM memory_entry
@@ -95,11 +103,11 @@ ORDER BY memory_id ASC
 LIMIT :limit
 ```
 
-Quoted key syntax (`$."cbr.caseType"`) prevents SQLite from interpreting `.` as a JSON path separator.
+Quoted key syntax (`$."cbr.caseType"`) prevents SQLite from interpreting `.` as a JSON path separator. Same conditional SQL builder pattern as §2.1 — JSON clause omitted when `attributeKey` is null.
 
 Declares `MemoryCapability.SCAN` in `capabilities()`.
 
-**§2.3 NoOpCaseMemoryStore** — does NOT override `scan()`. Inherits the throwing default. The no-op is a sentinel — reconciliation calls `requireCapability(SCAN)` first and gets a clear `MemoryCapabilityException`, not a silent empty result.
+**§2.3 NoOpCaseMemoryStore** — does NOT override `scan()`. Inherits the throwing default. The no-op is a sentinel — `CbrReconciliationService` checks `capabilities().contains(SCAN)` (§3.2) and returns a no-op result before `scan()` is ever called.
 
 **§2.4 Mem0CaseMemoryStore, GraphitiCaseMemoryStore** — inherit throwing default. REST-backed stores cannot do arbitrary attribute-filtered enumeration.
 
@@ -125,32 +133,31 @@ Apps inject via `Instance<CbrReconciliationService>` — only resolvable when `m
 
 **§3.2 Preconditions**
 
-Before either phase:
-- `delegate == null` → return no-op result (Qdrant-only mode, nothing to reconcile)
-- `delegate.requireCapability(MemoryCapability.SCAN)` → fail fast
-- Collection doesn't exist → skip phase 1, proceed to phase 2 (reindex creates the collection)
+Before reconciliation:
+- `delegate == null` → return no-op `ReconciliationResult(caseType, tenantId, 0, 0, 0)` (Qdrant-only mode, nothing to reconcile)
+- `!delegate.capabilities().contains(MemoryCapability.SCAN)` → return no-op `ReconciliationResult(caseType, tenantId, 0, 0, 0)` with `LOG.info("Reconciliation skipped — delegate does not support SCAN")`. This handles `NoOpCaseMemoryStore` (empty capabilities) gracefully — no exception for admin tooling.
 
-**§3.3 Phase 1 — Orphan cleanup (Qdrant → delegate)**
+**§3.3 Unified reconciliation pass**
 
-Scroll all Qdrant points for the collection, filtered by `tenantId` payload. For each point:
+Single-pass set-intersection algorithm. Two paginated scans, no N+1 queries.
 
-1. Extract `entityId`, `domain`, `caseId` from payload
-2. Query delegate: `MemoryQuery.forEntity(entityId, domain, tenantId).withCaseId(caseId).withLimit(1)`
-3. If empty → orphan. Collect point UUID for batch deletion.
+**Step 1 — Build delegate index.** Scan delegate: `MemoryScanRequest(tenantId, null, "cbr.caseType", caseType, pageSize, cursor)`. For each `Memory`, compute deterministic point UUID via `CbrPointBuilder.pointId(tenantId, caseType, memory.caseId())` and accumulate into `Map<UUID, Memory>`.
 
-Delete orphans in bulk at end of each scroll page. Configurable scroll page size (default 100).
+**Step 2 — Qdrant intersection.** If the collection exists, scroll all Qdrant points filtered by `tenantId` payload. For each point:
+- Point ID is in the delegate map → consistent. Remove from map.
+- Point ID is NOT in the delegate map → orphan. Collect for batch deletion.
 
-**§3.4 Phase 2 — Reindex missing (delegate → Qdrant)**
+Delete orphans in bulk at end of each scroll page. If the collection does not exist, skip this step entirely — all delegate entries are missing by definition.
 
-Scan delegate: `MemoryScanRequest(tenantId, null, "cbr.caseType", caseType, pageSize, cursor)`.
+**Step 3 — Reindex missing.** Remaining entries in the delegate map are missing from Qdrant. For each:
+1. Deserialize `Memory` → `CbrCase` (via `CbrMemoryDeserializer`)
+2. Embed `problem()` if `embeddingModel != null`
+3. Build point via `CbrPointBuilder`
+4. Batch upsert (call `ensureCollection()` before first upsert if collection didn't exist)
 
-For each page of `Memory` records:
+Memory bound: O(delegate entries) for the map. For typical CBR volumes per (tenantId, caseType) — hundreds to low thousands of cases — this is well within heap. If volumes grow beyond reasonable heap limits, degrade to batched existence-check: collect a page of IDs from Qdrant, query delegate with an IN clause.
 
-1. Compute deterministic point UUID: `CbrPointBuilder.pointId(tenantId, caseType, memory.caseId())`
-2. Batch-check existence in Qdrant (scroll with ID filter, or `getAsync`)
-3. For missing points: deserialize `Memory` → `CbrCase`, embed `problem()` if `embeddingModel != null`, build point, batch upsert
-
-**§3.5 Deserialization (Memory → CbrCase)**
+**§3.4 Deserialization (Memory → CbrCase)**
 
 Static utility `CbrMemoryDeserializer` in `memory-qdrant`. Inverse of `QdrantCbrCaseMemoryStore.serializeToMemoryInput()`:
 
@@ -166,7 +173,13 @@ Static utility `CbrMemoryDeserializer` in `memory-qdrant`. Inverse of `QdrantCbr
 
 Extraction of `entityId`, `domain`, `caseId` comes from the `Memory` record fields directly (not attributes).
 
-**§3.6 Result type**
+CBR-specific attribute key constants (`"cbr.type"`, `"cbr.features"`, `"cbr.planTrace"`, `"cbr.caseType"`) must be shared constants in a `CbrAttributeKeys` class in `memory-qdrant`. Both `serializeToMemoryInput()` and `CbrMemoryDeserializer` reference these keys — string literals in both locations is a maintenance hazard.
+
+Note: `reconstructCase()` (the query path, Qdrant → CbrCase) reads Qdrant payload fields (`_cbr_type`, `_features_json`, `_plan_trace_json`) — a separate key namespace from Memory attributes. These two deserialization paths are intentionally separate and must remain so.
+
+**Round-trip test required:** `deserialize(serialize(case))` must produce the original `CbrCase` for all three CBR types (FeatureVectorCbrCase, PlanCbrCase, TextualCbrCase). This is the minimum correctness guarantee against format drift between `serializeToMemoryInput()` and `CbrMemoryDeserializer`.
+
+**§3.5 Result type**
 
 ```java
 public record ReconciliationResult(
@@ -178,14 +191,14 @@ public record ReconciliationResult(
 ) {}
 ```
 
-**§3.7 Trigger model**
+**§3.6 Trigger model**
 
 Admin-triggered only. No scheduled job — reconciliation is a recovery mechanism, not routine. Two paths:
 
 1. **Admin API** — app injects `Instance<CbrReconciliationService>`, calls `reconcile(caseType, tenantId)`.
 2. **Post-dimension-migration** — operator sees LOG.warning from `ensureCollection()`, triggers reconciliation per tenant.
 
-Lazy cross-tenant recovery: after a dimension change destroys a collection, the triggering tenant's `store()` succeeds (collection recreated). Other tenants' data is missing until the operator runs reconciliation for each.
+Lazy cross-tenant recovery: after a dimension change destroys a collection, the triggering tenant's `store()` succeeds (collection recreated). Other tenants' data is missing until the operator runs reconciliation for each. The `LOG.warning` from `ensureCollection()` must include the collection name and an explicit note that ALL tenants sharing this case type are affected, not just the triggering tenant. Tenant discovery (enumerating affected tenants programmatically) is deferred — the scan SPI's required `tenantId` parameter intentionally prevents cross-tenant enumeration for tenant isolation. Operators discover affected tenants via their tenant management system or direct database query.
 
 ### §4 Dimension migration config gate (#78)
 
@@ -222,16 +235,16 @@ Hoist `effectiveDim` computation to method top (fixes #79 duplication). Gate dim
 
 **§5.1 ScoredCbrCase score validation**
 
-Add `[0, 1]` range validation in compact constructor:
+Add `[-1, 1]` range validation in compact constructor:
 
 ```java
-if (score < 0.0 || score > 1.0)
-    throw new IllegalArgumentException("score must be in [0,1], got: " + score);
+if (score < -1.0 || score > 1.0)
+    throw new IllegalArgumentException("score must be in [-1,1], got: " + score);
 ```
 
-Add Javadoc: `@param score similarity score in [0, 1] — 1.0 for filter-only matches, cosine similarity for dense vector search results`.
+Add Javadoc: `@param score similarity score in [-1, 1] — 1.0 for filter-only matches, cosine similarity for dense vector search results`.
 
-Current implementations all produce scores in [0, 1]: filter-only = 1.0, cosine on normalized embeddings = [0, 1]. Validation catches bugs without constraining valid usage.
+Cosine similarity is mathematically [-1, 1] for unit vectors. Current NLP embeddings produce [0, 1] in practice (positive-component vectors), but the validation must respect the mathematical range to avoid rejecting valid scores from future embedding models or domains. Validation catches NaN/infinity and out-of-range bugs without constraining valid cosine similarity values.
 
 **§5.2 Duplicate effectiveDim**
 
@@ -249,10 +262,9 @@ New test in `QdrantCbrCaseMemoryStoreTest`:
 | Module | Changes |
 |---|---|
 | memory-api | `MemoryCapability.SCAN`, `MemoryScanRequest`, `CaseMemoryStore.scan()` default, `ScoredCbrCase` validation + Javadoc, contract test |
-| memory | `NoOpCaseMemoryStore.scan()` override |
 | memory-jpa | `JpaMemoryStore.scan()` implementation |
 | memory-sqlite | `SqliteMemoryStore.scan()` implementation |
-| memory-qdrant | `CbrReconciliationService`, `CbrMemoryDeserializer`, `ReconciliationResult`, `CbrDimensionMismatchException`, `QdrantCbrConfig.allowDimensionMigration()`, `CbrCollectionManager` changes, `QdrantCbrBeanProducer` produces reconciliation service, Qdrant-specific test |
+| memory-qdrant | `CbrReconciliationService`, `CbrMemoryDeserializer`, `CbrAttributeKeys`, `ReconciliationResult`, `CbrDimensionMismatchException`, `QdrantCbrConfig.allowDimensionMigration()`, `CbrCollectionManager` changes, `QdrantCbrBeanProducer` produces reconciliation service, round-trip serialization test, Qdrant-specific test |
 
 No changes to: memory-mem0, memory-graphiti, memory-cbr-inmem, memory-testing, rag-*, inference-*, corpus-*, examples.
 
@@ -267,7 +279,8 @@ No changes to: memory-mem0, memory-graphiti, memory-cbr-inmem, memory-testing, r
 
 ## Out of scope
 
-- Reactive `ReactiveCaseMemoryStore.scan()` — add when a reactive consumer needs it
-- Scheduled reconciliation — no routine need; admin-triggered covers all recovery scenarios
-- Cross-tenant batch reconciliation API — operator iterates tenants; the per-tenant API is the primitive
-- Reconciliation metrics/observability — future enhancement, not blocking initial implementation
+- Reactive `ReactiveCaseMemoryStore.scan()` — add when a reactive consumer needs it (TODO: file issue)
+- Scheduled reconciliation — no routine need; admin-triggered covers all recovery scenarios (TODO: file issue)
+- Cross-tenant batch reconciliation API — operator iterates tenants; the per-tenant API is the primitive (TODO: file issue)
+- Reconciliation metrics/observability — future enhancement, not blocking initial implementation (TODO: file issue)
+- Programmatic tenant discovery for post-dimension-change reconciliation — scan SPI's required `tenantId` intentionally prevents cross-tenant enumeration; operators use tenant management system or direct DB query (TODO: file issue)
