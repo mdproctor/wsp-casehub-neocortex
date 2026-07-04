@@ -429,7 +429,7 @@ Query: opponent_race=ZERG, detected_build=ROACH_RUSH — army 0.8, resources -20
 
 Plan analysis:
   Win rate: 80% (4/5). Opening binding breakdown:
-    scout:         5/5 games, 4/4 wins — present in every winning plan
+    scout:         4/5 games, 4/4 wins — present in every winning plan, absent from the loss
     bunker-up:     4/5 games, 4/4 wins — critical defensive response
     counter-push:  5/5 games, 4/4 wins — necessary to close out
     early-pressure: 2/5 games, 2/2 success but 1 failure recovered
