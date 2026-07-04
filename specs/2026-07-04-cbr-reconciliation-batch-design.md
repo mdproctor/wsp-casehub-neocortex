@@ -286,8 +286,7 @@ No changes to: memory-mem0, memory-graphiti, memory-cbr-inmem, memory-testing, r
 
 ## Out of scope
 
-- Reactive `ReactiveCaseMemoryStore.scan()` — add when a reactive consumer needs it (TODO: file issue)
-- Scheduled reconciliation — no routine need; admin-triggered covers all recovery scenarios (TODO: file issue)
-- Cross-tenant batch reconciliation API — operator iterates tenants; the per-tenant API is the primitive (TODO: file issue)
-- Reconciliation metrics/observability — future enhancement, not blocking initial implementation (TODO: file issue)
-- Programmatic tenant discovery for post-dimension-change reconciliation — scan SPI's required `tenantId` intentionally prevents cross-tenant enumeration; operators use tenant management system or direct DB query (TODO: file issue)
+- Reactive `ReactiveCaseMemoryStore.scan()` — add when a reactive consumer needs it (#95)
+- Cross-tenant batch reconciliation API — operator iterates tenants; the per-tenant API is the primitive (#97)
+- Reconciliation metrics/observability — future enhancement, not blocking initial implementation (#96)
+- Programmatic tenant discovery for post-dimension-change reconciliation — scan SPI's required `tenantId` intentionally prevents cross-tenant enumeration; operators use tenant management system or direct DB query (#98)
