@@ -2,11 +2,13 @@
 
 ## What Changed
 
-Closed #80 — DJL `HuggingFaceTokenizer` silently clamps `maxLength` to `modelMaxLength` (default 512). One-line fix: set `modelMaxLength` alongside `maxLength` in the tokenizer options map. Landed on main as `e3fb82f`. Garden entry `GE-20260704-987f9c` captures the gotcha.
+Closed #94 — CBR adoption epic. Created `example-cbr` module with six domain demos (AML, Clinical, DevTown, Life, IoT, QuarkMind) showing Feature-Vector and Plan-Based CBR with realistic seed data and practical output. 20 smoke tests + 6 integration tests (Qdrant + EmbeddingModel). Documentation closes all adoption gaps: dense vector search, dual storage, config reference, dev mode guidance, two new domain guides (life, IoT), roadmap sections on all existing guides, cbr-types.md taxonomy, README CBR section. Design-reviewed (4 rounds, 16 issues, all resolved). Cross-references posted on all six app-side epics. Landed on fork main as `0a05ff9`.
+
+Also created `docs/cbr/cbr-types.md` — full taxonomy of Textual, Feature-Vector, and Plan-Based CBR with inputs, outputs, routing signal, and roadmap extensions. Linked from README and CBR integration guide. Written for blocks#30 (CBR-enriched routing strategy context).
 
 ## Immediate Next Step
 
-#74 (reconciliation job) remains the next M-sized issue. Dense vector search (#70) makes it more pressing — collection recreation drops existing points. Run `/work` to start.
+Push to upstream: `git -C /Users/mdproctor/claude/casehub/neocortex push upstream main`. Fork is current; blessed repo is not.
 
 ## What's Left
 
@@ -27,5 +29,7 @@ Closed #80 — DJL `HuggingFaceTokenizer` silently clamps `maxLength` to `modelM
 
 ## Key References
 
-- Garden entry: `GE-20260704-987f9c` — DJL modelMaxLength silent clamping
-- Garden entry: `GE-20260703-39256d` — Qdrant score_threshold semantics
+- Design spec: `specs/2026-07-04-cbr-adoption-examples-design.md` (workspace)
+- Plan: `plans/2026-07-04-cbr-adoption-examples.md` (workspace)
+- CBR types doc: `docs/cbr/cbr-types.md` (project)
+- Design review: `~/adr/casehub-neocortex/cbr-adoption-examples-20260704-161946/`
