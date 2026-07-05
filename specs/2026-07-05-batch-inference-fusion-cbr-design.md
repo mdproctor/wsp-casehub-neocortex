@@ -113,42 +113,60 @@ Method implementations:
 
 **Module placement:** `rag/` — already depends on both `langchain4j-core` and `inference-api`. The adapter is consumed by the RAG pipeline's CDI producers.
 
-**CDI wiring:** `@DefaultBean` producer in `RagBeanProducer`:
+**CDI wiring:** `@DefaultBean` producer in a **separate** `MultiModalEmbedderProducer` class. `RagBeanProducer` already `@Inject`s `MultiModalEmbedder` — a CDI bean cannot both produce and inject the same type. The separate producer class resolves this cleanly.
 
 ```java
-@Produces @DefaultBean @ApplicationScoped
-@IfBuildProperty(name = "casehub.rag.embedder.enabled", stringValue = "true", enableIfMissing = true)
-MultiModalEmbedder separateModelEmbedder(
-        Instance<EmbeddingModel> denseModel,
-        Instance<SparseEmbedder> sparseEmbedder,
-        RagConfig config) {
-    if (denseModel.isUnsatisfied()) {
-        throw new IllegalStateException(
-            "No EmbeddingModel available — provide a LangChain4j EmbeddingModel bean "
-            + "or configure BGE-M3. Set casehub.rag.embedder.enabled=false to disable RAG.");
-    }
-    MultiModalEmbedder embedder;
-    if (sparseEmbedder.isResolvable()) {
-        embedder = new SeparateModelEmbedder(denseModel.get(), sparseEmbedder.get(),
+@ApplicationScoped
+public class MultiModalEmbedderProducer {
+
+    @Produces @DefaultBean @ApplicationScoped
+    @IfBuildProperty(name = "casehub.rag.embedder.enabled", stringValue = "true", enableIfMissing = true)
+    MultiModalEmbedder separateModelEmbedder(
+            Instance<EmbeddingModel> denseModel,
+            Instance<SparseEmbedder> sparseEmbedder,
+            RagConfig config) {
+        if (denseModel.isUnsatisfied()) {
+            throw new IllegalStateException(
+                "No EmbeddingModel available — provide a LangChain4j EmbeddingModel bean "
+                + "or configure BGE-M3. Set casehub.rag.embedder.enabled=false to disable RAG.");
+        }
+        if (sparseEmbedder.isResolvable()) {
+            return new SeparateModelEmbedder(denseModel.get(), sparseEmbedder.get(),
+                config.maxSequenceLength().orElse(512));
+        }
+        return new SeparateModelEmbedder(denseModel.get(),
             config.maxSequenceLength().orElse(512));
-    } else {
-        embedder = new SeparateModelEmbedder(denseModel.get(),
-            config.maxSequenceLength().orElse(512));
     }
-    return maybeWrapMatryoshka(embedder, config);
 }
 ```
+
+The producer does NOT apply Matryoshka wrapping — that responsibility stays exclusively in `effectiveEmbedder()`, which is the single wrapping site.
 
 Deployments without any embedding model disable RAG via `casehub.rag.embedder.enabled=false`. The `@IfBuildProperty` guard prevents CDI from attempting to produce the bean at all.
 
 BgeM3Embedder (when configured by Hortora's `HybridSearchProducer` as `@ApplicationScoped`) displaces this `@DefaultBean` automatically.
 
-**Matryoshka double-wrap fix:** `RagBeanProducer.effectiveEmbedder()` currently wraps unconditionally when `matryoshka.dimension` is set. Fix: check `instanceof MatryoshkaMultiModalEmbedder` before wrapping. This prevents double-wrapping when the producer already applied Matryoshka.
+**Matryoshka wrapping consolidation:** Extract wrapping logic to `MatryoshkaMultiModalEmbedder.wrapIfNeeded(embedder, dimension)`:
+
+```java
+public static MultiModalEmbedder wrapIfNeeded(MultiModalEmbedder embedder, OptionalInt dimension) {
+    if (dimension.isPresent() && !(embedder instanceof MatryoshkaMultiModalEmbedder)) {
+        return new MatryoshkaMultiModalEmbedder(embedder, dimension.getAsInt());
+    }
+    return embedder;
+}
+```
+
+Both `RagBeanProducer.effectiveEmbedder()` and `ReactiveRagBeanProducer.effectiveEmbedder()` call this instead of duplicating the wrapping logic. The `instanceof` guard prevents double-wrapping, and the shared method eliminates the risk of one producer being updated without the other.
+
+**Module placement note:** Issue #61 originally specified `inference-api` for `SeparateModelEmbedder`. This spec places it in `rag/` instead because `inference-api` is Tier 1 and adding a LangChain4j `EmbeddingModel` dependency there would violate `module-tier-structure` protocol. Issue #61 should be updated to reflect this placement.
 
 **Files changed:**
 - `rag/.../SeparateModelEmbedder.java` — new class
-- `rag/.../RagBeanProducer.java` — add @DefaultBean producer, fix Matryoshka double-wrap
-- `rag/.../ReactiveRagBeanProducer.java` — same @DefaultBean and Matryoshka fix
+- `rag/.../MultiModalEmbedderProducer.java` — new class, `@DefaultBean` producer
+- `rag/.../RagBeanProducer.java` — use `MatryoshkaMultiModalEmbedder.wrapIfNeeded()` in `effectiveEmbedder()`
+- `rag/.../ReactiveRagBeanProducer.java` — same `wrapIfNeeded()` fix
+- `inference-api/.../MatryoshkaMultiModalEmbedder.java` — add `wrapIfNeeded()` static method
 - `rag/.../SeparateModelEmbedderTest.java` — new test
 - `rag/.../RagConfig.java` — add `maxSequenceLength()` optional config
 
@@ -159,6 +177,8 @@ BgeM3Embedder (when configured by Hortora's `HybridSearchProducer` as `@Applicat
 **Problem:** `HybridCaseRetriever` hardcodes `QueryFactory.rrf()` for multi-leg fusion. Need RRF, DBSF, and Convex Combination as selectable strategies.
 
 **Design:** Config-driven strategy selection with two code paths — server-side (RRF/DBSF via Qdrant prefetch) and client-side (CC via separate queries).
+
+**Scope note:** Issue #104 requests RRF and Convex Combination. This design adds DBSF as a third strategy — it is a one-line swap from the RRF path (`QueryFactory.fusion(Fusion.DBSF)`) and architecturally coherent with the enum-based design. Omitting it would be arbitrary.
 
 ### 3.1 New types in `rag-api`
 
@@ -175,12 +195,13 @@ public final class ConvexCombinationFusion {
 ```
 
 CC fusion algorithm:
-1. Min-max normalize scores within each leg to [0, 1]
-2. For each unique document (keyed by sourceDocumentId + content):
-   - `score = Σ(leg_weight × normalized_score)` across all legs containing it
+1. Renormalize weights for active legs only (legs actually present in the input). If sparse is absent, redistribute its weight proportionally across dense and BM25 so active weights sum to 1.0
+2. Min-max normalize scores within each leg to [0, 1]
+3. For each unique document (keyed by sourceDocumentId + content):
+   - `score = Σ(active_leg_weight × normalized_score)` across all legs containing it
    - Documents absent from a leg contribute 0 for that leg
-3. Preserve best `RelevanceGrade` across duplicates (same as `RrfFusion`)
-4. Sort by descending score, return topK
+4. Preserve best `RelevanceGrade` across duplicates (same logic as `RrfFusion` — `rag-api/.../RrfFusion.java`)
+5. Sort by descending score, return topK
 
 ### 3.2 Config additions in `RagConfig`
 
@@ -217,10 +238,11 @@ interface CcWeightsConfig {
 1. Build separate `QueryPoints` for each active leg (dense, sparse, BM25) with individual limits (`denseTopK`, `sparseTopK`, `bm25TopK`)
 2. Execute each as a standalone Qdrant `QueryPoints` request
 3. Convert results to `List<RetrievedChunk>` per leg
-4. Call `ConvexCombinationFusion.fuse()` with configured weights
-5. If ColBERT reranking enabled: take top `rerankTopN` from fused results, run ColBERT MAX_SIM query against Qdrant, re-sort
+4. Call `ConvexCombinationFusion.fuse()` with configured weights (renormalized for active legs)
 
-The CC path runs 3 queries (dense + sparse + BM25) plus optionally 1 for ColBERT = 4 round trips. RRF/DBSF remain 1 round trip. This tradeoff is explicit and documented.
+**ColBERT reranking is not supported with CC fusion.** The RRF/DBSF path nests fusion as a prefetch with ColBERT MAX_SIM as the outer query — a single server-side roundtrip using Qdrant point IDs. The CC path produces client-side `RetrievedChunk` objects that do not carry Qdrant point IDs, making it impossible to construct a targeted ColBERT query against specific candidates. If ColBERT reranking is needed, use RRF or DBSF. CC trades reranking capability for configurable per-leg weight control.
+
+The CC path runs 3 queries (dense + sparse + BM25) = 3 round trips. RRF/DBSF remain 1 round trip. This tradeoff is explicit and documented.
 
 Both `HybridCaseRetriever` and `ReactiveHybridCaseRetriever` switch on `config.retrieval().fusionStrategy()`.
 
@@ -265,6 +287,11 @@ New convenience methods:
 - `withWeight(String field, double weight)` — single-field wither
 - `withVectorWeight(double)` — wither
 
+Existing withers updated to pass through new fields:
+- `withProblem(String)` — passes `weights` and `vectorWeight`
+- `withMinSimilarity(double)` — passes `weights` and `vectorWeight`
+- `withNotBefore(Instant)` — passes `weights` and `vectorWeight`
+
 Updated factory: `CbrQuery.of(...)` sets `weights=Map.of()` and `vectorWeight=0.5`.
 
 ### 4.2 CbrSimilarityScorer (`memory-api`)
@@ -288,12 +315,14 @@ public final class CbrSimilarityScorer {
 ```
 
 **`score()` algorithm:**
-1. For each query feature with a matching schema field:
+1. If `queryFeatures` is empty, return 1.0 (vacuous truth — no constraints to violate)
+2. If `schema` is null, return 1.0 (no schema means no field-type information to compute similarity — backward-compatible with current behavior where unregistered schemas yield all-match)
+3. For each query feature with a matching schema field:
    - Compute local similarity based on field type
    - Look up weight (default 1.0 if not in weights map)
    - Accumulate `weightedSum += weight * localSim` and `totalWeight += weight`
-2. If the case lacks a query feature entirely: local similarity = 0.0
-3. Return `weightedSum / totalWeight` (or 0.0 if no features matched)
+4. If the case lacks a query feature entirely: local similarity = 0.0
+5. Return `weightedSum / totalWeight` (or 1.0 if `totalWeight == 0`, i.e. no query features had matching schema fields)
 
 **Local similarity by field type:**
 - `Categorical`: `query.equals(caseValue) ? 1.0 : 0.0`
@@ -318,7 +347,7 @@ New flow:
 1. Build identity filter only (tenant + domain + caseType + notBefore)
 2. Retrieve candidates:
    - If `problem` set: `SearchPoints` with dense vector + identity filter, limit = `topK * oversampleFactor` (default 3). Get cosine scores.
-   - If `problem` null: `ScrollPoints` with identity filter, limit = `overFetchLimit` (default 200)
+   - If `problem` null: `ScrollPoints` with identity filter, limit = `Math.max(topK, overFetchLimit)`
 3. Reconstruct `CbrCase` from each candidate's payload
 4. Compute `featureScore = CbrSimilarityScorer.score(query.features(), case.features(), query.weights(), schema)`
 5. Compute `finalScore`:
@@ -338,6 +367,10 @@ New flow:
 
 **CbrCollectionManager:** No changes. Payload indexes on feature fields remain — they're still useful for future optimization (Qdrant `should` clause scoring).
 
+**Intentional semantic change — features move from hard filters to graded similarity:** This design intentionally changes `NumericRange` and categorical features from hard Qdrant `must` conditions to client-side similarity inputs. Previously, `NumericRange.within(0.7, 0.15)` was a hard boundary — cases outside it were invisible. Now, cases outside the range receive lower similarity scores but remain visible. This is the correct CBR behavior: a case slightly outside a range should score lower, not disappear.
+
+Callers who need hard-filter semantics can set `minSimilarity` to a threshold that replicates the old behavior. Existing contract tests will be updated to verify graded scoring instead of binary filtering.
+
 ### 4.4 Config
 
 ```java
@@ -356,9 +389,11 @@ Config prefix: `casehub.cbr.similarity`.
 
 1. **Semantic text field similarity** — `FeatureField.Text` currently uses exact match. Future: embed text values via `EmbeddingModel` and compute cosine similarity. Requires `EmbeddingModel` dependency in the scorer, which conflicts with Tier 1 placement.
 
-2. **Categorical similarity tables** — Non-binary categorical similarity (domain-specific equivalence classes). Requires schema-level configuration of a similarity matrix.
+2. **Categorical hierarchy support (`CategoryHierarchy`)** — Non-binary categorical similarity with parent/child relationships (e.g., MedDRA SOC proximity). Issue #82 lists this as "optional" — the core requirements (per-field distance, weighted aggregate, weight vectors) are fully addressed by this design. #82 can be closed; a follow-up issue tracks `CategoryHierarchy` specifically.
 
-3. **Per-field similarity function configuration** — Custom `SimilarityFunction` enum on `FeatureField` (Gaussian, step, exponential decay). Derive-from-type is sufficient for now.
+3. **Categorical similarity tables** — Non-binary categorical similarity (domain-specific equivalence classes). Requires schema-level configuration of a similarity matrix.
+
+4. **Per-field similarity function configuration** — Custom `SimilarityFunction` enum on `FeatureField` (Gaussian, step, exponential decay). Derive-from-type is sufficient for now.
 
 ### 4.6 Contract test additions (`memory-testing`)
 
@@ -394,5 +429,5 @@ Implementation order: #51 → #52 → #61 → #104 → #82+#87
 |---|---|
 | `module-tier-structure` | `CbrSimilarityScorer` is pure Java in `memory-api` (Tier 1). `SeparateModelEmbedder` in `rag/` (Tier 3). No tier violations. |
 | `persistence-backend-cdi-priority` | CDI ladder unchanged. `SeparateModelEmbedder` is `@DefaultBean`, displaced by `BgeM3Embedder` (`@ApplicationScoped`). |
-| `spi-signature-change-all-impls-same-commit` | `CbrQuery` record change updates all implementations in same commit: QdrantCbrCaseMemoryStore, InMemoryCbrCaseMemoryStore, NoOpCbrCaseMemoryStore, contract test. |
+| `spi-signature-change-all-impls-same-commit` | The `CbrCaseMemoryStore` SPI method signatures are unchanged — `CbrQuery` gains fields but the method `retrieveSimilar(CbrQuery, Class)` retains its signature. QdrantCbrCaseMemoryStore and InMemoryCbrCaseMemoryStore require code changes (scoring logic). NoOpCbrCaseMemoryStore does not need code changes (returns `List.of()`, which is valid regardless of scoring). Contract test updated for new scoring semantics. All changes in same commit. |
 | `reactive-blocking-tier-separation` | Retriever changes maintain blocking/reactive parity. |
