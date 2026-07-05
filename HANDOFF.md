@@ -2,14 +2,22 @@
 
 ## What Changed
 
-Closed #74, #78, #79 — CBR reconciliation batch. Fixed the root CaseMemoryStore enumeration gap with `MemoryCapability.SCAN` and `scan(MemoryScanRequest)` default method (JPA + SQLite implementations). Built `CbrReconciliationService` with unified single-pass set-intersection algorithm (build delegate map → scroll Qdrant → intersect → reindex remainder). Gated destructive dimension migration behind `allow-dimension-migration` config (default false). Added ScoredCbrCase [-1,1] validation with IEEE 754 NaN rejection. Landed on upstream main as `b85c5db`.
+**From Hortora engine session (cross-repo):**
+- Commit `3ef904b` on main: added `maxSequenceLength()` to `MultiModalEmbedder` interface, `maxMultivectorFloats()` to `RagConfig`, `BgeM3Embedder` gains 2-arg constructor with `maxSequenceLength` parameter. Enables consumers to validate ColBERT multi-vector size against Qdrant's 1M float limit at startup.
+- Filed #99 — filter hidden paths (.git/, .DS_Store) from `FlatCorpusStore.list()` and `FlatChangeSource.onRawEvent()`. Full root-cause analysis and fix spec in the issue.
+- Filed #100 — ColBERT scalar quantization config in `RagConfig` + `QdrantEmbeddingIngestor`.
+
+**Previous session:**
+Closed #74, #78, #79 — CBR reconciliation batch. Landed on upstream main as `b85c5db`.
 
 ## Immediate Next Step
 
-All three issues closed. Pick from What's Next — #63 (embedding evaluation) is ready to run, #74 follow-ups (#102 batch upserts, #103 minor findings) are XS cleanup.
+#99 (hidden path filtering) is XS/Low with a complete spec — ready to implement. #100 (ColBERT quantization) is S/Low.
 
 ## What's Left
 
+- #99 — Filter hidden paths from FlatCorpusStore.list() · XS · Low · full spec in issue
+- #100 — ColBERT scalar quantization config · S · Low
 - #102 — Batch upserts in CbrReconciliationService reindex phase · XS · Low
 - #103 — Minor review findings from #74 implementation · XS · Low
 - #95 — Reactive ReactiveCaseMemoryStore.scan() · S · Low
@@ -22,15 +30,15 @@ All three issues closed. Pick from What's Next — #63 (embedding evaluation) is
 
 | # | Description | Scale | Complexity | Notes |
 |---|-------------|-------|------------|-------|
-| #63 | Run embedding evaluation + REPORT.md | M | Med | Scripts ready, models cached |
+| #99 | Filter hidden paths from FlatCorpusStore | XS | Low | Full spec in issue — ready to implement |
+| #100 | ColBERT quantization config | S | Low | Companion to Hortora/engine#34 |
 | #102 | Batch upserts in reconciliation | XS | Low | Straightforward loop with subList |
 | #103 | Minor review findings batch | XS | Low | Style/readability cleanup |
-| #95 | Reactive scan parity | S | Low | Blocking-to-reactive bridge pattern |
-| #65 | Memori adapter | XL | Med | Blocked on external dependency |
+| #63 | Run embedding evaluation + REPORT.md | M | Med | Scripts ready, models cached |
 
 ## Key References
 
+- neocortex#99 spec: full root-cause + fix in issue body
+- neocortex#100 spec: full spec in issue body
+- Hortora/engine#37 (ColBERT validation): closed, landed as `4b244d8`
 - Design spec: `specs/2026-07-04-cbr-reconciliation-batch-design.md` (workspace)
-- Plan: `plans/attic/issue-74-cbr-reconciliation-batch/2026-07-04-cbr-reconciliation-batch.md` (workspace)
-- Design review: `~/adr/casehub-neocortex/cbr-reconciliation-batch-20260704-220411/`
-- Blog: `blog/2026-07-05-mdp01-cbr-reconciliation.md` (workspace)
