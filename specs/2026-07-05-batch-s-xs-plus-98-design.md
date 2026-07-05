@@ -155,6 +155,10 @@ default Uni<List<Memory>> scan(MemoryScanRequest request) {
 }
 
 default Uni<Set<String>> discoverTenants(String attributeKey, String attributeValue) {
+    if ((attributeKey == null) != (attributeValue == null)) {
+        return Uni.createFrom().failure(new IllegalArgumentException(
+            "attributeKey and attributeValue must both be null or both be non-null"));
+    }
     return Uni.createFrom().failure(
         new MemoryCapabilityException(MemoryCapability.DISCOVER_TENANTS, getClass()));
 }
