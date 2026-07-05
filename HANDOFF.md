@@ -1,35 +1,36 @@
-# Handoff — 2026-07-04
+# Handoff — 2026-07-05
 
 ## What Changed
 
-Closed #94 — CBR adoption epic. Created `example-cbr` module with six domain demos (AML, Clinical, DevTown, Life, IoT, QuarkMind) showing Feature-Vector and Plan-Based CBR with realistic seed data and practical output. 20 smoke tests + 6 integration tests (Qdrant + EmbeddingModel). Documentation closes all adoption gaps: dense vector search, dual storage, config reference, dev mode guidance, two new domain guides (life, IoT), roadmap sections on all existing guides, cbr-types.md taxonomy, README CBR section. Design-reviewed (4 rounds, 16 issues, all resolved). Cross-references posted on all six app-side epics. Landed on fork main as `0a05ff9`.
-
-Also created `docs/cbr/cbr-types.md` — full taxonomy of Textual, Feature-Vector, and Plan-Based CBR with inputs, outputs, routing signal, and roadmap extensions. Linked from README and CBR integration guide. Written for blocks#30 (CBR-enriched routing strategy context).
+Closed #74, #78, #79 — CBR reconciliation batch. Fixed the root CaseMemoryStore enumeration gap with `MemoryCapability.SCAN` and `scan(MemoryScanRequest)` default method (JPA + SQLite implementations). Built `CbrReconciliationService` with unified single-pass set-intersection algorithm (build delegate map → scroll Qdrant → intersect → reindex remainder). Gated destructive dimension migration behind `allow-dimension-migration` config (default false). Added ScoredCbrCase [-1,1] validation with IEEE 754 NaN rejection. Landed on upstream main as `b85c5db`.
 
 ## Immediate Next Step
 
-Push to upstream: `git -C /Users/mdproctor/claude/casehub/neocortex push upstream main`. Fork is current; blessed repo is not.
+All three issues closed. Pick from What's Next — #63 (embedding evaluation) is ready to run, #74 follow-ups (#102 batch upserts, #103 minor findings) are XS cleanup.
 
 ## What's Left
 
-- #74 — Reconciliation job: reindex + orphan cleanup · M · Med
-- #78 — Gate destructive dimension-mismatch recovery behind config flag · S · Low · blocked by #74
-- #79 — Minor review findings batch · XS · Low
+- #102 — Batch upserts in CbrReconciliationService reindex phase · XS · Low
+- #103 — Minor review findings from #74 implementation · XS · Low
+- #95 — Reactive ReactiveCaseMemoryStore.scan() · S · Low
+- #96 — Reconciliation observability (metrics) · S · Low
+- #97 — Cross-tenant batch reconciliation API · S · Low
+- #98 — Programmatic tenant discovery · M · Med
 - #65 — Memori adapter (default backend) · XL · Med · blocked on external dependency
 
 ## What's Next
 
 | # | Description | Scale | Complexity | Notes |
 |---|-------------|-------|------------|-------|
-| #74 | Reconciliation job | M | Med | Not blocking rollout but needed for dim migration |
 | #63 | Run embedding evaluation + REPORT.md | M | Med | Scripts ready, models cached |
-| #78 | Dimension migration config gate | S | Low | Blocked by #74 |
-| #79 | Minor review findings batch | XS | Low | Non-blocking cleanup |
+| #102 | Batch upserts in reconciliation | XS | Low | Straightforward loop with subList |
+| #103 | Minor review findings batch | XS | Low | Style/readability cleanup |
+| #95 | Reactive scan parity | S | Low | Blocking-to-reactive bridge pattern |
 | #65 | Memori adapter | XL | Med | Blocked on external dependency |
 
 ## Key References
 
-- Design spec: `specs/2026-07-04-cbr-adoption-examples-design.md` (workspace)
-- Plan: `plans/2026-07-04-cbr-adoption-examples.md` (workspace)
-- CBR types doc: `docs/cbr/cbr-types.md` (project)
-- Design review: `~/adr/casehub-neocortex/cbr-adoption-examples-20260704-161946/`
+- Design spec: `specs/2026-07-04-cbr-reconciliation-batch-design.md` (workspace)
+- Plan: `plans/attic/issue-74-cbr-reconciliation-batch/2026-07-04-cbr-reconciliation-batch.md` (workspace)
+- Design review: `~/adr/casehub-neocortex/cbr-reconciliation-batch-20260704-220411/`
+- Blog: `blog/2026-07-05-mdp01-cbr-reconciliation.md` (workspace)
