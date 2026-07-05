@@ -42,6 +42,10 @@ public record ModelConfig(
 ) { ... }
 ```
 
+Existing convenience constructors updated to pass `null` for `inputNameOverrides`:
+- `ModelConfig(Path modelPath, Path tokenizerPath)` → delegates with `null`
+- `ModelConfig(Path modelPath, Path tokenizerPath, int maxSequenceLength)` → delegates with `null`
+
 **Files changed:**
 - `inference-runtime/.../OnnxInferenceModel.java` — alias resolution in constructor, resolved names in run/runBatch
 - `inference-runtime/.../ModelConfig.java` — add `inputNameOverrides` field
@@ -196,7 +200,7 @@ public final class ConvexCombinationFusion {
 
 CC fusion algorithm:
 1. Renormalize weights for active legs only (legs actually present in the input). If sparse is absent, redistribute its weight proportionally across dense and BM25 so active weights sum to 1.0
-2. Min-max normalize scores within each leg to [0, 1]
+2. Min-max normalize scores within each leg to [0, 1]. If all scores in a leg are equal (`max == min`), assign all items in that leg a normalized score of 1.0 (all are equally "best" within their leg)
 3. For each unique document (keyed by sourceDocumentId + content):
    - `score = Σ(active_leg_weight × normalized_score)` across all legs containing it
    - Documents absent from a leg contribute 0 for that leg
@@ -292,6 +296,10 @@ Existing withers updated to pass through new fields:
 - `withMinSimilarity(double)` — passes `weights` and `vectorWeight`
 - `withNotBefore(Instant)` — passes `weights` and `vectorWeight`
 
+Compact constructor validation for new fields (alongside existing `topK >= 1` and `minSimilarity ∈ [0, 1]`):
+- `vectorWeight` must be in [0, 1] — outside this range, the composite formula `vectorWeight * vectorScore + (1 - vectorWeight) * featureScore` produces scores outside [0, 1], breaking `minSimilarity` semantics
+- `weights` values must be non-negative — a negative weight inverts the similarity function for that field, penalizing matches and rewarding mismatches, which is almost certainly a caller bug
+
 Updated factory: `CbrQuery.of(...)` sets `weights=Map.of()` and `vectorWeight=0.5`.
 
 ### 4.2 CbrSimilarityScorer (`memory-api`)
@@ -331,7 +339,7 @@ public final class CbrSimilarityScorer {
 
 Query feature value types for numeric:
 - Plain `Number`: treated as exact query value. `localSim = 1.0 - |query - case| / range`
-- `NumericRange`: treated as target range. `localSim = 1.0` if case value is within range, decays linearly outside range: `1.0 - distance_to_nearest_bound / range`
+- `NumericRange`: treated as target range. `localSim = 1.0` if case value is within range, decays linearly outside range: `1.0 - distance_to_nearest_bound / (field.max() - field.min())`, clamped to [0, 1]
 
 **`compositeScore()`:** `vectorWeight * vectorScore + (1 - vectorWeight) * featureScore`
 
