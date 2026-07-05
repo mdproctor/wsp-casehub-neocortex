@@ -21,6 +21,10 @@ Add `discoverTenants()` to `CaseMemoryStore` as a capability-gated cross-tenant 
  * @return a non-null, possibly empty, unmodifiable set of tenant identifiers
  */
 default Set<String> discoverTenants(String attributeKey, String attributeValue) {
+    if ((attributeKey == null) != (attributeValue == null)) {
+        throw new IllegalArgumentException(
+            "attributeKey and attributeValue must both be null or both be non-null");
+    }
     throw new MemoryCapabilityException(MemoryCapability.DISCOVER_TENANTS, getClass());
 }
 ```
@@ -177,6 +181,15 @@ default void requireCapability(MemoryCapability capability) {
 ### SPI (memory-api)
 
 ```java
+/**
+ * SPI for enriching {@link MemoryInput} before storage.
+ *
+ * <p><b>Progressive routing:</b> {@code appliesTo} and {@code enrich} receive the
+ * progressively enriched input — the result of all prior steps (ordered by {@code priority()}),
+ * not the original input. Step ordering affects both composition and routing: a step that adds
+ * an attribute can cause downstream steps to match differently than they would against the
+ * original input. Design routing predicates accordingly.
+ */
 public interface CaseEnrichmentStep {
     boolean appliesTo(MemoryInput input);
     MemoryInput enrich(MemoryInput input);
