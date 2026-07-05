@@ -2,20 +2,14 @@
 
 ## What Changed
 
-Closed #74, #78, #79 — CBR reconciliation batch. Fixed the root CaseMemoryStore enumeration gap with `MemoryCapability.SCAN` and `scan(MemoryScanRequest)` default method (JPA + SQLite implementations). Built `CbrReconciliationService` with unified single-pass set-intersection algorithm (build delegate map → scroll Qdrant → intersect → reindex remainder). Gated destructive dimension migration behind `allow-dimension-migration` config (default false). Added ScoredCbrCase [-1,1] validation with IEEE 754 NaN rejection. Landed on upstream main as `b85c5db`.
+Closed 9 issues in a single branch (#90, #95, #96, #97, #98, #99, #100, #102, #103). Added `CaseMemoryStore.discoverTenants()` SPI with JPA/SQLite/InMemory backends for post-dimension-change tenant discovery. `CaseEnrichmentStep` SPI + `CaseEnrichmentDecorator` for pre-store transformation pipelines. Full `ReactiveCaseMemoryStore` parity (scan, capabilities, requireCapability, discoverTenants). CDI-restructured `CbrReconciliationService` with `@Timed` + Micrometer counters, `reconcileAll()` overloads, chunked batch upserts. `FlatCorpusStore` hidden path filtering via `FileVisitor SKIP_SUBTREE`. `ColbertQuantizationConfig` in `RagConfig`. Landed on upstream main as `e2fd9dc`.
 
 ## Immediate Next Step
 
-All three issues closed. Pick from What's Next — #63 (embedding evaluation) is ready to run, #74 follow-ups (#102 batch upserts, #103 minor findings) are XS cleanup.
+All 9 issues closed. Pick from What's Next — #63 (embedding evaluation) is the next substantive piece. #65 (Memori adapter) is blocked on external dependency.
 
 ## What's Left
 
-- #102 — Batch upserts in CbrReconciliationService reindex phase · XS · Low
-- #103 — Minor review findings from #74 implementation · XS · Low
-- #95 — Reactive ReactiveCaseMemoryStore.scan() · S · Low
-- #96 — Reconciliation observability (metrics) · S · Low
-- #97 — Cross-tenant batch reconciliation API · S · Low
-- #98 — Programmatic tenant discovery · M · Med
 - #65 — Memori adapter (default backend) · XL · Med · blocked on external dependency
 
 ## What's Next
@@ -23,14 +17,11 @@ All three issues closed. Pick from What's Next — #63 (embedding evaluation) is
 | # | Description | Scale | Complexity | Notes |
 |---|-------------|-------|------------|-------|
 | #63 | Run embedding evaluation + REPORT.md | M | Med | Scripts ready, models cached |
-| #102 | Batch upserts in reconciliation | XS | Low | Straightforward loop with subList |
-| #103 | Minor review findings batch | XS | Low | Style/readability cleanup |
-| #95 | Reactive scan parity | S | Low | Blocking-to-reactive bridge pattern |
 | #65 | Memori adapter | XL | Med | Blocked on external dependency |
 
 ## Key References
 
-- Design spec: `specs/2026-07-04-cbr-reconciliation-batch-design.md` (workspace)
-- Plan: `plans/attic/issue-74-cbr-reconciliation-batch/2026-07-04-cbr-reconciliation-batch.md` (workspace)
-- Design review: `~/adr/casehub-neocortex/cbr-reconciliation-batch-20260704-220411/`
-- Blog: `blog/2026-07-05-mdp01-cbr-reconciliation.md` (workspace)
+- Design spec: `specs/2026-07-05-batch-s-xs-plus-98-design.md` (workspace)
+- Plan: `plans/attic/issue-98-batch-s-xs-tenant-discovery/2026-07-05-batch-s-xs-plus-98.md` (workspace)
+- Design review: `~/adr/casehub-neocortex/batch-s-xs-plus-98-20260705-023014/`
+- Blog: `blog/2026-07-05-mdp02-nine-issues-one-branch.md` (workspace)
