@@ -14,6 +14,12 @@ Add `discoverTenants()` to `CaseMemoryStore` as a capability-gated cross-tenant 
 
 ```java
 // CaseMemoryStore (memory-api)
+/**
+ * Returns distinct tenantIds matching the given attribute filter.
+ * Both null → all tenants. Both non-null → filtered. Mixed → IllegalArgumentException.
+ *
+ * @return a non-null, possibly empty, unmodifiable set of tenant identifiers
+ */
 default Set<String> discoverTenants(String attributeKey, String attributeValue) {
     throw new MemoryCapabilityException(MemoryCapability.DISCOVER_TENANTS, getClass());
 }
@@ -38,10 +44,10 @@ default Set<String> discoverTenants(String attributeKey, String attributeValue) 
 ```java
 // CbrReconciliationService
 public Set<String> discoverTenants(String caseType) {
-    if (delegate == null || !delegate.capabilities().contains(MemoryCapability.DISCOVER_TENANTS)) {
-        LOG.info("Tenant discovery unavailable — delegate missing or lacks DISCOVER_TENANTS");
-        return Set.of();
+    if (delegate == null) {
+        throw new IllegalStateException("No delegate configured — tenant discovery unavailable");
     }
+    delegate.requireCapability(MemoryCapability.DISCOVER_TENANTS);
     return delegate.discoverTenants(CbrAttributeKeys.CBR_CASE_TYPE, caseType);
 }
 ```
@@ -118,6 +124,8 @@ public List<ReconciliationResult> reconcileAll(String caseType) {
 
 Partial failures are captured per-tenant, not propagated. The result list carries the error count for each tenant.
 
+The `reconcileAll(String caseType)` convenience overload now fails fast via `requireCapability(DISCOVER_TENANTS)` when the delegate lacks discovery support. An empty result unambiguously means "no tenants have data for this caseType" — never "discovery is unavailable."
+
 ## 4. ReactiveCaseMemoryStore Parity (#95)
 
 ### Gap
@@ -173,11 +181,37 @@ public interface CaseEnrichmentStep {
     boolean appliesTo(MemoryInput input);
     MemoryInput enrich(MemoryInput input);
     default int priority() { return 0; }
+    /** If true, a failure in enrich() aborts the store — exception propagates to the caller. */
+    default boolean required() { return false; }
 }
 ```
 
 - `appliesTo(MemoryInput)` instead of `caseType()` — application-tier steps define their own routing. A CBR enrichment step in QuarkMind's module can check `input.attributes().get("cbr.caseType")` using the `CbrAttributeKeys` constant it already depends on.
 - `priority()` — lower runs first. Deterministic ordering regardless of CDI discovery order.
+- `required()` — if true, a failure in `enrich()` propagates to the caller, preventing the store from proceeding with unenriched data. Default `false` preserves best-effort behaviour for non-critical enrichments.
+
+**Departure from #90 acceptance criteria:** Issue #90 specified `caseType()` routing and per-caseType ordering. This spec replaces that with `appliesTo(MemoryInput)` + `priority()` — strictly more general, avoids the module boundary problem (`CbrAttributeKeys` lives in `memory-qdrant`, not accessible from `memory-api`), and enables non-CBR enrichment steps. The issue's acceptance criteria should be updated to reflect this design.
+
+### MemoryInput enrichment API
+
+Add fluent attribute methods to `MemoryInput` to avoid the error-prone 6-argument constructor in enrichment steps:
+
+```java
+// MemoryInput (memory-api) — new methods on the existing record
+public MemoryInput withAttribute(String key, String value) {
+    var merged = new java.util.HashMap<>(attributes);
+    merged.put(key, value);
+    return new MemoryInput(entityId, domain, tenantId, caseId, text, merged);
+}
+
+public MemoryInput withAttributes(Map<String, String> additional) {
+    var merged = new java.util.HashMap<>(attributes);
+    merged.putAll(additional);
+    return new MemoryInput(entityId, domain, tenantId, caseId, text, merged);
+}
+```
+
+Enrichment steps use `input.withAttribute("enriched.key", "value")` instead of constructing a new `MemoryInput` manually. The `Map.copyOf()` in the compact constructor guarantees immutability of the returned record.
 
 ### Decorator (memory/)
 
@@ -229,6 +263,11 @@ public class CaseEnrichmentDecorator implements CaseMemoryStore {
                 try {
                     result = step.enrich(result);
                 } catch (Exception e) {
+                    if (step.required()) {
+                        if (e instanceof RuntimeException re) throw re;
+                        throw new RuntimeException(
+                            "Required enrichment step failed: " + step.getClass().getName(), e);
+                    }
                     LOG.log(Level.WARNING, "Enrichment step " + step.getClass().getName() + " failed", e);
                 }
             }
@@ -249,11 +288,14 @@ if (!batch.isEmpty()) {
     for (int i = 0; i < batch.size(); i += DEFAULT_PAGE_SIZE) {
         List<PointStruct> chunk = batch.subList(i, Math.min(i + DEFAULT_PAGE_SIZE, batch.size()));
         collectionManager.client().upsertAsync(collection, chunk).get();
+        reindexed += chunk.size();  // after confirmed upsert
     }
 }
 ```
 
-The `reindexed` counter moves from the per-point loop to after confirmed upsert, counted by batch contents — not incremented speculatively before the gRPC call.
+The `reindexed` counter increments by `chunk.size()` after each successful `upsertAsync().get()` — not speculatively before the gRPC call. If chunk 3 of 5 fails, `reindexed` accurately reflects only chunks 1–2.
+
+**Partial failure semantics:** Chunked batches introduce the possibility of partial upserts — chunks 1–2 persisted, chunk 3 fails, chunks 4–5 never attempted. This is safe because reconciliation is idempotent and self-healing: the next `reconcile()` invocation detects remaining gaps (the scan-vs-Qdrant intersection finds entries missing from Qdrant) and re-indexes only the missing entries. The `ReconciliationResult.reindexed` count reflects the partial work, giving the caller accurate accounting even on failure.
 
 ## 7. Minor Review Findings (#103)
 
@@ -335,4 +377,4 @@ if (config.colbertQuantization().type() == DenseQuantization.SCALAR) {
 }
 ```
 
-No oversampling — ColBERT MAX_SIM scoring doesn't benefit from it.
+No oversampling config — in the current retrieval architecture (`HybridCaseRetriever`), ColBERT is the **outer re-ranking query**, not a prefetch. The MAX_SIM computation operates on the candidate set selected by the RRF prefetch, using full-precision vectors. Oversampling compensates for HNSW traversal inaccuracy in quantized prefetch legs (see ARC42STORIES.MD §6 "Search-time oversampling"); since ColBERT vectors are never traversed via HNSW, oversampling is architecturally irrelevant. If ColBERT is ever used as a primary retrieval leg (prefetch), oversampling would need to be added at that point.
