@@ -4,9 +4,11 @@
 
 Fixed #114: `@Decorator` silently skipping `@Produces` method beans. Root cause: Arc applies decorators via subclass generation — producer method beans get client proxies that can't be subclassed. Converted `HybridCaseRetriever` and `ReactiveHybridCaseRetriever` from `@Produces` method beans to `@ApplicationScoped` managed beans with `@Inject` constructors. Also added `@Unremovable`, FINE logging, and `@QuarkusTest` integration test to both expansion decorators. Branch `issue-114-harden-decorator-activation`, 2 commits (`ec5fe25`, `5c9fb00`). Full build green, installed to local `.m2`.
 
+*Updated: #114 closed and branch stamped — removed stale next step.*
+
 ## Immediate Next Step
 
-Run `/work` to close branch `issue-114-harden-decorator-activation` — push to origin, merge to main via work-end.
+Pick next work item from What's Next — `#109` (retrieval tracking analysis) and `#110` (retention policy) are unblocked now that #105 landed.
 
 ## Cross-Module
 
