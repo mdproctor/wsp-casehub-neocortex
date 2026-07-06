@@ -19,3 +19,4 @@
 | [2026-06-29-mdp01-index-qdrant-wont-build.md](2026-06-29-mdp01-index-qdrant-wont-build.md) | 2026-06-29 | Qdrant payload indexes — full-text on content (Word tokenizer for Java identifiers), keyword on tenantId/sourceDocumentId |
 | [2026-07-01-mdp01-the-rename-that-touched-everything.md](2026-07-01-mdp01-the-rename-that-touched-everything.md) | 2026-07-01 | neural-text → neocortex — full rename: repo, 28 module artifactIds, all Java packages, parent repo CI/docs |
 | [2026-07-02-mdp01-the-remote-that-pointed-somewhere-else.md](2026-07-02-mdp01-the-remote-that-pointed-somewhere-else.md) | 2026-07-02 | Completing the rename — GitHub repos, directories, remotes, symlinks; workspace remote gotcha |
+| [2026-07-06-mdp02-the-alternative-that-didnt-replace-anything.md](2026-07-06-mdp02-the-alternative-that-didnt-replace-anything.md) | 2026-07-06 | @Alternative doesn't suppress injection point validation — NoOpQueryExpander @DefaultBean, explicit mode selection |
