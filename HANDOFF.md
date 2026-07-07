@@ -2,16 +2,16 @@
 
 ## What Changed
 
-Closed #107 (categorical similarity tables) and #108 (per-field similarity function configuration). New `SimilaritySpec` sealed interface — pure data records (`CategoricalTable`, `GaussianDecay`, `StepDecay`, `ExponentialDecay`) that attach optional similarity configuration to `FeatureField.Categorical` and `FeatureField.Numeric`. `FeatureField` itself sealed with `permits`. `CbrSimilarityScorer` refactored to three-level precedence: caller override → field spec → type default. All dispatch sites (`CbrQueryTranslator`, `CbrCollectionManager`, `QdrantCbrCaseMemoryStore`) migrated to exhaustive `switch`. 964 tests pass, full build green. Landed as `a30110f` on both `origin/main` and `upstream/main`.
+Closed #119 (original query in expansion result set) and #113 (per-leg embedding separation). Expansion decorators now always prepend the original query using record equality — safety net for HyDE drift. HybridCaseRetriever and reactive variant use `embedBatch()` when expansion is active: dense leg gets `searchText()` (expanded), sparse/ColBERT get `text()` (original). Unconditional — no config flag, it's a correctness fix. Adversarial design review (2 rounds, 9 issues, all resolved). CBR guide and README revised with full capability brief. Landed as `486b6e2` and `adaf00d` on both `origin/main` and `upstream/main`.
 
 ## Immediate Next Step
 
-Pick next work item from What's Next — `#109` (retrieval tracking analysis) and `#110` (retention policy) are unblocked now that #105 landed.
+Pick next work item from What's Next — #109 and #110 are unblocked, #120 builds on this session's per-leg infrastructure.
 
 ## Cross-Module
 
 **We're blocking:**
-- `Hortora/engine` — needs the new neocortex SNAPSHOT (`0.2-SNAPSHOT`) to pick up the SimilaritySpec + sealed FeatureField changes. Their CBR schemas will need updating if they use `FeatureField` in switch expressions.
+- `Hortora/engine` — can now adopt HyDE with confidence (original query always present, per-leg embedding correct). Their `0.2-SNAPSHOT` dependency picks up both changes.
 
 ## What's Left
 
@@ -25,8 +25,9 @@ Pick next work item from What's Next — `#109` (retrieval tracking analysis) an
 | #65 | Memori adapter | XL | Med | Blocked on external dependency |
 | #109 | Retrieval tracking analysis service | M | Med | Unblocked (#105 closed) |
 | #110 | Retrieval tracking data retention policy | S | Low | Unblocked (#105 closed) |
+| #120 | Expansion drift metrics with auto-fallback | M | Med | Builds on per-leg embedding |
+| #121 | RerankingCaseRetriever with cross-encoder | M | Med | Hortora/engine#41 |
 
 ## Key References
 
-- Spec: `docs/specs/2026-07-07-cbr-similarity-functions-design.md`
-- Blog: `blog/2026-07-07-mdp01-why-records-cant-carry-behaviour.md`
+- Spec: `docs/specs/2026-07-07-expansion-safety-and-per-leg-embedding-design.md`
