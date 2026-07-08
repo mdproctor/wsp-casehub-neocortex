@@ -2,16 +2,21 @@
 
 ## What Changed
 
-Closed #110 (retrieval tracking data retention) and #121 (cross-encoder reranking). `purgeOlderThan(Instant)` added to `RetrievalTracker` and `ReactiveRetrievalTracker` SPIs with cascade DELETE in SQLite, `RetentionScheduler` (90-day default, `ScheduledExecutorService` daemon thread). `RerankingCaseRetriever` `@Decorator @Priority(75)` with blocking + reactive variants, overfetch via `max(limit, rerankPoolSize)`. `rag-crag/` renamed to `rag-crossencoder/` — module boundary aligned with dependency boundary (`inference-tasks`). Score propagation from CRAG to reranker via chunk metadata eliminates double cross-encoder inference. Landed as `233cc86` on both `origin/main` and `upstream/main`. Design review (2 rounds, 14 issues, all resolved). Garden entry GE-20260708-d53278 (score propagation technique). casehubio/parent#358 filed for PLATFORM.md deep-dive update.
+Closed #83 (CBR Phase 3 — semantic case retrieval). Hybrid two-pass retrieval in `QdrantCbrCaseMemoryStore` with mode dispatch (`RetrievalMode.FEATURE_ONLY`, `SEMANTIC_ONLY`, `HYBRID`) and configurable fusion (`CbrFusionStrategy.RRF`, `CC`). `ScoreFusion` utility in `memory-api` provides generic RRF and CC algorithms — domain-neutral, shared by CBR and future RAG consolidation (#124). New `memory-cbr-crossencoder` module: `@Decorator @Priority(75)` on `CbrCaseMemoryStore` + `ReactiveCbrCaseMemoryStore`, sigmoid-normalized cross-encoder scores, classpath + config activated (`casehub.cbr.reranking.enabled`). `ScoredCbrCase.reranked` field for double-reranking guard. `CbrSimilarityScorer.compositeScore()` removed — superseded by `ScoreFusion`. Auto-degradation when prerequisites absent (HYBRID → FEATURE_ONLY, SEMANTIC_ONLY → empty). Contract tests for retrieval modes across all implementations. Design review: 5 rounds, 20 issues, 18 verified, 2 accepted ($20.50). Landed as `14e883f` on both `origin/main` and `upstream/main`.
+
+## Issues Filed
+
+- #122 — Sparse embeddings (SPLADE) for CBR
+- #123 — BM25 leg for CBR
+- #124 — RrfFusion → ScoreFusion consolidation (RAG callers)
+
+## Garden Entries
+
+- GE-20260708-9213d2 — Ranked fusion ID extraction must use storage-level unique IDs
 
 ## Immediate Next Step
 
-Pick next work item from What's Next — #109 and #120 are unblocked.
-
-## Cross-Module
-
-**We're blocking:**
-- `Hortora/engine` — can now adopt both reranking (`casehub.rag.reranking.enabled=true`) and HyDE with confidence. Their `0.2-SNAPSHOT` dependency picks up all changes.
+Pick next work item from What's Next — #122, #123, #124 are new; #109 and #120 remain unblocked.
 
 ## What's Left
 
@@ -26,8 +31,11 @@ Pick next work item from What's Next — #109 and #120 are unblocked.
 | #65 | Memori adapter | XL | Med | Blocked on external dependency |
 | #109 | Retrieval tracking analysis service | M | Med | Unblocked (#105 closed) |
 | #120 | Expansion drift metrics with auto-fallback | M | Med | Builds on per-leg embedding + score propagation |
+| #122 | Sparse embeddings (SPLADE) for CBR | M | Med | New — plugs into ScoreFusion as third leg |
+| #123 | BM25 leg for CBR | S | Low | New — server-side Qdrant BM25 as fusion leg |
+| #124 | RrfFusion → ScoreFusion consolidation | S | Low | New — migrate rag-expansion callers |
 
 ## Key References
 
-- Spec: `docs/specs/2026-07-07-retention-and-reranking-design.md`
-- Garden: `GE-20260708-d53278` (score propagation via chunk metadata)
+- Spec: `docs/specs/2026-07-08-cbr-semantic-retrieval-design.md`
+- Garden: `GE-20260708-9213d2` (fusion ID extraction gotcha)
