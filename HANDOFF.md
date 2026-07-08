@@ -23,7 +23,30 @@ Pick next work item from What's Next — #122, #123, #124 are new; #109 and #120
 - #65 — Memori adapter (default backend) · XL · Med · blocked on external dependency
 - casehubio/parent#358 — update `docs/repos/casehub-neocortex.md` for rag-crossencoder rename · XS · Low
 
-## What's Next
+## What's Next — CBR App Enablement Critical Path
+
+Three parallel tracks — all converge to make CBR usable across casehub apps:
+
+```
+Track A (retrieval quality):  #124 → #123 → #122
+Track B (case richness):      #89 → #91 → #92
+Track C (compliance):         #84 → #85
+```
+
+| # | Description | Scale | Complexity | Track | Blocked by | Unlocks |
+|---|-------------|-------|------------|-------|------------|---------|
+| #124 | ScoreFusion consolidation (RAG callers) | S | Low | A | — | #123, #122 |
+| #123 | BM25 leg for CBR | S | Low | A | #124 | #122 |
+| #122 | SPLADE sparse embeddings for CBR | M | Med | A | #124 | — |
+| #89 | Structured case fields (nested objects, list containment) | M | Med | B | — | #91 |
+| #91 | Temporal case representation (time-series segments) | M | High | B | #89 | #92 |
+| #92 | Sequence similarity (DTW, edit distance) | M | High | B | #91 | — |
+| #84 | Outcome learning + retrieval traceability | L | High | C | — | #85; gates regulated apps |
+| #85 | Plan adaptation SPI | M | High | C | #84 | — |
+
+**Recommended start:** #124 + #89 + #84 in parallel (all three track heads are unblocked).
+
+## What's Next — Other
 
 | # | Description | Scale | Complexity | Notes |
 |---|-------------|-------|------------|-------|
@@ -31,9 +54,6 @@ Pick next work item from What's Next — #122, #123, #124 are new; #109 and #120
 | #65 | Memori adapter | XL | Med | Blocked on external dependency |
 | #109 | Retrieval tracking analysis service | M | Med | Unblocked (#105 closed) |
 | #120 | Expansion drift metrics with auto-fallback | M | Med | Builds on per-leg embedding + score propagation |
-| #122 | Sparse embeddings (SPLADE) for CBR | M | Med | New — plugs into ScoreFusion as third leg |
-| #123 | BM25 leg for CBR | S | Low | New — server-side Qdrant BM25 as fusion leg |
-| #124 | RrfFusion → ScoreFusion consolidation | S | Low | New — migrate rag-expansion callers |
 
 ## Key References
 
