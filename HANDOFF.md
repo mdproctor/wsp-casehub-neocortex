@@ -1,22 +1,37 @@
-# Handoff — 2026-07-08
+# Handoff — 2026-07-09
 
 ## What Changed
 
-Closed #83 (CBR Phase 3 — semantic case retrieval). Hybrid two-pass retrieval in `QdrantCbrCaseMemoryStore` with mode dispatch (`RetrievalMode.FEATURE_ONLY`, `SEMANTIC_ONLY`, `HYBRID`) and configurable fusion (`CbrFusionStrategy.RRF`, `CC`). `ScoreFusion` utility in `memory-api` provides generic RRF and CC algorithms — domain-neutral, shared by CBR and future RAG consolidation (#124). New `memory-cbr-crossencoder` module: `@Decorator @Priority(75)` on `CbrCaseMemoryStore` + `ReactiveCbrCaseMemoryStore`, sigmoid-normalized cross-encoder scores, classpath + config activated (`casehub.cbr.reranking.enabled`). `ScoredCbrCase.reranked` field for double-reranking guard. `CbrSimilarityScorer.compositeScore()` removed — superseded by `ScoreFusion`. Auto-degradation when prerequisites absent (HYBRID → FEATURE_ONLY, SEMANTIC_ONLY → empty). Contract tests for retrieval modes across all implementations. Design review: 5 rounds, 20 issues, 18 verified, 2 accepted ($20.50). Landed as `14e883f` on both `origin/main` and `upstream/main`.
+Branch `issue-124-cbr-fusion-consolidation` covers #124, #123, #122 (CBR Track A). Consolidation phase (#124) is complete — 4 commits on the project branch:
+1. `34078bd` — new `fusion-api` Tier 1 module with `ScoreFusion`, `FusionStrategy` enum
+2. `e5dc4e2` — `CbrFusionStrategy` → `FusionStrategy` (atomic SPI change, DBSF guard)
+3. `2d446c8` — RAG callers migrated, `RrfFusion` + `ConvexCombinationFusion` + rag-api `FusionStrategy` deleted, unused `rag-api` dep removed from `memory-qdrant`
+4. `7fef4db` — `CamelCaseExpander` moved to `fusion-api` (public visibility)
 
-## Issues Filed
-
-- #122 — Sparse embeddings (SPLADE) for CBR
-- #123 — BM25 leg for CBR
-- #124 — RrfFusion → ScoreFusion consolidation (RAG callers)
-
-## Garden Entries
-
-- GE-20260708-9213d2 — Ranked fusion ID extraction must use storage-level unique IDs
+Design spec reviewed (4 rounds, 17 issues, $16.57): `docs/specs/2026-07-08-cbr-fusion-consolidation-design.md`. Implementation plan: `plans/2026-07-09-cbr-fusion-consolidation.md` — 10 tasks, 4 complete, 6 remaining.
 
 ## Immediate Next Step
 
-Pick next work item from What's Next — #122, #123, #124 are new; #109 and #120 remain unblocked.
+Run `/work` to resume branch `issue-124-cbr-fusion-consolidation`. Continue with Task 5 in the plan (`plans/2026-07-09-cbr-fusion-consolidation.md`): add `QdrantCbrConfig` properties for SPLADE, BM25, CC weights. Tasks 5-10 implement SPLADE (#122) and BM25 (#123) legs for CBR.
+
+## Remaining Tasks (from plan)
+
+| Task | Description | Status |
+|------|-------------|--------|
+| 5 | QdrantCbrConfig for SPLADE + BM25 + CC weights | pending |
+| 6 | Collection schema evolution — add SPLADE/BM25 named vectors to existing collections | pending |
+| 7 | SPLADE + BM25 ingestion (CbrPointBuilder + store) — `inference-splade` dep, optional `SparseEmbedder` injection | pending |
+| 8 | SPLADE + BM25 retrieval legs in `retrieveHybrid()` — dynamic 2-4 leg fusion, CC weight renormalization | pending |
+| 9 | Reconciliation vector enrichment phase — three-phase model, backfill SPLADE/BM25 vectors | pending |
+| 10 | Update CLAUDE.md + ARC42STORIES.MD — add fusion-api module | pending |
+
+## Key Design Decisions (read spec for full detail)
+
+- **CC weight renormalization:** semantic sub-weights renormalize among *active* semantic legs before applying `vectorWeight` split — preserves the feature/semantic contract
+- **DBSF guard:** `switch` in `retrieveHybrid()` throws `UnsupportedOperationException` for DBSF
+- **Collection schema evolution:** `ensureCollection()` adds missing named vectors to existing collections via Qdrant `updateCollection` API
+- **Three-phase reconciliation:** orphan cleanup → reindex → vector enrichment (new phase for SPLADE/BM25 backfill)
+- **`SparseEmbedder` injection:** optional CDI via `Instance<SparseEmbedder>` in `QdrantCbrCaseMemoryStore`
 
 ## What's Left
 
@@ -25,37 +40,16 @@ Pick next work item from What's Next — #122, #123, #124 are new; #109 and #120
 
 ## What's Next — CBR App Enablement Critical Path
 
-Three parallel tracks — all converge to make CBR usable across casehub apps:
-
-```
-Track A (retrieval quality):  #124 → #123 → #122
-Track B (case richness):      #89 → #91 → #92
-Track C (compliance):         #84 → #85
-```
-
-| # | Description | Scale | Complexity | Track | Blocked by | Unlocks |
-|---|-------------|-------|------------|-------|------------|---------|
-| #124 | ScoreFusion consolidation (RAG callers) | S | Low | A | — | #123, #122 |
-| #123 | BM25 leg for CBR | S | Low | A | #124 | #122 |
-| #122 | SPLADE sparse embeddings for CBR | M | Med | A | #124 | — |
-| #89 | Structured case fields (nested objects, list containment) | M | Med | B | — | #91 |
-| #91 | Temporal case representation (time-series segments) | M | High | B | #89 | #92 |
-| #92 | Sequence similarity (DTW, edit distance) | M | High | B | #91 | — |
-| #84 | Outcome learning + retrieval traceability | L | High | C | — | #85; gates regulated apps |
-| #85 | Plan adaptation SPI | M | High | C | #84 | — |
-
-**Recommended start:** #124 + #89 + #84 in parallel (all three track heads are unblocked).
+*Unchanged — retrieve with: `git show HEAD~1:HANDOFF.md`*
 
 ## What's Next — Other
 
-| # | Description | Scale | Complexity | Notes |
-|---|-------------|-------|------------|-------|
-| #63 | Run embedding evaluation + REPORT.md | M | Med | Scripts ready, models cached |
-| #65 | Memori adapter | XL | Med | Blocked on external dependency |
-| #109 | Retrieval tracking analysis service | M | Med | Unblocked (#105 closed) |
-| #120 | Expansion drift metrics with auto-fallback | M | Med | Builds on per-leg embedding + score propagation |
+*Unchanged — retrieve with: `git show HEAD~1:HANDOFF.md`*
 
 ## Key References
 
-- Spec: `docs/specs/2026-07-08-cbr-semantic-retrieval-design.md`
-- Garden: `GE-20260708-9213d2` (fusion ID extraction gotcha)
+- Spec: `docs/specs/2026-07-08-cbr-fusion-consolidation-design.md`
+- Plan: `plans/2026-07-09-cbr-fusion-consolidation.md` (workspace)
+- Review workspace: `~/adr/casehub-neocortex/fusion-consolidation-20260709-095355/`
+- Garden: GE-20260709-137b8e (peer Tier 1 utility module convention)
+- Blog: `blog/2026-07-09-mdp01-three-implementations-of-the-same-algorithm.md`
