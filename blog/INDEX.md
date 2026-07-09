@@ -24,3 +24,4 @@
 | [2026-07-07-mdp01-why-records-cant-carry-behaviour.md](2026-07-07-mdp01-why-records-cant-carry-behaviour.md) | 2026-07-07 | SimilaritySpec sealed interface — why lambdas on records break value semantics, three-level precedence chain |
 | [2026-07-08-mdp01-one-dependency-one-module.md](2026-07-08-mdp01-one-dependency-one-module.md) | 2026-07-08 | CBR Phase 3 complete — semantic case retrieval, ScoreFusion, cross-encoder reranking, design review |
 | [2026-07-09-mdp01-three-implementations-of-the-same-algorithm.md](2026-07-09-mdp01-three-implementations-of-the-same-algorithm.md) | 2026-07-09 | Fusion consolidation — fusion-api module extracts ScoreFusion, unifies FusionStrategy, clears path for SPLADE/BM25 |
+| [2026-07-09-mdp02-the-api-that-wouldnt-evolve.md](2026-07-09-mdp02-the-api-that-wouldnt-evolve.md) | 2026-07-09 | SPLADE + BM25 legs for CBR — Qdrant schema evolution gotcha, dynamic 2-4 leg hybrid fusion, three-phase reconciliation |
