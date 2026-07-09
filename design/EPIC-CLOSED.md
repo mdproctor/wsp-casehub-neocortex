@@ -1,5 +1,5 @@
-# Branch Closed: issue-110-retention-and-reranking
+# Branch Closed: issue-124-cbr-fusion-consolidation
 
-**Date:** 2026-07-08
-**Issues:** 110,121
+**Date:** 2026-07-09
+**Issues:** 124,123,122
 **Status:** merged to main
