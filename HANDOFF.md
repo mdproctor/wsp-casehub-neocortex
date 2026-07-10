@@ -1,32 +1,28 @@
-# Handoff — 2026-07-09
+# Handoff — 2026-07-10
 
 ## What Changed
 
-Closed #124 (ScoreFusion consolidation), #123 (BM25 leg for CBR), #122 (SPLADE leg for CBR). New `fusion-api` Tier 1 module extracts `ScoreFusion`, unified `FusionStrategy` enum, and `CamelCaseExpander` — shared by RAG and CBR. RAG callers migrated; `RrfFusion`, `ConvexCombinationFusion`, rag-api `FusionStrategy`, and `CbrFusionStrategy` deleted. CBR gains optional SPLADE sparse embedding and BM25 server-side inference as retrieval legs. Dynamic 2-4 leg hybrid fusion with CC weight renormalization. Collection schema evolution (delete-and-recreate, guarded by `allowSparseVectorMigration`). Three-phase reconciliation adds vector enrichment for backfilling SPLADE/BM25 vectors. Final review: 2 rounds, 15 issues, 6 verified, $8.62. Landed as `075d2ec` on both `origin/main` and `upstream/main`.
+Closed #89 (structured case fields). Three new `FeatureField` sealed variants — `CategoricalList`, `NestedObject`, `ObjectList` — with one-level nesting enforced via whitelist validation. `CbrFilter` sealed interface provides typed query predicates (`Contains`, `ContainsAll`, `ContainsAny`, `HasMatch`). `CbrQuery` gains separate `filters` field alongside scored `features`. `CbrFeatureValidator` consolidates validation across all backends. Qdrant backend maps filters to native `matchKeyword`/`matchKeywords`/`nested()` conditions with per-inner-field payload indexes. 67 contract tests (30 new). Design review: 5 rounds, 19 issues, 17 verified. Landed as `3ce41d5` on both `origin/main` and `upstream/main`.
 
-## Garden Entries
-
-- GE-20260709-063f66 — Qdrant updateCollection cannot add new sparse vectors to existing collections
-- GE-20260709-94d8d3 — Qdrant scroll returns VectorOutput not Vector — use updateVectorsAsync
-- GE-20260709-137b8e — peer Tier 1 utility module convention (from previous session)
+Deferred issues filed: #125 (NumericList), #126 (NotContains filters), #127 (compound same-field filters), #128 (graded similarity for structured fields), #129 (ARC42 CBR module docs).
 
 ## Immediate Next Step
 
-Pick next work item from What's Next. Track A is complete (#124→#123→#122). Track B (#89 structured case fields) and Track C (#84 outcome learning) are both unblocked.
+Pick next work item from What's Next. Track B head (#91 temporal representation) is now unblocked. Track C head (#84 outcome learning) is also unblocked.
 
 ## What's Left
 
 - #65 — Memori adapter (default backend) · XL · Med · blocked on external dependency
 - casehubio/parent#358 — update `docs/repos/casehub-neocortex.md` for rag-crossencoder rename · XS · Low
+- #129 — ARC42 CBR module documentation (§5 Building Block View) · M · Low
 
 ## What's Next — CBR App Enablement Critical Path
 
-Track A complete. Remaining tracks:
+Track A complete. Track B unblocked by #89.
 
 | # | Description | Scale | Complexity | Track | Notes |
 |---|-------------|-------|------------|-------|-------|
-| #89 | Structured case fields (nested objects, list containment) | M | Med | B | Unblocked — track B head |
-| #91 | Temporal case representation (time-series segments) | M | High | B | Blocked by #89 |
+| #91 | Temporal case representation (time-series segments) | M | High | B | Unblocked — structured fields (#89) landed |
 | #92 | Sequence similarity (DTW, edit distance) | M | High | B | Blocked by #91 |
 | #84 | Outcome learning + retrieval traceability | L | High | C | Unblocked — track C head |
 | #85 | Plan adaptation SPI | M | High | C | Blocked by #84 |
@@ -38,9 +34,12 @@ Track A complete. Remaining tracks:
 | #63 | Run embedding evaluation + REPORT.md | M | Med | Scripts ready, models cached |
 | #109 | Retrieval tracking analysis service | M | Med | Unblocked |
 | #120 | Expansion drift metrics with auto-fallback | M | Med | |
+| #125 | NumericList field type | S | Low | Deferred from #89 |
+| #126 | NotContains / NotContainsAny filters | S | Low | Deferred from #89 |
+| #127 | Compound same-field filters (AllOf) | S | Low | Deferred from #89 |
 
 ## Key References
 
-- Spec: `docs/specs/2026-07-08-cbr-fusion-consolidation-design.md`
-- Review: `~/adr/casehub-neocortex/fusion-consolidation-final-20260709-162633/`
-- Blog: `blog/2026-07-09-mdp01-three-implementations-of-the-same-algorithm.md`, `blog/2026-07-09-mdp02-the-api-that-wouldnt-evolve.md`
+- Spec: `docs/specs/2026-07-10-structured-case-fields-design.md`
+- Review: `~/adr/casehub-neocortex/structured-case-fields-20260710-031328/`
+- Blog: `blog/2026-07-10-mdp01-when-flat-features-arent-enough.md`
