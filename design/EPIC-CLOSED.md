@@ -1,5 +1,5 @@
-# Branch Closed: issue-110-retention-and-reranking
+# Branch Closed: issue-89-structured-case-fields
 
-**Date:** 2026-07-08
-**Issues:** 110,121
+**Date:** 2026-07-10
+**Issues:** 89
 **Status:** merged to main
