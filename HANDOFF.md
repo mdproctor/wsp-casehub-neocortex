@@ -1,14 +1,12 @@
-# Handoff — 2026-07-10
+# Handoff — 2026-07-11
 
 ## What Changed
 
-Closed #89 (structured case fields). Three new `FeatureField` sealed variants — `CategoricalList`, `NestedObject`, `ObjectList` — with one-level nesting enforced via whitelist validation. `CbrFilter` sealed interface provides typed query predicates (`Contains`, `ContainsAll`, `ContainsAny`, `HasMatch`). `CbrQuery` gains separate `filters` field alongside scored `features`. `CbrFeatureValidator` consolidates validation across all backends. Qdrant backend maps filters to native `matchKeyword`/`matchKeywords`/`nested()` conditions with per-inner-field payload indexes. 67 contract tests (30 new). Design review: 5 rounds, 19 issues, 17 verified. Landed as `3ce41d5` on both `origin/main` and `upstream/main`.
-
-Deferred issues filed: #125 (NumericList), #126 (NotContains filters), #127 (compound same-field filters), #128 (graded similarity for structured fields), #129 (ARC42 CBR module docs).
+Closed #91 (temporal case representation) and delivered core #92 algorithms. Two new `FeatureField` sealed permits — `TimeSeries` (ordered multi-dimensional observations with timestamp field, DTW similarity) and `DiscreteSequence` (ordered categorical labels, edit distance similarity). Both participate in `CbrSimilarityScorer` weighted composite scoring alongside flat features. Constructor validates timestamp field existence, Numeric type, and ≥1 non-timestamp Numeric for DTW distance. Design review: 1 round, 10 issues accepted. Landed as `1f3bbf1` on both `origin/main` and `upstream/main`. Filed epic #131 (typed CBR feature values) with 5 child issues (#132–#136) to fix `Map<String, Object>` type safety system-wide.
 
 ## Immediate Next Step
 
-Pick next work item from What's Next. Track B head (#91 temporal representation) is now unblocked. Track C head (#84 outcome learning) is also unblocked.
+Pick next work item from What's Next. Track B continues with #92 (sequence similarity refinements — alignment path, windowed DTW). Track C head (#84 outcome learning) is unblocked.
 
 ## What's Left
 
@@ -18,12 +16,11 @@ Pick next work item from What's Next. Track B head (#91 temporal representation)
 
 ## What's Next — CBR App Enablement Critical Path
 
-Track A complete. Track B unblocked by #89.
+Track A complete. Track B: #91 landed, #92 partially delivered (DTW + edit distance done, alignment path deferred).
 
 | # | Description | Scale | Complexity | Track | Notes |
 |---|-------------|-------|------------|-------|-------|
-| #91 | Temporal case representation (time-series segments) | M | High | B | Unblocked — structured fields (#89) landed |
-| #92 | Sequence similarity (DTW, edit distance) | M | High | B | Blocked by #91 |
+| #92 | Sequence similarity refinements — alignment path extraction, windowed DTW, weighted edit distance | M | Med | B | Core algorithms delivered in #91; remaining: alignment path, SimilaritySpec for temporal fields |
 | #84 | Outcome learning + retrieval traceability | L | High | C | Unblocked — track C head |
 | #85 | Plan adaptation SPI | M | High | C | Blocked by #84 |
 
@@ -31,6 +28,7 @@ Track A complete. Track B unblocked by #89.
 
 | # | Description | Scale | Complexity | Notes |
 |---|-------------|-------|------------|-------|
+| #131 | Typed CBR feature values (epic) | L | High | Design first (#132), then flat → structured → temporal → integration |
 | #63 | Run embedding evaluation + REPORT.md | M | Med | Scripts ready, models cached |
 | #109 | Retrieval tracking analysis service | M | Med | Unblocked |
 | #120 | Expansion drift metrics with auto-fallback | M | Med | |
@@ -40,6 +38,6 @@ Track A complete. Track B unblocked by #89.
 
 ## Key References
 
-- Spec: `docs/specs/2026-07-10-structured-case-fields-design.md`
-- Review: `~/adr/casehub-neocortex/structured-case-fields-20260710-031328/`
-- Blog: `blog/2026-07-10-mdp01-when-flat-features-arent-enough.md`
+- Spec: `docs/specs/2026-07-10-temporal-case-representation-design.md`
+- Review: `~/adr/casehub-neocortex/temporal-case-representation-20260710-192419/`
+- Blog: `blog/2026-07-11-mdp01-when-flat-features-arent-enough-again.md`
