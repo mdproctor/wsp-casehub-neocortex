@@ -1,5 +1,5 @@
-# Branch Closed: issue-110-retention-and-reranking
+# Branch Closed: issue-92-sequence-similarity
 
-**Date:** 2026-07-08
-**Issues:** 110,121
+**Date:** 2026-07-12
+**Issues:** 92
 **Status:** merged to main
