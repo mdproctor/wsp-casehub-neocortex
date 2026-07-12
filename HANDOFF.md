@@ -2,39 +2,33 @@
 
 ## What Changed
 
-Closed #125, #126, #127, #138, #139 (CBR enhancements batch). Five capabilities added to `memory-api`: (1) `WarpingConstraint` sealed interface with `Unconstrained`, `SakoeChibaBand`, `ItakuraParallelogram` — replaces `DtwSpec(Integer windowSize)` with non-null `DtwSpec(WarpingConstraint constraint)`, Itakura infeasibility detection inside DP loop. (2) Configurable insert/delete costs on `EditDistanceSpec` — variable-cost DP with correct normalization for both sub-preferred and del+ins-preferred regimes. (3) `FeatureField.NumericList(name, min, max)` filter-only field type + `CbrFilter.ContainsRange(NumericRange)` for numeric array containment. (4) `CbrFilter.NotContains` / `NotContainsAny` negation filters for CategoricalList. (5) `CbrFilter.AllOf(List<CbrFilter>)` compound same-field filter with polarity-preserving Qdrant dispatch. Design review: 2 rounds, 9 issues, all verified. Landed as `4422db0` on both `origin/main` and `upstream/main`.
+Branch `issue-137-approx-dtw-typed-cbr` covers #131 (typed CBR feature values) + #137 (approximate DTW). Execution order: #131 first. Sealed `FeatureValue` hierarchy (7 variants) replaces `Map<String, Object>` across all CBR APIs. Design spec at `docs/specs/2026-07-12-typed-features-and-approx-dtw-design.md`. Plan at workspace `plans/2026-07-12-typed-features-and-approx-dtw.md`.
+
+**Completed this session:** Tasks 1–2 of the plan (FeatureValue type + core API migration). All `memory-api` production code migrated, 470 tests green. InMemoryCbrCaseMemoryStore filter matching migrated (zero errors). 4 orphaned branches closed (issue-30, issue-56, issue-672, fix-ce). 37 diary entries published. featureSimilarities (engine#672) and CE score fix (fix-ce) merged to main.
+
+**In progress:** Task 3 — `CbrCaseMemoryStoreContractTest` (1707 lines) has ~100 remaining type errors. All mechanical wrapping: `Map.of("key", rawValue)` → `Map.of("key", FeatureValue.xxx(rawValue))` plus structured value wrapping (stringList, numberList, struct, structList). Store itself is clean.
 
 ## Immediate Next Step
 
-Pick next work item from What's Next. Track C head (#84 outcome learning) is unblocked.
+Continue Task 3: fix remaining ~100 type errors in `memory-testing/src/main/java/io/casehub/neocortex/memory/cbr/testing/CbrCaseMemoryStoreContractTest.java`. Run `mvn test -pl memory-cbr-inmem` to verify. Then Tasks 4–9 per the plan.
 
 ## What's Left
 
-- #65 — Memori adapter (default backend) · XL · Med · blocked on external dependency
-- casehubio/parent#358 — update `docs/repos/casehub-neocortex.md` for rag-crossencoder rename · XS · Low
-- #129 — ARC42 CBR module documentation (§5 Building Block View) · M · Low
+- Contract test migration (~100 errors) · M · Low — mechanical wrapping
+- Qdrant backend migration (Task 4) · M · Low — CbrPointBuilder, CbrMemorySerializer, CbrQueryTranslator, QdrantCbrCaseMemoryStore
+- EmbeddingTextSimilarity migration (Task 5) · XS · Low
+- Full build verification + cross-repo engine issue (Task 6) · S · Low
+- DtwSimilarity early abandonment (Task 7) · S · Med — new 5-arg overload with row-minimum tracking
+- LbKeogh utility (Task 8) · S · Med — envelope computation + lower bound
+- DTW optimization integration (Task 9) · M · Med — scorer threshold pass-through + store loop
 
-## What's Next — CBR App Enablement Critical Path
+## What's Next
 
-Track A complete. Track B complete.
-
-| # | Description | Scale | Complexity | Track | Notes |
-|---|-------------|-------|------------|-------|-------|
-| #84 | Outcome learning + retrieval traceability | L | High | C | Unblocked — track C head |
-| #85 | Plan adaptation SPI | M | High | C | Blocked by #84 |
-
-## What's Next — Other
-
-| # | Description | Scale | Complexity | Notes |
-|---|-------------|-------|------------|-------|
-| #131 | Typed CBR feature values (epic) | L | High | Design first (#132), then flat → structured → temporal → integration |
-| #63 | Run embedding evaluation + REPORT.md | M | Med | Scripts ready, models cached |
-| #109 | Retrieval tracking analysis service | M | Med | Unblocked |
-| #120 | Expansion drift metrics with auto-fallback | M | Med | |
-| #137 | Approximate DTW (LB_Keogh + early abandonment) | S | Med | Deferred from #92 |
+*Unchanged — retrieve with: `git show HEAD~1:HANDOFF.md`*
 
 ## Key References
 
-- Spec: `docs/specs/2026-07-12-cbr-enhancements-design.md`
-- Review: `~/adr/casehub-neocortex/cbr-enhancements-20260712-005521/`
-- Blog: `blog/2026-07-12-mdp01-filling-in-the-cbr-gaps.md`
+- Spec: `docs/specs/2026-07-12-typed-features-and-approx-dtw-design.md`
+- Plan: workspace `plans/2026-07-12-typed-features-and-approx-dtw.md`
+- Blog: `blog/2026-07-12-mdp03-the-type-that-replaced-object.md`
+- Journal: `design/JOURNAL.md`
