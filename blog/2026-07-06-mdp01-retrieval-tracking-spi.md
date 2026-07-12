@@ -1,3 +1,12 @@
+---
+title: "The Document That Nobody Read"
+date: 2026-07-06
+entry_type: note
+subtype: diary
+projects: [casehub-neocortex]
+tags: [rag, retrieval-tracking, corpus, evaluation]
+---
+
 # The Document That Nobody Read
 
 There's a question that sits underneath every RAG pipeline: did the retrieved documents actually help? Not "were they retrieved" — that's trivially observable — but did they contribute to the answer? Did anyone even open them?

@@ -1,3 +1,12 @@
+---
+title: "The RAG Pipeline That Dropped Its Framework"
+date: 2026-06-09
+entry_type: note
+subtype: diary
+projects: [casehub-neocortex]
+tags: [rag, langchain4j, qdrant, hybrid-search]
+---
+
 # The RAG Pipeline That Dropped Its Framework
 
 The original plan was LangChain4j all the way down — Tika for parsing, `OnnxEmbeddingModel` for dense embeddings, `QdrantEmbeddingStore` for storage, `EmbeddingStoreContentRetriever` for retrieval. A clean stack. One framework, one abstraction layer.
