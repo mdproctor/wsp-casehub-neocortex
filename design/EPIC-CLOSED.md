@@ -1,5 +1,5 @@
-# Branch Closed: issue-110-retention-and-reranking
+# Branch Closed: issue-84-cbr-outcome-retrieval-trace
 
-**Date:** 2026-07-08
-**Issues:** 110,121
+**Date:** 2026-07-13
+**Issues:** 84
 **Status:** merged to main
