@@ -1,40 +1,23 @@
-# Handoff — 2026-07-12
+# Handoff — 2026-07-13
 
 ## What Changed
 
-Closed #125, #126, #127, #138, #139 (CBR enhancements batch). Five capabilities added to `memory-api`: (1) `WarpingConstraint` sealed interface with `Unconstrained`, `SakoeChibaBand`, `ItakuraParallelogram` — replaces `DtwSpec(Integer windowSize)` with non-null `DtwSpec(WarpingConstraint constraint)`, Itakura infeasibility detection inside DP loop. (2) Configurable insert/delete costs on `EditDistanceSpec` — variable-cost DP with correct normalization for both sub-preferred and del+ins-preferred regimes. (3) `FeatureField.NumericList(name, min, max)` filter-only field type + `CbrFilter.ContainsRange(NumericRange)` for numeric array containment. (4) `CbrFilter.NotContains` / `NotContainsAny` negation filters for CategoricalList. (5) `CbrFilter.AllOf(List<CbrFilter>)` compound same-field filter with polarity-preserving Qdrant dispatch. Design review: 2 rounds, 9 issues, all verified. Landed as `4422db0` on both `origin/main` and `upstream/main`.
+Branch `issue-137-approx-dtw-typed-cbr` closed. Landed as `722674c` on main. Covers #131 (typed CBR feature values) and #137 (approximate DTW). Both issues closed.
+
+**Delivered:** Sealed `FeatureValue` hierarchy (7 variants) replaces `Map<String, Object>` across all CBR APIs — memory-api, contract tests, Qdrant backend, embedding similarity, cross-encoder tests, and all CBR example demos. LbKeogh O(n) lower-bound pruning + DtwSimilarity early abandonment integrated into InMemoryCbrCaseMemoryStore retrieval loop for SakoeChibaBand DTW optimization.
+
+**Known limitation:** `CbrPointBuilder.fromRawMap()` defaults empty JSON lists to `StringListVal`. Schema-aware reconstruction would handle empty TimeSeries/NumberList correctly but isn't triggered by current tests.
 
 ## Immediate Next Step
 
-Pick next work item from What's Next. Track C head (#84 outcome learning) is unblocked.
+Pick next issue from backlog. Cross-repo issue for engine needed: `CbrRetrievalService.mapScoredCase()` uses `c.features()` and needs updating for FeatureValue (deferred from Task 6 — file manually).
 
-## What's Left
+## What's Next
 
-- #65 — Memori adapter (default backend) · XL · Med · blocked on external dependency
-- casehubio/parent#358 — update `docs/repos/casehub-neocortex.md` for rag-crossencoder rename · XS · Low
-- #129 — ARC42 CBR module documentation (§5 Building Block View) · M · Low
-
-## What's Next — CBR App Enablement Critical Path
-
-Track A complete. Track B complete.
-
-| # | Description | Scale | Complexity | Track | Notes |
-|---|-------------|-------|------------|-------|-------|
-| #84 | Outcome learning + retrieval traceability | L | High | C | Unblocked — track C head |
-| #85 | Plan adaptation SPI | M | High | C | Blocked by #84 |
-
-## What's Next — Other
-
-| # | Description | Scale | Complexity | Notes |
-|---|-------------|-------|------------|-------|
-| #131 | Typed CBR feature values (epic) | L | High | Design first (#132), then flat → structured → temporal → integration |
-| #63 | Run embedding evaluation + REPORT.md | M | Med | Scripts ready, models cached |
-| #109 | Retrieval tracking analysis service | M | Med | Unblocked |
-| #120 | Expansion drift metrics with auto-fallback | M | Med | |
-| #137 | Approximate DTW (LB_Keogh + early abandonment) | S | Med | Deferred from #92 |
+*Unchanged — retrieve with: `git show HEAD~1:HANDOFF.md`*
 
 ## Key References
 
-- Spec: `docs/specs/2026-07-12-cbr-enhancements-design.md`
-- Review: `~/adr/casehub-neocortex/cbr-enhancements-20260712-005521/`
-- Blog: `blog/2026-07-12-mdp01-filling-in-the-cbr-gaps.md`
+- Spec: `docs/specs/2026-07-12-typed-features-and-approx-dtw-design.md`
+- Plan: workspace `plans/attic/issue-137-approx-dtw-typed-cbr/2026-07-12-typed-features-and-approx-dtw.md`
+- Blog: `blog/2026-07-12-mdp03-the-type-that-replaced-object.md`
