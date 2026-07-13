@@ -29,11 +29,18 @@
 | [2026-07-01-mdp01-the-rename-that-touched-everything.md](2026-07-01-mdp01-the-rename-that-touched-everything.md) | 2026-07-01 | neural-text → neocortex — full rename: repo, 28 module artifactIds, all Java packages, parent repo CI/docs |
 | [2026-07-01-mdp03-the-great-memory-migration.md](2026-07-01-mdp03-the-great-memory-migration.md) | 2026-07-01 | Memory migration — CaseMemoryStore SPI moved from platform to neocortex, cross-repo coordination |
 | [2026-07-02-mdp01-the-remote-that-pointed-somewhere-else.md](2026-07-02-mdp01-the-remote-that-pointed-somewhere-else.md) | 2026-07-02 | Completing the rename — GitHub repos, directories, remotes, symlinks; workspace remote gotcha |
+| [2026-07-03-mdp01-the-score-was-always-there.md](2026-07-03-mdp01-the-score-was-always-there.md) | 2026-07-03 | The score was always there |
 | [2026-07-05-mdp01-cbr-reconciliation.md](2026-07-05-mdp01-cbr-reconciliation.md) | 2026-07-05 | CBR reconciliation — batch upsert, orphan cleanup, disaster recovery for Qdrant-backed CBR store |
+| [2026-07-05-mdp02-features-are-not-filters.md](2026-07-05-mdp02-features-are-not-filters.md) | 2026-07-05 | Features are not filters |
+| [2026-07-05-mdp02-nine-issues-one-branch.md](2026-07-05-mdp02-nine-issues-one-branch.md) | 2026-07-05 | Nine Issues, One Branch, and a Chicken-and-Egg Problem |
 | [2026-07-06-mdp01-retrieval-tracking-spi.md](2026-07-06-mdp01-retrieval-tracking-spi.md) | 2026-07-06 | Retrieval tracking SPI — document usefulness measurement, frequency + outcome + feedback tracking |
 | [2026-07-06-mdp02-the-alternative-that-didnt-replace-anything.md](2026-07-06-mdp02-the-alternative-that-didnt-replace-anything.md) | 2026-07-06 | @Alternative doesn't suppress injection point validation — NoOpQueryExpander @DefaultBean, explicit mode selection |
 | [2026-07-06-mdp03-the-decorator-that-registered-but-never-fired.md](2026-07-06-mdp03-the-decorator-that-registered-but-never-fired.md) | 2026-07-06 | Arc decorators silently skip @Produces method beans — subclass generation requires managed beans |
 | [2026-07-07-mdp01-why-records-cant-carry-behaviour.md](2026-07-07-mdp01-why-records-cant-carry-behaviour.md) | 2026-07-07 | SimilaritySpec sealed interface — why lambdas on records break value semantics, three-level precedence chain |
 | [2026-07-08-mdp01-one-dependency-one-module.md](2026-07-08-mdp01-one-dependency-one-module.md) | 2026-07-08 | Module extraction — one dependency per module, cross-encoder separated from RAG core CDI wiring |
+| [2026-07-09-mdp01-three-implementations-of-the-same-algorithm.md](2026-07-09-mdp01-three-implementations-of-the-same-algorithm.md) | 2026-07-09 | Three Implementations of the Same Algorithm |
+| [2026-07-09-mdp02-the-api-that-wouldnt-evolve.md](2026-07-09-mdp02-the-api-that-wouldnt-evolve.md) | 2026-07-09 | The API That Wouldn't Evolve |
+| [2026-07-10-mdp01-when-flat-features-arent-enough.md](2026-07-10-mdp01-when-flat-features-arent-enough.md) | 2026-07-10 | When Flat Features Aren't Enough |
+| [2026-07-11-mdp01-when-flat-features-arent-enough-again.md](2026-07-11-mdp01-when-flat-features-arent-enough-again.md) | 2026-07-11 | When Flat Features Aren't Enough (Again) |
 | [2026-07-12-mdp01-filling-in-the-cbr-gaps.md](2026-07-12-mdp01-filling-in-the-cbr-gaps.md) | 2026-07-12 | Five CBR enhancements — WarpingConstraint sealed interface, Itakura infeasibility, variable edit distance costs, NumericList+ContainsRange, AllOf polarity |
 | [2026-07-12-mdp03-the-type-that-replaced-object.md](2026-07-12-mdp03-the-type-that-replaced-object.md) | 2026-07-12 | FeatureValue sealed type — replacing Map<String, Object> with typed values for CBR feature vectors |
