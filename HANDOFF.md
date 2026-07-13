@@ -1,3 +1,5 @@
+*Updated: #131, #137 closed — removed from backlog.*
+
 # Handoff — 2026-07-13
 
 ## What Changed
@@ -12,9 +14,20 @@ Branch `issue-137-approx-dtw-typed-cbr` closed. Landed as `722674c` on main. Cov
 
 Pick next issue from backlog. Cross-repo issue for engine needed: `CbrRetrievalService.mapScoredCase()` uses `c.features()` and needs updating for FeatureValue (deferred from Task 6 — file manually).
 
-## What's Next
+## What's Next — CBR App Enablement Critical Path
 
-*Unchanged — retrieve with: `git show HEAD~1:HANDOFF.md`*
+| # | Description | Scale | Complexity | Notes |
+|---|-------------|-------|------------|-------|
+| #84 | Outcome learning + retrieval traceability | L | High | Unblocked — track C head |
+| #85 | Plan adaptation SPI | M | High | Blocked by #84 |
+
+## What's Next — Other
+
+| # | Description | Scale | Complexity | Notes |
+|---|-------------|-------|------------|-------|
+| #63 | Run embedding evaluation + REPORT.md | M | Med | Scripts ready, models cached |
+| #109 | Retrieval tracking analysis service | M | Med | Unblocked |
+| #120 | Expansion drift metrics with auto-fallback | M | Med | |
 
 ## Key References
 
