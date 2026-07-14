@@ -2,15 +2,15 @@
 
 ## What Changed
 
-Branch `issue-64-event-to-memory-bridge` closed. Landed as `76e8f50` on main. Closes #64 (event-to-memory bridge).
+Branch `issue-149-cbr-small-fixes` closed. Landed as `23d58f8` on main. Closes #149, #147, #150, #151.
 
-**Delivered:** `MemoryEmitter` `@ApplicationScoped` CDI service in `memory/` module — fire-and-forget wrapper around `CaseMemoryStore`. `emit(MemoryInput)` single writes, `emitAll(List<MemoryInput>)` batch with `StoreAllResult` partial-failure logging. Error isolation (catch Exception), SecurityException propagation, structured WARN logging. SPI javadoc updated to document the fire-and-forget pattern.
+**Delivered:** Four CBR small fixes batched on one branch — FeatureValue.of() Boolean support (#149), CbrRetentionPolicy + purge() SPI with InMemory/JPA/Qdrant implementations (#150), TemporalDecay sealed interface with HalfLife on CbrQuery applied in InMemory/JPA stores (#151), decorator chain integration test verifying tracking captures post-weighted scores and BridgedCbrStore double-recording guard (#147).
 
-**Filed:** casehubio/engine#731 — migrate CaseMemoryObserver to MemoryEmitter. casehubio/devtown#150 — migrate CaseMemoryEmitter + FeatureVectorEmitter (also fixes missing `destroy()` bug).
+**Garden:** GE-20260714-85bd9a — Qdrant scrollAsync returns unmodifiable protobuf list gotcha.
 
 ## Immediate Next Step
 
-Pick next from agreed sequencing. #88 (temporal trajectory CBR) is next in line but marked L/High with no consumer yet. #147 (decorator chain integration test) is S/Low and standalone.
+Pick next from agreed sequencing or backlog. #88 (temporal trajectory CBR) is next in the agreed sequence but L/High with no consumer yet. #142 (wire CbrOutcomeConsumer) still blocked by platform#174.
 
 ## Agreed Sequencing
 
@@ -24,14 +24,7 @@ Pick next from agreed sequencing. #88 (temporal trajectory CBR) is next in line 
 
 | # | Description | Scale | Complexity | Notes |
 |---|-------------|-------|------------|-------|
-| #147 | Decorator chain integration + double-recording guard @QuarkusTest | S | Low | Filed from #84 code review |
-| #149 | FeatureValue.of() does not support Boolean | XS | Low | Silent failure in CDI handlers |
 | #142 | Wire CbrOutcomeConsumer to CloudEvent routing | S | Med | Blocked by platform#174 |
 | #148 | Cross-plan structural analysis | M | High | Filed during #85 design review |
 | #63 | Run embedding evaluation + REPORT.md | M | Med | Scripts ready, models cached |
 | #109 | Retrieval tracking analysis service | M | Med | Unblocked |
-
-## Key References
-
-- Design spec: `docs/specs/2026-07-14-event-to-memory-bridge-design.md`
-- Blog: `blog/2026-07-14-mdp02-six-lines-of-boilerplate.md`
