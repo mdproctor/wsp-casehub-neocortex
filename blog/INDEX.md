@@ -45,3 +45,5 @@
 | [2026-07-12-mdp01-filling-in-the-cbr-gaps.md](2026-07-12-mdp01-filling-in-the-cbr-gaps.md) | 2026-07-12 | Five CBR enhancements — WarpingConstraint sealed interface, Itakura infeasibility, variable edit distance costs, NumericList+ContainsRange, AllOf polarity |
 | [2026-07-12-mdp03-the-type-that-replaced-object.md](2026-07-12-mdp03-the-type-that-replaced-object.md) | 2026-07-12 | FeatureValue sealed type — replacing Map<String, Object> with typed values for CBR feature vectors |
 | [2026-07-14-mdp01-the-missing-phase.md](2026-07-14-mdp01-the-missing-phase.md) | 2026-07-14 | CBR Reuse phase — PlanAdapter SPI for transforming retrieved plans into adapted plans for current context |
+| [2026-07-14-mdp02-six-lines-of-boilerplate.md](2026-07-14-mdp02-six-lines-of-boilerplate.md) | 2026-07-14 | MemoryEmitter — fire-and-forget CDI service replacing six lines of boilerplate across three repos |
+| [2026-07-14-mdp03-the-method-that-touched-twelve-files.md](2026-07-14-mdp03-the-method-that-touched-twelve-files.md) | 2026-07-14 | Four CBR small fixes — Boolean FeatureValue, purge retention API, temporal decay, decorator chain integration |
