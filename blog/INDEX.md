@@ -44,3 +44,4 @@
 | [2026-07-11-mdp01-when-flat-features-arent-enough-again.md](2026-07-11-mdp01-when-flat-features-arent-enough-again.md) | 2026-07-11 | When Flat Features Aren't Enough (Again) |
 | [2026-07-12-mdp01-filling-in-the-cbr-gaps.md](2026-07-12-mdp01-filling-in-the-cbr-gaps.md) | 2026-07-12 | Five CBR enhancements — WarpingConstraint sealed interface, Itakura infeasibility, variable edit distance costs, NumericList+ContainsRange, AllOf polarity |
 | [2026-07-12-mdp03-the-type-that-replaced-object.md](2026-07-12-mdp03-the-type-that-replaced-object.md) | 2026-07-12 | FeatureValue sealed type — replacing Map<String, Object> with typed values for CBR feature vectors |
+| [2026-07-14-mdp01-the-missing-phase.md](2026-07-14-mdp01-the-missing-phase.md) | 2026-07-14 | CBR Reuse phase — PlanAdapter SPI for transforming retrieved plans into adapted plans for current context |
