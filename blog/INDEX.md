@@ -47,3 +47,4 @@
 | [2026-07-14-mdp01-the-missing-phase.md](2026-07-14-mdp01-the-missing-phase.md) | 2026-07-14 | CBR Reuse phase — PlanAdapter SPI for transforming retrieved plans into adapted plans for current context |
 | [2026-07-14-mdp02-six-lines-of-boilerplate.md](2026-07-14-mdp02-six-lines-of-boilerplate.md) | 2026-07-14 | MemoryEmitter — fire-and-forget CDI service replacing six lines of boilerplate across three repos |
 | [2026-07-14-mdp03-the-method-that-touched-twelve-files.md](2026-07-14-mdp03-the-method-that-touched-twelve-files.md) | 2026-07-14 | Four CBR small fixes — Boolean FeatureValue, purge retention API, temporal decay, decorator chain integration |
+| [2026-07-14-mdp04-the-feature-half-built.md](2026-07-14-mdp04-the-feature-half-built.md) | 2026-07-14 | Trend detection layer — derived Numeric features from TimeSeries, TrendAnalyzer algorithms, enrichment decorator |
