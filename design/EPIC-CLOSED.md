@@ -1,5 +1,5 @@
-# Branch Closed: issue-110-retention-and-reranking
+# Branch Closed: issue-161-planadapter-casetype-param
 
-**Date:** 2026-07-08
-**Issues:** 110,121
+**Date:** 2026-07-18
+**Issues:** 161
 **Status:** merged to main
