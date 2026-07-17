@@ -65,7 +65,7 @@ public sealed interface CbrCasesErased {
 
 Each subtype carries exactly the fields relevant to its erasure method — no nullable field ambiguity, no discriminator needed. Observers can listen for `CbrCasesErased` (all erasures) or a specific subtype like `CbrCasesErased.ByScope` (scope erasures only), using CDI event type assignability.
 
-**Mechanism:** CDI event, following the established pattern (`CbrRetrievalRecorded`, `CbrAdaptationRecorded`). Loosely coupled, supports multiple observers. Blocking decorator fires via `Event.fire()` (synchronous — consistent with `TrackingCbrCaseMemoryStore` pattern, provides transactional visibility). Reactive counterpart fires via `Event.fireAsync()` (non-blocking — consistent with `ReactiveTrackingCbrCaseMemoryStore` pattern, eventual consistency).
+**Mechanism:** CDI event, following the established pattern (`CbrRetrievalRecorded`, `CbrAdaptationRecorded`). Loosely coupled, supports multiple observers. Blocking decorator fires via `Event.fire()` (synchronous — consistent with `TrackingCbrCaseMemoryStore` pattern, provides transactional visibility).
 
 **Scope:** Fired for `erase`, `eraseEntity`, `eraseByScope` when `count > 0`. Not fired for `purge` — retention-based cleanup has different lifecycle expectations; aggregates built from purged data drift naturally with age-based policies.
 
