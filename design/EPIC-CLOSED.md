@@ -1,5 +1,5 @@
-# Branch Closed: issue-110-retention-and-reranking
+# Branch Closed: issue-158-scope-erasure-aggregate-adj
 
-**Date:** 2026-07-08
-**Issues:** 110,121
+**Date:** 2026-07-17
+**Issues:** 158,159
 **Status:** merged to main
