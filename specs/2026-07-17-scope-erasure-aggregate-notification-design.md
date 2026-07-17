@@ -69,7 +69,7 @@ Each subtype carries exactly the fields relevant to its erasure method — no nu
 
 **Scope:** Fired for `erase`, `eraseEntity`, `eraseByScope` when `count > 0`. Not fired for `purge` — retention-based cleanup has different lifecycle expectations; aggregates built from purged data drift naturally with age-based policies.
 
-**Decorator:** `ErasureNotificationCbrCaseMemoryStore` at `@Decorator @Priority(45)`. Outermost position ensures the event fires after the entire chain completes. Injects per-subtype `Event` instances (`Event<ByRequest>`, `Event<ByEntity>`, `Event<ByScope>`) and a `Clock` via test constructor pattern (defaulting to `Clock.systemUTC()` in CDI constructor). Reactive counterpart at same priority with `BridgedCbrStore` guard — when `delegate instanceof BridgedCbrStore`, all methods delegate without firing events, preventing double-firing through the `BlockingToReactiveCbrBridge`.
+**Decorator:** `ErasureNotificationCbrCaseMemoryStore` at `@Decorator @Priority(45)`, blocking side only. Outermost position ensures the event fires after the entire chain completes. Injects per-subtype `Event` instances (`Event<ByRequest>`, `Event<ByEntity>`, `Event<ByScope>`) and a `Clock` via test constructor pattern (defaulting to `Clock.systemUTC()` in CDI constructor). No reactive counterpart — `BlockingToReactiveCbrBridge` (`@DefaultBean`, the sole `ReactiveCbrCaseMemoryStore` implementation) routes all reactive calls through the blocking chain, where this decorator fires exactly once. This eliminates double-firing by design rather than relying on the `BridgedCbrStore` `instanceof` guard, which is ineffective when intervening decorators separate the guard from the bridge.
 
 ## Decisions
 
@@ -83,7 +83,7 @@ Each subtype carries exactly the fields relevant to its erasure method — no nu
 | @Priority(45) for notification decorator | Below Tracking(50) = outermost. Event fires after complete erasure. |
 | Sealed interface over union record | Each subtype carries exactly its fields — no nullable ambiguity, enables selective CDI observation by type, pattern-matchable. |
 | Event.fire() blocking / Event.fireAsync() reactive | Matches established TrackingCbrCaseMemoryStore pattern. Blocking side provides transactional visibility; reactive side avoids blocking the event loop. |
-| BridgedCbrStore guard on reactive notification decorator | Prevents double-firing through BlockingToReactiveCbrBridge — same pattern as ReactiveTrackingCbrCaseMemoryStore. |
+| Blocking-only notification decorator (no reactive counterpart) | `BlockingToReactiveCbrBridge` is the sole reactive implementation — all reactive calls route through the blocking chain. No reactive counterpart eliminates double-firing by design, avoiding the `BridgedCbrStore` `instanceof` guard which is ineffective with intervening decorators. |
 | No SPI-level authorization for eraseByScope | Authorization belongs at the API boundary. SPI callers are trusted platform code. Audit logging is supported via CbrCasesErased CDI event observers. |
 | Qdrant eraseByScope delegates per-case to CaseMemoryStore | CaseMemoryStore lacks scope concept. Per-case EraseRequest with caseId from scroll results maintains dual-store invariant without scope-creeping the CaseMemoryStore API. |
 
@@ -106,7 +106,7 @@ Dedicated unit test for `ErasureNotificationCbrCaseMemoryStore`.
 | Module | Changes |
 |--------|---------|
 | memory-api | `CbrCaseMemoryStore` + `ReactiveCbrCaseMemoryStore` (add method), new `CbrCasesErased` sealed interface + 3 subtypes |
-| memory | `NoOpCbrCaseMemoryStore`, `BlockingToReactiveCbrBridge`, 4 blocking decorators + 4 reactive decorators (TemporalDecay, OutcomeWeighting, ScopeDecay, TrendEnrichment — forwarding), new `ErasureNotificationCbrCaseMemoryStore` + reactive counterpart |
+| memory | `NoOpCbrCaseMemoryStore`, `BlockingToReactiveCbrBridge`, 4 blocking decorators + 4 reactive decorators (TemporalDecay, OutcomeWeighting, ScopeDecay, TrendEnrichment — forwarding), new `ErasureNotificationCbrCaseMemoryStore` (blocking only) |
 | memory-cbr-inmem | `InMemoryCbrCaseMemoryStore` (implement) |
 | memory-cbr-jpa | `JpaCbrCaseMemoryStore` (implement) |
 | memory-qdrant | `QdrantCbrCaseMemoryStore` (implement) |
