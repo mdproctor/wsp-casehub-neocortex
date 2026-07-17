@@ -36,31 +36,40 @@ Uni<Integer> eraseByScope(Path scope, String tenantId);
 |-------|----------|
 | InMemory | `removeIf` with scope equality + `isAncestorOf` check |
 | JPA | Root: `DELETE WHERE tenantId = :t`. Non-root: `DELETE WHERE tenantId = :t AND (scope = :s OR scope LIKE :prefix)` where prefix = `scope.value() + "/%"` |
-| Qdrant | Scroll with tenantId filter, client-side scope prefix check, batch delete by point IDs. Acceptable for operational method. |
+| Qdrant | Scroll with tenantId filter, client-side scope prefix check, batch delete by point IDs. For `CaseMemoryStore` delegate (nullable): build per-case `EraseRequest(entityId, domain, tenantId, caseId)` from scroll results and delegate individually — `caseId` is required to avoid over-deletion of entries at other scopes for the same entity. Acceptable for operational method. |
 | NoOp | `return 0` |
 
-**Forwarding:** All decorators (Tracking/50, OutcomeWeighting/65, Reranking/75, ScopeDecay/85, TrendEnrichment/90) and `BlockingToReactiveCbrBridge` gain pass-through forwarding. Same pattern as existing erasure methods.
+**Forwarding:** All decorators (Tracking/50, OutcomeWeighting/65, Reranking/75, TemporalDecay/80, ScopeDecay/85, TrendEnrichment/90) and `BlockingToReactiveCbrBridge` gain pass-through forwarding. Same pattern as existing erasure methods.
 
 ### #159: CbrCasesErased CDI Event
 
-**Event record** in memory-api:
+**Event type** — sealed interface in memory-api:
 
 ```java
-public record CbrCasesErased(
-    String tenantId,
-    int erasedCount,
-    String entityId,      // non-null for eraseEntity
-    Path scope,           // non-null for eraseByScope
-    MemoryDomain domain,  // non-null for erase(EraseRequest)
-    Instant erasedAt
-) {}
+public sealed interface CbrCasesErased {
+    String tenantId();
+    int erasedCount();
+    Instant erasedAt();
+
+    record ByRequest(String tenantId, int erasedCount,
+                     String entityId, MemoryDomain domain, String caseId,
+                     Instant erasedAt) implements CbrCasesErased {}
+    record ByEntity(String tenantId, int erasedCount,
+                    String entityId,
+                    Instant erasedAt) implements CbrCasesErased {}
+    record ByScope(String tenantId, int erasedCount,
+                   Path scope,
+                   Instant erasedAt) implements CbrCasesErased {}
+}
 ```
 
-**Mechanism:** CDI event, following the established pattern (`CbrRetrievalRecorded`, `CbrAdaptationRecorded`). Loosely coupled, fire-and-forget, supports multiple observers.
+Each subtype carries exactly the fields relevant to its erasure method — no nullable field ambiguity, no discriminator needed. Observers can listen for `CbrCasesErased` (all erasures) or a specific subtype like `CbrCasesErased.ByScope` (scope erasures only), using CDI event type assignability.
+
+**Mechanism:** CDI event, following the established pattern (`CbrRetrievalRecorded`, `CbrAdaptationRecorded`). Loosely coupled, supports multiple observers. Blocking decorator fires via `Event.fire()` (synchronous — consistent with `TrackingCbrCaseMemoryStore` pattern, provides transactional visibility). Reactive counterpart fires via `Event.fireAsync()` (non-blocking — consistent with `ReactiveTrackingCbrCaseMemoryStore` pattern, eventual consistency).
 
 **Scope:** Fired for `erase`, `eraseEntity`, `eraseByScope` when `count > 0`. Not fired for `purge` — retention-based cleanup has different lifecycle expectations; aggregates built from purged data drift naturally with age-based policies.
 
-**Decorator:** `ErasureNotificationCbrCaseMemoryStore` at `@Decorator @Priority(45)`. Outermost position ensures the event fires after the entire chain completes. Uses `Event.fireAsync()` for non-blocking notification. Reactive counterpart at same priority.
+**Decorator:** `ErasureNotificationCbrCaseMemoryStore` at `@Decorator @Priority(45)`. Outermost position ensures the event fires after the entire chain completes. Injects per-subtype `Event` instances (`Event<ByRequest>`, `Event<ByEntity>`, `Event<ByScope>`) and a `Clock` via test constructor pattern (defaulting to `Clock.systemUTC()` in CDI constructor). Reactive counterpart at same priority with `BridgedCbrStore` guard — when `delegate instanceof BridgedCbrStore`, all methods delegate without firing events, preventing double-firing through the `BlockingToReactiveCbrBridge`.
 
 ## Decisions
 
@@ -72,16 +81,23 @@ public record CbrCasesErased(
 | Qdrant scroll+delete | eraseByScope is operational, not query-path. Qdrant lacks keyword prefix matching. Scroll is correct and proportional. |
 | Abstract method (not default) | All implementations are in this repo. SPI break is self-contained. Consistent with existing erase methods. |
 | @Priority(45) for notification decorator | Below Tracking(50) = outermost. Event fires after complete erasure. |
+| Sealed interface over union record | Each subtype carries exactly its fields — no nullable ambiguity, enables selective CDI observation by type, pattern-matchable. |
+| Event.fire() blocking / Event.fireAsync() reactive | Matches established TrackingCbrCaseMemoryStore pattern. Blocking side provides transactional visibility; reactive side avoids blocking the event loop. |
+| BridgedCbrStore guard on reactive notification decorator | Prevents double-firing through BlockingToReactiveCbrBridge — same pattern as ReactiveTrackingCbrCaseMemoryStore. |
+| No SPI-level authorization for eraseByScope | Authorization belongs at the API boundary. SPI callers are trusted platform code. Audit logging is supported via CbrCasesErased CDI event observers. |
+| Qdrant eraseByScope delegates per-case to CaseMemoryStore | CaseMemoryStore lacks scope concept. Per-case EraseRequest with caseId from scroll results maintains dual-store invariant without scope-creeping the CaseMemoryStore API. |
 
 ## Contract Tests
 
-6 new tests in `CbrCaseMemoryStoreContractTest`:
+8 new tests in `CbrCaseMemoryStoreContractTest`:
 1. Erase at exact scope only erases that scope's cases
 2. Erase at parent erases all descendant cases
 3. Erase at root erases all cases for tenant
 4. Tenant isolation preserved
 5. Returns correct count
 6. No cases at scope returns 0
+7. Sibling scope isolation — erasing `/site-a` does not affect `/site-b` (catches prefix-matching bugs, e.g. `/site-a` vs `/site-ab`)
+8. Superseded cases at target scope are also erased
 
 Dedicated unit test for `ErasureNotificationCbrCaseMemoryStore`.
 
@@ -89,13 +105,13 @@ Dedicated unit test for `ErasureNotificationCbrCaseMemoryStore`.
 
 | Module | Changes |
 |--------|---------|
-| memory-api | `CbrCaseMemoryStore` + `ReactiveCbrCaseMemoryStore` (add method), new `CbrCasesErased` record |
-| memory | `NoOpCbrCaseMemoryStore`, `BlockingToReactiveCbrBridge`, all 6 blocking decorators + 5 reactive decorators (forwarding), new `ErasureNotificationCbrCaseMemoryStore` + reactive counterpart |
+| memory-api | `CbrCaseMemoryStore` + `ReactiveCbrCaseMemoryStore` (add method), new `CbrCasesErased` sealed interface + 3 subtypes |
+| memory | `NoOpCbrCaseMemoryStore`, `BlockingToReactiveCbrBridge`, 4 blocking decorators + 4 reactive decorators (TemporalDecay, OutcomeWeighting, ScopeDecay, TrendEnrichment — forwarding), new `ErasureNotificationCbrCaseMemoryStore` + reactive counterpart |
 | memory-cbr-inmem | `InMemoryCbrCaseMemoryStore` (implement) |
 | memory-cbr-jpa | `JpaCbrCaseMemoryStore` (implement) |
 | memory-qdrant | `QdrantCbrCaseMemoryStore` (implement) |
-| memory-cbr-crossencoder | 2 decorators (forwarding) |
-| memory-cbr-tracking | 2 decorators (forwarding) |
+| memory-cbr-crossencoder | 1 blocking + 1 reactive decorator (Reranking — forwarding) |
+| memory-cbr-tracking | 1 blocking + 1 reactive decorator (Tracking — forwarding) |
 | memory-testing | `CbrCaseMemoryStoreContractTest` (new tests) |
 
 No Flyway migration — JPA delete query uses existing `scope` column from V4.
