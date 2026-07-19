@@ -1,0 +1,9 @@
+branch: issue-130-batch-sx-cbr-fixes
+project-sha: 67617d79cd0ed0737b44807dc238bda2a181258a
+date: 2026-07-19
+issue: 130
+issue-repo: casehubio/neocortex
+covers: 130,143,128,162,141,155
+flyway-next-v: none
+design-repo: workspace
+design-section-hashes: 
