@@ -2,36 +2,38 @@
 
 ## What Changed
 
-Branch `issue-109-retrieval-tracking-analysis` closed. Landed as `8bd311b` on main. Pushed to both origin (mdproctor/neocortex) and upstream (casehubio/neocortex). Closes #109.
+Branch `issue-130-batch-sx-cbr-fixes` closed. Landed as `3cc09f5` on main. Pushed to both origin (mdproctor/neocortex) and upstream (casehubio/neocortex). Closes #130, #143, #128, #162, #141, #155.
 
-**Delivered:** RetrievalAnalyzer — pure computation layer over the retrieval tracking SPI in `rag-api`. Three static methods (`documentStats`, `unretrievedDocuments`, `qualitySignals`) with four value types (`DocumentStats`, `DocumentQualitySignal`, `QualitySignal`, `QualityThresholds`). Caller-controlled thresholds via `QualityThresholds` record. 30 new tests. No new module, no new dependencies.
+**Delivered:** Six S/XS CBR fixes feeding back into CaseHub foundation and apps:
 
-Design review: 5 rounds, 16 issues, all resolved. Key finding: `findFeedback` timestamp semantics — filters on feedback timestamp, not retrieval timestamp. Garden entry GE-20260719-59b809 submitted.
+- **#130** — `examples/pom.xml` aggregator for casehub-examples integration. Follow-up filed: casehubio/examples#1.
+- **#143** — `CbrFeatureSchema.learningRate()` — optional per-caseType learning rate for `recordOutcome` EMA. Nullable, validated [0,1], defaults to `DEFAULT_LEARNING_RATE` (0.2). All store implementations updated (InMemory, JPA, Qdrant).
+- **#128** — `CbrSimilarityScorer` now respects `LocalSimilarityFunction` overrides for structured fields (CategoricalList, NumericList, NestedObject, ObjectList). Without override, fields are still skipped. Dead throws changed to `return 0.0`. Deferred: built-in defaults (Jaccard, recursive weighted) → #169.
+- **#162** — `InMemoryCbrCaseMemoryStore.clearCases()` for test isolation. Clears cases only, preserves schemas. Contract test gains `clearStore()` hook.
+- **#141** — JPA `deserializeMap` → `deserializeFeatures` returning `Map<String, FeatureValue>` directly. Cleanup, not a fix — compilation errors were already resolved.
+- **#155** — `SupersessionStatus` record + `getSupersessionStatus()` / `findSupersededCases()` on `CbrCaseMemoryStore` + reactive parity. Abstract methods (not defaults) for compile-time decorator safety. `reinstatedAt` distinguishes "never superseded" from "was superseded then reinstated". `supersede()` nulls `reinstatedAt`. 38 files touched — 14 decorators, 3 core stores, ~20 test stubs. V5 Flyway migration for JPA.
 
-Follow-up issues filed: #167 (correlation graph), #168 (engine gardenUnretrieved upgrade).
-
-Work-slot 1 (`issue-165-cbr-collection-manager-async`) was created in parallel — may still be in progress.
+Design review: 2 rounds, 14 issues, all resolved. Key findings: clearAll→clearCases (schemas survive tests), SupersessionStatus gains caseId+reinstatedAt, abstract methods not defaults for decorator safety, structured field throws→return 0.0.
 
 ## Immediate Next Step
 
-Pick next from backlog. #165 may already be done in the work-slot — check slot status first.
+Pick next from backlog. No blockers.
 
 ## What's Next
 
 | # | Description | Scale | Complexity | Notes |
 |---|-------------|-------|------------|-------|
-| #165 | CbrCollectionManager async methods | S | Low | Work-slot 1 — may be complete |
-| #168 | Engine gardenUnretrieved upgrade to RetrievalAnalyzer | S | Low | Follow-up from #109 — cross-repo (Hortora/engine) |
+| #168 | Engine gardenUnretrieved → use RetrievalAnalyzer | S | Low | Cross-repo (engine) |
 | #167 | Query→document→outcome correlation graph | M | High | Follow-up from #109 |
-| #148 | Cross-plan structural analysis / ensemble adaptation | M | High | Deferred from #85 |
-| #109 | Retrieval tracking analysis — correlation graph remaining | — | — | Stays open for #167 |
+| #166 | Reactive JPA backend for CbrCaseMemoryStore | M | Med | Eliminate blocking bridge |
+| #157 | FeatureStatistics + CbrSuggestions → memory-api | M | Med | Currently stuck in casehub-life |
+| #169 | Built-in defaults for structured field similarity | M | Med | Follow-up from #128 |
+| #148 | Cross-plan structural analysis / ensemble adaptation | M | High | |
 | #63 | Run embedding evaluation + REPORT.md | M | Med | Scripts ready |
-| #154 | Trust-weighted retention — precedent authority + trust trajectory | S | Med | Blocked by platform trust infra |
-| #142 | Wire CbrOutcomeConsumer to CloudEvent routing | S | Med | Blocked by platform#174 |
 
 ## References
 
-- Spec: `docs/specs/2026-07-19-retrieval-tracking-analysis-design.md`
-- Plan: `plans/attic/issue-109-retrieval-tracking-analysis/2026-07-19-retrieval-tracking-analysis.md` (workspace)
-- Garden: GE-20260719-59b809 — findFeedback timestamp semantics gotcha
-- Blog: `blog/2026-07-19-mdp01-the-analysis-layer-that-lives-where-youd-least-expect.md`
+- Spec: `specs/2026-07-19-batch-sx-cbr-fixes-design.md` (workspace)
+- Plan: `plans/attic/issue-130-batch-sx-cbr-fixes/2026-07-19-batch-sx-cbr-fixes.md` (workspace)
+- Design review: `~/adr/casehub-neocortex/batch-sx-cbr-fixes-20260719-213716/` (2 rounds, 14 issues)
+- Follow-up: casehubio/examples#1 (collapse neocortex entries), #169 (built-in structured field defaults)
