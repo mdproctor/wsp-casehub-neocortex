@@ -1,38 +1,37 @@
-# Handoff — 2026-07-18
+# Handoff — 2026-07-19
 
 ## What Changed
 
-Branch `issue-101-reactive-native-backends` closed. Landed as `321e81f` on main. Pushed to both origin (mdproctor/neocortex) and upstream (casehubio/neocortex). Closes #101.
+Branch `issue-109-retrieval-tracking-analysis` closed. Landed as `8bd311b` on main. Pushed to both origin (mdproctor/neocortex) and upstream (casehubio/neocortex). Closes #109.
 
-**Delivered:** Native reactive backends for all non-JDBC memory stores. Canonical direction follows the underlying technology (engine pattern): blocking-canonical for in-memory (ConcurrentHashMap), reactive-canonical for REST/gRPC backends. `ReactiveGraphCaseMemoryStore` interface added to memory-api. 21 files changed, 2807 insertions, 1796 deletions.
+**Delivered:** RetrievalAnalyzer — pure computation layer over the retrieval tracking SPI in `rag-api`. Three static methods (`documentStats`, `unretrievedDocuments`, `qualitySignals`) with four value types (`DocumentStats`, `DocumentQualitySignal`, `QualitySignal`, `QualityThresholds`). Caller-controlled thresholds via `QualityThresholds` record. 30 new tests. No new module, no new dependencies.
 
-| Backend | Canonical | New classes |
-|---------|-----------|-------------|
-| In-memory | Blocking | `ReactiveInMemoryMemoryStore`, `ReactiveInMemoryCbrCaseMemoryStore` |
-| Mem0 | Reactive | `ReactiveMem0Client`, `ReactiveMem0CaseMemoryStore` |
-| Graphiti | Reactive | `ReactiveGraphitiClient`, `ReactiveGraphitiCaseMemoryStore` |
-| Qdrant | Reactive | `ReactiveQdrantCbrCaseMemoryStore` (parallel search legs, async gRPC) |
+Design review: 5 rounds, 16 issues, all resolved. Key finding: `findFeedback` timestamp semantics — filters on feedback timestamp, not retrieval timestamp. Garden entry GE-20260719-59b809 submitted.
 
-Design review: 3 rounds, 18 issues, 16 verified. Code review: 1 CRITICAL fixed (event-loop blocking in store/registerSchema). Follow-up: #165 (CbrCollectionManager async methods).
+Follow-up issues filed: #167 (correlation graph), #168 (engine gardenUnretrieved upgrade).
+
+Work-slot 1 (`issue-165-cbr-collection-manager-async`) was created in parallel — may still be in progress.
 
 ## Immediate Next Step
 
-Pick next from backlog. #165 is a small follow-up to complete the async migration in CbrCollectionManager.
+Pick next from backlog. #165 may already be done in the work-slot — check slot status first.
 
 ## What's Next
 
 | # | Description | Scale | Complexity | Notes |
 |---|-------------|-------|------------|-------|
-| #165 | CbrCollectionManager async methods | S | Low | Follow-up from #101 |
+| #165 | CbrCollectionManager async methods | S | Low | Work-slot 1 — may be complete |
+| #168 | Engine gardenUnretrieved upgrade to RetrievalAnalyzer | S | Low | Follow-up from #109 — cross-repo (Hortora/engine) |
+| #167 | Query→document→outcome correlation graph | M | High | Follow-up from #109 |
 | #148 | Cross-plan structural analysis / ensemble adaptation | M | High | Deferred from #85 |
-| #109 | Retrieval tracking analysis service | M | Med | Unblocked |
+| #109 | Retrieval tracking analysis — correlation graph remaining | — | — | Stays open for #167 |
 | #63 | Run embedding evaluation + REPORT.md | M | Med | Scripts ready |
 | #154 | Trust-weighted retention — precedent authority + trust trajectory | S | Med | Blocked by platform trust infra |
 | #142 | Wire CbrOutcomeConsumer to CloudEvent routing | S | Med | Blocked by platform#174 |
 
 ## References
 
-- Spec: `docs/specs/2026-07-18-native-reactive-backends-design.md`
-- Plan: `plans/2026-07-18-native-reactive-backends.md` (workspace)
-- Garden: GE-20260616-bdde66 revised — Mutiny Uni conversion for ListenableFuture
-- Issue filed: #165 (CbrCollectionManager async methods)
+- Spec: `docs/specs/2026-07-19-retrieval-tracking-analysis-design.md`
+- Plan: `plans/attic/issue-109-retrieval-tracking-analysis/2026-07-19-retrieval-tracking-analysis.md` (workspace)
+- Garden: GE-20260719-59b809 — findFeedback timestamp semantics gotcha
+- Blog: `blog/2026-07-19-mdp01-the-analysis-layer-that-lives-where-youd-least-expect.md`
