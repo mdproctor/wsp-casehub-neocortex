@@ -75,18 +75,14 @@ After this change, the structured-field `throw` cases in `localSimilarity()` bec
 
 **Problem:** `supersede()` and `reinstate()` write metadata but it's unreachable through the SPI. Audit consumers must bypass the SPI and query storage directly.
 
-**Design:** Two new `default` methods on `CbrCaseMemoryStore` + `ReactiveCbrCaseMemoryStore`:
+**Design:** Two new abstract methods on `CbrCaseMemoryStore` + `ReactiveCbrCaseMemoryStore`:
 
 ```java
-default SupersessionStatus getSupersessionStatus(String caseId, String tenantId) {
-    return SupersessionStatus.NOT_SUPERSEDED;
-}
-default List<SupersessionStatus> findSupersededCases(String tenantId, MemoryDomain domain) {
-    return List.of();
-}
+SupersessionStatus getSupersessionStatus(String caseId, String tenantId);
+List<SupersessionStatus> findSupersededCases(String tenantId, MemoryDomain domain);
 ```
 
-Default methods provide sensible no-op behaviour. This eliminates the need to update every test stub and NoOp implementation — only core stores (InMemory, JPA, Qdrant) and decorators (delegation) need explicit overrides.
+Abstract methods preserve compile-time safety for the decorator chain. All existing methods on both interfaces are abstract — every decorator manually overrides every method for delegation. Adding default methods would let a decorator silently compile without delegation, returning `NOT_SUPERSEDED` / empty list instead of forwarding to the wrapped store. The 23 test stub updates are mechanical one-liners; the compile-time guarantee that all 14 decorators have correct delegation is permanent.
 
 New value type in `memory-api`:
 
@@ -106,15 +102,15 @@ public record SupersessionStatus(
 }
 ```
 
-`caseId` is included so that `findSupersededCases` results are self-describing (no N+1 correlation needed). `reinstatedAt` preserves the audit distinction between "never superseded" and "was superseded then reinstated" — after `reinstate()`, supersession fields are nulled but `reinstatedAt` records when reinstatement occurred.
+`caseId` is included so that `findSupersededCases` results are self-describing (no N+1 correlation needed). `reinstatedAt` preserves the audit distinction between "never superseded" and "was superseded then reinstated" — after `reinstate()`, supersession fields are nulled but `reinstatedAt` records when reinstatement occurred. `supersede()` nulls `reinstatedAt` to prevent ambiguous state — a re-superseded case shows `superseded=true, reinstatedAt=null`, not a stale reinstatement timestamp from a previous lifecycle.
 
-`findSupersededCases` returns `List<SupersessionStatus>` (not `List<String>`) to avoid the N+1 query pattern — a single call returns all supersession details.
+`findSupersededCases` returns `List<SupersessionStatus>` (not `List<String>`) to avoid the N+1 query pattern — a single call returns all supersession details. This is an administrative/audit operation that intentionally operates across all scope boundaries for the given tenant and domain, consistent with `purge()`. Scope-aware visibility is a retrieval concern (`retrieveSimilar`), not an audit concern.
 
 Backend implementations:
-- **InMemory:** scan `StoredCase` fields. Add `reinstatedAt` field to `StoredCase`. `reinstate()` sets `reinstatedAt = now` while nulling supersession fields.
-- **JPA:** JPQL query on `CbrCaseEntity`. Add `reinstated_at` column.
-- **Qdrant:** payload filter query (supersededAt IS NOT NULL). Add `reinstatedAt` payload field.
-- **NoOp:** inherits default methods (returns `NOT_SUPERSEDED` / empty list).
+- **InMemory:** scan `StoredCase` fields. Add `reinstatedAt` field to `StoredCase`. `reinstate()` sets `reinstatedAt = now` while nulling supersession fields. `supersede()` nulls `reinstatedAt`.
+- **JPA:** JPQL query on `CbrCaseEntity`. Add `reinstated_at` column. `reinstate()` sets `reinstatedAt`, `supersede()` nulls it.
+- **Qdrant:** payload filter query (supersededAt IS NOT NULL). Add `reinstatedAt` payload field. Same lifecycle semantics.
+- **NoOp:** return `NOT_SUPERSEDED` / empty list.
 
 **Blast radius — neocortex-internal:**
 
@@ -122,9 +118,9 @@ Blocking decorators (7 — delegation override): `TemporalDecayCbrCaseMemoryStor
 
 Reactive decorators (7 — delegation override): `ReactiveTemporalDecayCbrCaseMemoryStore`, `ReactiveScopeDecayCbrCaseMemoryStore`, `ReactiveOutcomeWeightingCbrCaseMemoryStore`, `ReactiveTrendEnrichmentCbrCaseMemoryStore`, `ReactiveTrackingCbrCaseMemoryStore`, `ReactiveRerankingCbrCaseMemoryStore`, `BlockingToReactiveCbrBridge` (Uni wrapping).
 
-Test stubs (~20 in neocortex, ~3 in engine): inherit default methods — no changes required unless the test exercises supersession.
+Test stubs (~20 in neocortex, ~3 in engine): add one-liner no-op returns (`NOT_SUPERSEDED` / empty list). Mechanical, compile-time enforced.
 
-**Blast radius — cross-repo:** Default methods on the SPI mean downstream repos (engine, IoT, quarkmind, etc.) do NOT need to update their test stubs for #155's method additions. Only #143's `CbrFeatureSchema` constructor change causes cross-repo breakage.
+**Blast radius — cross-repo:** Abstract methods mean downstream test stubs (engine, IoT, quarkmind, etc.) must also add the two new methods. This is consistent with #143's constructor breakage — all cross-repo breakage is compile-time caught, mechanical to fix, and pre-release.
 
 Contract test: add tests for both methods — verify status after supersede, after reinstate (checking `reinstatedAt` is set), and that findSupersededCases filters correctly and returns full status details.
 
@@ -137,7 +133,7 @@ No inter-issue dependencies. All can be implemented in any order. Natural groupi
 1. **#130** (examples POM) — standalone, zero code impact
 2. **#143** (learning rate) — changes `CbrFeatureSchema` record; do this early since #128 and #155 also touch the scorer/store
 3. **#128** (structured field overrides) — changes `CbrSimilarityScorer`
-4. **#162** (clearAll) — changes `InMemoryCbrCaseMemoryStore`
+4. **#162** (clearCases) — changes `InMemoryCbrCaseMemoryStore`
 5. **#141** (JPA deserialize) — changes `JpaCbrCaseMemoryStore`
 6. **#155** (supersession queries) — adds SPI methods; do last since it touches every backend
 
@@ -147,5 +143,5 @@ No inter-issue dependencies. All can be implemented in any order. Natural groupi
 
 - **casehubio/examples:** follow-up issue to collapse neocortex entries (#130)
 - **All CBR consumers (engine, blocks, IoT, quarkmind, life, clinical):** `CbrFeatureSchema` constructor changes (#143) — source-breaking, compile-time caught. Pre-release, no backward compat required.
-- **#155 SPI additions:** default methods on the interface mean downstream test stubs inherit no-op behaviour automatically. No cross-repo breakage from #155. Only neocortex-internal decorators and bridge need updating (see §#155 blast radius).
+- **#155 SPI additions:** abstract methods on the interface cause compile-time failures in downstream test stubs that implement `CbrCaseMemoryStore`. Fix is mechanical (one-liner no-op returns). Combined with #143, all cross-repo breakage is compile-time caught and pre-release.
 - **Parent docs:** `docs/repos/casehub-neocortex.md` update for new SPI methods (#155)
