@@ -1,5 +1,5 @@
-# Branch Closed: issue-110-retention-and-reranking
+# Branch Closed: issue-142-cloudevent-outcome-wiring
 
-**Date:** 2026-07-08
-**Issues:** 110,121
+**Date:** 2026-07-21
+**Issues:** 142
 **Status:** merged to main
