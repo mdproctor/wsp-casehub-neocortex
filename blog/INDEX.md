@@ -49,3 +49,4 @@
 | [2026-07-14-mdp03-the-method-that-touched-twelve-files.md](2026-07-14-mdp03-the-method-that-touched-twelve-files.md) | 2026-07-14 | Four CBR small fixes — Boolean FeatureValue, purge retention API, temporal decay, decorator chain integration |
 | [2026-07-14-mdp04-the-feature-half-built.md](2026-07-14-mdp04-the-feature-half-built.md) | 2026-07-14 | Trend detection layer — derived Numeric features from TimeSeries, TrendAnalyzer algorithms, enrichment decorator |
 | [2026-07-19-mdp01-the-analysis-layer-that-lives-where-youd-least-expect.md](2026-07-19-mdp01-the-analysis-layer-that-lives-where-youd-least-expect.md) | 2026-07-19 | Retrieval analysis layer — pure computation in rag-api, findFeedback timestamp gotcha, quality signal classification |
+| [2026-07-21-mdp01-tracing-the-wire.md](2026-07-21-mdp01-tracing-the-wire.md) | 2026-07-21 | CloudEvent outcome wiring — tracing platform dispatch, @CloudEventType qualifier, @Observes erratum |
