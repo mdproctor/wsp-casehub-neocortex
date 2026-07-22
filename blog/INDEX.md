@@ -50,3 +50,4 @@
 | [2026-07-14-mdp04-the-feature-half-built.md](2026-07-14-mdp04-the-feature-half-built.md) | 2026-07-14 | Trend detection layer — derived Numeric features from TimeSeries, TrendAnalyzer algorithms, enrichment decorator |
 | [2026-07-19-mdp01-the-analysis-layer-that-lives-where-youd-least-expect.md](2026-07-19-mdp01-the-analysis-layer-that-lives-where-youd-least-expect.md) | 2026-07-19 | Retrieval analysis layer — pure computation in rag-api, findFeedback timestamp gotcha, quality signal classification |
 | [2026-07-21-mdp01-tracing-the-wire.md](2026-07-21-mdp01-tracing-the-wire.md) | 2026-07-21 | CloudEvent outcome wiring — tracing platform dispatch, @CloudEventType qualifier, @Observes erratum |
+| [2026-07-22-mdp01-when-the-obvious-architecture-is-wrong.md](2026-07-22-mdp01-when-the-obvious-architecture-is-wrong.md) | 2026-07-22 | Cross-plan ensemble adaptation — why the CBR literature says per-plan first, then ensemble; honest NoOp reporting |
