@@ -119,6 +119,36 @@ wrap a blocking `TrustScoreSource` use `Uni.createFrom().item(...).runSubscripti
 If no `ReactiveAgentTrustProvider` is resolvable, the reactive decorator falls back to
 authority-only mode (same as the imperative decorator without `AgentTrustProvider`).
 
+**Blocking-to-reactive bridge (memory module):**
+
+```java
+@DefaultBean
+@ApplicationScoped
+public class BlockingAgentTrustProviderBridge implements ReactiveAgentTrustProvider {
+
+    private final AgentTrustProvider delegate;
+
+    @Inject
+    BlockingAgentTrustProviderBridge(Instance<AgentTrustProvider> delegateInstance) {
+        this.delegate = delegateInstance.isResolvable() ? delegateInstance.get() : null;
+    }
+
+    @Override
+    public Uni<OptionalDouble> currentTrustScore(String agentId) {
+        if (delegate == null) return Uni.createFrom().item(OptionalDouble.empty());
+        return Uni.createFrom().item(() -> delegate.currentTrustScore(agentId))
+                .runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
+    }
+}
+```
+
+This follows the established `BlockingToReactive*Bridge` pattern used throughout
+neocortex (`BlockingToReactiveCbrBridge`, `BlockingToReactiveCbrRetrievalTracker`,
+`BlockingToReactiveEmbeddingIngestor`, etc.). Consumers provide a single blocking
+`AgentTrustProvider` bean and both imperative and reactive decorators get trajectory
+support. If a consumer provides a real `ReactiveAgentTrustProvider`, it takes
+precedence over this `@DefaultBean` bridge.
+
 ### TrustWeightingFunction (memory-api)
 
 ```java
@@ -224,6 +254,34 @@ public interface TrustWeightingConfig {
 }
 ```
 
+### ScoredCbrCase changes (memory-api)
+
+`ScoredCbrCase` gains a `Double trustTrajectory` field — the numeric delta between
+current and stored trust (negative = declining). Nullable; null when trust data is
+absent or trajectory could not be computed.
+
+```java
+public record ScoredCbrCase<C extends CbrCase>(
+    C cbrCase, String caseId, double score, boolean reranked,
+    Map<String, Double> featureSimilarities, Instant storedAt,
+    io.casehub.platform.api.path.Path scope, Double trustTrajectory) {
+    ...
+    public ScoredCbrCase<C> withTrustTrajectory(Double delta) {
+        return new ScoredCbrCase<>(cbrCase, caseId, score, reranked,
+                featureSimilarities, storedAt, scope, delta);
+    }
+}
+```
+
+This follows the precedent of `boolean reranked` and `withReranked()` —
+decorators attach metadata to `ScoredCbrCase` so outer decorators (specifically
+the Tracking decorator at @Priority(50)) can observe it. The numeric delta is
+stored, not a direction label — `ScoredCbrCase` stores raw values consistently
+(`double score`, `boolean reranked`, `Double confidence`). Direction
+categorization is a presentation concern handled at `TracedCase` construction.
+
+Existing constructors that don't set `trustTrajectory` pass `null`.
+
 ### TrustWeightedCbrCaseMemoryStore (memory module)
 
 ```java
@@ -267,7 +325,8 @@ public <C extends CbrCase> List<ScoredCbrCase<C>> retrieveSimilar(
         }
         OptionalDouble trajectory = computeTrajectory(scored.cbrCase(), trajectoryCache);
         double newScore = weightingFunction.apply(scored.score(), trust, trajectory);
-        weighted.add(scored.withScore(newScore));
+        Double delta = trajectory.isPresent() ? trajectory.getAsDouble() : null;
+        weighted.add(scored.withScore(newScore).withTrustTrajectory(delta));
     }
     weighted.sort((a, b) -> Double.compare(b.score(), a.score()));
     return Collections.unmodifiableList(weighted);
@@ -357,7 +416,8 @@ public class ReactiveTrustWeightedCbrCaseMemoryStore implements ReactiveCbrCaseM
             }
             OptionalDouble trajectory = computeTrajectory(scored.cbrCase(), trustCache);
             double newScore = weightingFunction.apply(scored.score(), trust, trajectory);
-            weighted.add(scored.withScore(newScore));
+            Double delta = trajectory.isPresent() ? trajectory.getAsDouble() : null;
+            weighted.add(scored.withScore(newScore).withTrustTrajectory(delta));
         }
         weighted.sort((a, b) -> Double.compare(b.score(), a.score()));
         return Collections.unmodifiableList(weighted);
@@ -401,11 +461,26 @@ public record TracedCase(
 ) { ... }
 ```
 
-`trustTrajectory` is a string enum: `"declining"`, `"stable"`, `"improving"`, or
-`null` (no trajectory data). The string rather than numeric delta is intentional —
-traces are for debugging and audit, and directional labels are more useful than raw
-deltas in log output. The `TrackingCbrCaseMemoryStore` (at @Priority(50), outermost)
-captures these from the scored results after trust weighting has been applied.
+**Data path:** The `TrackingCbrCaseMemoryStore` at @Priority(50) reads these from the
+`ScoredCbrCase` objects returned after trust weighting:
+
+- `trustScore` → `scored.cbrCase().trustScore()` (carried by CbrCase)
+- `producerAgentId` → `scored.cbrCase().producerAgentId()` (carried by CbrCase)
+- `trustTrajectory` → derived from `scored.trustTrajectory()` (the numeric delta
+  stored on ScoredCbrCase by the trust weighting decorator via `withTrustTrajectory()`)
+
+The Tracking decorator converts the numeric delta to a direction label at
+`TracedCase` construction:
+
+- `delta < 0` → `"declining"`
+- `delta > 0` → `"improving"`
+- `delta == 0` → `"stable"`
+- `null` → `null` (no trajectory data)
+
+Strict comparison, no dead zone. Exact equality (delta == 0) is uncommon in practice
+(requires the agent's trust to be unchanged between case storage and retrieval) but
+mathematically clean. The label is informational for debugging and audit — the
+scoring formula only uses the numeric delta.
 
 ### Backend Changes
 
@@ -465,6 +540,40 @@ Three explicit statements about transition behavior:
 | `producerAgentId_withOutcome_preserved` | Store with producerAgentId, recordOutcome, retrieve, verify unchanged |
 | `planCbrCase_trustFields_roundTrip` | Store PlanCbrCase with both trust fields, retrieve, verify |
 | `textualCbrCase_trustFields_roundTrip` | Store TextualCbrCase with both trust fields, retrieve, verify |
+
+### Unit Tests
+
+**DefaultTrustWeightingFunctionTest** (analogous to `DefaultOutcomeWeightingFunctionTest`):
+
+| Test | What it verifies |
+|------|-----------------|
+| `authorityOnly_highTrust` | trustScore=0.9, no trajectory → score near original |
+| `authorityOnly_lowTrust` | trustScore=0.1 → score reduced by influence factor |
+| `authorityOnly_zeroTrust` | trustScore=0.0 → score * (1 - influence) |
+| `trajectory_declining_appliesPenalty` | negative delta → additional multiplicative penalty |
+| `trajectory_declining_floor` | delta=-2.0 → multiplier floors at 0.5 |
+| `trajectory_improving_ignored` | positive delta → no effect on score |
+| `trajectory_absent_noEffect` | OptionalDouble.empty() → authority-only weighting |
+
+**TrustWeightedCbrCaseMemoryStoreTest** (analogous to `OutcomeWeightingCbrCaseMemoryStoreTest`):
+
+| Test | What it verifies |
+|------|-----------------|
+| `nullTrustScore_passesThrough` | Cases with null trustScore are unchanged |
+| `mixedNullAndNonNull_onlyWeightsNonNull` | Mixed list: only non-null cases are weighted; sort order correct |
+| `resortsAfterWeighting` | Trust weighting changes relative ordering |
+| `emptyResults_passesThrough` | Empty delegate result returned unchanged |
+| `trajectoryCache_singleCallPerAgent` | Multiple cases from same agent → one `AgentTrustProvider.currentTrustScore()` call |
+| `noAgentTrustProvider_authorityOnly` | Without provider: trajectory is empty, authority-only mode |
+| `trustTrajectory_storedOnScoredCbrCase` | After weighting, `scored.trustTrajectory()` contains the numeric delta |
+
+**ReactiveTrustWeightedCbrCaseMemoryStoreTest**:
+
+| Test | What it verifies |
+|------|-----------------|
+| `batchedLookups_distinctAgentIds` | N distinct agents → N concurrent `Uni` lookups via `Uni.join().all()` |
+| `noReactiveProvider_authorityOnly` | Without `ReactiveAgentTrustProvider`: authority-only mode |
+| `mixedNullAndNonNull_reactiveWeighting` | Same mixed-list semantics as imperative |
 
 ### Trust provenance — scalar-only rationale
 
