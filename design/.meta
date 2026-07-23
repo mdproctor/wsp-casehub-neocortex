@@ -1,0 +1,9 @@
+branch: issue-154-cbr-trust-weighted-retention
+project-sha: d6de6aee568b41c2faafabc8dcf47844efb37c9c
+date: 2026-07-23
+issue: 154
+issue-repo: casehubio/neocortex
+covers: 154
+flyway-next-v: none
+design-repo: workspace
+design-section-hashes: 
