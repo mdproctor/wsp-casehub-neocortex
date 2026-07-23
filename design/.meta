@@ -1,0 +1,9 @@
+branch: issue-171-batch-s-xs-fixes
+project-sha: 0bd0d330dad217370f0a46e62d77d2d6329e3b7b
+date: 2026-07-23
+issue: 171
+issue-repo: casehubio/neocortex
+covers: 171,172,170,157,164,145,146,116,62
+flyway-next-v: none
+design-repo: workspace
+design-section-hashes: 
