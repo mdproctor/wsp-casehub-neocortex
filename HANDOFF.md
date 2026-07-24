@@ -1,36 +1,28 @@
-# Handoff — 2026-07-23
+# Handoff — 2026-07-25
 
 ## What Changed
 
-Branch `issue-171-batch-s-xs-fixes` closed. Landed as `d6de6ae` on main. Pushed to both origin and upstream. Closes #171, #172, #170, #157, #145, #146. Issues #164 and #116 closed earlier (already implemented / confirmed). Issue #62 rescaled to M/Med with design gap documented.
+**Session 1:** Branch `issue-171-batch-s-xs-fixes` closed. 8 S/XS issues resolved.
 
-**Delivered:** Batch of S/XS fixes across memory-api, memory, memory-cbr-tracking, rag-expansion, and specs. Key items: FeatureStatistics + CbrSuggestions records in memory-api (unblocks casehub-life migration), CDI decorator chain @QuarkusTest, double-recording guard bug fix (delegate instanceof → Instance.isResolvable()), SmallRye Config mapping fix (enabled() on CbrTrackingConfig/OutcomeWeightingConfig), spec corrections for @ObservesAsync and AdaptedStep nullability.
+**Session 2:** Branch `issue-154-cbr-trust-weighted-retention` closed. Landed as `cb6e8e6` on main. Pushed to both origin and upstream. Closes #154.
 
-## Immediate Next Step
+**Delivered:** CBR trust-weighted retrieval scoring. CbrCase gains `trustScore()` and `producerAgentId()` for source authority. `TrustWeightedCbrCaseMemoryStore` @Decorator @Priority(60) modulates retrieval scores by stored trust + optional trajectory from `AgentTrustProvider` SPI. `DefaultTrustWeightingFunction` with authority formula + declining-only trajectory penalty. Qdrant payload reads/writes trust fields. Design adversarially reviewed (3 rounds, 16 issues, 15 verified, $14.29).
 
-Pick next from backlog. No blockers.
+**Upstream conflict resolved:** Reactive tier was deleted upstream (#384 — virtual threads migration). Removed ReactiveAgentTrustProvider, ReactiveTrustWeightedCbrCaseMemoryStore, BlockingAgentTrustProviderBridge. Cherry-picked onto upstream/main with conflict resolution.
+
+**IntelliJ MCP bug found and fixed:** `ide_replace_text_in_file`, `ide_edit_member`, `ide_create_file` were not persisting to disk (saveDocument outside WriteCommandAction). Entire session's implementation had to be re-applied after plugin fix. Also discovered `ide_change_signature` tool — updates all callers automatically when adding record fields.
 
 ## What's Next
 
 | # | Description | Scale | Complexity | Notes |
 |---|-------------|-------|------------|-------|
-| #62 | ColBertRelevanceEvaluator — CRAG compatibility | M | Med | Needs per-leg score propagation first |
-| #168 | Engine gardenUnretrieved → use RetrievalAnalyzer | S | Low | Cross-repo (engine) |
-| #167 | Query→document→outcome correlation graph | M | High | Follow-up from #109 |
-| #166 | Reactive JPA backend for CbrCaseMemoryStore | M | Med | Eliminate blocking bridge |
-| #63 | Run embedding evaluation + REPORT.md | M | Med | Scripts ready |
-
-## Key Findings
-
-- **Bridge detection bug (#146):** `delegate instanceof BridgedCbrStore` fails with intermediate CDI decorators. Fixed with `Instance<BridgedCbrStore>.isResolvable()`.
-- **SmallRye Config (#145):** `@IfBuildProperty` keys under a `@ConfigMapping` prefix must be declared in the mapping interface (Quarkus 3.32+).
-- **#62 design gap:** RelevanceEvaluator takes raw strings, not RetrievedChunk. Per-leg scores lost in fusion.
+| #174 | Engine wiring: pass trust from routing to CbrCase | S | Med | Unlocks trust scoring |
+| #175 | AgentTrustProvider impl: bridge TrustScoreSource | S | Low | Unlocks trajectory |
+| #176 | Trust-based retention policies | S | Med | Future if needed |
+| #62 | ColBertRelevanceEvaluator | M | Med | Needs per-leg score propagation |
+| #167 | Query-document-outcome correlation graph | M | High | Follow-up from #109 |
 
 ## Garden Entries
 
-- GE-20260723-e19b4a: CDI decorator delegate instanceof check fails with intermediate decorators
+- GE-20260723-e19b4a: CDI decorator delegate instanceof fails with intermediate decorators
 - GE-20260723-64e384: SmallRye Config rejects @IfBuildProperty keys not in @ConfigMapping
-
-## References
-
-- Stale workspace branches: issue-110 (10d), issue-46 (21d), issue-56 (10d)
