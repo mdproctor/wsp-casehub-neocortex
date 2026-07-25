@@ -103,10 +103,14 @@ CBR constructs `ScoredLeg` instances with CC-derived weights (from `vectorWeight
 path will now use those weights — a silent behavioral regression.
 
 **Guard (in scope):** In `QdrantCbrCaseMemoryStore.fuseAndScore()`, when
-`query.fusionStrategy() == RRF`, construct semantic legs with `weight=1.0`
-instead of CC-derived weights. The feature leg retains its `1.0 - query.vectorWeight()`
-weight (RRF uses it as-is, preserving current behavior). This is a one-line
-change per leg — wrap the weight expression in a strategy check.
+`query.fusionStrategy() == RRF`, construct ALL legs (semantic and feature)
+with `weight=1.0`. This matches current behavior exactly — `ScoreFusion.rrf()`
+currently ignores all leg weights, so all legs contribute equally. The guard
+preserves this equal contribution under the new weighted RRF implementation.
+
+When `fusionStrategy == CC`, the existing CC-derived weights are unchanged —
+feature leg at `1.0 - vectorWeight`, semantic legs at proportional shares of
+`vectorWeight` scaled by `ccWeights`.
 
 CBR's `QdrantCbrConfig.CcWeightsConfig` (with different defaults: 0.6/0.2/0.2)
 is a separate config in a separate module — not renamed by this spec.
@@ -133,7 +137,8 @@ Replaces `CcWeightsConfig`. `RetrievalConfig.ccWeights()` becomes
 | `fusion-api/ScoreFusionTest.java` | Add weighted RRF tests |
 | `rag/HybridCaseRetriever.java` | Update config references; add `executeRrfFusion()` for client-side weighted RRF; DBSF startup warning |
 | `rag/HybridCaseRetrieverTest.java` | Update config stubs, add weighted RRF client-side tests |
-| `memory-qdrant/QdrantCbrCaseMemoryStore.java` | Guard: RRF strategy uses weight=1.0 for semantic legs |
+| `memory-qdrant/QdrantCbrCaseMemoryStore.java` | Guard: RRF strategy uses weight=1.0 for all legs |
+| `memory-qdrant/QdrantCbrCaseMemoryStoreTest.java` | CBR guard tests: RRF uses equal weights, CC uses CC-derived weights |
 
 ## #180 — Payload Quality Boost
 
@@ -378,4 +383,5 @@ No new modules. No new dependencies. No Flyway migrations.
 | Client-side RRF fallback | Non-equal weights trigger client-side fusion, equal weights use server-side, DBSF logs warning with non-equal weights |
 | CC quality leg | Quality weight=0 no change, quality>0 shifts rankings, missing payload values excluded from quality leg |
 | Payload boost decorator | RRF strategy applies boost after cross-encoder, CC strategy is no-op, missing field retains original score, non-numeric field retains original score, all-missing no-op, disabled config no-op, qualityMax clamps normalization |
+| CBR guard | RRF strategy uses equal-weight legs (feature and semantic all 1.0), CC strategy uses CC-derived weights, guard does not alter CC path |
 | Query analytics | Low-relevance filtering, zero-hit detection, frequency counting, empty tracker returns empty, edge cases (single record, all zero-hit) |
