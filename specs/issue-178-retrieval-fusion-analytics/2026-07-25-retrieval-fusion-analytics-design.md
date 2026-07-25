@@ -6,9 +6,19 @@
 
 ## Context
 
-Cross-module feedback from Hortora/engine#50 (HyDE investigation) across 14 scenarios
-shows keyword queries and NL queries have different failure patterns. Three gaps
-identified:
+Cross-module feedback from Hortora/engine#50 (HyDE investigation) — benchmark data
+across scenarios shows keyword queries and NL queries have different failure patterns.
+Keyword queries benefit more from BM25/sparse signal; NL queries benefit more from
+dense signal. With equal-weight RRF fusion, retrieval cannot be tuned per corpus to
+emphasize the stronger signal for a given workload.
+
+Weighted RRF preserves RRF's rank-based robustness (no score comparability assumption)
+while allowing the user to de-emphasize legs that contribute noise for their corpus.
+This is lighter than switching to CC (which requires score comparability) and different
+from per-leg topK adjustment (which controls candidate volume, not score influence).
+With equal weights (the default), weighted RRF is identical to vanilla parameter-free RRF.
+
+Three gaps identified:
 
 1. All fusion legs have equal weight — no way to tune signal balance per corpus
 2. Human-assigned quality scores in Qdrant payload are ignored during ranking
@@ -37,7 +47,15 @@ casehub.rag.retrieval.weights.bm25=1.0     # default
 ```
 
 All default to 1.0 (equal weighting). This replaces CC's former 0.5/0.3/0.2 defaults —
-pre-release breaking change, acceptable.
+pre-release breaking change, acceptable. Rationale: equal weights is the neutral baseline;
+any deviation from 1.0 is an explicit tuning choice. For RRF (the default strategy), equal
+weights gives vanilla parameter-free behavior. Previous benchmarks
+(architecture-justification.md, Recall@5 0.726 with CC at 0.5/0.3/0.2) used non-equal
+weights — callers who were explicitly configuring CC weights should review their settings.
+
+**Startup validation:** All weight values must be >= 0. Negative weights produce
+nonsensical score contributions in both RRF (`leg.weight() * 1/(k + rank + 1)`)
+and CC (negative normalized weight). Fail fast at startup if any weight < 0.
 
 **RRF weighted fusion (`ScoreFusion.rrf()`):**
 
@@ -52,15 +70,35 @@ Output remains in [0, 1].
 
 Already uses `ScoredLeg.weight()` with auto-normalization. No algorithm change needed.
 
-**Server-side RRF/DBSF:**
+**HybridCaseRetriever — client-side weighted RRF:**
 
-Qdrant's native fusion does not support per-leg weights. Server-side fusion continues
-to use equal weights. When a user configures non-equal weights and uses RRF/DBSF,
-client-side fusion provides the weighted behavior — this is already the case since CC
-is explicitly client-side, and RRF can be run client-side too.
+When strategy is RRF and weights are non-equal, server-side Qdrant RRF cannot apply
+per-leg weights. `HybridCaseRetriever` falls back to client-side fusion: execute
+individual prefetch queries per leg and fuse using `ScoreFusion.rrf()` — structurally
+identical to the existing `executeConvexCombinationFusion()` but calling `ScoreFusion.rrf()`
+instead of `ScoreFusion.convexCombination()`.
 
-No automatic strategy switching. The user selects their fusion strategy explicitly;
-weight config is advisory for server-side strategies.
+| Strategy | Weights | Execution |
+|----------|---------|-----------|
+| RRF | Equal (all same value) | Server-side Qdrant RRF (current, faster) |
+| RRF | Non-equal | Client-side `ScoreFusion.rrf()` (weighted) |
+| DBSF | Any | Server-side Qdrant DBSF (no per-leg weight support) |
+| CC | Any | Client-side `ScoreFusion.convexCombination()` (current) |
+
+DBSF is a Qdrant-proprietary server-side algorithm with no client-side implementation.
+Startup warning logged when non-equal weights are configured with DBSF strategy:
+"Non-equal fusion weights have no effect with DBSF strategy — DBSF uses server-side
+equal-weight fusion. Consider RRF or CC for per-leg weight control."
+
+**Cross-cutting impact — CBR:**
+
+`ScoreFusion.rrf()` is shared with CBR (`QdrantCbrCaseMemoryStore.fuseAndScore()`).
+CBR constructs `ScoredLeg` instances with CC-derived weights (from `vectorWeight` and
+`ccWeights`) regardless of fusion strategy. The weighted RRF change means CBR's RRF
+path will now use those weights. CBR's `QdrantCbrConfig.CcWeightsConfig` (with different
+defaults: 0.6/0.2/0.2) is a separate config in a separate module — not renamed by this
+spec. Follow-up issue required: CBR should construct equal-weight legs when using RRF
+strategy, preserving current behavior.
 
 **Config mapping:**
 
@@ -75,20 +113,15 @@ interface FusionWeightsConfig {
 Replaces `CcWeightsConfig`. `RetrievalConfig.ccWeights()` becomes
 `RetrievalConfig.weights()`.
 
-**HybridCaseRetriever changes:**
-
-`executeConvexCombinationFusion()` — replace `config.retrieval().ccWeights().dense()`
-with `config.retrieval().weights().dense()` etc. Direct substitution.
-
 ### Files Changed
 
 | File | Change |
 |------|--------|
-| `rag/RagConfig.java` | Replace `CcWeightsConfig` with `FusionWeightsConfig`, rename accessor |
+| `rag/RagConfig.java` | Replace `CcWeightsConfig` with `FusionWeightsConfig`, rename accessor, add startup validation |
 | `fusion-api/ScoreFusion.java` | `rrf()` uses `ScoredLeg.weight()`, update normalization |
 | `fusion-api/ScoreFusionTest.java` | Add weighted RRF tests |
-| `rag/HybridCaseRetriever.java` | Update config references from `ccWeights()` to `weights()` |
-| `rag/HybridCaseRetrieverTest.java` | Update config stubs |
+| `rag/HybridCaseRetriever.java` | Update config references; add `executeRrfFusion()` for client-side weighted RRF; DBSF startup warning |
+| `rag/HybridCaseRetrieverTest.java` | Update config stubs, add weighted RRF client-side tests |
 
 ## #180 — Payload Quality Boost
 
@@ -124,22 +157,39 @@ casehub.rag.retrieval.weights.dense=1.0          # default
 casehub.rag.retrieval.weights.sparse=1.0         # default
 casehub.rag.retrieval.weights.bm25=1.0           # default
 casehub.rag.retrieval.weights.quality=0.0        # default: disabled
-casehub.rag.retrieval.weights.quality-field=      # payload field name (required when quality > 0)
+casehub.rag.retrieval.quality-payload-field=      # payload field name (required when quality > 0)
+casehub.rag.retrieval.quality-max=10.0           # scale ceiling for normalization
 ```
 
 `quality > 0` activates boosting. No separate `enabled` flag — the weight IS the toggle.
-`quality-field` names the Qdrant payload field containing the numeric score (e.g. "score").
-Startup validation: if `quality > 0` and `quality-field` is empty, fail fast.
+`quality-payload-field` names the Qdrant payload field containing the numeric score (e.g. "score").
+`quality-max` is the fixed scale ceiling used for normalization in the RRF/DBSF boost path
+(default 10 for the 1-10 quality scale). Clamped: `normalizedQuality = min(payloadValue / qualityMax, 1.0)`.
+
+Startup validation:
+- `quality > 0` requires `quality-payload-field` non-empty AND `quality-max > 0`
+- `quality < 0` fails (same >= 0 validation as other weights)
 
 ```java
+interface RetrievalConfig {
+    // ... existing: fusionStrategy, denseTopK, sparseTopK, bm25TopK, rrfK ...
+    FusionWeightsConfig weights();
+    Optional<String> qualityPayloadField();
+    @WithDefault("10.0") double qualityMax();
+}
+
 interface FusionWeightsConfig {
     @WithDefault("1.0") double dense();
     @WithDefault("1.0") double sparse();
     @WithDefault("1.0") double bm25();
     @WithDefault("0.0") double quality();
-    Optional<String> qualityField();
 }
 ```
+
+`qualityPayloadField` and `qualityMax` are data-access/scale parameters — they define
+where to read quality data and its numeric scale. These belong in `RetrievalConfig`
+(alongside vector names and topK values), not in `FusionWeightsConfig` (which is purely
+about numeric influence). `quality` weight stays in `FusionWeightsConfig`.
 
 **CC path (fusion leg):**
 
@@ -152,27 +202,39 @@ a quality leg from payload values of documents retrieved by the retrieval legs:
 4. Include in `ScoreFusion.convexCombination()` alongside retrieval legs
 
 Quality participates in CC's min-max normalization and weighted summation — magnitude
-preserved, naturally competes with retrieval signals.
+preserved, naturally competes with retrieval signals. Documents with missing or
+non-numeric quality fields are excluded from the quality leg (they receive no quality
+contribution in the convex combination).
 
 **RRF/DBSF path (decorator rescore):**
 
-`PayloadBoostCaseRetriever` — `@Decorator @Priority(85)` on `CaseRetriever`.
-Positioned between fusion and cross-encoder reranking in the decorator chain:
+`PayloadBoostCaseRetriever` — `@Decorator @Priority(60)` on `CaseRetriever`.
+Positioned after cross-encoder reranking and before tracking in the decorator chain:
 
 ```
 CaseRetriever (HybridCaseRetriever, priority 0)
-  → PayloadBoostCaseRetriever (@Priority 85)    ← NEW
+  → QueryExpandingCaseRetriever (@Priority 200)
+  → CorrectiveCaseRetriever (@Priority 100)
   → CrossEncoderRerankingRetriever (@Priority 75)
+  → PayloadBoostCaseRetriever (@Priority 60)    ← NEW
   → TrackingCaseRetriever (@Priority 50)
 ```
+
+@Priority(60) ensures the quality boost applies AFTER cross-encoder reranking
+(which replaces input scores entirely via `RerankingLogic.rerank()`) and BEFORE
+tracking (which records the final result). If PayloadBoost were inside the
+cross-encoder (higher priority), the boost would be overwritten by cross-encoder
+rescoring.
 
 Decorator logic:
 1. Delegate to inner `CaseRetriever.retrieve()`
 2. If strategy is CC → no-op (quality already integrated via fusion leg)
-3. Read `metadata.get(boostField)` from each `RetrievedChunk`, parse to double
+3. Read `metadata.get(qualityPayloadField)` from each `RetrievedChunk`, parse to double
 4. Apply: `boostedScore = score * (1 + normalizedQuality * qualityWeight)`
-   where `normalizedQuality = payloadValue / maxPayloadValue` across the result set
-5. Re-sort by boosted score, return
+   where `normalizedQuality = min(payloadValue / qualityMax, 1.0)`
+5. Documents with missing or non-numeric quality fields retain their original score
+6. If no documents have valid quality values → no-op (return results unchanged)
+7. Re-sort by boosted score, return
 
 Classpath + config activated: `casehub.rag.retrieval.weights.quality > 0`.
 
@@ -186,9 +248,9 @@ This enables the decorator to read quality scores from `RetrievedChunk.metadata(
 
 | File | Change |
 |------|--------|
-| `rag/RagConfig.java` | Add `quality` + `qualityField` to `FusionWeightsConfig` |
+| `rag/RagConfig.java` | Add `quality` to `FusionWeightsConfig`, add `qualityPayloadField` + `qualityMax` to `RetrievalConfig` |
 | `rag/HybridCaseRetriever.java` | CC path: construct quality leg. `mapToChunks()`: extract numeric payload. |
-| `rag/PayloadBoostCaseRetriever.java` | **New.** Decorator for RRF/DBSF rescore path. |
+| `rag/PayloadBoostCaseRetriever.java` | **New.** Decorator for RRF/DBSF rescore path, @Priority(60). |
 | `rag/HybridCaseRetrieverTest.java` | Quality leg tests for CC path |
 | `rag/PayloadBoostCaseRetrieverTest.java` | **New.** Decorator unit tests |
 
@@ -214,7 +276,10 @@ public static List<QueryQualitySignal> lowRelevanceQueries(
 ```
 
 Queries where average result relevance score < `scoreThreshold`. Identifies retrieval
-gaps — queries the system handles poorly.
+gaps — queries the system handles poorly. Note: `scoreThreshold` is strategy-specific.
+RRF scores are normalized to [0,1] via `totalWeight / (k+1)` and cluster differently
+than CC scores or cross-encoder scores. The caller is responsible for choosing an
+appropriate threshold for their fusion and reranking configuration.
 
 ```java
 public static List<QueryQualitySignal> zeroHitQueries(
@@ -286,7 +351,8 @@ No new modules. No new dependencies. No Flyway migrations.
 
 | Area | Tests |
 |------|-------|
-| Weighted RRF | Weight=1.0 matches current behavior, non-equal weights shift rankings, weight=0 excludes leg, normalization stays [0,1] |
-| CC quality leg | Quality weight=0 no change, quality>0 shifts rankings, missing payload values handled gracefully |
-| Payload boost decorator | RRF strategy applies boost, CC strategy is no-op, missing field no-op, non-numeric field no-op, disabled config no-op |
+| Weighted RRF | Weight=1.0 matches current behavior, non-equal weights shift rankings, weight=0 excludes leg, normalization stays [0,1], negative weight rejected at startup |
+| Client-side RRF fallback | Non-equal weights trigger client-side fusion, equal weights use server-side, DBSF logs warning with non-equal weights |
+| CC quality leg | Quality weight=0 no change, quality>0 shifts rankings, missing payload values excluded from quality leg |
+| Payload boost decorator | RRF strategy applies boost after cross-encoder, CC strategy is no-op, missing field retains original score, non-numeric field retains original score, all-missing no-op, disabled config no-op, qualityMax clamps normalization |
 | Query analytics | Low-relevance filtering, zero-hit detection, frequency counting, empty tracker returns empty, edge cases (single record, all zero-hit) |
