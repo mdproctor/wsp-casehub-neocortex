@@ -80,10 +80,15 @@ instead of `ScoreFusion.convexCombination()`.
 
 | Strategy | Weights | Execution |
 |----------|---------|-----------|
-| RRF | Equal (all same value) | Server-side Qdrant RRF (current, faster) |
-| RRF | Non-equal | Client-side `ScoreFusion.rrf()` (weighted) |
+| RRF | Equal (all active legs same value) | Server-side Qdrant RRF (current, faster) |
+| RRF | Non-equal (among active legs) | Client-side `ScoreFusion.rrf()` (weighted) |
 | DBSF | Any | Server-side Qdrant DBSF (no per-leg weight support) |
 | CC | Any | Client-side `ScoreFusion.convexCombination()` (current) |
+
+"Active legs" means legs whose vectors are actually present/enabled: dense is always
+active; sparse is active when the embedder produces sparse vectors; BM25 is active when
+`bm25Enabled=true`. The equality check compares only active legs' configured weights —
+disabled legs' values are irrelevant to the server/client decision.
 
 DBSF is a Qdrant-proprietary server-side algorithm with no client-side implementation.
 Startup warning logged when non-equal weights are configured with DBSF strategy:
@@ -95,10 +100,16 @@ equal-weight fusion. Consider RRF or CC for per-leg weight control."
 `ScoreFusion.rrf()` is shared with CBR (`QdrantCbrCaseMemoryStore.fuseAndScore()`).
 CBR constructs `ScoredLeg` instances with CC-derived weights (from `vectorWeight` and
 `ccWeights`) regardless of fusion strategy. The weighted RRF change means CBR's RRF
-path will now use those weights. CBR's `QdrantCbrConfig.CcWeightsConfig` (with different
-defaults: 0.6/0.2/0.2) is a separate config in a separate module — not renamed by this
-spec. Follow-up issue required: CBR should construct equal-weight legs when using RRF
-strategy, preserving current behavior.
+path will now use those weights — a silent behavioral regression.
+
+**Guard (in scope):** In `QdrantCbrCaseMemoryStore.fuseAndScore()`, when
+`query.fusionStrategy() == RRF`, construct semantic legs with `weight=1.0`
+instead of CC-derived weights. The feature leg retains its `1.0 - query.vectorWeight()`
+weight (RRF uses it as-is, preserving current behavior). This is a one-line
+change per leg — wrap the weight expression in a strategy check.
+
+CBR's `QdrantCbrConfig.CcWeightsConfig` (with different defaults: 0.6/0.2/0.2)
+is a separate config in a separate module — not renamed by this spec.
 
 **Config mapping:**
 
@@ -122,6 +133,7 @@ Replaces `CcWeightsConfig`. `RetrievalConfig.ccWeights()` becomes
 | `fusion-api/ScoreFusionTest.java` | Add weighted RRF tests |
 | `rag/HybridCaseRetriever.java` | Update config references; add `executeRrfFusion()` for client-side weighted RRF; DBSF startup warning |
 | `rag/HybridCaseRetrieverTest.java` | Update config stubs, add weighted RRF client-side tests |
+| `memory-qdrant/QdrantCbrCaseMemoryStore.java` | Guard: RRF strategy uses weight=1.0 for semantic legs |
 
 ## #180 — Payload Quality Boost
 
@@ -236,7 +248,18 @@ Decorator logic:
 6. If no documents have valid quality values → no-op (return results unchanged)
 7. Re-sort by boosted score, return
 
-Classpath + config activated: `casehub.rag.retrieval.weights.quality > 0`.
+**Activation:** `casehub.rag.retrieval.weights.quality > 0` checked at runtime.
+PayloadBoost intentionally does not use `@IfBuildProperty` (unlike other decorators):
+
+1. **The weight IS the toggle.** `quality=0.0` (default) = disabled; `quality>0` = enabled.
+   A separate boolean flag creates config redundancy and a consistency risk — what does
+   `boost-enabled=true` + `quality=0.0` mean? The weight already encodes the intent.
+2. **No external service dependency.** Other decorators gate on boolean flags because they
+   require external services (cross-encoder model, LLM, relevance evaluator) that may not
+   be available. PayloadBoost reads from metadata already present in the result set.
+3. **Negligible overhead.** When disabled, the decorator is one condition check per
+   `retrieve()` call — dominated by network I/O to Qdrant. No model loading, no
+   connection pooling, no resource allocation.
 
 **Numeric payload extraction:**
 
