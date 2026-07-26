@@ -339,9 +339,11 @@ public static CorrelationGraph correlationGraph(
     RetrievalTracker tracker, CorpusRef corpus,
     Instant since, Instant until);
 
-// Group queries by shared document sets (Jaccard similarity)
+// Group queries by shared document sets (Jaccard similarity).
+// jaccardThreshold controls edge construction in the similarity graph —
+// it is NOT a floor on returned cluster similarity (see §2.5).
 public static List<QueryCluster> queryClusters(
-    CorrelationGraph graph, double minJaccardSimilarity);
+    CorrelationGraph graph, double jaccardThreshold);
 
 // Rank documents by centrality and outcome quality
 public static List<DocumentImpact> documentImpact(
@@ -390,6 +392,13 @@ MinHash — but for the expected corpus sizes (hundreds to low thousands
 of distinct queries), brute-force Jaccard is fine.
 
 Return clusters sorted by minimum similarity (highest first).
+
+**Note on returned similarity:** Single-linkage clustering connects
+queries transitively — pairs that are not directly similar join the same
+cluster through intermediate queries. The returned `jaccardSimilarity`
+(minimum pairwise Jaccard) can therefore be below the `jaccardThreshold`
+used for edge construction. Consumers needing a stricter guarantee should
+filter returned clusters by `jaccardSimilarity >= desired_floor`.
 
 #### 2.6 `documentImpact()` algorithm
 
