@@ -27,35 +27,28 @@ a second `instanceof` were added for ColBERT.
 
 ### Design
 
-#### 1.1 Widen `RelevanceEvaluator` interface
+#### 1.1 Refactor `RelevanceEvaluator` interface
 
-Add a chunk-aware method that gives evaluators access to scores, metadata,
-and existing grades — not just text content.
+Collapse to a single chunk-aware method. Every implementation receives full
+chunk context — scores, metadata, content — and uses what it needs.
 
 ```java
 // rag-api: RelevanceEvaluator.java
 public interface RelevanceEvaluator {
-
-    RelevanceGrade evaluate(String query, String chunkContent);
-
-    default List<RelevanceGrade> evaluateBatch(String query,
-                                                List<String> chunkContents) {
-        // unchanged — delegates to evaluate()
-    }
-
-    default List<ScoredGrade> evaluateChunks(String query,
-                                              List<RetrievedChunk> chunks) {
-        List<RelevanceGrade> grades = evaluateBatch(query,
-            chunks.stream().map(RetrievedChunk::content).toList());
-        return IntStream.range(0, grades.size())
-            .mapToObj(i -> new ScoredGrade(grades.get(i), Float.NaN))
-            .toList();
-    }
+    List<ScoredGrade> evaluateChunks(String query, List<RetrievedChunk> chunks);
 }
 ```
 
-Default implementation delegates to text-based evaluation and returns NaN
-scores (no reranking signal). Existing evaluators work unchanged.
+This removes the text-only `evaluate()` and `evaluateBatch()` methods.
+Each implementation extracts what it needs from chunks:
+
+- **Cross-encoder:** extracts `content()`, runs ONNX inference, returns scored grades
+- **ColBERT:** reads `relevanceScore()`, applies thresholds, returns scored grades
+- **InMemoryRelevanceEvaluator** (test double): returns fixed grade with NaN score
+
+No default implementation. No LSP violation — every implementation fulfils
+the full contract. The NaN sentinel is an implementation detail of the test
+double, not a contract-level concern.
 
 #### 1.2 Move `ScoredGrade` to `rag-api`
 
@@ -68,9 +61,9 @@ Move to `io.casehub.neocortex.rag` in `rag-api`. Update imports in
 
 #### 1.3 `ColBertRelevanceEvaluator`
 
-New class in `rag-crossencoder` module,
-`io.casehub.neocortex.rag.crossencoder.corrective` package (alongside
-`CrossEncoderRelevanceEvaluator` and `CorrectiveCaseRetriever`).
+New class in `rag-api` module, `io.casehub.neocortex.rag` package (alongside
+`ScoredGrade` and `RelevanceEvaluator`). Pure Java, zero framework
+dependencies — a score-threshold mapper that fits rag-api's tier 1 profile.
 
 ```java
 public final class ColBertRelevanceEvaluator implements RelevanceEvaluator {
@@ -90,13 +83,6 @@ public final class ColBertRelevanceEvaluator implements RelevanceEvaluator {
             .toList();
     }
 
-    @Override
-    public RelevanceGrade evaluate(String query, String chunkContent) {
-        throw new UnsupportedOperationException(
-            "ColBERT evaluation requires chunk scores — "
-            + "use evaluateChunks()");
-    }
-
     private RelevanceGrade gradeFromScore(double score) {
         if (score >= correctThreshold)   return RelevanceGrade.CORRECT;
         if (score <= incorrectThreshold) return RelevanceGrade.INCORRECT;
@@ -111,9 +97,10 @@ in `HybridCaseRetriever`.
 
 #### 1.4 Refactor `CrossEncoderRelevanceEvaluator`
 
-Override `evaluateChunks()` with the current `evaluateBatchWithScores()`
-logic. The old `evaluateBatchWithScores()` method becomes an internal
-detail or is removed — `evaluateChunks()` is the polymorphic entry point.
+Implement `evaluateChunks()` — the sole method on the interface. Extracts
+text content from chunks, runs cross-encoder inference, returns scored
+grades. The old `evaluateBatchWithScores()` method is removed —
+`evaluateChunks()` is the polymorphic entry point.
 
 ```java
 @Override
@@ -148,26 +135,42 @@ if (hasUsableScores(scored)) {
 }
 ```
 
-`hasUsableScores()` checks for non-NaN scores (text-based evaluators
-return NaN via the default implementation).
+`hasUsableScores()` checks for non-NaN scores. Production evaluators
+(cross-encoder and ColBERT) always return real scores. The test double
+(`InMemoryRelevanceEvaluator`) returns NaN, signalling "no reranking
+scores available."
 
 Same refactor applies to the expansion path (second evaluation pass).
+
+**Reactive variant:** `ReactiveCorrectiveCaseRetriever` is referenced in
+ARC42STORIES (L1075, L1092) but does not exist in the codebase — confirmed
+via `ide_find_class`. The blocking-to-reactive bridge handles reactive CRAG.
+The refactoring scope is `CorrectiveCaseRetriever` only. ARC42STORIES should
+be updated to remove the stale reference (tracked as a separate concern).
 
 #### 1.6 CDI wiring
 
 `CrossEncoderBeanProducer` currently throws when no `CrossEncoderReranker`
-is available — a hard startup failure in post-BGE-M3 deployments. A
-separate `@DefaultBean` producer would never activate because the
-existing producer fails first.
+is available — a hard startup failure in post-BGE-M3 deployments.
 
-Fix: single producer with fallback logic inside:
+Fix: single producer with fallback logic, validated against ColBERT
+reranking configuration. The producer injects `casehub.rag.retrieval.rerank-enabled`
+via MicroProfile `@ConfigProperty` (no compile dependency on `RagConfig`
+from the `rag` runtime module):
 
 ```java
 @ApplicationScoped
 public class CrossEncoderBeanProducer {
 
+    private static final Logger LOG =
+        Logger.getLogger(CrossEncoderBeanProducer.class);
+
     @Inject CragConfig config;
     @Inject Instance<CrossEncoderReranker> rerankerInstance;
+
+    @ConfigProperty(name = "casehub.rag.retrieval.rerank-enabled",
+                    defaultValue = "false")
+    boolean rerankEnabled;
 
     @Produces
     @ApplicationScoped
@@ -178,36 +181,86 @@ public class CrossEncoderBeanProducer {
                 config.correctThreshold(),
                 config.incorrectThreshold());
         }
+        if (!rerankEnabled) {
+            throw new IllegalStateException(
+                "No CrossEncoderReranker available and ColBERT reranking "
+                + "is not enabled (casehub.rag.retrieval.rerank-enabled"
+                + "=false). Configure a cross-encoder model or enable "
+                + "ColBERT reranking.");
+        }
+        LOG.infof("No CrossEncoderReranker — using ColBertRelevanceEvaluator "
+            + "(correct >= %.2f, incorrect <= %.2f)",
+            config.colbert().correctThreshold(),
+            config.colbert().incorrectThreshold());
         return new ColBertRelevanceEvaluator(
-            config.correctThreshold(),
-            config.incorrectThreshold());
+            config.colbert().correctThreshold(),
+            config.colbert().incorrectThreshold());
     }
 }
 ```
 
-No new producer class. No CDI priority complexity. One producer, two
-code paths based on what's available at runtime.
+No new producer class. One producer, validated fallback.
 
 **Activation matrix:**
 
-| Cross-encoder available | Evaluator used |
-|------------------------|----------------|
-| Yes | `CrossEncoderRelevanceEvaluator` |
-| No | `ColBertRelevanceEvaluator` |
+| Cross-encoder available | `rerank-enabled` | Evaluator used |
+|------------------------|-----------------|----------------|
+| Yes | any | `CrossEncoderRelevanceEvaluator` |
+| No | true | `ColBertRelevanceEvaluator` |
+| No | false | Startup failure (descriptive error) |
 
-Same threshold config keys for both evaluators. ColBERT MAX_SIM scores
-typically range 0.3–0.8 vs cross-encoder 0.0–1.0 — deployments
-switching evaluators must recalibrate thresholds.
+**Note:** ColBERT reranking in `HybridCaseRetriever` has additional
+runtime conditions beyond `rerank-enabled` (embedder supports ColBERT
+mode, ColBERT embeddings non-null, fusion strategy is not CC). The
+`rerank-enabled` check is a necessary but not fully sufficient guard.
+Edge cases where `rerank-enabled=true` but ColBERT reranking doesn't
+activate (e.g., CC fusion strategy) represent pre-existing config
+contradictions in `HybridCaseRetriever` and are outside the scope of
+this spec.
 
 #### 1.7 Threshold configuration
 
-Reuse `CragConfig.correctThreshold()` and `CragConfig.incorrectThreshold()`.
-Same config keys, same semantics — the interpretation (MAX_SIM range vs
-cross-encoder range) depends on which evaluator is active. Default values
-may need adjusting for MAX_SIM (typically 0.3–0.8 range vs cross-encoder
-0.0–1.0).
+Separate config keys per evaluator with appropriate defaults. ColBERT
+MAX_SIM scores (typically 0.3–0.8) require different thresholds than
+cross-encoder scores (0.0–1.0).
 
-Document the range difference in config comments.
+```java
+@ConfigMapping(prefix = "casehub.rag.crag")
+public interface CragConfig {
+
+    @WithDefault("0.7")
+    double correctThreshold();          // cross-encoder
+
+    @WithDefault("0.3")
+    double incorrectThreshold();        // cross-encoder
+
+    @WithDefault("3")
+    int expansionMultiplier();
+
+    @WithDefault("false")
+    boolean enabled();
+
+    ColBertConfig colbert();
+
+    interface ColBertConfig {
+        @WithDefault("0.55")
+        double correctThreshold();      // ColBERT MAX_SIM
+
+        @WithDefault("0.35")
+        double incorrectThreshold();    // ColBERT MAX_SIM
+    }
+}
+```
+
+Config keys:
+
+| Evaluator | Correct threshold | Incorrect threshold |
+|-----------|------------------|-------------------|
+| Cross-encoder | `casehub.rag.crag.correct-threshold` (0.7) | `casehub.rag.crag.incorrect-threshold` (0.3) |
+| ColBERT | `casehub.rag.crag.colbert.correct-threshold` (0.55) | `casehub.rag.crag.colbert.incorrect-threshold` (0.35) |
+
+The producer selects the appropriate thresholds based on which evaluator
+is constructed (§1.6). No shared defaults across incompatible score spaces.
 
 ---
 
@@ -230,6 +283,7 @@ joins queries ↔ documents ↔ outcomes to answer:
 
 ```java
 // The bipartite graph: queries on one side, documents on the other
+// Query keys are normalized: query.text().strip().toLowerCase()
 public record CorrelationGraph(
     Map<String, QueryNode> queries,
     Map<String, DocumentNode> documents
@@ -237,16 +291,16 @@ public record CorrelationGraph(
 
 // Query-side node
 public record QueryNode(
-    String queryText,
+    String queryText,                          // normalized
     int retrievalCount,
-    Map<String, EdgeStats> documentEdges   // documentId → stats
+    Map<String, EdgeStats> documentEdges       // documentId → stats
 ) { /* validation */ }
 
 // Document-side node
 public record DocumentNode(
     String documentId,
     int retrievalCount,
-    Map<String, EdgeStats> queryEdges      // queryText → stats
+    Map<String, EdgeStats> queryEdges          // normalized queryText → stats
 ) { /* validation */ }
 
 // Edge between a query and a document
@@ -298,27 +352,44 @@ public static List<DocumentImpact> documentImpact(
 
 1. Fetch all `RetrievalRecord` for the corpus and time window
 2. Fetch all `RetrievalFeedback` for the same window
-3. Index feedback by `(retrievalId, sourceDocumentId)` → outcome
-4. For each record: for each document in the record's results:
+3. Index feedback by `(retrievalId, sourceDocumentId)` →
+   `List<RetrievalOutcome>` (multi-valued — multiple feedback entries
+   for the same retrieval+document pair are all preserved, not last-wins)
+4. For each record, derive the query key via
+   `record.query().text().strip().toLowerCase()` (original user query,
+   not `searchText()` which includes expansion artifacts).
+   For each document in the record's results:
    - Increment the query→document edge count
    - Accumulate the document's relevance score
-   - Look up feedback (if any) and accumulate outcome distribution
+   - Look up feedback list (if any) and accumulate ALL outcomes into
+     the edge's outcome distribution
 5. Build dual-indexed `QueryNode` and `DocumentNode` maps
 
-Pure computation. O(R*D + F) where R = records, D = avg documents per
+Pure computation. O(R×D + F) where R = records, D = avg documents per
 record, F = feedback entries.
 
 #### 2.5 `queryClusters()` algorithm
 
-For each pair of queries in the graph:
-1. Compute Jaccard similarity: |docsA ∩ docsB| / |docsA ∪ docsB|
-2. If similarity >= threshold, merge into a cluster
+Single-linkage clustering via connected components:
+
+1. For each query node, compute its document set (keys of `documentEdges`)
+2. Build a similarity graph: for each pair of queries, compute Jaccard
+   similarity `|docsA ∩ docsB| / |docsA ∪ docsB|`. Add an edge if
+   similarity ≥ threshold
+3. Find connected components — each component with ≥ 2 nodes is a cluster
+4. For each cluster:
+   - `queryTexts`: all queries in the component
+   - `jaccardSimilarity`: minimum pairwise Jaccard among all pairs in the
+     cluster (conservative — the weakest link)
+   - `sharedDocumentIds`: intersection of ALL members' document sets
+     (may be empty for large clusters even when pairwise intersections
+     are non-empty)
 
 O(Q²) where Q = distinct queries. For large Q, could optimise with
 MinHash — but for the expected corpus sizes (hundreds to low thousands
 of distinct queries), brute-force Jaccard is fine.
 
-Return clusters sorted by similarity (highest first).
+Return clusters sorted by minimum similarity (highest first).
 
 #### 2.6 `documentImpact()` algorithm
 
@@ -336,9 +407,9 @@ Return sorted by `distinctQueryCount` descending (most central first).
 
 | Module | Changes |
 |--------|---------|
-| `rag-api` | `ScoredGrade` moved here; `evaluateChunks()` added to `RelevanceEvaluator`; new value types: `CorrelationGraph`, `QueryNode`, `DocumentNode`, `EdgeStats`, `QueryCluster`, `DocumentImpact`; new methods on `RetrievalAnalyzer` |
-| `rag-crossencoder` | `ColBertRelevanceEvaluator` + `ColBertEvaluatorProducer` (new); `CrossEncoderRelevanceEvaluator` refactored to override `evaluateChunks()`; `CorrectiveCaseRetriever` refactored to eliminate `instanceof`; `ScoredGrade` import updated |
-| `rag-testing` | `InMemoryRelevanceEvaluator` unchanged (default `evaluateChunks()` delegates to `evaluateBatch()`) |
+| `rag-api` | `ScoredGrade` moved here; `RelevanceEvaluator` refactored to single `evaluateChunks()` method (removes `evaluate()` and `evaluateBatch()`); `ColBertRelevanceEvaluator` (new, pure Java); new value types: `CorrelationGraph`, `QueryNode`, `DocumentNode`, `EdgeStats`, `QueryCluster`, `DocumentImpact`; new methods on `RetrievalAnalyzer` |
+| `rag-crossencoder` | `CrossEncoderBeanProducer` refactored with ColBERT fallback + `rerank-enabled` validation; `CrossEncoderRelevanceEvaluator` refactored to implement `evaluateChunks()`; `CorrectiveCaseRetriever` refactored to eliminate `instanceof`; `CragConfig` extended with `ColBertConfig` sub-group; `ScoredGrade` import updated |
+| `rag-testing` | `InMemoryRelevanceEvaluator` refactored to implement `evaluateChunks()` (returns fixed grade with NaN score) |
 
 No new modules. No new dependencies.
 
@@ -351,12 +422,13 @@ No new modules. No new dependencies.
 - `ColBertRelevanceEvaluatorTest`: threshold mapping (CORRECT/AMBIGUOUS/INCORRECT boundaries), edge cases (exact threshold, zero, negative scores)
 - `CrossEncoderRelevanceEvaluatorTest`: verify `evaluateChunks()` produces same results as old `evaluateBatchWithScores()`
 - `CorrectiveCaseRetrieverTest`: existing tests pass with refactored code; new test verifying ColBERT evaluator integration (score-based grading flows through CRAG expansion correctly)
-- `RelevanceEvaluatorTest`: default `evaluateChunks()` delegates to `evaluateBatch()` correctly, returns NaN scores
+- `CrossEncoderBeanProducerTest`: validates activation matrix — cross-encoder preferred when available; ColBERT fallback when `rerank-enabled=true`; startup failure when neither available
+- `InMemoryRelevanceEvaluatorTest`: returns fixed grade via `evaluateChunks()`; scores are NaN
 
 ### #167 tests
 
-- `CorrelationGraphTest`: builder produces correct graph from known records + feedback; empty inputs; single query; single document
-- `QueryClusterTest`: known overlapping queries cluster; disjoint queries don't cluster; threshold boundary
+- `CorrelationGraphTest`: builder produces correct graph from known records + feedback; empty inputs; single query; single document; query text normalization (case, whitespace); multiple feedback entries for same (retrievalId, docId)
+- `QueryClusterTest`: known overlapping queries cluster; disjoint queries don't cluster; threshold boundary; transitive clustering (A↔B, B↔C → {A,B,C}); cluster-level Jaccard is minimum pairwise
 - `DocumentImpactTest`: centrality ranking; outcome aggregation; single-query documents
 - `RetrievalAnalyzerCorrelationTest`: integration — end-to-end from `InMemoryRetrievalTracker` data through graph building to analysis results
 
@@ -364,8 +436,9 @@ No new modules. No new dependencies.
 
 ## 5. Out of Scope
 
-- ColBERT MAX_SIM threshold auto-calibration (manual config for now)
-- Graph persistence (computed on demand from tracker data)
-- Reactive variants of correlation analysis (blocking-only, consistent with `RetrievalAnalyzer`)
-- MinHash optimisation for query clustering (brute-force Jaccard sufficient at expected scale)
-- Visualization / rendering of the correlation graph
+- **ColBERT MAX_SIM threshold auto-calibration** — manual config for now (GitHub issue to be filed)
+- **Graph persistence** — computed on demand from tracker data (deliberate design decision: the tracker is the source of truth)
+- **Reactive variants of correlation analysis** — blocking-only, consistent with existing `RetrievalAnalyzer` pattern (deliberate design decision)
+- **MinHash optimisation for query clustering** — brute-force Jaccard sufficient at expected scale (GitHub issue to be filed for future optimisation)
+- **Visualization / rendering of the correlation graph** (GitHub issue to be filed)
+- **ARC42STORIES update** — remove stale `ReactiveCorrectiveCaseRetriever` references from L1075 and L1092 (GitHub issue to be filed)
