@@ -1,27 +1,25 @@
-# Handoff — 2026-07-26
+# Handoff — 2026-07-27
 
 ## What Changed
 
-Branch `issue-62-colbert-trust-correlation` closed. Landed as `4c77d83` on main. Pushed to both origin and upstream. Closes #62, #167. Filed engine issues #780, #781 for trust wiring work misfiled on neocortex (#174, #175 closed as misfiled).
+Branch `issue-181-embedding-retrieval-improvements` closed. Landed as `65ffff1` on main (fork). Pushed to origin. Closes #181, #182, #183.
 
-**Delivered:** ColBERT relevance evaluator for CRAG compatibility + query-document-outcome correlation graph.
+**Delivered:** Embedding pipeline cleanup, ColBERT auto-calibration, MinHash query clustering.
 
-- `RelevanceEvaluator` collapsed to single `evaluateChunks(String, List<RetrievedChunk>) → List<ScoredGrade>` method. Removes `evaluate()` and `evaluateBatch()`. No LSP violation — every implementation fulfils the full contract.
-- `ColBertRelevanceEvaluator` in `rag-api` — pure Java score-threshold mapper. Reads `relevanceScore` from chunks (ColBERT MAX_SIM when reranking active). Zero inference calls.
-- `CrossEncoderBeanProducer` falls back to `ColBertRelevanceEvaluator` when no cross-encoder and `rerank-enabled=true`. Separate thresholds: cross-encoder 0.7/0.3, ColBERT 0.55/0.35.
-- `CorrectiveCaseRetriever` calls `evaluateChunks()` polymorphically — `instanceof` check eliminated.
-- `CorrelationGraph` bipartite structure: `QueryNode` ↔ `DocumentNode` with `EdgeStats`. Builder on `RetrievalAnalyzer.correlationGraph()`. `queryClusters()` single-linkage Jaccard. `documentImpact()` centrality ranking.
-- Design adversarially reviewed (3 rounds, 11 issues, all verified, $12.59).
+- `embed(Map)` removed from `MultiModalEmbedder` — batch-composition hazard that produced different embeddings via individual `embed(String)` calls (batch=1) vs `embedBatch` due to padding/attention mask differences.
+- `HybridCaseRetriever` migrated to `embedSeparate()` — the canonical per-leg separation API. Replaces the conditional `embed()`/`embedBatch()` pattern. Single-embedding API simplifies CC and RRF fusion paths.
+- `ColBertRelevanceEvaluator.calibrate(List<Double> sampleScores)` — factory that derives CORRECT/INCORRECT thresholds from score distributions at P75/P25 (default) or custom percentiles. Decouples thresholds from hardcoded values.
+- `MinHashIndex` + LSH banding for `RetrievalAnalyzer.queryClusters()` — replaces O(n²) brute-force pairwise Jaccard with LSH candidate generation + exact verification for query sets > 50. Overflow-safe hashing, record-based deduplication.
+- Root-cause analysis for #181 regression: tokenizer `modelMaxLength` fix (e3fb82f) + CE score promotion (c6f2d77) shifted embedding/scoring distributions. Both are correct changes; the -2.2pp regression is an expected consequence of improved behavior, not a bug.
 
 ## What's Next
 
 | # | Description | Scale | Complexity | Notes |
 |---|-------------|-------|------------|-------|
-| engine#780 | Wire trust data from routing context into CbrCase | S | Med | Engine work — was neocortex #174 |
-| engine#781 | AgentTrustProvider impl: bridge TrustScoreSource | S | Low | Engine work — was neocortex #175 |
-| #62 | ColBERT threshold auto-calibration | XS | Med | Out-of-scope from this branch |
-| #167 | MinHash optimisation for query clustering | S | Med | Out-of-scope — brute-force Jaccard sufficient at current scale |
+| engine#780 | Wire trust data from routing context into CbrCase | S | Med | Engine work |
+| engine#781 | AgentTrustProvider impl: bridge TrustScoreSource | S | Low | Engine work |
+| #117 | Per-leg embedding separation — remaining open work | S | Med | embedSeparate migration complete; #117 tracks the full feature |
 
 ## Garden Entries
 
-- GE-20260726-bc40f9: ide_optimize_imports fails to resolve imports after cross-module ide_move_file — Maven local repo holds stale jar
+(none this session)
