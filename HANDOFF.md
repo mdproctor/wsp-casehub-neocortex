@@ -1,16 +1,26 @@
-# Handoff — 2026-07-27
+# Handoff — 2026-07-28
 
 ## What Changed
 
-Branch `issue-181-embedding-retrieval-improvements` closed. Landed as `65ffff1` on main (fork). Pushed to origin. Closes #181, #182, #183.
+Two branches landed on main. Both pushed to origin and upstream.
 
-**Delivered:** Embedding pipeline cleanup, ColBERT auto-calibration, MinHash query clustering.
+### Branch 1: `issue-181-embedding-retrieval-improvements` (landed as `65ffff1`)
 
-- `embed(Map)` removed from `MultiModalEmbedder` — batch-composition hazard that produced different embeddings via individual `embed(String)` calls (batch=1) vs `embedBatch` due to padding/attention mask differences.
-- `HybridCaseRetriever` migrated to `embedSeparate()` — the canonical per-leg separation API. Replaces the conditional `embed()`/`embedBatch()` pattern. Single-embedding API simplifies CC and RRF fusion paths.
-- `ColBertRelevanceEvaluator.calibrate(List<Double> sampleScores)` — factory that derives CORRECT/INCORRECT thresholds from score distributions at P75/P25 (default) or custom percentiles. Decouples thresholds from hardcoded values.
-- `MinHashIndex` + LSH banding for `RetrievalAnalyzer.queryClusters()` — replaces O(n²) brute-force pairwise Jaccard with LSH candidate generation + exact verification for query sets > 50. Overflow-safe hashing, record-based deduplication.
-- Root-cause analysis for #181 regression: tokenizer `modelMaxLength` fix (e3fb82f) + CE score promotion (c6f2d77) shifted embedding/scoring distributions. Both are correct changes; the -2.2pp regression is an expected consequence of improved behavior, not a bug.
+Closes #181, #182, #183. Also closed #117 (embedSeparate migration completed it), #93/#81/#55 (CBR roadmap cascade — all phases delivered).
+
+- `embed(Map)` removed from `MultiModalEmbedder` — batch-composition hazard
+- `HybridCaseRetriever` migrated to `embedSeparate()` for per-leg separation
+- `ColBertRelevanceEvaluator.calibrate()` — percentile-based threshold derivation from score distributions
+- `MinHashIndex` + LSH banding for `RetrievalAnalyzer.queryClusters()` — O(n*k) for large query sets
+- Root cause of #181 -2.2pp regression: tokenizer `modelMaxLength` fix + CE score promotion (both correct changes)
+
+### Branch 2: `issue-77-tensor-inference-spi` (landed as `3836855`)
+
+Closes #77, #144.
+
+- `InferenceInput` refactored to sealed interface: `Text` (existing tokenization) + `Tensor` (raw float[][] bypassing tokenizer)
+- `OnnxInferenceModel` dispatches on input type. `ModelConfig.tokenizerPath` nullable for tensor-only models
+- ARC42STORIES §5 gains memory modules (L12-L15). §9 gains Chapter C12: CBR decorator chain + outcome learning
 
 ## What's Next
 
@@ -18,8 +28,6 @@ Branch `issue-181-embedding-retrieval-improvements` closed. Landed as `65ffff1` 
 |---|-------------|-------|------------|-------|
 | engine#780 | Wire trust data from routing context into CbrCase | S | Med | Engine work |
 | engine#781 | AgentTrustProvider impl: bridge TrustScoreSource | S | Low | Engine work |
-| #117 | Per-leg embedding separation — remaining open work | S | Med | embedSeparate migration complete; #117 tracks the full feature |
-
-## Garden Entries
-
-(none this session)
+| #22 | Extract corpus CDI to corpus-quarkus/ module | M | Low | Trigger: second consumer materialises |
+| #129 | Add CBR memory modules to ARC42STORIES §5 | M | Low | Partially done — L12-L15 added, full detail remains |
+| #76 | Train 1D-CNN strategy classifier + ONNX export | M | High | Unblocked by #77 (tensor input SPI) |
