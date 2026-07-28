@@ -1,3 +1,5 @@
+*Updated: engine#780, engine#781 closed — removed from backlog.*
+
 # Handoff — 2026-07-28
 
 ## What Changed
@@ -26,8 +28,6 @@ Closes #77, #144.
 
 | # | Description | Scale | Complexity | Notes |
 |---|-------------|-------|------------|-------|
-| engine#780 | Wire trust data from routing context into CbrCase | S | Med | Engine work |
-| engine#781 | AgentTrustProvider impl: bridge TrustScoreSource | S | Low | Engine work |
 | #22 | Extract corpus CDI to corpus-quarkus/ module | M | Low | Trigger: second consumer materialises |
 | #129 | Add CBR memory modules to ARC42STORIES §5 | M | Low | Partially done — L12-L15 added, full detail remains |
 | #76 | Train 1D-CNN strategy classifier + ONNX export | M | High | Unblocked by #77 (tensor input SPI) |
