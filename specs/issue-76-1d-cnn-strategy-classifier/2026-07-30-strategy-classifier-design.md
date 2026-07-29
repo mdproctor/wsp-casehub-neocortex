@@ -111,6 +111,8 @@ Input [batch, W, F]
 
 Output is raw logits — softmax applied at inference time by the Java consumer (following the `TextClassifier` pattern).
 
+**Input flattening**: `InferenceInput.Tensor` uses `Map<String, float[][]>` (rank-2). The ONNX model accepts `[batch, W*F]` (rank-2) and reshapes internally to `[batch, W, F]` via `torch.Tensor.view(-1, W, F)` before the conv layers. This exports cleanly as an ONNX Reshape op. The Java caller flattens the window x feature grid into a single dimension.
+
 **Parameter budget**: ~200K per model, <10MB total for all three.
 
 ## Training
@@ -162,7 +164,7 @@ Output artifacts: `strategy_vs_terran.onnx`, `strategy_vs_zerg.onnx`, `strategy_
 
 Validation test in `inference-runtime/src/test/java/`:
 1. Load each `.onnx` via `OnnxInferenceModel` with `ModelConfig` (no tokenizer)
-2. Construct `InferenceInput.Tensor` with shape `{features: float[1][W][F]}`
+2. Construct `InferenceInput.Tensor` with shape `{features: float[1][W*F]}` (flattened — model reshapes internally)
 3. Verify: output name "logits", shape matches archetype count, values finite, softmax sums to ~1.0
 4. Test `runBatch()` with multiple samples
 5. Latency: 1000 runs, assert p99 < 10ms
