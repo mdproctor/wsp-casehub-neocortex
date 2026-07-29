@@ -35,7 +35,7 @@ Lookup table mapping MSC map names to derived characteristics:
 | Map size | categorical | small / medium / large |
 | Choke type | categorical | wall-off possible / open natural |
 
-Derived from known map data or clustered from early-game timing distributions in the dataset. Maps not in the table get "unknown" defaults. Static features appended to every time window.
+Derived from known map data or clustered from early-game timing distributions in the dataset. Maps not in the table get "unknown" defaults. Provided as a separate static input tensor (see §Feature Engineering).
 
 ### Fog-of-War Simulation
 
