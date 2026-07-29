@@ -73,45 +73,72 @@ Example rules:
 | MECH_PUSH | T | Factory + Siege Tanks + Thors |
 | BIO_TIMING | T | Barracks ×3+ + Medivac |
 | ROACH_RUSH | Z | Early Roach Warren |
+| LING_BANE | Z | Baneling Nest + speed, aggressive zergling/baneling |
+| MUTA_HARASS | Z | Spire + Mutalisks |
+| HYDRA_PUSH | Z | Hydralisk Den, ground-heavy composition |
+| DT_RUSH | P | Dark Shrine, fast tech to Dark Templars |
+| BLINK_STALKER | P | Twilight Council + Blink research |
+| COLOSSUS_PUSH | P | Robotics Bay + Colossi |
 | MACRO_ECONOMY | T, Z, P | Early expansion, delayed army |
 | TECH_RUSH | T, Z, P | Fast tech path, skip early units |
 
+**Per-matchup class counts**: vs-Terran 8, vs-Zerg 7, vs-Protoss 9. All archetypes are detectable from MSC's per-timestep building, unit, and upgrade features.
+
+### Dataset Age
+
+MSC replays are from StarCraft II circa 2017 (patches 3.x). The archetype taxonomy targets current meta (patches 5.x). Fundamental archetypes (rush, macro, tech) are stable across patches, but specific feature distributions (building timings, unit composition frequencies) may have shifted. Training on MSC establishes a baseline; the held-out QuarkMind replays (casehubio/quarkmind#213) validate whether that baseline transfers to current meta. If transfer validation shows significant degradation, more recent replay data will be needed.
+
 ### Feature Engineering
 
-Raw MSC features → windowed `[W, F]` tensors:
+Raw MSC features → two tensor groups:
 
+**Temporal features** — windowed `[W, F_temporal]` tensor:
 - Fixed-width time windows (30 seconds each)
 - For classification at minute T, windows 0 through T/0.5
 - Pad to max window count (10 for minute 5)
-- Features per window (F):
+- Features per window (F_temporal):
   - Our state: resource rates, supply, building counts, unit counts, upgrade flags
   - Scouted opponent state: same categories but fog-masked (zeros where unscouted)
   - Scouting flag: binary — distinguishes "no buildings" from "haven't looked"
-  - Map characteristics: static, repeated each window
+
+**Static map features** — `[F_map]` vector (not repeated per window):
+- Rush distance, expansion count, map size, choke type
+- Concatenated after temporal pooling, before the dense classification layers
+- Static features contribute nothing to temporal convolution or cross-window attention; placing them after pooling lets the dense layers combine learned temporal patterns with map context
 
 ### Split
 
-Train/val/test 7:1:2 per MSC convention, stratified by matchup and archetype.
+Train/val/test 7:1:2 per MSC convention, stratified by matchup and archetype. **Split unit is per-replay** — all time-window samples from the same replay go into the same partition. This prevents information leakage: a minute-2 sample in training would leak features to a minute-5 sample from the same replay in test, since the later sample is a superset of the earlier one.
 
 ## Model Architecture
 
 ```
-Input [batch, W, F]
-  |
-  +- Conv1D(F -> 64, kernel=3, padding=1) + BatchNorm + ReLU
-  +- Conv1D(64 -> 128, kernel=3, padding=1) + BatchNorm + ReLU
-  |
-  +- Single-head self-attention over the time axis
-  |   (queries/keys/values from the 128-dim conv output)
-  |
-  +- Global average pooling over time -> [batch, 128]
-  +- Dense(128 -> 64) + ReLU + Dropout(0.3)
-  +- Dense(64 -> num_archetypes) -> logits
+Temporal Input [batch, W, F_temporal]    Map Input [batch, F_map]
+  |                                        |
+  +- Conv1D(F_temporal -> 64, k=3, pad=1)  |
+  |  + BatchNorm + ReLU                    |
+  +- Conv1D(64 -> 128, k=3, pad=1)        |
+  |  + BatchNorm + ReLU                    |
+  |                                        |
+  +- Sinusoidal positional encoding        |
+  +- Self-attention (padding mask)         |
+  |                                        |
+  +- Masked average pooling -> [batch,128] |
+  |                                        |
+  +------------ Concat ------------------->+
+               [batch, 128 + F_map]
+               |
+               +- Dense(128 + F_map -> 64) + ReLU + Dropout(0.3)
+               +- Dense(64 -> num_archetypes) -> logits
 ```
 
-Output is raw logits — softmax applied at inference time by the Java consumer (following the `TextClassifier` pattern).
+Output is temperature-scaled logits — softmax applied at inference time by `TensorClassifier`. Temperature is calibrated post-training on the validation set and baked into the model (final layer weights scaled by 1/T) before ONNX export.
 
-**Input flattening**: `InferenceInput.Tensor` uses `Map<String, float[][]>` (rank-2). The ONNX model accepts `[batch, W*F]` (rank-2) and reshapes internally to `[batch, W, F]` via `torch.Tensor.view(-1, W, F)` before the conv layers. This exports cleanly as an ONNX Reshape op. The Java caller flattens the window x feature grid into a single dimension.
+**Positional encoding**: sinusoidal (fixed, no learnable parameters) added to the 128-dim conv output before self-attention. Required because attention is position-invariant — without it, the model cannot distinguish "Refinery at minute 1, Starport at minute 3" from the reverse ordering.
+
+**Padding mask**: derived from the temporal input — any time window where all features are zero is treated as padding. Player state features (resource rates, supply) are always non-zero for real game windows, making this heuristic reliable. The mask is used for both self-attention (padded positions receive zero attention weight) and average pooling (mean computed only over non-padded windows). This prevents zero-padding from diluting the signal at early time points — at minute 2 with only 4/10 real windows, unmasked pooling would dilute by 60%.
+
+**Input handling**: two ONNX inputs. `InferenceInput.Tensor` uses `Map<String, float[][]>` (rank-2). The Java caller provides `InferenceInput.tensor(Map.of("temporal", float[1][W*F_temporal], "map", float[1][F_map]))`. The model reshapes "temporal" from `[batch, W*F_temporal]` to `[batch, W, F_temporal]` via an ONNX Reshape op. "map" passes directly to the concatenation layer after temporal pooling.
 
 **Parameter budget**: ~200K per model, <10MB total for all three.
 
@@ -130,15 +157,22 @@ Output is raw logits — softmax applied at inference time by the Java consumer 
 ```python
 torch.onnx.export(
     model,
-    dummy_input,                          # [1, W, F]
+    (dummy_temporal, dummy_map),          # [1, W*F_temporal], [1, F_map]
     "strategy_vs_terran.onnx",
-    input_names=["features"],
+    input_names=["temporal", "map"],
     output_names=["logits"],
-    dynamic_axes={"features": {0: "batch"}, "logits": {0: "batch"}}
+    dynamic_axes={
+        "temporal": {0: "batch"},
+        "map": {0: "batch"},
+        "logits": {0: "batch"}
+    },
+    opset_version=17
 )
 ```
 
-Dynamic batch dimension for `OnnxInferenceModel.runBatch()`. Static window and feature dimensions — the Java caller pads to the expected shape.
+Two inputs with dynamic batch dimension. Static window and feature dimensions — the Java caller pads temporal features to the expected shape. `opset_version=17` pinned for reproducibility and ONNX Runtime compatibility.
+
+**Temperature baking**: after calibrating optimal temperature T on the validation set, scale the final linear layer's weights by 1/T before export. The exported model produces temperature-scaled logits directly — no runtime calibration parameter needed.
 
 Output artifacts: `strategy_vs_terran.onnx`, `strategy_vs_zerg.onnx`, `strategy_vs_protoss.onnx`.
 
@@ -148,8 +182,9 @@ Output artifacts: `strategy_vs_terran.onnx`, `strategy_vs_zerg.onnx`, `strategy_
 - Top-1 accuracy: overall and per-archetype
 - Top-3 accuracy: overall
 - Early detection accuracy: top-1 at minute 2, 3, 4, 5
-- Confidence calibration: reliability diagram
-- Inference latency: p50/p95/p99 over 1000 runs (Python ONNX Runtime)
+- Confidence calibration: reliability diagram, before and after temperature scaling
+- Temperature scaling: find optimal T on validation set, verify calibration improvement
+- Inference latency: p50/p95/p99 over 1000 single-sample runs (Python ONNX Runtime)
 
 **Acceptance criteria**:
 - >= 65% top-1 at minute 4
@@ -162,16 +197,23 @@ Output artifacts: `strategy_vs_terran.onnx`, `strategy_vs_zerg.onnx`, `strategy_
 
 ## Java Integration
 
-Validation test in `inference-runtime/src/test/java/`:
+### TensorClassifier adapter
+
+New `TensorClassifier` in `inference-tasks` — same pattern as `TextClassifier` but accepts `InferenceInput.Tensor` (named float tensors) instead of text. Encapsulates softmax, argmax, and label mapping. Returns `ClassificationResult`. This is required to satisfy neocortex's architectural contract (ARC42STORIES §4: "typed task adapters interpret tensor names and post-process outputs into domain types"; §8 anti-pattern: "Exposing tensors to callers").
+
+Without this adapter, QuarkMind's `CascadingPatternClassifier` would need to construct `InferenceInput.tensor(...)`, extract the `"logits"` tensor by name, apply softmax manually, and map indices to labels — exactly the steps the task adapter layer exists to encapsulate. Issue #77 deferred this adapter; this spec includes it.
+
+### Validation test
+
+In `inference-runtime/src/test/java/`:
 1. Load each `.onnx` via `OnnxInferenceModel` with `ModelConfig` (no tokenizer)
-2. Construct `InferenceInput.Tensor` with shape `{features: float[1][W*F]}` (flattened — model reshapes internally)
-3. Verify: output name "logits", shape matches archetype count, values finite, softmax sums to ~1.0
-4. Test `runBatch()` with multiple samples
-5. Latency: 1000 runs, assert p99 < 10ms
+2. Construct `InferenceInput.Tensor` with `{temporal: float[1][W*F_temporal], map: float[1][F_map]}`
+3. Verify via `TensorClassifier`: output is `ClassificationResult` with correct archetype labels, probabilities sum to ~1.0
+4. Latency: 1000 single-sample runs, assert p99 < 10ms
 
 The `.onnx` files are checked into `inference-runtime/src/test/resources/models/strategy/` as test resources. QuarkMind pulls them from a model registry for production use.
 
-No new production Java code — `OnnxInferenceModel` + `InferenceInput.Tensor` already supports everything needed.
+**Batching note**: `OnnxInferenceModel.runBatch()` for `Tensor` inputs executes sequentially (one ONNX session call per sample). The game-loop use case is single-sample inference (one classification per tick), so this is not a performance concern. True tensor batching (stacking samples into a single `float[N][W*F]` call) is a potential neocortex follow-up if batch throughput becomes important.
 
 ## Project Structure
 
@@ -213,6 +255,7 @@ inference-runtime/
       strategy_vs_terran.onnx
       strategy_vs_zerg.onnx
       strategy_vs_protoss.onnx
+      model_manifest.json        # training run metadata: date, dataset, accuracy, hyperparams
 ```
 
 Self-contained venv, same pattern as `evaluation/code_domain_embeddings/`. Run with `python3 -m evaluation.strategy_classifier.<script>`.
