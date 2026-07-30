@@ -132,7 +132,7 @@ Temporal Input [batch, W, F_temporal]    Map Input [batch, F_map]
                +- Dense(64 -> num_archetypes) -> logits
 ```
 
-Output is temperature-scaled logits — softmax applied at inference time by `TensorClassifier`. Temperature is calibrated post-training on the validation set and baked into the model (final layer weights scaled by 1/T) before ONNX export.
+Output is temperature-scaled logits — softmax applied at inference time by `TensorClassifier`. Temperature is calibrated post-training on the validation set and baked into the model (final layer weights and biases scaled by 1/T) before ONNX export. Both must be scaled: `logits/T = (W*x + b)/T = (W/T)*x + (b/T)`.
 
 **Positional encoding**: sinusoidal (fixed, no learnable parameters) added to the 128-dim conv output before self-attention. Required because attention is position-invariant — without it, the model cannot distinguish "Refinery at minute 1, Starport at minute 3" from the reverse ordering.
 
@@ -172,7 +172,7 @@ torch.onnx.export(
 
 Two inputs with dynamic batch dimension. Static window and feature dimensions — the Java caller pads temporal features to the expected shape. `opset_version=17` pinned for reproducibility and ONNX Runtime compatibility.
 
-**Temperature baking**: after calibrating optimal temperature T on the validation set, scale the final linear layer's weights by 1/T before export. The exported model produces temperature-scaled logits directly — no runtime calibration parameter needed.
+**Temperature baking**: after calibrating optimal temperature T on the validation set, scale the final linear layer's weights and biases by 1/T before export. The full logit `W*x + b` must be divided by T, requiring both terms: `(W/T)*x + (b/T)`. Scaling weights alone leaves the bias unscaled, which shifts the calibrated distribution — classes with large bias values would retain their full advantage rather than having it attenuated. The exported model produces temperature-scaled logits directly — no runtime calibration parameter needed.
 
 Output artifacts: `strategy_vs_terran.onnx`, `strategy_vs_zerg.onnx`, `strategy_vs_protoss.onnx`.
 
