@@ -1,0 +1,9 @@
+branch: issue-166-cbr-quality-retention
+project-sha: 0a861e655252c0f7f9569b88202274868a240bd8
+date: 2026-08-01
+issue: 166
+issue-repo: casehubio/neocortex
+covers: 166,176,189,190
+flyway-next-v: unknown
+design-repo: project
+design-section-hashes: 
