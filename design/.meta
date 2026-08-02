@@ -1,0 +1,9 @@
+branch: issue-195-batch-s-xs-quality
+project-sha: e5e9d6e059c2ad701e0fa2671ef0c3d63802ed6c
+date: 2026-08-02
+issue: 195
+issue-repo: casehubio/neocortex
+covers: 195,194,193,192,191,188
+flyway-next-v: unknown
+design-repo: project
+design-section-hashes: 
