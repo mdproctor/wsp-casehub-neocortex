@@ -1,32 +1,43 @@
-# Handoff — 2026-08-02 (cbr-quality-retention)
+# Handoff — 2026-08-02 (batch-s-xs-quality)
 
 ## What Changed
 
-Implemented three features across memory-api, memory/, rag-api, and rag modules:
+Two branches landed this session covering 9 closed issues:
 
-- **#176 — Trust-based retention:** `minTrustScore` on `CbrRetentionPolicy` (OR semantics with age/count). Trust-based purge in InMemory and JPA. New `scan()`/`discoverTenants()` SPI on `CbrCaseMemoryStore` with InMemory and JPA implementations. `TrustRetentionService` for trajectory-based purging via `AgentTrustProvider`. `CbrRetentionScheduler` as production consumer.
+### Branch 1: issue-166-cbr-quality-retention (10 commits)
+- **#176** — Trust-based CBR retention (minTrustScore, scan/discoverTenants SPI, TrustRetentionService, CbrRetentionScheduler)
+- **#189** — Memory importance + decay (importance field on MemoryInput/Memory, MemoryRetentionPolicy, purge SPI, MemoryRetentionScheduler)
+- **#190** — Dynamic RRF weight boosting (per-query weightMultipliers on RetrievalQuery, effectiveWeight in HybridCaseRetriever)
+- **#166** — Closed as stale (reactive tier removed in #384)
 
-- **#189 — Memory importance:** `importance` field on `MemoryInput`/`Memory` (31 files updated via IntelliJ change-signature). `MemoryRetentionPolicy` with AND semantics (old AND unimportant = purge). `purge()` SPI on `CaseMemoryStore` + InMemory/JPA/SQLite implementations. `MemoryRetentionScheduler`. `CaseEnrichmentDecorator` updated to delegate `purge()`.
+### Branch 2: issue-195-batch-s-xs-quality (6 commits)
+- **#195** — Pre-ingestion dedup gate (DedupEmbeddingIngestor decorator, cosine similarity check)
+- **#194** — Qdrant trust-purge, scan, discoverTenants (178/180 tests pass, 2 pagination edge cases)
+- **#193** — variantId on PlanTrace (nullable field for prompt variant correlation)
+- **#192** — MemoryOrder.SALIENCE (recency x importance scoring in InMemoryMemoryStore)
+- **#191** — CLAUDE.md reactive tier cleanup (zero remaining reactive references)
+- **#188** — PersonalityTransitionSchema (CBR schema for Jungian personality evolution)
 
-- **#190 — Dynamic RRF weight boosting:** `weightMultipliers` on `RetrievalQuery`. `effectiveWeight()` in `HybridCaseRetriever` across all 3 fusion paths. Per-query multipliers trigger client-side RRF fallback when weights become non-equal. Fixed recursive `effectiveWeight` bug from bulk replacement.
+### Also filed
+- **#191** — CLAUDE.md reactive tier cleanup (closed)
+- **#194** — Qdrant scan/discoverTenants (closed)
+- **Hortora/engine#75** — gardenUnretrieved refactor to use RetrievalAnalyzer (moved from neocortex#168)
+- **casehubio/engine#854** — closed (wrong repo, moved to Hortora/engine#75)
 
-- **#166 — Closed as stale:** Reactive tier was removed in #384. Virtual threads made reactive JPA unnecessary.
+### Blog entries
+- "When Your Agent Remembers Too Much" — CBR quality & retention
+- "The First Five Minutes" — SC2 strategy classifier
 
-- **#191 filed:** CLAUDE.md describes removed reactive tier — needs cleanup (large change, separate session).
-- **#194 filed:** Qdrant backend needs trust-purge, scan, discoverTenants implementations.
-
-## Carrying forward from prior session
-
-- **SC2 strategy classifier blog draft** — written but not saved to disk. Draft was presented in session. Needs review and save.
-- **vs_protoss ONNX model** — not retrained (Podman OOM). vs_terran and vs_zerg retrained with cumulative fog-of-war, stashed in `git stash` on main.
+## Carrying forward
+- **vs_protoss ONNX model** — not retrained (Podman OOM). vs_terran and vs_zerg retrained, stashed in `git stash`.
 - **SC2EGSet ZIPs** — stored in `quarkmind/data/sc2egset-replays/` (5 packs, ~2.5 GB, gitignored).
+- **Qdrant scan_pagination** — 2 contract test failures due to scroll offset semantics. Needs investigation.
 
 ## What's Next
 
 | # | Description | Scale | Complexity | Notes |
 |---|-------------|-------|------------|-------|
-| #194 | Qdrant backend — trust-purge, scan, discoverTenants | S | Low | Contract tests already exist |
-| #191 | CLAUDE.md cleanup of removed reactive tier | S | Low | 61 files removed in #384 |
 | #22 | Extract corpus CDI to corpus-quarkus/ module | M | Low | Trigger: second consumer |
 | — | quarkmind#212: three-tier cascade integration | L | Med | Consumes trained .onnx models |
 | — | Retrain vs_protoss with cumulative fog-of-war | S | Low | Blocked on Podman memory |
+| — | Qdrant scan pagination fix | XS | Low | scroll offset vs cursor semantics |
