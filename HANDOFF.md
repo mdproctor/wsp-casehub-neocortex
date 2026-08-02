@@ -1,52 +1,32 @@
-# Handoff — 2026-08-01 (fog-of-war-retrain)
+# Handoff — 2026-08-02 (cbr-quality-retention)
 
 ## What Changed
 
-Retrained strategy classifier models on real SC2EGSet data with cumulative fog-of-war:
+Implemented three features across memory-api, memory/, rag-api, and rag modules:
 
-- **SC2EGSet ZIPs downloaded** to persistent storage at `quarkmind/data/sc2egset-replays/` (gitignored). 5 tournament packs: IEM Katowice 2019, DreamHack Summer 2021, DreamHack Winter 2020, DreamHack Atlanta 2022, DreamHack Valencia 2022 (~2.5 GB total).
-- **Data re-prepared** with cumulative fog-of-war from 3 ZIPs (IEM Katowice 2019, DreamHack Summer 2021, DreamHack Valencia 2022). 2325 replays, 4626 labelled perspectives. Data saved to `evaluation/strategy_classifier/data/sc2egset/`.
-- **vs_terran retrained**: 54% top-1, 94% top-3. BANSHEE_HARASS jumped 12% → 61% with cumulative fog-of-war. BIO_TIMING 65%, MECH_PUSH 47%, RUSH 48%.
-- **vs_zerg retrained**: 74% top-1, 94% top-3. ROACH_RUSH 88%, LING_BANE 70%, RUSH 60%.
-- **vs_protoss NOT retrained** — OOM killed (exit code 137). Podman VM was consuming memory. With Podman stopped, should succeed.
-- **ONNX test changes committed** (previous parallel session's work): `StrategyClassifierOnnxTest.java` enabled, F_TEMPORAL=239, all 3 matchup tests, 3 model files.
-- **Blog draft written** (not yet saved to disk): SC2 strategy classifier — what it is, fog-of-war, architecture, where it fits in quarkmind cascade. Awaiting author review.
+- **#176 — Trust-based retention:** `minTrustScore` on `CbrRetentionPolicy` (OR semantics with age/count). Trust-based purge in InMemory and JPA. New `scan()`/`discoverTenants()` SPI on `CbrCaseMemoryStore` with InMemory and JPA implementations. `TrustRetentionService` for trajectory-based purging via `AgentTrustProvider`. `CbrRetentionScheduler` as production consumer.
 
-## Immediate Next Step
+- **#189 — Memory importance:** `importance` field on `MemoryInput`/`Memory` (31 files updated via IntelliJ change-signature). `MemoryRetentionPolicy` with AND semantics (old AND unimportant = purge). `purge()` SPI on `CaseMemoryStore` + InMemory/JPA/SQLite implementations. `MemoryRetentionScheduler`. `CaseEnrichmentDecorator` updated to delegate `purge()`.
 
-1. Stop or reduce Podman VM memory, then retrain vs_protoss:
-   ```bash
-   /Users/mdproctor/claude/casehub/neocortex/evaluation/strategy_classifier/.venv/bin/python3 /tmp/train_matchup.py vs_protoss
-   ```
-   The training script at `/tmp/train_matchup.py` handles training, ONNX export, and copying to test resources.
-2. Run Java tests to verify all 3 retrained models pass:
-   ```bash
-   JAVA_HOME=$(/usr/libexec/java_home -v 26) mvn -f inference-runtime/pom.xml test -Dtest=StrategyClassifierOnnxTest
-   ```
-3. Commit retrained models.
-4. Review and save the blog draft (presented in session, not yet on disk).
+- **#190 — Dynamic RRF weight boosting:** `weightMultipliers` on `RetrievalQuery`. `effectiveWeight()` in `HybridCaseRetriever` across all 3 fusion paths. Per-query multipliers trigger client-side RRF fallback when weights become non-equal. Fixed recursive `effectiveWeight` bug from bulk replacement.
 
-## Key Files
+- **#166 — Closed as stale:** Reactive tier was removed in #384. Virtual threads made reactive JPA unnecessary.
 
-- `/tmp/train_matchup.py` — single-matchup training script (trains, calibrates, exports ONNX, copies to test resources)
-- `quarkmind/data/sc2egset-replays/` — persistent SC2EGSet ZIPs (gitignored in quarkmind)
-- `evaluation/strategy_classifier/data/sc2egset/` — re-prepared .npz data with cumulative fog-of-war
-- `evaluation/strategy_classifier/output/` — ONNX models + manifests
-- `inference-runtime/src/test/resources/models/strategy/` — test resource ONNX models
+- **#191 filed:** CLAUDE.md describes removed reactive tier — needs cleanup (large change, separate session).
+- **#194 filed:** Qdrant backend needs trust-purge, scan, discoverTenants implementations.
 
-## What's Left
+## Carrying forward from prior session
 
-- Retrain vs_protoss (blocked on Podman memory) · S · Low
-- Commit retrained models (after vs_protoss completes) · S · Low
-- Review and save blog draft to disk · S · Low
-- vs_terran at 54% — below 65% target. More data or LLM labelling pass needed · M · Med
-- Run LLM labelling pass now that Vertex model ID works · S · Low
-- Download remaining 2 SC2EGSet packs (Atlanta + Winter already downloaded but not used in data prep) · S · Low
+- **SC2 strategy classifier blog draft** — written but not saved to disk. Draft was presented in session. Needs review and save.
+- **vs_protoss ONNX model** — not retrained (Podman OOM). vs_terran and vs_zerg retrained with cumulative fog-of-war, stashed in `git stash` on main.
+- **SC2EGSet ZIPs** — stored in `quarkmind/data/sc2egset-replays/` (5 packs, ~2.5 GB, gitignored).
 
 ## What's Next
 
 | # | Description | Scale | Complexity | Notes |
 |---|-------------|-------|------------|-------|
-| #22 | Extract corpus CDI to corpus-quarkus/ module | M | Low | Trigger: second consumer materialises |
+| #194 | Qdrant backend — trust-purge, scan, discoverTenants | S | Low | Contract tests already exist |
+| #191 | CLAUDE.md cleanup of removed reactive tier | S | Low | 61 files removed in #384 |
+| #22 | Extract corpus CDI to corpus-quarkus/ module | M | Low | Trigger: second consumer |
 | — | quarkmind#212: three-tier cascade integration | L | Med | Consumes trained .onnx models |
-| — | Blog: SC2 strategy classifier | S | Low | Draft written, needs review + save |
+| — | Retrain vs_protoss with cumulative fog-of-war | S | Low | Blocked on Podman memory |
