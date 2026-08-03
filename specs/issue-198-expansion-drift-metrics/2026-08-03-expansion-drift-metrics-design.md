@@ -32,31 +32,45 @@ and never cross a SPI boundary.
 ### Drift Measurement
 
 Dense embedding cosine similarity between the original query and each
-expanded query:
+expanded query. The original query (prepended by the #119 safety net) is
+excluded from drift comparison — only queries with `expandedText != null`
+are measured.
 
 1. Compute `EmbeddingModel.embedAll([original.text(), expanded[0].searchText(), expanded[1].searchText(), ...])`
-   — one batch call, not N separate `embed()` calls.
-2. Cosine similarity = dot(a, b) / (||a|| * ||b||). Pure Java, no library.
-3. Compare each similarity against the configured threshold.
+   — one batch call, not N separate `embed()` calls. `embedAll()` preserves
+   input ordering (standard LangChain4j contract).
+2. Cosine similarity via `dev.langchain4j.model.embedding.CosineSimilarity`
+   — handles zero-norm vectors, already available in langchain4j-core.
+3. Compare each similarity (double) against the configured threshold (double).
+
+The entire `filterByDrift` call is wrapped in try-catch — if embedding
+fails (model error, OOM, timeout), fall back to the unfiltered list and
+log at WARNING. This matches the existing expansion error handling pattern
+in `QueryExpandingCaseRetriever`.
 
 ### Embedding Model Dependency
 
-`EmbeddingModel` injected via CDI `Instance<EmbeddingModel>` — optional.
+`EmbeddingModel` injected via CDI `@Any Instance<EmbeddingModel>` — optional.
 `rag-expansion` already depends on `langchain4j-core` transitively via
 `ChatModel` in `LlmQueryExpander`. `EmbeddingModel` is in the same artifact
-— zero additional dependency cost.
+— zero additional dependency cost. `@Any` ensures resolution regardless of
+qualifier; in practice, RAG contexts have a single `EmbeddingModel` bean.
 
 If `Instance<EmbeddingModel>` is not resolvable:
 - Drift detection is silently disabled regardless of config.
 - `ExpansionConfigValidator` warns at startup if `drift.enabled=true` but
   no `EmbeddingModel` is available.
 
+Drift detection is a no-op when expansion itself is disabled
+(`casehub.rag.expansion.enabled=false`) — the decorator does not activate,
+so `filterByDrift` is never called.
+
 ### Config-Driven Behavior
 
 ```properties
 casehub.rag.expansion.drift.enabled=false         # master switch
-casehub.rag.expansion.drift.threshold=0.7          # cosine similarity floor
-casehub.rag.expansion.drift.action=observe         # observe | drop
+casehub.rag.expansion.drift.threshold=0.7          # cosine similarity floor [0.0, 1.0]
+casehub.rag.expansion.drift.action=observe         # DriftAction enum: OBSERVE | DROP
 ```
 
 | `drift.enabled` | `EmbeddingModel` available | Behavior |
@@ -77,9 +91,9 @@ this case — no special logic needed.
 
 ### Metrics
 
-Three Micrometer instruments, all tagged by expansion `mode` (llm,
-step-back, template) when detectable from the `QueryExpander` implementation
-class name:
+Three Micrometer instruments, all tagged by expansion `mode` derived from
+`ExpansionConfig.mode()` (llm, step-back, template). Falls back to
+`"unknown"` when mode is not configured:
 
 | Instrument | Type | Description |
 |-----------|------|-------------|
@@ -102,6 +116,8 @@ resolvable, metrics are skipped but logging still operates.
 
 **`ExpansionConfig`:**
 ```java
+enum DriftAction { OBSERVE, DROP }
+
 interface DriftConfig {
     @WithDefault("false")
     boolean enabled();
@@ -110,16 +126,19 @@ interface DriftConfig {
     double threshold();
 
     @WithDefault("observe")
-    String action();  // "observe" | "drop"
+    DriftAction action();
 }
 
 DriftConfig drift();
 ```
 
 **`ExpansionConfigValidator`:**
-Extended to check `drift.enabled && !embeddingModel.isResolvable()` →
-startup warning: "Drift detection enabled but no EmbeddingModel available —
-drift detection will be inactive."
+Extended with two new checks:
+- `drift.enabled && !embeddingModel.isResolvable()` → startup warning:
+  "Drift detection enabled but no EmbeddingModel available — drift
+  detection will be inactive."
+- `drift.threshold` outside [0.0, 1.0] → startup error (cosine similarity
+  is bounded to this range).
 
 ### Dependencies
 
@@ -145,6 +164,9 @@ that returns deterministic vectors (hash-based) to control similarity values:
 | No EmbeddingModel | any | Drift detection skipped, expansion works as before |
 | Drift disabled | any | Drift detection skipped regardless of EmbeddingModel |
 | Batch embedding | any | Single `embedAll()` call, not N separate `embed()` calls |
+| Original excluded | drop | Original query (no expandedText) is never drift-compared or dropped |
+| Embedding failure | any | Catch exception, fall back to unfiltered list, log WARNING |
+| Threshold validation | any | Values outside [0.0, 1.0] rejected at startup |
 
 ## Non-Goals
 
