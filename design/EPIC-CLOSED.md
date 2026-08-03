@@ -1,5 +1,5 @@
-# Branch Closed: issue-171-batch-s-xs-fixes
+# Branch Closed: issue-198-expansion-drift-metrics
 
-**Date:** 2026-07-23
-**Issues:** 171,172,170,157,164,145,146,116,62
+**Date:** 2026-08-03
+**Issues:** 198
 **Status:** merged to main
