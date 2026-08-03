@@ -15,6 +15,6 @@ No active neocortex slots. Former slots 74 (#196) and 75 (#197) are in the attic
 | #196 | epic: agent memory patterns | — | — | Needs slot (was slot 74, now attic) |
 | #197 | epic: retrieval model quality | — | — | Needs slot (was slot 75, now attic) |
 | #22 | Extract corpus CDI to corpus-quarkus/ | M | Low | Unblocked |
-| #65 | epic: memory-memori adapter | XL | Med | Needs slot |
+| #65 | epic: memory-memori adapter | XL | Med | Blocked — Memori REST API not shipped |
 | #16 | quarkus-langchain4j composition annotations | M | Low | Blocked upstream |
 | #12 | Migrate Qdrant hybrid search | M | Med | Blocked upstream |
