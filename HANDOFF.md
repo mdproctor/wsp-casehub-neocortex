@@ -1,15 +1,10 @@
-# Handoff — 2026-08-03 (issue-199-scan-pagination)
+# Handoff — 2026-08-03 (issue-201-batch-onnx-ingestion)
 
 ## What Changed
 
-Three issues closed this session:
-- **#198** — Expansion drift metrics (DriftAction enum, DriftConfig, filterByDrift in QueryExpandingCaseRetriever, Micrometer counters). Completes epic #115.
-- **#199** — Qdrant scan pagination fix (CbrScanRequest.afterCaseId → opaque cursor, new CbrScanResult record, Qdrant uses next_page_offset UUID).
-- **#115** — Epic closed (all 3 children done: #119, #113, #198).
+Closed #201 — batch ONNX inference in CorpusIngestionService. Refactored `doReconcile()` to collect chunks from all missing documents before calling `ingest()`, enabling ONNX batch inference. Single method change, 3 new tests. Design-reviewed (light, 4 dimensions). Pushed to upstream.
 
-Also created epic slots 74 (#196 agent memory) and 75 (#197 retrieval quality) with batch plans.
-
-Garden: 2 entries submitted (CDI Instance Proxy stubbing, field injection for optional decorator deps).
+Garden: 5 entries from work-start context (batch ONNX gotchas), no new entries this session.
 
 ## Immediate Next Step
 
