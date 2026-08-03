@@ -53,3 +53,4 @@
 | [2026-07-22-mdp01-when-the-obvious-architecture-is-wrong.md](2026-07-22-mdp01-when-the-obvious-architecture-is-wrong.md) | 2026-07-22 | Cross-plan ensemble adaptation — why the CBR literature says per-plan first, then ensemble; honest NoOp reporting |
 | [2026-08-02-mdp02-the-first-five-minutes.md](2026-08-02-mdp02-the-first-five-minutes.md) | 2026-08-02 | SC2 strategy classifier — fog-of-war simulation, CNN-Attention architecture, three-tier cascade for real-time game AI |
 | [2026-08-03-mdp01-why-your-agent-forgets.md](2026-08-03-mdp01-why-your-agent-forgets.md) | 2026-08-03 | Agent experience stream — typed event hierarchy on CaseMemoryStore, foundation for relationship memory and reflective diary |
+| [2026-08-03-mdp05-the-fix-was-already-there.md](2026-08-03-mdp05-the-fix-was-already-there.md) | 2026-08-03 | Batch ONNX inference bottleneck was a pattern consistency gap, not missing infrastructure |
