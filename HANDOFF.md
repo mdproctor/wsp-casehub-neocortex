@@ -1,17 +1,21 @@
-# Handoff — 2026-08-02 (issue-triage)
+# Handoff — 2026-08-03 (issue-198-expansion-drift-metrics)
 
 ## What Changed
 
-Issue triage session — no code changes. Organized 14 open issues:
+Closed #198 — expansion drift metrics. Completes epic #115 (regression-free query expansion):
+- `DriftAction` enum (OBSERVE/DROP), `DriftConfig` sub-interface on `ExpansionConfig`
+- `filterByDrift()` in `QueryExpandingCaseRetriever` — optional `EmbeddingModel` via CDI `Instance`, `CosineSimilarity` from langchain4j, config-gated observe/drop, fail-safe try-catch
+- Micrometer counters: `casehub.rag.expansion.drift` / `total` / `fallback`
+- Threshold validation in `ExpansionConfigValidator` ([0.0, 1.0])
+- 7 new drift tests + 7 validator tests (40 total in rag-expansion)
 
-- Added `scale:` and `complexity:` labels to 8 unlabelled issues (#12, #16, #22, #29, #39, #49, #60, #63)
-- Created **#196** — epic: agent memory patterns (#184, #185, #186, #187)
-- Created **#197** — epic: retrieval model quality (#49, #63, #60, #29, #39)
-- Linked all 9 children to their parent epics
+Also: created epic slots 74 (#196 agent memory) and 75 (#197 retrieval quality) with batch plans. Pushed 22 accumulated commits to upstream.
 
 ## Immediate Next Step
 
-Pick work. Smallest unblocked item is the Qdrant scan pagination fix (2 failing contract tests). Otherwise start an epic child or #22.
+Pick work from epics or backlog. Epic slots ready:
+- Slot 74: `/Users/mdproctor/claude/casehub/worktrees/74/neocortex` — #196 agent memory patterns (Batch 1: #184 experience stream)
+- Slot 75: `/Users/mdproctor/claude/casehub/worktrees/75/neocortex` — #197 retrieval model quality (Batch 1: #49+#63 eval pipeline)
 
 ## Carrying forward
 
@@ -21,15 +25,12 @@ Pick work. Smallest unblocked item is the Qdrant scan pagination fix (2 failing 
 
 | # | Description | Scale | Complexity | Notes |
 |---|-------------|-------|------------|-------|
-| #196 | epic: agent memory patterns | — | — | 4 children: #184, #185, #186, #187 |
-| #197 | epic: retrieval model quality | — | — | 5 children: #49, #63, #60, #29, #39 |
+| #196 | epic: agent memory patterns | — | — | Slot 74, 3 batches, 4 children |
+| #197 | epic: retrieval model quality | — | — | Slot 75, 4 batches, 5 children |
 | #22 | Extract corpus CDI to corpus-quarkus/ module | M | Low | Trigger: second consumer |
-| — | Qdrant scan pagination fix | XS | Low | 2 contract test failures — scroll offset vs cursor |
+| — | Qdrant scan pagination fix | XS | Low | 2 contract test failures |
 | — | quarkmind#212: three-tier cascade integration | L | Med | Consumes trained .onnx models |
 
 ## Hygiene noted
 
-3 stale open workspace branches (no EPIC-CLOSED.md):
-- `issue-110-retention-and-reranking` — 3 weeks
-- `issue-46-splade-reranker-tuning` — 5 weeks
-- `issue-56-memory-backend-migration` — 3 weeks
+*Unchanged — `git show HEAD~1:HANDOFF.md`*
