@@ -2,18 +2,21 @@
 
 ## What Changed
 
-Closed #201 — batch ONNX inference in CorpusIngestionService. Refactored `doReconcile()` to collect chunks from all missing documents before calling `ingest()`, enabling ONNX batch inference. Single method change, 3 new tests. Pushed to upstream.
+Housekeeping: verified and closed stale issues #49, #63, #200, #197. All work confirmed landed on main via git log. Both epics (#196, #197) now closed on GitHub.
 
 ## Completed Epics
 
-- #196 — agent memory patterns: **CLOSED** (all 3 batches done, slot 74 archived)
-- #197 — retrieval model quality: batches 1-3 done, #39 deferred (slot 75 archived). Epic still open on GitHub.
+- #196 — agent memory patterns: CLOSED (all 3 batches)
+- #197 — retrieval model quality: CLOSED (batches 1-3 done, #39 deferred — triggers on insufficient accuracy)
 
 ## What's Next
 
 | # | Description | Scale | Complexity | Notes |
 |---|-------------|-------|------------|-------|
-| #22 | Extract corpus CDI to corpus-quarkus/ | M | Low | Unblocked |
+| #22 | Extract corpus CDI to corpus-quarkus/ | M | Low | Deferred — trigger: second consumer materialises |
 | #65 | epic: memory-memori adapter | XL | Med | Blocked — Memori REST API not shipped |
-| #16 | quarkus-langchain4j composition annotations | M | Low | Blocked upstream |
-| #12 | Migrate Qdrant hybrid search | M | Med | Blocked upstream |
+| #16 | quarkus-langchain4j composition annotations | M | Low | Blocked upstream (quarkiverse #2572) |
+| #12 | Migrate Qdrant hybrid search | M | Med | Blocked upstream (LangChain4j #4994) |
+| #39 | Dedicated RelevanceEvaluator model | M | High | Deferred — trigger: consumer shows insufficient accuracy |
+
+All remaining issues are blocked or deferred. Repo is in a holding pattern.
