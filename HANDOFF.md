@@ -20,3 +20,9 @@ Housekeeping: verified and closed stale issues #49, #63, #200, #197. All work co
 | #39 | Dedicated RelevanceEvaluator model | M | High | Deferred — trigger: consumer shows insufficient accuracy |
 
 All remaining issues are blocked or deferred. Repo is in a holding pattern.
+
+## Cross-Repo Updates (2026-08-10, from hortora/engine session)
+
+- **Issue filed:** #205 — `CorpusIngestionService.chunkDocument()` drops `listMetadata` from `ExtractionResult`. Uses 3-arg `ChunkInput` constructor; needs 4-arg to pass list metadata (tags, see_also) through to Qdrant payload.
+- **Slot created:** casehub slot 108, branch `issue-205-listmetadata-passthrough`
+- **Blocks:** Hortora/engine#87 (tags payload enrichment)
