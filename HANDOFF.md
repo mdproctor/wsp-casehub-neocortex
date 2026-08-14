@@ -2,12 +2,11 @@
 
 ## What Changed
 
-Closed #206 — default retention config domain/caseTypes. Added `@WithDefault("")` to `domain()` and `caseTypes()` in `CbrRetentionConfig`, `TrustRetentionConfig`, `MemoryRetentionConfig`. Apps that don't use retention need zero config. Runtime validation when `enabled=true`. 5 new tests. Garden entry GE-20260814-5920f5 captured (@ConfigMapping startup validation gotcha).
+Closed #206 — retention config defaults. Two commits on main:
+1. `0b9968f` — initial fix with `@WithDefault("")` (wrong — SmallRye rejects empty string on non-optional types)
+2. `5e987c3` — corrected fix using `Optional<String>` and `Optional<List<String>>`. Schedulers unwrap with `orElseThrow()` when `enabled=true`.
 
-## Completed Epics
-
-- #196 — agent memory patterns: CLOSED (all 3 batches)
-- #197 — retrieval model quality: CLOSED (batches 1-3 done, #39 deferred)
+Garden entry GE-20260814-5920f5 captured (@ConfigMapping startup validation gotcha). Existing entry GE-20260513-a2f5b7 already documented this — should have caught it during review.
 
 ## What's Next
 
