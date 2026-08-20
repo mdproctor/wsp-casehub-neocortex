@@ -20,3 +20,15 @@
 **Sources:** SC2EGSet vs_zerg class distribution (TECH_RUSH: 4 samples, HYDRA_PUSH: 28, MUTA_HARASS: 33), training pipeline config (focal_gamma=2.0, compute_class_weights)
 **Exploration:** quick
 **Status:** captured
+
+## D3: Data ingestion strategy
+
+**Choice:** Sequential ingest, then train once — download MSC, harvest Spawning Tool replay packs, process all three sources through the unified labeller, merge into a single combined dataset per matchup, then train once.
+**Alternatives:**
+- Incremental training — train on SC2EGSet first, evaluate, add MSC/Spawning Tool and retrain — gives per-source contribution data but costs extra iteration cycles
+**Rationale:** Get the best model as fast as possible. Per-source contribution analysis is nice-to-have but not worth the extra training cycles. Can always retrain on a subset later.
+**Trade-offs:** No baseline comparison between SC2EGSet-only vs combined. Acceptable — the goal is accuracy on real data, not source attribution.
+**Depends on:** D1 (unified labelling)
+**Sources:** run_pipeline.py, prepare_real_data.py, download_msc.py
+**Exploration:** quick
+**Status:** captured
