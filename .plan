@@ -2,7 +2,7 @@
 
 ## State
 branch: issue-202-retrain-strategy-classifier
-state: paused
+state: active
 project-sha: edcd624f82b0d92f36812ab33a1725b2909ea306
 date: 2026-08-19
 issue-repo: casehubio/neocortex
