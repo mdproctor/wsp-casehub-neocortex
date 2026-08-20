@@ -1,28 +1,19 @@
-# Handoff — 2026-08-14 (main)
+# Handoff — 2026-08-20 (issue-202-retrain-strategy-classifier)
 
-## What Changed
+## Last Session
 
-Closed #206 — retention config defaults. Two commits on main:
-1. `0b9968f` — initial fix with `@WithDefault("")` (wrong — SmallRye rejects empty string on non-optional types)
-2. `5e987c3` — corrected fix using `Optional<String>` and `Optional<List<String>>`. Schedulers unwrap with `orElseThrow()` when `enabled=true`.
+Closed #204 (CDI audit — all 5 classes need CDI, parent#340 used wrong criterion). Landed #203 (Flyway migration consolidation — V1-V5 → single V1, memory-jpa V1000 → V1). Started #202 (strategy classifier retraining) — designed multi-source data pipeline, implemented Spawning Tool adapter and merge/consolidation module. Blocked on data acquisition.
 
-Garden entry GE-20260814-5920f5 captured (@ConfigMapping startup validation gotcha). Existing entry GE-20260513-a2f5b7 already documented this — should have caught it during review.
+## Immediate Next Step
 
-## What's Next
+Download MSC dataset manually from browser: https://drive.google.com/uc?id=0Bybnpq8dvwudNUVOX1FCWnZoSGM — gdown rate-limited. Place extracted files in `evaluation/strategy_classifier/data/msc/`. Then inspect the format and write the MSC adapter (`ingest_msc.py`). Also download 3-5 Spawning Tool replay packs from https://lotv.spawningtool.com/replaypacks/ targeting muta/hydra/DT strategies.
 
-| # | Description | Scale | Complexity | Notes |
-|---|-------------|-------|------------|-------|
-| #22 | Extract corpus CDI to corpus-quarkus/ | M | Low | Deferred — trigger: second consumer materialises |
-| #65 | epic: memory-memori adapter | XL | Med | Blocked — Memori REST API not shipped |
-| #16 | quarkus-langchain4j composition annotations | M | Low | Blocked upstream (quarkiverse #2572) |
-| #12 | Migrate Qdrant hybrid search | M | Med | Blocked upstream (LangChain4j #4994) |
-| #39 | Dedicated RelevanceEvaluator model | M | High | Deferred — trigger: consumer shows insufficient accuracy |
-| #202 | Retrain strategy classifier on real replay data | M | Med | Status unknown |
+## Cross-Module
 
-All remaining issues are blocked or deferred. Repo is in a holding pattern.
+**Blocking** (we owe):
+- `strategy classifier ONNX models` — retrained models gate quarkmind#212 (cascade integration) and quarkmind#213 (IEM10 benchmarking) · M · Med
 
-## Cross-Repo Updates (2026-08-10, from hortora/engine session)
+## Notes
 
-- **Issue filed:** #205 — `CorpusIngestionService.chunkDocument()` drops `listMetadata` from `ExtractionResult`. Uses 3-arg `ChunkInput` constructor; needs 4-arg to pass list metadata (tags, see_also) through to Qdrant payload.
-- **Slot created:** casehub slot 108, branch `issue-205-listmetadata-passthrough`
-- **Blocks:** Hortora/engine#87 (tags payload enrichment)
+- MSC Google Drive file ID `0Bybnpq8dvwudNUVOX1FCWnZoSGM` — try manual browser download, or check if Zenodo has a mirror
+- `feat/update-importance` branch has stashed work — unstash when returning to it
