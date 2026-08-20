@@ -1,0 +1,24 @@
+[03:19:53] Resuming review: /Users/mdproctor/claude/public/casehub/neocortex
+[03:19:53] Last completed round: 0, resuming from round 1
+[03:19:53] Mode: spec-review
+[03:19:53] Progress log: /Users/mdproctor/claude/public/casehub/neocortex/progress.log (tail -f to watch)
+[03:19:53] EVENT: {"type": "dimension_start", "dimension": "structure", "degree": "light", "phase": 1}
+[03:19:53] Spec: /Users/mdproctor/claude/public/casehub/neocortex/specs/issue-202-retrain-strategy-classifier/2026-08-20-retrain-strategy-classifier-design.md
+[03:19:53] 
+============================================================
+[03:19:53]   ROUND 1
+[03:19:53] ============================================================
+[03:19:53]   Reviewer (fresh session)... (this may take 1-2 minutes)
+[03:19:53] REVIEW CRASHED: [Errno 2] No such file or directory: '/Users/mdproctor/claude/public/casehub/neocortex/context.md'
+[03:20:01] Resuming review: /Users/mdproctor/claude/public/casehub/neocortex
+[03:20:01] Last completed round: 0, resuming from round 1
+[03:20:01] Mode: spec-review
+[03:20:01] Progress log: /Users/mdproctor/claude/public/casehub/neocortex/progress.log (tail -f to watch)
+[03:20:01] EVENT: {"type": "dimension_start", "dimension": "structure", "degree": "light", "phase": 1}
+[03:20:01] Spec: /Users/mdproctor/claude/public/casehub/neocortex/specs/issue-202-retrain-strategy-classifier/2026-08-20-retrain-strategy-classifier-design.md
+[03:20:01] 
+============================================================
+[03:20:01]   ROUND 1
+[03:20:01] ============================================================
+[03:20:01]   Reviewer (fresh session)... (this may take 1-2 minutes)
+[03:20:01] REVIEW CRASHED: [Errno 2] No such file or directory: '/Users/mdproctor/claude/public/casehub/neocortex/context.md'
