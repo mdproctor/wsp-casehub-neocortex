@@ -1,0 +1,4 @@
+- branch: issue-202-retrain-strategy-classifier
+  issue: 202
+  paused: 2026-08-20T14:45:15Z
+  base-branch: main
