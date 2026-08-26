@@ -2,7 +2,7 @@
 
 ## State
 branch: issue-213-mindmap-epic
-state: scaffolded
+state: active
 project-sha: fcb7f8a98acbb5b69539ca958a5ad63a4a2165e2
 date: 2026-08-26
 issue-repo: casehubio/neocortex
@@ -13,10 +13,10 @@ flyway-next-v: none
 
 ## Queue
 - [x] casehubio/neocortex#213 — Issue #213
-- [ ] casehubio/neocortex#216 — Derived edge rules ← active
-- [ ] casehubio/neocortex#215 — MindMapAnalyzer
-- [ ] casehubio/neocortex#217 — CaseMemoryStore erasure notification
-- [ ] casehubio/neocortex#218 — NodeRef GDPR cleanup
+- [x] casehubio/neocortex#216 — Derived edge rules
+- [x] casehubio/neocortex#215 — MindMapAnalyzer
+- [x] casehubio/neocortex#217 — CaseMemoryStore erasure notification
+- [ ] casehubio/neocortex#218 — NodeRef GDPR cleanup ← active
 - [ ] casehubio/neocortex#219 — Trait system
 - [ ] casehubio/neocortex#220 — LLM extraction
 - [ ] casehubio/neocortex#221 — Curiosity engine
