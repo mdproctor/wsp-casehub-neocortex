@@ -112,7 +112,9 @@ Following the CBR decorator pattern, intelligence concerns split into two tiers:
 **Transparent (CDI `@Decorator` on `MindMapStore`):**
 - Vocabulary normalization — alias resolution on every `addEdge()`
 - Derived edge insertion — forward-chaining rules fire on edge creation
-  (e.g., has-child → infer parent, father/mother)
+  (e.g., has-child → infer parent, father/mother). Rules are pluggable CDI
+  beans (`DerivedEdgeRule`). Truth maintenance retracts derived edges when
+  evidence is removed. Cycle prevention limits chain depth (default 3).
 - Confidence decay — applied at query time via decorator
 
 **Computation (mindmap CDI module, no LLM dependency):**
@@ -121,6 +123,14 @@ Following the CBR decorator pattern, intelligence concerns split into two tiers:
 
 **Explicit (mindmap-intelligence module, requires AgentProvider):**
 - LLM-based entity/relationship extraction from conversation
+- **Rule promotion** — the extraction layer discovers relationship patterns
+  (e.g., "people who share a `works-at` target and appear in the same project
+  subgraph are usually collaborators") and codifies them as `DerivedEdgeRule`
+  beans. This is **learned inference caching**: the LLM pays the token cost
+  once to discover the pattern; every future instance fires deterministically
+  at zero token cost. Hand-coded rules (has-child → parent-of) cover obvious
+  structural inverses; the interesting rules are the ones the agent discovers
+  through experience and promotes from the explicit tier to the transparent tier.
 - Gap detection and curiosity signal generation
 - Active learning question generation
 - Contradiction analysis and resolution prompts
