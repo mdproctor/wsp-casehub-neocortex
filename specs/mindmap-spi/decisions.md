@@ -210,3 +210,15 @@
 **Sources:** MoodState (neocortex memory-api), MoodModulatedRetrieval (neocortex memory-api), MoodOrchestrator (blocks social), PAD dimensional model
 **Exploration:** quick
 **Status:** captured
+
+## D18: Temporal and spatial proximity for curiosity prioritization
+
+**Choice:** Nodes can carry temporal markers (future dates — events, deadlines, aspirations) and spatial markers (locations, regions). The graph analysis layer uses temporal proximity ("what's coming up soon?") and spatial proximity ("where am I / where am I going?") to prioritize which areas of the graph to expand. Future-dated nodes act as attention magnets — as the date approaches, the curiosity engine intensifies knowledge-seeking in connected areas. A "calendar" is simply a query over temporally-marked nodes — no separate calendar store needed.
+**Alternatives:**
+- Separate calendar SPI — adds a new store for something the graph already models naturally
+- No temporal/spatial prioritization — curiosity engine treats all gaps equally regardless of relevance to upcoming events
+**Rationale:** Knowledge that matters next week is more valuable to expand than knowledge that matters next year. A node "visiting parents next Saturday" with temporal proximity = 5 days should drive questions about the parents, the trip, what they want to discuss. Similarly, spatial proximity elevates location-relevant knowledge when the user is travelling. These are properties on nodes (future date, location), not new node types — they participate in the existing graph structure and analysis.
+**Trade-offs:** Temporal markers require updates as events pass (are they still relevant? did they happen? what was the outcome?). Spatial awareness requires location input from somewhere. LLM extraction must recognize temporal and spatial references ("next week", "in London") and resolve them to concrete dates/locations.
+**Sources:** Conversation on graph analysis prioritization, CuriosityDrive (blocks), no existing calendar capability in the platform
+**Exploration:** quick
+**Status:** captured
