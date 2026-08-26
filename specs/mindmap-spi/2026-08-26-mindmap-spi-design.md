@@ -328,6 +328,7 @@ public record NodeUpdate(
     String name,              // nullable — only update if non-null
     ConfidenceOrigin confidenceOrigin,
     Double confidence,
+    Instant confirmedAt,      // nullable — explicit confirmation resets decay clock
     Set<String> traitsToAdd,
     Set<String> traitsToRemove,
     Set<NodeRef> refsToAdd,
@@ -508,6 +509,14 @@ Merge keeps `keepNodeId`, removes `removeNodeId`, unions their edges (deduplicat
 by source+target+edgeType), unions aliases, unions traits, and reassigns subgraph
 membership to the surviving node's subgraph.
 
+**Edge deduplication resolution:** when two edges match on
+source+target+edgeType but differ in confidence, temporal bounds, properties,
+or provenance, the most-recently-updated edge wins (compared by `updatedAt`).
+This is consistent with the property conflict resolution strategy below —
+newer information is presumed more current. The discarded edge's data is not
+recorded in `MergeResult` (edges are structural, not identity-bearing; the
+`duplicateEdgesRemoved` count is sufficient for auditing).
+
 **Property conflict resolution:** when both nodes have a dynamic property with
 the same key but different values, the most-recently-updated node's value wins
 (compared by `updatedAt`). Conflicting properties are recorded in
@@ -541,16 +550,41 @@ When a node or edge is created without an explicit `confidence` value, the
 initial confidence is set from `ConfidenceOrigin`'s default (STATED=1.0,
 INFERRED=0.7, SPECULATED=0.3). The caller can override the initial value.
 
-Decay is applied at query time. Each edge type can declare a
-`defaultDecayHalfLifeDays` in its vocabulary definition. The decay decorator
-computes effective confidence as:
+Decay is applied at query time by the confidence decay decorator. The decay
+formula is:
 
 ```
 effectiveConfidence = confidence × 2^(-hoursSinceConfirmed / (halfLifeDays × 24))
 ```
 
-Explicit confirmation (via `updateNode` setting a new `confirmedAt`) resets
-the clock and restores confidence to 1.0 (or a caller-specified value).
+**Edge decay rates:** each edge type can declare a `defaultDecayHalfLifeDays`
+in its vocabulary definition (§3.6). Edges without a vocabulary decay rate
+use a global default from the decorator's configuration.
+
+**Node decay rates:** configured per `SubgraphType` via the decorator's
+runtime configuration. Different knowledge categories decay at different
+rates — a PERSON node's identity is stable (high half-life), while a
+PROJECT node's status evolves frequently (low half-life). Recommended
+defaults:
+
+| SubgraphType | Half-life (days) | Rationale |
+|---|---|---|
+| PERSON | 365 | Identity is stable |
+| PROJECT | 90 | Status evolves quarterly |
+| ORGANISATION | 180 | Structure changes slowly |
+| RESEARCH_AREA | 120 | Knowledge evolves moderately |
+| CONCEPT | 730 | Definitions are durable |
+| GENERAL | 180 | Conservative default |
+
+These are decorator configuration, not SPI types — they live in the
+`mindmap` CDI module's `@ConfigMapping`, not in `mindmap-api`.
+
+**Explicit confirmation:** setting `confirmedAt` via `NodeUpdate` (§3.4)
+resets the decay clock. If `confidence` is also set in the same update,
+the new confidence is used as the base; otherwise confidence is restored
+to 1.0. This enables both "I re-confirmed this is true" (confirmedAt
+only) and "I have new evidence at this confidence" (confirmedAt +
+confidence together).
 
 ### 3.11 Capabilities
 
