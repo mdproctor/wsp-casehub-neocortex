@@ -169,3 +169,44 @@
 **Sources:** blocks InnerLifeOrchestrator, MentalModelOrchestrator, DriveOrchestrator, CbrMentalModelStore, CbrStrategyStore, CbrUserProfileStore, CbrNarrativeStore, MemoryHygieneOrchestrator, KnowledgeGapSummary
 **Exploration:** deep-analysis
 **Status:** captured
+
+## D15: Decay, supersession, and temporal lifecycle on nodes and edges
+
+**Choice:** Nodes and edges carry temporal lifecycle metadata, following the CBR pattern (`CbrOutcome`, `supersede()`, `reinstate()`, `SupersessionStatus`). Confidence decays over time for unconfirmed knowledge. Facts can be superseded by newer facts with an audit trail. The SPI exposes: `supersede(nodeOrEdgeId, supersedingId, reason, tenantId)`, `reinstate(nodeOrEdgeId, tenantId)`, `getSupersessionStatus(nodeOrEdgeId, tenantId)`. Decay is a configurable function (half-life or linear) applied at query time — stale knowledge loses confidence without being deleted. Explicit confirmation resets the decay clock.
+**Alternatives:**
+- No decay — knowledge stays at original confidence forever. Stale facts accumulate and mislead.
+- Hard expiry — knowledge is deleted after a time window. Loses historical context.
+**Rationale:** Knowledge goes stale. "Alice works at Acme" is high-confidence when stated, but after 2 years without confirmation it should decay. Supersession handles explicit updates ("Alice now works at Initech" supersedes the Acme edge). Decay handles uncertainty from age. Both are needed — supersession for known changes, decay for unknown staleness. The CBR system proved this pattern works (CbrOutcome EMA, supersession chains, reinstatement).
+**Trade-offs:** Adds lifecycle methods to the SPI. Decay at query time adds computation. Need to decide default half-life per edge type (employment relationships decay slower than project assignments).
+**Sources:** CbrCaseMemoryStore.supersede/reinstate/getSupersessionStatus, CbrOutcome, TemporalDecay (HalfLife, Linear, Step), conversation on temporal bounds
+**Exploration:** quick
+**Status:** captured
+
+## D16: Graph analysis and curiosity indexing
+
+**Choice:** The intelligence layer includes a `MindMapAnalyzer` (similar to `RetrievalAnalyzer` in rag-api) that computes structural, temporal, and quality signals from the graph. These signals are indexed for efficient querying by the curiosity engine. The analyzer produces ranked `CuriositySignal` records that drive agent questions and debate topics. Analysis runs on the InnerLifeOrchestrator's tick loop (or on-demand) and maintains incremental indexes — not full graph scans on every tick.
+**Signals indexed:**
+- **Structural:** sparse subgraphs (few nodes/edges relative to type), orphan nodes (no edges), structural holes (dense clusters with no bridges), low clustering coefficient
+- **Quality:** low-confidence clusters (many INFERRED/SPECULATED edges), contradiction clusters (conflicting current edges), UNVALIDATED vocabulary edges (D6), dangling NodeRefs
+- **Temporal:** stale regions (not updated recently), growth/decay rates per subgraph, supersession chains, confidence decay gradient
+- **Centrality:** betweenness (bridge nodes worth knowing more about), degree (important entities to keep fresh)
+**Alternatives:**
+- No analysis — consumers query the raw graph and compute signals themselves. Duplicated logic, no indexing, expensive.
+- Full graph analysis on every query — accurate but too slow for tick-loop integration.
+**Rationale:** The graph's value as a curiosity driver depends on efficient access to "what's interesting." Without indexing, every tick would need a full graph scan. Incremental analysis (update indexes on each addNode/addEdge/supersede) keeps the cost proportional to changes, not graph size. The existing `RetrievalAnalyzer` pattern (pure computation over tracker data — documentStats, unretrievedDocuments, qualitySignals, correlationGraph) provides the architectural precedent.
+**Trade-offs:** Index maintenance adds overhead to every write operation. Indexes can lag behind the graph during high-throughput ingestion. Need to balance index freshness vs write performance — eventual consistency is acceptable for curiosity signals.
+**Sources:** RetrievalAnalyzer (rag-api), KnowledgeGapSummary (blocks memory), CuriosityDrive (blocks social/drive), DriveOrchestrator, conversation on graph analysis
+**Exploration:** deep-analysis
+**Status:** captured
+
+## D17: Affective annotations on knowledge
+
+**Choice:** Nodes and edges carry optional affective metadata — emotional valence of the knowledge itself, not the agent's mood. This is a property on the node/edge: `valence` (positive/negative/neutral), `arousal` (high/low — dangerous vs calm), and optionally `dominance` (empowering vs threatening). Uses the same PAD dimensional model as MoodState but applied to the knowledge, not the agent. Stored as core fields on edges (where affect is most natural — "lost-job" is negative, "promoted" is positive) and as properties on nodes where relevant.
+**Alternatives:**
+- No affect on knowledge — mood system operates only on agent state, not knowledge content. Loses the ability to do affect-aware retrieval or curiosity modulation.
+- Free-form sentiment labels — "happy", "sad", "dangerous" as string tags. Inconsistent, not queryable as a dimension.
+**Rationale:** The existing MoodState (neocortex) and MoodOrchestrator (blocks) track agent mood. But mood-congruent retrieval (MoodModulatedRetrieval) and affect-aware curiosity need to know the emotional valence of the knowledge being retrieved. "Don't probe a sensitive topic when the user is stressed" requires knowing which topics are sensitive. The PAD model is already established in the platform — extending it to knowledge annotations is consistent.
+**Trade-offs:** Affect annotation adds fields to every edge. LLM extraction must infer valence, which is subjective and context-dependent. Some knowledge is affectively neutral — annotation should be optional, not mandatory.
+**Sources:** MoodState (neocortex memory-api), MoodModulatedRetrieval (neocortex memory-api), MoodOrchestrator (blocks social), PAD dimensional model
+**Exploration:** quick
+**Status:** captured
