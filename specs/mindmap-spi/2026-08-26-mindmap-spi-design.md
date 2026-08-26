@@ -142,7 +142,6 @@ public interface MindMapStore {
     String addNode(NodeInput input, String tenantId);
     MindMapNode getNode(String nodeId, String tenantId);
     void updateNode(String nodeId, NodeUpdate update, String tenantId);
-    void removeNode(String nodeId, String tenantId);
 
     // --- Edges ---
     String addEdge(EdgeInput input, String tenantId);
@@ -153,7 +152,7 @@ public interface MindMapStore {
     void addAlias(String nodeId, String alias, String tenantId);
     void removeAlias(String nodeId, String alias, String tenantId);
     MindMapNode resolveNode(String nameOrAlias, String subgraphId,
-                            String tenantId);
+                            String tenantId);  // subgraphId nullable
 
     // --- Merge ---
     MergeResult mergeNodes(String keepNodeId, String removeNodeId,
@@ -194,7 +193,14 @@ Every mutating and querying method requires `tenantId` for tenant isolation.
 Implementations must enforce tenant boundaries — a node in tenant A is invisible
 to queries in tenant B.
 
-**Erasure semantics (GDPR Art.17):**
+**Deletion semantics:**
+
+All node deletion is hard deletion with cascading cleanup. There is no
+separate `removeNode()` — following the existing store patterns where
+`CaseMemoryStore` and `CbrCaseMemoryStore` provide only `erase*()` methods
+for deletion. `eraseNode()` serves both application-level deletion ("this
+node is wrong, remove it") and GDPR compliance erasure. The `int` return
+value supports GDPR Art.5(2) audit logging in all cases.
 
 - `eraseNode()` — hard-deletes a specific node by ID, including all edges,
   aliases, NodeRefs, and dynamic properties. Returns count of deleted records.
@@ -207,6 +213,29 @@ to queries in tenant B.
 - `eraseEntityAcrossTenants()` — cross-tenant entity erasure, matching
   `CaseMemoryStore.eraseEntityAcrossTenants()`. Caller must be a cross-tenant
   admin. Supply the complete set of tenantIds from the tenant management system.
+
+Edge deletion uses `removeEdge()` — edges are structural elements without
+independent identity for GDPR purposes. Edge deletion cascades nothing (edges
+are leaf elements in the graph).
+
+**`resolveNode()` — alias and name resolution:**
+
+`subgraphId` is nullable. When null, resolution searches aliases across all
+subgraphs within the tenant. Aliases are unique per tenant (§6.2), so
+alias-based resolution always returns at most one node regardless of
+`subgraphId`. When non-null, resolution is scoped to that subgraph — useful
+for name-based disambiguation when multiple nodes share a name across
+subgraphs.
+
+**Traversal result sets:**
+
+`neighbors()`, `nodesIn()`, and `bridgeEdges()` return structurally
+complete, unbounded result sets. These are graph-structural queries, not
+search — truncating neighbors arbitrarily would produce incorrect results
+for graph analysis (centrality, clustering, structural hole detection).
+The expected scale is per-agent mind maps (hundreds to low thousands of
+nodes per tenant), not social-network-scale graphs. Backends may impose
+an implementation cap (e.g., 10,000) with an exception if exceeded.
 
 ### 3.2 Node Model — Hybrid Core + Dynamic Properties
 
@@ -348,12 +377,29 @@ the target SPI available.
    `NodeRef` creation time. The MindMap SPI has no dependency on the source
    store's classpath and cannot verify existence.
 
-2. **GDPR erasure cascade** — when a source store erases an entity (e.g.,
-   `CaseMemoryStore.eraseEntity()`), a CDI event (`EntityErasedEvent`) is
-   fired. The `mindmap` CDI module observes this event and removes all
-   `NodeRef`s pointing to the erased entity. Under GDPR Art.17, references
-   that identify a data subject are themselves personal data. Cleanup is
-   proactive, not lazy.
+2. **GDPR erasure cascade** — when a source store erases an entity, the
+   `mindmap` CDI module must be notified to remove all `NodeRef`s pointing
+   to the erased entity. Under GDPR Art.17, references that identify a data
+   subject are themselves personal data. Cleanup is proactive, not lazy.
+
+   **Integration prerequisite:** a unified erasure notification event must
+   be defined in `memory-api`. The existing pattern is `CbrCasesErased`
+   (sealed interface with `ByRequest`, `ByEntity`, `ByScope` variants),
+   fired by `ErasureNotificationCbrCaseMemoryStore` (`@Decorator
+   @Priority(45)`). This covers `CbrCaseMemoryStore` erasures only.
+
+   For MindMap NodeRef cleanup, either:
+   - (a) Define a new `MemoryEntityErased` event in `memory-api` fired by
+     a new `ErasureNotificationCaseMemoryStore` decorator on
+     `CaseMemoryStore`, plus observe the existing `CbrCasesErased.ByEntity`,
+     or
+   - (b) Define a unified `EntityErased` event that both store decorators
+     fire.
+
+   Either approach requires a new decorator on `CaseMemoryStore`'s chain
+   (which currently has no erasure notification decorator). This is a
+   cross-cutting platform prerequisite — tracked as a separate issue
+   before MindMap implementation begins.
 
 3. **Non-GDPR dangling refs** — when a referenced entity is deleted for
    non-GDPR reasons (e.g., supersession, consolidation), the `NodeRef`
@@ -438,7 +484,8 @@ public record MindMapQuery(
     String text,              // nullable — text search across node names/properties
     String edgeType,          // nullable — filter by edge type
     Set<String> traits,       // nullable — filter by applied traits
-    ConfidenceLevel minConfidence,  // nullable
+    Double minConfidence,     // nullable — numeric threshold, applied after decay
+    ConfidenceOrigin confidenceOrigin,  // nullable — filter by provenance
     boolean includeSuperseded,      // default false
     int limit
 ) {}
@@ -670,10 +717,13 @@ public interface TraitRule {
 }
 ```
 
-**Evaluation trigger:** rules fire on node mutation — `updateNode()`,
-`addEdge()`, `removeEdge()`. The decorator intercepts these calls and
-re-evaluates applicable rules for the affected node(s). Rules do NOT fire
-on every query — only on state changes.
+**Evaluation trigger:** rules fire on node mutation — `addNode()`,
+`updateNode()`, `addEdge()`, `removeEdge()`. The decorator intercepts
+these calls and re-evaluates applicable rules for the affected node(s).
+`addNode()` is included because a node created with properties matching a
+rule (e.g., a node with a "birthday" property) must receive its traits
+immediately — not after a subsequent `updateNode()`. Rules do NOT fire on
+every query — only on state changes.
 
 **Conflict resolution:** if multiple rules target the same trait on the same
 node, application wins over retraction (a trait is applied if ANY rule
