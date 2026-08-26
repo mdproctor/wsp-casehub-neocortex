@@ -157,3 +157,15 @@
 **Sources:** MemoryCapability enum, CaseMemoryStore.capabilities()/requireCapability(), R1-11 decision review finding
 **Exploration:** quick
 **Status:** captured
+
+## D14: Blocks integration — connective tissue for cognitive subsystems
+
+**Choice:** The mind map graph serves as the connective tissue linking blocks' cognitive subsystems. Currently each orchestrator (MentalModel, Strategy, UserModel, Narrative) has its own isolated CBR store. The mind map unifies these: a mental model about a user IS a subgraph, connected to the user profile node, connected to the strategies used with them, connected to narrative episodes from their interactions. Integration is via CDI observers on blocks' domain events (MentalStateSignal, EngagementSignal, DriverEvent) that create/update nodes and edges in the graph. The mind map intelligence layer participates in the InnerLifeOrchestrator's tick loop for rule evaluation, gap detection, and trait maintenance.
+**Alternatives:**
+- Keep separate CBR stores, use NodeRef to link — preserves existing architecture but doesn't unify
+- Replace all CBR stores with graph — too aggressive, loses CBR's similarity scoring
+**Rationale:** The existing orchestrators (InnerLifeOrchestrator → DriveOrchestrator → MentalModelOrchestrator → UserModelOrchestrator → StrategyLearningOrchestrator → NarrativeOrchestrator → MemoryHygieneOrchestrator) are silos. Each has its own CBR backend (CbrMentalModelStore, CbrStrategyStore, CbrUserProfileStore, CbrNarrativeStore). The mind map makes cross-system connections explicit and queryable. CuriosityDrive can traverse the graph to find knowledge gaps. Narrative episodes link to the entities they mention. Strategy profiles connect to the situations they apply in. The graph is the shared substrate; the CBR stores continue to own domain-specific similarity retrieval.
+**Trade-offs:** Blocks depends on the mindmap-api module. Observer-based integration adds latency on each domain event. Need to ensure the graph doesn't become a bottleneck for the tick loop. CBR stores and graph can diverge if observers fail — need consistency guarantees or eventual consistency acceptance.
+**Sources:** blocks InnerLifeOrchestrator, MentalModelOrchestrator, DriveOrchestrator, CbrMentalModelStore, CbrStrategyStore, CbrUserProfileStore, CbrNarrativeStore, MemoryHygieneOrchestrator, KnowledgeGapSummary
+**Exploration:** deep-analysis
+**Status:** captured
