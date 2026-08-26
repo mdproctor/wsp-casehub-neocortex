@@ -8,6 +8,8 @@
 
 **Focal issue:** TBD — tracking epic must be created in `casehubio/neocortex` before implementation begins
 **Issue group:** TBD
+**Prerequisites:** Erasure notification event for `CaseMemoryStore` (spec §3.5) — must be created as a separate issue before GDPR NodeRef cleanup can be implemented.
+**Deferred plans:** mindmap-sqlite, mindmap-intelligence, blocks integration, graph analysis — each gets its own plan and tracking issue once the epic is created.
 
 **Goal:** Deliver the MindMap SPI (mindmap-api), in-memory implementation
 (mindmap-inmem), contract test suite (mindmap-testing), and CDI wiring
@@ -169,7 +171,7 @@ and intelligence layers are separate future plans.
   </parent>
   <artifactId>casehub-neocortex-mindmap-inmem</artifactId>
   <name>CaseHub Neocortex - MindMap In-Memory</name>
-  <description>In-memory MindMapStore for testing and dev. @Alternative @Priority(1).</description>
+  <description>In-memory MindMapStore for testing and dev. @Alternative @Priority(2).</description>
   <dependencies>
     <dependency>
       <groupId>io.casehub</groupId>
@@ -271,8 +273,8 @@ Add after the `memory-graphiti` module entry:
 ```xml
     <module>mindmap-api</module>
     <module>mindmap</module>
-    <module>mindmap-inmem</module>
     <module>mindmap-testing</module>
+    <module>mindmap-inmem</module>
 ```
 
 - [ ] **Step 6: Create all enums and simple value types in mindmap-api**
@@ -547,7 +549,16 @@ public record NodeUpdate(
     Double dominance,
     Map<String, String> propertiesToSet,
     Set<String> propertiesToRemove
-) {}
+) {
+    public NodeUpdate {
+        traitsToAdd = traitsToAdd == null ? Set.of() : Set.copyOf(traitsToAdd);
+        traitsToRemove = traitsToRemove == null ? Set.of() : Set.copyOf(traitsToRemove);
+        refsToAdd = refsToAdd == null ? Set.of() : Set.copyOf(refsToAdd);
+        refsToRemove = refsToRemove == null ? Set.of() : Set.copyOf(refsToRemove);
+        propertiesToSet = propertiesToSet == null ? Map.of() : Map.copyOf(propertiesToSet);
+        propertiesToRemove = propertiesToRemove == null ? Set.of() : Set.copyOf(propertiesToRemove);
+    }
+}
 ```
 
 `EdgeInput.java`:
@@ -688,19 +699,73 @@ public interface MindMapEdge {
 
 - [ ] **Step 9: Create `MindMapStore` SPI interface**
 
-`MindMapStore.java` — full interface as specified in §3.1 of the spec.
-All methods with tenantId parameters, including vocabulary, node CRUD,
-edge CRUD, aliases, merge, subgraphs, traversal, lifecycle, erasure,
-and capabilities. See spec §3.1 for exact signatures.
+`MindMapStore.java`:
+```java
+package io.casehub.neocortex.mindmap;
+
+import java.util.List;
+import java.util.Set;
+
+public interface MindMapStore {
+    void registerVocabulary(MindMapVocabulary vocabulary);
+
+    String addNode(NodeInput input, String tenantId);
+    MindMapNode getNode(String nodeId, String tenantId);
+    void updateNode(String nodeId, NodeUpdate update, String tenantId);
+
+    String addEdge(EdgeInput input, String tenantId);
+    MindMapEdge getEdge(String edgeId, String tenantId);
+    void removeEdge(String edgeId, String tenantId);
+
+    void addAlias(String nodeId, String alias, String tenantId);
+    void removeAlias(String nodeId, String alias, String tenantId);
+    MindMapNode resolveNode(String nameOrAlias, String subgraphId, String tenantId);
+
+    MergeResult mergeNodes(String keepNodeId, String removeNodeId, String tenantId);
+
+    String createSubgraph(SubgraphInput input, String tenantId);
+    MindMapSubgraph getSubgraph(String subgraphId, String tenantId);
+    void updateSubgraph(String subgraphId, String rootNodeId, String tenantId);
+    List<MindMapNode> nodesIn(String subgraphId, String tenantId);
+    List<MindMapEdge> bridgeEdges(String subgraphId, String tenantId);
+
+    List<MindMapEdge> neighbors(String nodeId, String tenantId);
+    List<MindMapEdge> neighbors(String nodeId, String edgeType, String tenantId);
+    List<MindMapNode> search(MindMapQuery query);
+
+    void supersede(String targetId, String supersedingId, String reason, String tenantId);
+    void reinstate(String targetId, String tenantId);
+    SupersessionStatus getSupersessionStatus(String targetId, String tenantId);
+
+    int eraseNode(String nodeId, String tenantId);
+    int eraseSubgraph(String subgraphId, String tenantId);
+    int eraseEntity(String entityName, String tenantId);
+    int eraseEntityAcrossTenants(String entityName, Set<String> tenantIds);
+
+    Set<MindMapCapability> capabilities();
+
+    default void requireCapability(MindMapCapability capability) {
+        if (!capabilities().contains(capability))
+            throw new MindMapCapabilityException(capability);
+    }
+}
+```
+
+Note: `updateSubgraph()` added (R1-03) — allows setting rootNodeId after
+subgraph creation. Non-existent IDs for `getNode()`, `updateNode()`,
+`getEdge()`, `mergeNodes()` throw `IllegalArgumentException`. `resolveNode()`
+returns `null` for unknown names/aliases.
 
 - [ ] **Step 10: Create `NoOpMindMapStore` in the mindmap CDI module**
 
 `mindmap/src/main/java/io/casehub/neocortex/mindmap/runtime/NoOpMindMapStore.java`:
 
-`@DefaultBean @ApplicationScoped` implementing `MindMapStore`. Every
-method either returns empty/null/0 or throws `MindMapCapabilityException`.
-`capabilities()` returns `Set.of()`. This is the fallback when no real
-backend is on the classpath.
+`@DefaultBean @ApplicationScoped` implementing `MindMapStore`. All
+methods return empty/null/0 values silently (no exceptions) — following
+the `NoOpCbrCaseMemoryStore` pattern. `capabilities()` returns `Set.of()`.
+`requireCapability()` inherits the default method which throws
+`MindMapCapabilityException` for any capability. This is the fallback
+when no real backend is on the classpath.
 
 - [ ] **Step 11: Build and verify all modules compile**
 
@@ -742,9 +807,12 @@ In `mindmap-testing/`, create abstract test class with:
 - Test: `updateNode_setsProperties`
 - Test: `updateNode_removesProperties`
 - Test: `updateNode_setsConfirmedAt`
+- Test: `updateNode_confirmedAtWithoutConfidence_resetsTo1`
+- Test: `updateNode_confirmedAtWithConfidence_usesProvidedValue`
 - Test: `updateNode_setsAffect`
 - Test: `createSubgraph_returnsId`
 - Test: `getSubgraph_returnsStoredSubgraph`
+- Test: `updateSubgraph_setsRootNodeId`
 - Test: `nodesIn_returnsNodesInSubgraph`
 - Test: `nodesIn_excludesOtherSubgraphs`
 - Test: `addAlias_resolvesNode`
@@ -772,8 +840,10 @@ plus a `Map<String, String>` for dynamic properties. The `property(key)` method
 checks core field names first, then falls back to the dynamic map.
 
 Implement: `registerVocabulary`, `addNode`, `getNode`, `updateNode`,
-`createSubgraph`, `getSubgraph`, `nodesIn`, `addAlias`, `removeAlias`,
-`resolveNode`. All other methods throw `MindMapCapabilityException` for now.
+`createSubgraph`, `getSubgraph`, `updateSubgraph`, `nodesIn`, `addAlias`,
+`removeAlias`, `resolveNode`. `updateNode` with `confirmedAt` set but no
+`confidence` resets confidence to 1.0. All other methods throw
+`UnsupportedOperationException` for now.
 `capabilities()` returns the set of implemented capabilities.
 Add `clearAll()` for test isolation.
 
@@ -839,6 +909,10 @@ git commit -m "feat(mindmap): node + subgraph + alias CRUD with contract tests"
 - Test: `search_bySubgraph`
 - Test: `search_byTraits`
 - Test: `search_byEdgeType_returnsConnectedNodes`
+- Test: `search_byMinConfidence`
+- Test: `search_byConfidenceOrigin`
+- Test: `search_excludesSupersededByDefault`
+- Test: `search_includeSuperseded_returnsAll`
 - Test: `search_respectsLimit`
 - Test: `tenantIsolation_edgeInvisibleAcrossTenants`
 
@@ -858,8 +932,11 @@ vocabulary at all → store as-is with `ValidationTier.UNVALIDATED`.
 
 Traversal: `neighbors()` filters edges by sourceNodeId OR targetNodeId.
 `bridgeEdges()` finds edges where source and target are in different
-subgraphs. `search()` filters nodes by text (case-insensitive contains
-on name + property values), subgraph, traits, and limit.
+subgraphs. `search()` filters nodes by all `MindMapQuery` fields: text
+(case-insensitive contains on name + property values), subgraph, traits,
+edgeType (nodes connected by that type), minConfidence (numeric threshold),
+confidenceOrigin (categorical filter), includeSuperseded (default false —
+exclude superseded nodes), and limit.
 
 - [ ] **Step 4: Run tests and verify they pass**
 
@@ -893,8 +970,9 @@ git commit -m "feat(mindmap): edge CRUD, vocabulary normalization, traversal, se
 - Test: `mergeNodes_removesSourceNode`
 - Test: `mergeNodes_unionsAliases`
 - Test: `mergeNodes_repointsEdges`
-- Test: `mergeNodes_deduplicatesEdges_higherConfidenceWins`
+- Test: `mergeNodes_deduplicatesEdges_newerUpdatedAtWins`
 - Test: `mergeNodes_unionsTraits`
+- Test: `mergeNodes_unionsNodeRefs`
 - Test: `mergeNodes_propertyConflict_newerWins`
 - Test: `mergeNodes_reportsPropertyConflicts`
 
@@ -925,10 +1003,11 @@ git commit -m "feat(mindmap): edge CRUD, vocabulary normalization, traversal, se
 - [ ] **Step 5: Implement merge, supersession, erasure, and capabilities**
 
 **Merge:** find both nodes, union aliases (add source's aliases to target),
-repoint edges (change sourceNodeId/targetNodeId from removeNode to keepNode),
-deduplicate edges (same source+target+edgeType — keep the one with later
-`updatedAt`), union traits, resolve property conflicts (later `updatedAt`
-wins, record conflicts in `MergeConflict`), delete source node.
+union NodeRefs (add source's refs to target), repoint edges (change
+sourceNodeId/targetNodeId from removeNode to keepNode), deduplicate edges
+(same source+target+edgeType — keep the one with later `updatedAt`), union
+traits, resolve property conflicts (later `updatedAt` wins, record conflicts
+in `MergeConflict`), delete source node.
 
 **Supersession:** store supersession metadata on the node (supersededAt,
 supersedingId, reason). `reinstate()` clears supersession and records
