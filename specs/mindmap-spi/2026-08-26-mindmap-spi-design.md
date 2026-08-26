@@ -1,5 +1,10 @@
 # MindMap SPI — Design Specification
 
+## 0. Tracking
+
+**Epic:** TBD — a tracking epic must be created in `casehubio/neocortex` before
+implementation begins.
+
 ## 1. Problem Statement
 
 The casehub platform has rich cognitive capabilities distributed across neocortex (memory
@@ -25,6 +30,43 @@ and maintainable.
 The mental model is "mind maps that merge" — each topic, person, or project is its own
 map with internal structure, and the interesting knowledge emerges when maps connect.
 
+### 1.1 Relationship to GraphCaseMemoryStore
+
+`GraphCaseMemoryStore` (memory-api, issue #185) is a **memory store** — it stores text
+memories (`Memory` records with `text()`, `domain()`, `entityId()`) and offers semantic
+graph queries via `graphQuery(GraphMemoryQuery)`. The "graph" is the Graphiti backend's
+internal representation; the SPI consumer sees `List<Memory>`, not graph structure. Its
+purpose: _retrieve text facts semantically_ — "what do I know about Alice?" returns prose
+facts like "Alice mentioned she prefers working remotely."
+
+`MindMapStore` is a **structural knowledge graph** — typed nodes with properties, typed
+edges with temporal bounds, subgraph partitioning, merge, alias resolution, vocabulary
+governance, and cross-store references. Its purpose: _model entities and their
+relationships_ — "how is Alice connected?" returns typed edges like `works-at → Company X`,
+`parent-of → Bob`, `involved-in → Project Y`.
+
+These are complementary, not overlapping:
+
+| Concern | GraphCaseMemoryStore | MindMapStore |
+|---|---|---|
+| Data model | `Memory` (text + metadata) | `MindMapNode` + `MindMapEdge` (typed graph) |
+| Query model | Semantic search (`graphQuery`) | Graph traversal (`neighbors`, `search`) |
+| Storage | Text facts with entity scoping | Entities, relationships, properties |
+| Example query | "What did Alice say about remote work?" | "Who does Alice work with?" |
+| Backend | Graphiti (external service) | SQLite (embedded, self-contained) |
+
+The MindMap graph references memories via `NodeRef(scheme="memory", id=memoryId)` — it
+doesn't duplicate them. A consumer wanting "everything about Alice" queries the MindMap
+for structural knowledge and follows NodeRefs to retrieve the underlying text memories
+from `CaseMemoryStore`. This is unification by reference, not unification by duplication.
+
+The SPI does not extend `GraphCaseMemoryStore` or `CaseMemoryStore` because they model
+fundamentally different data. `CaseMemoryStore` stores text with `String store(MemoryInput)`
+and retrieves via semantic search. `MindMapStore` stores typed graph structure with
+`String addNode(NodeInput)` and retrieves via graph traversal. Forcing these into a
+shared type hierarchy would require one to pretend to be the other — an adapter pattern
+with no architectural benefit.
+
 ## 2. Architecture
 
 ### 2.1 Module Structure
@@ -34,12 +76,13 @@ New top-level module family, parallel to `memory-*`, `rag-*`, `inference-*`:
 ```
 mindmap-api/          — SPI + value types (pure Java, zero deps)
 mindmap/              — CDI wiring, NoOp default, decorators (vocabulary normalization,
-                        derived edge rules)
+                        derived edge rules, confidence decay), graph analysis
+                        (pure computation — no LLM dependency)
 mindmap-inmem/        — In-memory adapter for tests
 mindmap-sqlite/       — SQLite adapter (day-one production backend)
 mindmap-testing/      — Contract test suite + integration test scenarios
 mindmap-intelligence/ — LLM extraction, gap detection, active learning, trait proxy,
-                        graph analysis, curiosity engine
+                        curiosity engine (all require AgentProvider)
 ```
 
 The SPI is standalone — it does not extend `CaseMemoryStore`, `GraphCaseMemoryStore`,
@@ -72,13 +115,16 @@ Following the CBR decorator pattern, intelligence concerns split into two tiers:
   (e.g., has-child → infer parent, father/mother)
 - Confidence decay — applied at query time via decorator
 
-**Explicit (mindmap-intelligence module, invoked by consumers):**
+**Computation (mindmap CDI module, no LLM dependency):**
+- Graph analysis — centrality, clustering, structural hole detection
+- Index maintenance — FTS rebuild, temporal index updates
+
+**Explicit (mindmap-intelligence module, requires AgentProvider):**
 - LLM-based entity/relationship extraction from conversation
 - Gap detection and curiosity signal generation
 - Active learning question generation
 - Contradiction analysis and resolution prompts
 - Trait proxy generation and truth maintenance
-- Graph analysis and index maintenance
 
 ## 3. SPI — `MindMapStore`
 
@@ -135,6 +181,8 @@ public interface MindMapStore {
     // --- Erasure ---
     int eraseNode(String nodeId, String tenantId);
     int eraseSubgraph(String subgraphId, String tenantId);
+    int eraseEntity(String entityName, String tenantId);
+    int eraseEntityAcrossTenants(String entityName, Set<String> tenantIds);
 
     // --- Capabilities ---
     Set<MindMapCapability> capabilities();
@@ -146,6 +194,20 @@ Every mutating and querying method requires `tenantId` for tenant isolation.
 Implementations must enforce tenant boundaries — a node in tenant A is invisible
 to queries in tenant B.
 
+**Erasure semantics (GDPR Art.17):**
+
+- `eraseNode()` — hard-deletes a specific node by ID, including all edges,
+  aliases, NodeRefs, and dynamic properties. Returns count of deleted records.
+- `eraseSubgraph()` — hard-deletes all nodes in the subgraph plus the subgraph
+  itself. Returns total count of deleted records.
+- `eraseEntity()` — entity-scoped erasure. Finds all nodes whose `name` matches
+  `entityName` (case-insensitive) OR who have an alias matching `entityName`,
+  and erases them. This handles the "erase everything about Alice" case without
+  requiring the caller to know node IDs.
+- `eraseEntityAcrossTenants()` — cross-tenant entity erasure, matching
+  `CaseMemoryStore.eraseEntityAcrossTenants()`. Caller must be a cross-tenant
+  admin. Supply the complete set of tenantIds from the tenant management system.
+
 ### 3.2 Node Model — Hybrid Core + Dynamic Properties
 
 ```java
@@ -154,16 +216,19 @@ public interface MindMapNode {
     String id();
     String name();
     String subgraphId();
-    ConfidenceLevel confidence();
+    ConfidenceOrigin confidenceOrigin();
+    double confidence();         // [0.0, 1.0] — numeric, decayable
     String provenance();
     Instant createdAt();
     Instant updatedAt();
     Instant confirmedAt();       // last explicit confirmation (resets decay)
+    Instant validFrom();         // nullable — temporal bound start
+    Instant validUntil();        // nullable — temporal bound end
     Set<String> traits();        // applied trait names (opaque to SPI)
     Set<NodeRef> refs();         // references to entities in other stores
 
     // Affective metadata — optional
-    Double valence();            // [-1, 1] positive/negative
+    Double pleasure();           // [-1, 1] positive/negative (PAD model)
     Double arousal();            // [-1, 1] high/low activation
     Double dominance();          // [-1, 1] empowering/threatening
 
@@ -188,7 +253,8 @@ public interface MindMapEdge {
     String targetNodeId();
     String edgeType();           // governed by vocabulary
     ValidationTier tier();       // REGISTERED or UNVALIDATED
-    ConfidenceLevel confidence();
+    ConfidenceOrigin confidenceOrigin();
+    double confidence();         // [0.0, 1.0] — numeric, decayable
     String provenance();
     Instant createdAt();
     Instant updatedAt();
@@ -196,9 +262,9 @@ public interface MindMapEdge {
     Instant validUntil();        // nullable — temporal bound end
 
     // Affective metadata — optional
-    Double valence();
-    Double arousal();
-    Double dominance();
+    Double pleasure();           // [-1, 1] positive/negative (PAD model)
+    Double arousal();            // [-1, 1] high/low activation
+    Double dominance();          // [-1, 1] empowering/threatening
 
     // Dynamic properties
     Optional<String> property(String key);
@@ -216,11 +282,14 @@ The intelligence layer can promote validated types from UNVALIDATED to REGISTERE
 public record NodeInput(
     String name,
     String subgraphId,
-    ConfidenceLevel confidence,
+    ConfidenceOrigin confidenceOrigin,
+    Double confidence,          // nullable — defaults to origin's initial value
     String provenance,
     Set<String> traits,
     Set<NodeRef> refs,
-    Double valence,
+    Instant validFrom,
+    Instant validUntil,
+    Double pleasure,
     Double arousal,
     Double dominance,
     Map<String, String> properties
@@ -228,12 +297,15 @@ public record NodeInput(
 
 public record NodeUpdate(
     String name,              // nullable — only update if non-null
-    ConfidenceLevel confidence,
+    ConfidenceOrigin confidenceOrigin,
+    Double confidence,
     Set<String> traitsToAdd,
     Set<String> traitsToRemove,
     Set<NodeRef> refsToAdd,
     Set<NodeRef> refsToRemove,
-    Double valence,
+    Instant validFrom,
+    Instant validUntil,
+    Double pleasure,
     Double arousal,
     Double dominance,
     Map<String, String> propertiesToSet,
@@ -244,11 +316,12 @@ public record EdgeInput(
     String sourceNodeId,
     String targetNodeId,
     String edgeType,
-    ConfidenceLevel confidence,
+    ConfidenceOrigin confidenceOrigin,
+    Double confidence,          // nullable — defaults to origin's initial value
     String provenance,
     Instant validFrom,
     Instant validUntil,
-    Double valence,
+    Double pleasure,
     Double arousal,
     Double dominance,
     Map<String, String> properties
@@ -268,6 +341,27 @@ public record NodeRef(
 Loose coupling — the graph stores the reference without depending on the other
 SPI's classpath. Resolution is lazy and requires the consuming module to have
 the target SPI available.
+
+**Lifecycle semantics:**
+
+1. **Creation** — optimistic. The referenced entity is not validated at
+   `NodeRef` creation time. The MindMap SPI has no dependency on the source
+   store's classpath and cannot verify existence.
+
+2. **GDPR erasure cascade** — when a source store erases an entity (e.g.,
+   `CaseMemoryStore.eraseEntity()`), a CDI event (`EntityErasedEvent`) is
+   fired. The `mindmap` CDI module observes this event and removes all
+   `NodeRef`s pointing to the erased entity. Under GDPR Art.17, references
+   that identify a data subject are themselves personal data. Cleanup is
+   proactive, not lazy.
+
+3. **Non-GDPR dangling refs** — when a referenced entity is deleted for
+   non-GDPR reasons (e.g., supersession, consolidation), the `NodeRef`
+   becomes a curiosity signal (§4.3). The intelligence layer detects
+   dangling refs during analysis and generates knowledge gap questions.
+
+4. **Bidirectionality** — source stores do not know they are referenced.
+   The GDPR cascade relies on CDI events, not bidirectional pointers.
 
 ### 3.6 Vocabulary
 
@@ -289,6 +383,24 @@ Registration is additive — multiple `registerVocabulary()` calls merge
 definitions. The store normalises alias edge types to their canonical form on
 `addEdge()`. Unregistered types are accepted but stored with
 `ValidationTier.UNVALIDATED`.
+
+**Thread safety:** `registerVocabulary()` is synchronized — concurrent
+registrations produce the correct union of edge types and aliases. The
+runtime module uses a `ReadWriteLock`: vocabulary registration takes the
+write lock; alias resolution on `addEdge()` takes the read lock.
+
+**Retroactive normalization:** existing `UNVALIDATED` edges are NOT
+retroactively promoted when a matching vocabulary is later registered.
+Promotion happens only on explicit re-save or batch normalization via the
+intelligence layer. This prevents silent data modification — an important
+invariant for audit traceability.
+
+**Canonical uniqueness:** canonical names must be globally unique across all
+registered vocabularies. If vocabulary A defines canonical `"works-at"` and
+vocabulary B also defines canonical `"works-at"` with a different alias set,
+the aliases are merged. If vocabulary B defines `"employed-by"` as canonical
+but vocabulary A already maps `"employed-by"` as an alias of `"works-at"`,
+registration throws `VocabularyConflictException`.
 
 ### 3.7 Subgraphs
 
@@ -340,7 +452,8 @@ public record MergeResult(
     int edgesRepointed,
     int aliasesMerged,
     int duplicateEdgesRemoved,
-    Set<String> traitsMerged
+    Set<String> traitsMerged,
+    List<MergeConflict> propertyConflicts
 ) {}
 ```
 
@@ -348,20 +461,49 @@ Merge keeps `keepNodeId`, removes `removeNodeId`, unions their edges (deduplicat
 by source+target+edgeType), unions aliases, unions traits, and reassigns subgraph
 membership to the surviving node's subgraph.
 
+**Property conflict resolution:** when both nodes have a dynamic property with
+the same key but different values, the most-recently-updated node's value wins
+(compared by `updatedAt`). Conflicting properties are recorded in
+`MergeResult.propertyConflicts` for downstream review. Core fields (name,
+confidence, provenance) always take the `keepNode`'s values.
+
+```java
+public record MergeConflict(
+    String key,
+    String keptValue,
+    String discardedValue
+) {}
+```
+
 ### 3.10 Confidence and Decay
 
 ```java
-public enum ConfidenceLevel {
-    STATED,       // directly asserted by a source
-    INFERRED,     // derived by rules from other knowledge
-    SPECULATED    // LLM-suggested, not confirmed
+public enum ConfidenceOrigin {
+    STATED,       // directly asserted by a source — initial confidence 1.0
+    INFERRED,     // derived by rules from other knowledge — initial confidence 0.7
+    SPECULATED    // LLM-suggested, not confirmed — initial confidence 0.3
 }
 ```
 
+Confidence is a two-part model following the `CbrOutcome` pattern:
+`ConfidenceOrigin` records **how** the knowledge was established (provenance
+classification); `confidence` is a numeric value in `[0.0, 1.0]` that is
+subject to continuous decay.
+
+When a node or edge is created without an explicit `confidence` value, the
+initial confidence is set from `ConfidenceOrigin`'s default (STATED=1.0,
+INFERRED=0.7, SPECULATED=0.3). The caller can override the initial value.
+
 Decay is applied at query time. Each edge type can declare a
 `defaultDecayHalfLifeDays` in its vocabulary definition. The decay decorator
-reduces effective confidence based on time since `confirmedAt`. Explicit
-confirmation (via `updateNode` setting a new `confirmedAt`) resets the clock.
+computes effective confidence as:
+
+```
+effectiveConfidence = confidence × 2^(-hoursSinceConfirmed / (halfLifeDays × 24))
+```
+
+Explicit confirmation (via `updateNode` setting a new `confirmedAt`) resets
+the clock and restores confidence to 1.0 (or a caller-specified value).
 
 ### 3.11 Capabilities
 
@@ -376,6 +518,8 @@ public enum MindMapCapability {
     SUPERSESSION,
     ERASE_NODE,
     ERASE_SUBGRAPH,
+    ERASE_ENTITY,
+    CROSS_TENANT_ERASE,
     GRAPH_ANALYSIS
 }
 ```
@@ -477,10 +621,12 @@ These signals feed `CuriosityDrive` to generate questions, and feed
 
 ### 4.4 Affective Knowledge
 
-Nodes and edges carry optional PAD-model annotations (valence, arousal, dominance)
+Nodes and edges carry optional PAD-model annotations (pleasure, arousal, dominance)
 representing the emotional character of the knowledge itself — not the agent's mood.
-"Alice was promoted" carries positive valence. "Alice lost her job" carries negative
-valence. This enables:
+"Alice was promoted" carries positive pleasure. "Alice lost her job" carries negative
+pleasure. The field is named `pleasure` — consistent with `MoodState.pleasure()`,
+`MoodAttributeKeys.PLEASURE`, and `MoodModulatedRetrieval` throughout the existing
+codebase. This enables:
 
 - **Mood-congruent retrieval** — `MoodModulatedRetrieval` can weight graph results
   by affect alignment with the agent's current mood
@@ -512,6 +658,33 @@ The intelligence layer owns:
 - **Compaction** — over time, when a property appears consistently on all nodes
   with a given trait, it can be promoted from dynamic properties to a core field.
   The proxy hides this migration from consumers.
+
+#### 5.2.1 Rule Specification
+
+Rules are Java CDI beans implementing `TraitRule`:
+
+```java
+public interface TraitRule {
+    String traitName();
+    boolean matches(MindMapNode node, List<MindMapEdge> edges);
+}
+```
+
+**Evaluation trigger:** rules fire on node mutation — `updateNode()`,
+`addEdge()`, `removeEdge()`. The decorator intercepts these calls and
+re-evaluates applicable rules for the affected node(s). Rules do NOT fire
+on every query — only on state changes.
+
+**Conflict resolution:** if multiple rules target the same trait on the same
+node, application wins over retraction (a trait is applied if ANY rule
+matches, retracted only when NO rules match). This is conservative — the
+intelligence layer can always retract explicitly via `traitsToRemove`.
+
+**Cycle prevention:** derived edge insertion from trait application (e.g.,
+applying `Personable` creates a `person-type` edge) is limited to a maximum
+chain depth of 3. If a derived edge triggers a rule that triggers another
+derived edge, the chain terminates after 3 levels. Deeper chains indicate a
+rule design problem, not a legitimate knowledge structure.
 
 ### 5.3 Future Reconciliation with Drools
 
@@ -608,15 +781,58 @@ Dedicated integration tests that verify cross-store bridging:
 | MindMap Intelligence | `casehub-neocortex-mindmap-intelligence` |
 | Root Java package | `io.casehub.neocortex.mindmap` |
 
+## 9. ARC42STORIES Integration
+
+### Journey
+
+| Journey | Description | Chapters | Status |
+|---|---|---|---|
+| J6 Structural Knowledge | MindMap graph SPI — typed nodes, edges, vocabulary, intelligence | C13–C15 | Planned |
+
+### Chapter Outline
+
+| # | Chapter | Journey | Layers touched | Status |
+|---|---|---|---|---|
+| 13 | MindMap SPI + In-Memory + SQLite | J6 | L16, L17 | Planned |
+| 14 | MindMap CDI + Decorators | J6 | L16, L17 | Planned |
+| 15 | MindMap Intelligence | J6 | L18 | Planned |
+
+### Layers
+
+| Layer | Module | Tier |
+|---|---|---|
+| L16 MindMap SPI | `mindmap-api`, `mindmap-testing` | Pure Java, zero deps |
+| L17 MindMap Runtime | `mindmap`, `mindmap-inmem`, `mindmap-sqlite` | CDI library / backends |
+| L18 MindMap Intelligence | `mindmap-intelligence` | CDI library, requires AgentProvider |
+
+## 10. Design Decisions
+
+### No reactive SPI variant
+
+The module-tier-structure protocol specifies: "Ship both a blocking SPI and a
+reactive mirror (`Uni<>`) when the store is consumed from **both** contexts."
+
+All identified MindMap consumers are blocking:
+- `InnerLifeOrchestrator` — `@ApplicationScoped`, blocking tick loop with
+  `ReentrantLock` per agent. Not on the Vert.x event loop.
+- blocks CDI observers (`MentalStateSignal`, `EngagementSignal`) — synchronous
+  CDI observers on worker threads.
+
+A reactive variant will be added when a reactive consumer is identified,
+following the established `@DefaultBean` bridge pattern (see L6 RAG SPI,
+`BlockingToReactiveCaseRetriever`).
+
 ## References
 
 - GE-20260630-815259 — Cross-repo SPI extends CDI displacement gotcha
 - `CbrCaseMemoryStore` — standalone SPI pattern, supersession, outcome, schema registration
 - `CaseMemoryStore` — tenant isolation, erasure, capability self-description
+- `GraphCaseMemoryStore` / #185 — semantic graph query on text memories (complementary, not overlapping)
 - `RetrievalAnalyzer` (rag-api) — pure computation analysis pattern
-- blocks `InnerLifeOrchestrator` — tick-driven cognitive orchestration
+- blocks `InnerLifeOrchestrator` — tick-driven cognitive orchestration (blocking)
 - blocks `MentalModelOrchestrator` — BDI mental model with decay and inference
 - blocks `CuriosityDrive` — motivation for knowledge-seeking behavior
 - blocks `MemoryHygieneOrchestrator` — memory consolidation and gap detection
 - Drools Traits — dynamic trait application via proxy, truth maintenance
 - MoodState / MoodModulatedRetrieval — PAD model for mood-congruent recall
+- `CbrOutcome` — numeric confidence with categorical provenance (pattern for §3.10)
