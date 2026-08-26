@@ -47,29 +47,30 @@
 **Exploration:** quick
 **Status:** captured
 
-## D5: Intelligence layer placement
+## D5: Intelligence layer placement — decorator/consumer split
 
-**Choice:** Above the SPI in a separate module (`mindmap-intelligence/`)
+**Choice:** Two-tier split following the CbrCaseMemoryStore decorator pattern. Transparent concerns (vocabulary normalization, derived edge insertion via rules) operate as CDI `@Decorator` on the SPI — consumers get enriched results without knowing decorators exist. Explicit concerns (LLM extraction, gap detection, active learning, deep contradiction analysis) live above the SPI in a separate module (`mindmap-intelligence/`).
 **Alternatives:**
-- Enrichment pipeline in the SPI (like CaseEnrichmentStep) — couples SPI to enrichment concerns
-- Split — rules in SPI, LLM above — adds complexity to the SPI boundary
-**Rationale:** The SPI is a pure storage/query contract. Intelligence (LLM extraction, gap detection, active learning, rule engine, contradiction detection) consumes the SPI. Clean separation — you can use the store without the intelligence layer. Testable in isolation.
-**Trade-offs:** Forward-chaining rules could fire on every edge insert if they were in the store — putting them above means the caller must invoke the rule engine explicitly.
-**Sources:** CaseEnrichmentStep pattern (considered and rejected), CbrCaseMemoryStore (pure storage, intelligence above)
+- All intelligence above SPI — forces every consumer to explicitly invoke the rule engine; discards the proven decorator pattern from CBR
+- All intelligence in the SPI — couples storage to LLM dependencies
+- Enrichment pipeline in the SPI (like CaseEnrichmentStep) — less flexible than decorators
+**Rationale:** The CBR system proves this pattern: `TrendEnrichmentCbrCaseMemoryStore` at `@Priority(90)` enriches transparently; LLM-based operations are explicit. The same split applies here: vocabulary normalization and forward-chaining rules for derived edges are cheap, deterministic, and should fire transparently on every addEdge(). LLM extraction, gap detection, and active learning are expensive, non-deterministic, and should be explicitly invoked.
+**Trade-offs:** Decorator chain adds implementation complexity. Decorator ordering must be documented. Transparent rules must be fast — slow rules should be moved to the explicit intelligence layer.
+**Sources:** CbrCaseMemoryStore decorator chain (TrendEnrichment, OutcomeWeighting, TrustWeighted), CaseEnrichmentStep, R1-04 decision review finding
 **Exploration:** quick
-**Status:** captured
+**Status:** revised (was: all intelligence above SPI)
 
-## D6: Controlled vocabulary governance
+## D6: Controlled vocabulary governance — soft registration with validation tiers
 
-**Choice:** Schema registration (like CbrFeatureSchema) with alias normalization
+**Choice:** Schema registration with alias normalization AND acceptance of unregistered types tagged as `UNVALIDATED`. Registered types normalise on ingest ("employed-by" → "works-at"). Unregistered types are accepted but flagged — the intelligence layer can promote validated types into the controlled vocabulary over time.
 **Alternatives:**
-- Open with normalization above — flexible but allows synonym accumulation
-- Seeded vocabulary, extensible at runtime — hybrid but introduces "unregistered" state
-**Rationale:** The store rejects unregistered edge types, enforcing vocabulary governance at the SPI level. Aliases normalise on ingest ("employed-by" → "works-at"). Consistent with CbrFeatureSchema.registerSchema() pattern. Prevents the "5 ways to say the same thing" problem structurally.
-**Trade-offs:** Requires vocabulary registration before any edges can be stored. Cold-start requires a seed vocabulary. New edge types require explicit registration.
-**Sources:** CbrFeatureSchema.registerSchema() pattern, conversation on vocabulary governance
+- Hard rejection of unregistered types — blocks LLM discovery of novel relationships (R1-05 finding: chicken-and-egg with LLM extraction)
+- Open with normalization above — flexible but allows synonym accumulation without any governance
+**Rationale:** The LLM extraction layer (D5) may discover novel relationship types that aren't pre-registered. Hard rejection forces pre-registration of all possible types (defeating LLM discovery) or on-the-fly registration (making the boundary meaningless). Soft governance preserves the controlled vocabulary as the goal while allowing discovery. Edges carry a validation tier: `REGISTERED` (normalised, governed) or `UNVALIDATED` (accepted, flagged for review). A promotion path moves validated types from UNVALIDATED to REGISTERED.
+**Trade-offs:** UNVALIDATED types can accumulate if the intelligence layer doesn't actively review them. Needs a periodic cleanup/promotion mechanism. Queries should distinguish between validated and unvalidated edges when governance matters.
+**Sources:** CbrFeatureSchema.registerSchema() pattern, conversation on vocabulary governance, R1-05 decision review finding
 **Exploration:** quick
-**Status:** captured
+**Status:** revised (was: hard rejection of unregistered types)
 
 ## D7: Entity aliasing
 
@@ -94,18 +95,19 @@
 **Exploration:** quick
 **Status:** captured
 
-## D9: Node content model — hybrid core + traits (Drools Traits pattern)
+## D9: Node content model — hybrid core + dynamic properties + opaque trait metadata
 
-**Choice:** Single core MindMapNode with fixed fields + dynamic properties, with dynamically-applied trait interfaces maintained by forward-chaining rules and truth maintenance. Proxy generation abstracts over core vs dynamic property storage. Compaction promotes frequently-used dynamic properties into the core schema over time.
+**Choice:** The SPI stores: (1) fixed core fields on `MindMapNode` (id, name, createdAt, confidence, provenance, etc.), (2) dynamic key-value properties, (3) a `Set<String>` of applied trait names as opaque metadata. The SPI does not know what trait names mean — it stores them as strings. Proxy generation, truth maintenance, forward-chaining rules, and compaction are intelligence-layer concerns (D5), not SPI concerns. The SPI's `property(key)` method provides unified access regardless of whether a value is stored as a core field or a dynamic property.
 **Alternatives:**
 - Sealed hierarchy (PersonNode, ProjectNode, etc.) — rigid, new types require SPI changes
-- Open hierarchy with typed views — similar to traits but without rule-maintained lifecycle
-- Single interface + properties only — works but loses typed access and rule-driven classification
-**Rationale:** A node is a "Thing" with core fields. Traits (Java interfaces like Personable, Projectlike) are applied dynamically at runtime via proxy. A node can implement multiple traits simultaneously. Rules apply/retract traits based on node properties and edges — truth maintenance ensures consistency. Compaction migrates stable dynamic properties into the core, hidden behind the same proxy interface.
-**Trade-offs:** Proxy generation adds complexity. Truth maintenance requires a rule engine in the intelligence layer. Compaction is a schema migration concern. The SPI must store applied traits as metadata without knowing the trait interfaces themselves.
-**Sources:** Drools Traits system (user's prior work), hybrid core+triple systems
+- Full Drools Traits in the SPI — conflates storage with rule engine; violates D5's separation
+- Single interface + properties only — works but doesn't store trait classification
+**Rationale:** Clear boundary: the SPI is a property store that also tracks which trait names are applied. The intelligence layer owns trait semantics — which interfaces exist, how proxies are generated, when traits are applied/retracted via rules, and when compaction promotes dynamic properties to core. This follows D5's revised decorator/consumer split: trait management is explicit intelligence, not transparent decoration.
+**Trade-offs:** Consumers of the raw SPI get untyped property bags. Typed access requires the intelligence/proxy layer. This is acceptable — the SPI's job is storage, not presentation.
+**Sources:** Drools Traits system (user's prior work), R1-03 decision review finding (separation of concerns), D5 revised placement
 **Exploration:** quick
-**Status:** captured
+**Depends on:** D5
+**Status:** revised (was: traits in SPI)
 
 ## D10: Third-party vs own implementation
 
@@ -118,4 +120,40 @@
 **Trade-offs:** Owning storage means maintaining traversal algorithms. Day-one traversal is simple (neighbors, bridges) but shortest-path, community detection, etc. would need implementation or a backend swap.
 **Sources:** ArcadeDB (Apache 2.0), TinkerPop (Apache 2.0), Jena (Apache 2.0), Neo4j (GPL — rejected), conversation on NIH risk
 **Exploration:** deep-analysis
+**Status:** captured
+
+## D11: Tenant isolation
+
+**Choice:** Tenant-isolated, consistent with all platform memory SPIs. Every mutating and querying method requires `tenantId`. The SPI enforces tenant boundaries — a node in tenant A is invisible to queries in tenant B. No cross-tenant operations on the SPI surface (unlike CaseMemoryStore's `eraseEntityAcrossTenants`); cross-tenant admin operations can be added later as capabilities if needed.
+**Alternatives:**
+- Tenant-unaware SPI with tenant filtering above — violates platform security conventions
+- Cross-tenant operations from day one — premature for the initial scope
+**Rationale:** Every memory SPI in the platform (`CaseMemoryStore`, `CbrCaseMemoryStore`) requires tenantId on every operation and enforces access via `MemoryPermissions.assertTenant()`. The mindmap SPI must follow the same convention for platform coherence and security.
+**Trade-offs:** Every method signature includes tenantId — slightly more verbose API. Cross-tenant admin (e.g., "find all nodes about this entity across tenants") requires a separate capability added later.
+**Sources:** CaseMemoryStore.store(MemoryInput) — tenantId required, CbrCaseMemoryStore — tenantId on every call, MemoryPermissions.assertTenant(), R1-11 decision review finding
+**Exploration:** quick
+**Status:** captured
+
+## D12: GDPR erasure
+
+**Choice:** The SPI provides cascading graph-aware erasure: `eraseNode(nodeId, tenantId)` removes the node, all its edges, all its aliases, its subgraph membership, and any NodeRefs pointing to it from other nodes. `eraseBySubgraph(subgraphId, tenantId)` removes an entire subgraph and all its contents. Both return counts for audit logging. `eraseEntity(entityId, tenantId)` is a future capability if entity-level (vs node-level) erasure is needed.
+**Alternatives:**
+- Node-only erasure with orphan cleanup — simpler SPI but leaves dangling edges and refs
+- Soft-delete with tombstones — preserves history but doesn't satisfy GDPR hard-delete requirements
+**Rationale:** Graph erasure is structurally harder than flat record deletion. A node participates in edges, aliases, subgraphs, and cross-references. Deleting only the node leaves the graph in an inconsistent state. The SPI must guarantee cascading cleanup as an atomic operation.
+**Trade-offs:** Cascading delete is complex to implement correctly, especially for NodeRefs (which may point to the deleted node from other nodes). Contract tests must verify no dangling references survive erasure.
+**Sources:** CaseMemoryStore.eraseEntity(), CbrCaseMemoryStore.erase/eraseEntity/eraseByScope, GDPR Art.17, R1-11 decision review finding
+**Exploration:** quick
+**Status:** captured
+
+## D13: Capability self-description
+
+**Choice:** The SPI includes a `capabilities()` method returning `Set<MindMapCapability>` and a `requireCapability(MindMapCapability)` guard, following the `MemoryCapability` pattern. Initial capabilities include `TRAVERSAL`, `MERGE`, `VOCABULARY`, `ALIAS`, `SUBGRAPH`, `SEARCH`, `ERASE_NODE`, `ERASE_SUBGRAPH`. Backends declare which operations they support; consumers can check before calling optional operations.
+**Alternatives:**
+- No capabilities — all methods are mandatory on all backends. Simpler but forces every backend to implement everything, even if some operations are expensive or unsupported.
+- Exceptions on unsupported operations — same result but less discoverable than a capability check.
+**Rationale:** The in-memory backend will support everything. A future TinkerPop backend may not support atomic merge. A minimal backend may skip traversal. Capability self-description lets consumers adapt without catching exceptions.
+**Trade-offs:** Adds an enum and two methods to the SPI. Backends must maintain an accurate capability set.
+**Sources:** MemoryCapability enum, CaseMemoryStore.capabilities()/requireCapability(), R1-11 decision review finding
+**Exploration:** quick
 **Status:** captured
