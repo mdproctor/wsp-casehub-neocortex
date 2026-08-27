@@ -110,12 +110,23 @@ own tenant model, capability enum, and value types.
 Following the CBR decorator pattern, intelligence concerns split into two tiers:
 
 **Transparent (CDI `@Decorator` on `MindMapStore`):**
-- Vocabulary normalization — alias resolution on every `addEdge()`
-- Derived edge insertion — forward-chaining rules fire on edge creation
-  (e.g., has-child → infer parent, father/mother). Rules are pluggable CDI
-  beans (`DerivedEdgeRule`). Truth maintenance retracts derived edges when
-  evidence is removed. Cycle prevention limits chain depth (default 3).
-- Confidence decay — applied at query time via decorator
+
+All four decorators are CDI `@Decorator` beans with explicit `@Priority`
+positions in the chain (§5.2.1). The complete chain from outermost to
+innermost:
+
+- Confidence decay `@Priority(50)` — applied at query time; intercepts
+  `getNode()`, `getEdge()`, `nodesIn()`, `search()`, `neighbors()`,
+  `bridgeEdges()` to return decayed confidence values
+- Trait application `@Priority(70)` — evaluates `TraitRule` beans on
+  the return path after mutations, applying/retracting traits
+- Derived edge insertion `@Priority(80)` — forward-chaining rules fire
+  on edge creation (e.g., has-child → infer parent). Rules are pluggable
+  CDI beans (`DerivedEdgeRule`). Truth maintenance retracts derived edges
+  when evidence is removed. Cycle prevention limits chain depth (default 3)
+- Vocabulary normalization `@Priority(90)` — alias resolution on every
+  `addEdge()`, closest to the store so all higher decorators see
+  normalised types
 
 **Computation (mindmap CDI module, no LLM dependency):**
 - Graph analysis — centrality, clustering, structural hole detection
@@ -156,6 +167,7 @@ public interface MindMapStore {
     // --- Edges ---
     String addEdge(EdgeInput input, String tenantId);
     MindMapEdge getEdge(String edgeId, String tenantId);
+    void updateEdge(String edgeId, EdgeUpdate update, String tenantId);
     void removeEdge(String edgeId, String tenantId);
 
     // --- Aliases ---
@@ -171,6 +183,8 @@ public interface MindMapStore {
     // --- Subgraphs ---
     String createSubgraph(SubgraphInput input, String tenantId);
     MindMapSubgraph getSubgraph(String subgraphId, String tenantId);
+    void updateSubgraph(String subgraphId, String rootNodeId,
+                        String tenantId);
     List<MindMapNode> nodesIn(String subgraphId, String tenantId);
     List<MindMapEdge> bridgeEdges(String subgraphId, String tenantId);
 
@@ -297,6 +311,7 @@ public interface MindMapEdge {
     String provenance();
     Instant createdAt();
     Instant updatedAt();
+    Instant confirmedAt();       // last explicit confirmation (resets decay)
     Instant validFrom();         // nullable — temporal bound start
     Instant validUntil();        // nullable — temporal bound end
 
@@ -365,6 +380,19 @@ public record EdgeInput(
     Double arousal,
     Double dominance,
     Map<String, String> properties
+) {}
+
+public record EdgeUpdate(
+    ConfidenceOrigin confidenceOrigin,
+    Double confidence,
+    Instant confirmedAt,      // nullable — explicit confirmation resets decay clock
+    Instant validFrom,
+    Instant validUntil,
+    Double pleasure,
+    Double arousal,
+    Double dominance,
+    Map<String, String> propertiesToSet,
+    Set<String> propertiesToRemove
 ) {}
 ```
 
@@ -437,14 +465,15 @@ public record EdgeTypeDefinition(
 ```
 
 Registration is additive — multiple `registerVocabulary()` calls merge
-definitions. The store normalises alias edge types to their canonical form on
-`addEdge()`. Unregistered types are accepted but stored with
-`ValidationTier.UNVALIDATED`.
+definitions. The `VocabularyNormalizationDecorator` (`@Priority(90)`,
+innermost in the chain — §5.2.1) normalises alias edge types to their
+canonical form on `addEdge()`. Unregistered types are accepted but stored
+with `ValidationTier.UNVALIDATED`.
 
 **Thread safety:** `registerVocabulary()` is synchronized — concurrent
 registrations produce the correct union of edge types and aliases. The
-runtime module uses a `ReadWriteLock`: vocabulary registration takes the
-write lock; alias resolution on `addEdge()` takes the read lock.
+decorator uses a `ReadWriteLock`: vocabulary registration takes the write
+lock; alias resolution on `addEdge()` takes the read lock.
 
 **Retroactive normalization:** existing `UNVALIDATED` edges are NOT
 retroactively promoted when a matching vocabulary is later registered.
@@ -560,12 +589,22 @@ When a node or edge is created without an explicit `confidence` value, the
 initial confidence is set from `ConfidenceOrigin`'s default (STATED=1.0,
 INFERRED=0.7, SPECULATED=0.3). The caller can override the initial value.
 
-Decay is applied at query time by the confidence decay decorator. The decay
-formula is:
+Decay is applied at query time by the confidence decay decorator
+(`@Priority(50)`, outermost in the chain — §5.2.1). The decorator
+intercepts all query methods: `getNode()`, `getEdge()`, `nodesIn()`,
+`search()`, `neighbors()` (both overloads), and `bridgeEdges()`. Every
+access path returns decayed confidence — there is no raw-confidence
+backdoor.
+
+The decay formula is:
 
 ```
 effectiveConfidence = confidence × 2^(-hoursSinceConfirmed / (halfLifeDays × 24))
 ```
+
+The decay reference point is `confirmedAt()` for both nodes and edges.
+Setting `confirmedAt` via `NodeUpdate` or `EdgeUpdate` (§3.4) resets the
+decay clock.
 
 **Edge decay rates:** each edge type can declare a `defaultDecayHalfLifeDays`
 in its vocabulary definition (§3.6). Edges without a vocabulary decay rate
@@ -589,12 +628,17 @@ defaults:
 These are decorator configuration, not SPI types — they live in the
 `mindmap` CDI module's `@ConfigMapping`, not in `mindmap-api`.
 
-**Explicit confirmation:** setting `confirmedAt` via `NodeUpdate` (§3.4)
-resets the decay clock. If `confidence` is also set in the same update,
-the new confidence is used as the base; otherwise confidence is restored
-to 1.0. This enables both "I re-confirmed this is true" (confirmedAt
-only) and "I have new evidence at this confidence" (confirmedAt +
-confidence together).
+**Explicit confirmation:** setting `confirmedAt` via `NodeUpdate` or
+`EdgeUpdate` (§3.4) resets the decay clock. If `confidence` is also set
+in the same update, the new confidence is used as the base; otherwise
+confidence is restored to 1.0. This enables both "I re-confirmed this is
+true" (confirmedAt only) and "I have new evidence at this confidence"
+(confirmedAt + confidence together).
+
+Edges have a symmetric lifecycle to nodes: `updateEdge()` accepts an
+`EdgeUpdate` with `confirmedAt` support. A confirmed relationship like
+"Alice works-at Acme" can have its decay clock reset without destroying
+and recreating the edge.
 
 ### 3.11 Capabilities
 
@@ -764,12 +808,18 @@ on the classpath.
 The decorator chain from outermost to innermost:
 
 ```
-TraitApp(70) → DerivedEdge(80) → Store
+ConfidenceDecay(50) → TraitApp(70) → DerivedEdge(80) → VocabNorm(90) → Store
 ```
 
-TraitApp is outermost so it evaluates trait rules on the **return path** — after
-DerivedEdge has stored the edge and fired derived rules. This ensures trait rules
-see the complete edge picture including derived edges.
+- **VocabNorm(90)** is innermost — normalises edge types before they reach
+  the store, so DerivedEdge rules and trait rules always see canonical types.
+- **DerivedEdge(80)** — fires derived rules on the return path from
+  `addEdge()`, using already-normalised types.
+- **TraitApp(70)** — evaluates trait rules on the return path after
+  DerivedEdge has stored the edge and fired derived rules. This ensures
+  trait rules see the complete edge picture including derived edges.
+- **ConfidenceDecay(50)** is outermost — intercepts query methods on the
+  return path to apply time-based decay. Mutations pass through unmodified.
 
 #### 5.2.2 Evaluation Trigger
 
@@ -1068,11 +1118,16 @@ The two-argument form delegates to the three-argument form with an empty list.
 │     └─ Collect TextDelta events → joined text           │
 │     └─ Parse JSON response                              │
 │                                                         │
-│  4. Resolve and apply (D28)                             │
+│  4. Resolve subgraphs and apply (D28)                    │
 │     └─ For each extracted entity:                       │
+│        - Map entity type to SubgraphType                │
+│        - findOrCreateSubgraph(type, tenantId)           │
+│          → search existing subgraphs by type            │
+│          → if none exists: createSubgraph()             │
 │        - resolveNode(name, subgraphId, tenantId)        │
 │        - If found: updateNode() with new properties     │
 │        - If not found: addNode() with extracted data    │
+│          and the resolved subgraphId                    │
 │     └─ For each extracted relationship:                 │
 │        - addEdge() (vocabulary normalization fires       │
 │          transparently via decorator chain)              │
@@ -1086,6 +1141,37 @@ The two-argument form delegates to the three-argument form with an empty list.
 │     └─ Entity names for carry-forward                   │
 └─────────────────────────────────────────────────────────┘
 ```
+
+**Subgraph lifecycle — find-or-create by type:**
+
+The extraction pipeline maintains one subgraph per `SubgraphType` per
+tenant. This is a V1 simplification of the "mind maps that merge" mental
+model — instead of one subgraph per entity (e.g., one for Alice, one for
+Bob), all PERSON entities share a single PERSON subgraph, all PROJECT
+entities share a single PROJECT subgraph, etc.
+
+```java
+private String findOrCreateSubgraph(SubgraphType type, String tenantId) {
+    // Search for existing subgraph of this type in this tenant
+    // (maintained as a per-tenant cache in MindMapExtractor)
+    String cached = subgraphCache.get(type);
+    if (cached != null) return cached;
+
+    String subgraphId = store.createSubgraph(
+        new SubgraphInput(type.name(), type, null), tenantId);
+    subgraphCache.put(type, subgraphId);
+    return subgraphId;
+}
+```
+
+The `SubgraphType` mapping from extracted entity types is direct — the
+LLM prompt (§6.5) uses the `SubgraphType` enum values, so
+`SubgraphType.valueOf(extractedEntity.type)` is a valid conversion. The
+extractor caches the type→subgraphId mapping for the duration of the
+extraction call to avoid repeated lookups.
+
+Cross-subgraph edges (relationships between entities of different types)
+are naturally "bridge edges" queryable via `bridgeEdges()`.
 
 ### 6.4 `ExtractionResult`
 
@@ -1104,7 +1190,7 @@ public record ExtractedEntity(
     String nodeId,          // the created or updated node ID
     String name,
     boolean created,        // true if new, false if updated existing
-    String subgraphType,    // PERSON, PROJECT, TOPIC, ORGANISATION, CONCEPT, GENERAL
+    String subgraphType,    // PERSON, PROJECT, RESEARCH_AREA, ORGANISATION, CONCEPT, GENERAL
     Map<String, String> properties
 ) {}
 
@@ -1165,7 +1251,7 @@ Respond with a JSON object:
   ]
 }
 
-Entity types: PERSON, PROJECT, TOPIC, ORGANISATION, CONCEPT, GENERAL.
+Entity types: PERSON, PROJECT, RESEARCH_AREA, ORGANISATION, CONCEPT, GENERAL.
 Confidence levels: STATED (directly asserted), INFERRED (implied),
 SPECULATED (guessed).
 
@@ -1251,15 +1337,33 @@ The carry-forward is bounded (one turn of names only) and adds negligible
 token cost. The caller (blocks tick loop) maintains the per-agent
 last-extraction-result.
 
+**Known V1 limitation:** one-turn carry-forward does not handle multi-turn
+coreference ("She" in turn 5 referring to "Alice" from turn 2). The graph
+context query (§6.7) partially compensates for already-persisted entities,
+but newly extracted entities from earlier turns may not surface if their
+names don't match the current text. Future options: sliding window of N
+turns, or an explicit coreference resolution step using the graph as
+context.
+
 ### 6.9 Concurrency Model (D28)
 
 Extraction is single-threaded per agent, serialized by the blocks
 orchestrator's per-agent `ReentrantLock` in the tick loop. The
 resolve-before-create approach (D28) is safe under this guarantee.
 
-Callers outside the tick loop (REST endpoints, manual imports) must
-provide their own serialization or accept transient duplicates that
-`mergeNodes()` resolves after the fact.
+**V1 scope:** extraction runs exclusively within the tick loop. REST
+endpoints and manual imports are out of scope for V1. The tick loop's
+per-agent `ReentrantLock` provides the serialization guarantee that makes
+resolve-before-create safe.
+
+**Non-tick-loop concurrency (future):** when extraction is exposed outside
+the tick loop, the specific race is resolve-then-create non-atomicity —
+two concurrent extractors can both resolve "Alice" as absent and both
+create her. Serialization would need to be per-entity-name within a
+tenant, not global. Transient duplicates would be detectable by
+`MindMapAnalyzer` and resolvable via `mergeNodes()`, but concurrent
+readers during the duplicate window would see incorrect traversal results.
+This design is deferred until a non-tick-loop consumer is identified.
 
 ### 6.10 AgentProvider Invocation (D33)
 
@@ -1267,24 +1371,61 @@ provide their own serialization or accept transient duplicates that
 private String invokeLlm(String systemPrompt, String userPrompt) {
     AgentProvider provider = agentProviderInstance.get();
 
-    List<AgentEvent> events = provider.invoke(
-        AgentSessionConfig.of(systemPrompt, userPrompt))
-            .collect().asList()
-            .await().atMost(Duration.ofMinutes(2));
+    try {
+        List<AgentEvent> events = provider.invoke(
+            AgentSessionConfig.of(systemPrompt, userPrompt))
+                .collect().asList()
+                .await().atMost(Duration.ofMinutes(2));
 
-    return events.stream()
-        .filter(AgentEvent.TextDelta.class::isInstance)
-        .map(AgentEvent.TextDelta.class::cast)
-        .map(AgentEvent.TextDelta::text)
-        .collect(Collectors.joining());
+        // Check for LLM-reported errors
+        boolean hasError = events.stream()
+            .filter(AgentEvent.InvocationComplete.class::isInstance)
+            .map(AgentEvent.InvocationComplete.class::cast)
+            .anyMatch(AgentEvent.InvocationComplete::isError);
+        if (hasError) {
+            LOG.warn("LLM invocation completed with error flag");
+            return null;
+        }
+
+        String text = events.stream()
+            .filter(AgentEvent.TextDelta.class::isInstance)
+            .map(AgentEvent.TextDelta.class::cast)
+            .map(AgentEvent.TextDelta::text)
+            .collect(Collectors.joining());
+
+        if (text.isEmpty()) {
+            LOG.warn("LLM returned empty response");
+            return null;
+        }
+
+        return text;
+    } catch (Exception e) {
+        LOG.warn("LLM invocation failed", e);
+        return null;
+    }
 }
 ```
+
+The caller treats a `null` return as extraction failure and returns
+`ExtractionResult.EMPTY`. Failures are logged but do not propagate —
+the extraction call is cheap enough that the next conversation turn
+will capture any missed entities.
+
+**Failure modes handled:**
+- `TimeoutException` — Mutiny timeout after 2 minutes
+- `InvocationComplete.isError()` — LLM-reported error
+- Empty response — no `TextDelta` events returned
+- Network/transient failures — caught by the generic `Exception` handler
+
+**Not retried in V1:** invocation-level failures (rate limiting, network
+errors, model unavailability) are not retried. A retry budget can be added
+if extraction miss rates warrant it.
 
 One-shot `invoke()` per extraction (D33). Each call is stateless.
 Session-based optimization (GE-20260707-4ea952) can be added later if
 extraction frequency warrants it.
 
-### 6.11 Contradiction Detection (D30)
+### 6.11 Contradiction Detection and Resolution (D30)
 
 Contradictions are detected by the LLM during extraction — the existing
 graph context in the prompt enables the LLM to identify conflicts. This
@@ -1297,6 +1438,37 @@ edge types).
 - **Programmatic detection** — fires during periodic graph analysis,
   catches structural contradictions (multiple `works-at` edges from
   the same node)
+
+**Mutation semantics when contradictions are detected:**
+
+Contradictions are **reported but not automatically resolved**. The
+extraction pipeline applies additive mutations:
+
+1. **New relationship IS applied** — the extracted edge is created with
+   the LLM's assessed confidence (typically `STATED` or `INFERRED`).
+2. **Old contradicting relationship is NOT removed** — the existing edge
+   remains in the graph with its current confidence (subject to decay).
+3. **Contradiction is returned** in `ExtractionResult.contradictions` for
+   the caller to act on.
+4. **Node properties are updated** — `updateNode()` overwrites properties
+   with new values. The `Contradiction` record captures both old and new
+   values for audit.
+
+This means the graph temporarily holds both edges (e.g., Alice
+`works-at → Acme` AND Alice `works-at → Initech`). This is intentional —
+automatic resolution is dangerous because the LLM may incorrectly detect
+a contradiction. The programmatic detector (`MindMapAnalyzer`) flags the
+structural anomaly (multiple `works-at` edges from the same node) during
+periodic analysis, and the curiosity engine can generate a resolution
+question.
+
+**Resolution paths (not V1):**
+- Human confirmation via active learning question
+- Temporal resolution: set `validUntil` on the old edge when the new edge
+  has a clear temporal successor relationship
+- Confidence-based pruning: the old edge decays naturally; if not
+  re-confirmed, it eventually falls below the `minConfidence` threshold
+  in queries
 
 ### 6.12 Testing
 
@@ -1489,6 +1661,13 @@ Dedicated integration tests that verify cross-store bridging:
 | 14 | MindMap CDI + Decorators | J6 | L16, L17 | Planned |
 | 15 | MindMap Intelligence | J6 | L18 | Planned |
 
+ARC42STORIES.MD entries for J6, C13–C15, and L16–L18 are created as part
+of the first implementation issue in each chapter (#214 creates L16/L17,
+#219 creates L18). This follows the established pattern where chapter
+entries are written at implementation time, not at spec time — they need
+the concrete details (issues, key files, gotchas) that only emerge during
+implementation.
+
 ### Layers
 
 | Layer | Module | Tier |
@@ -1538,5 +1717,5 @@ following the established `@DefaultBean` bridge pattern (see L6 RAG SPI,
 - GE-20260707-4ea952 — AgentProvider.openSession() persistent session (future optimization)
 - GE-20260810-804c58 — AgentProvider CDI tiering (NoOp < ChatModel < Claude)
 - D26-D34 — LLM extraction design decisions (input granularity, service shape, resolution, output format, contradictions, pipeline, context gathering, invocation, optionality)
-- D35 — AbstractForwardingMindMapStore (review-surfaced, decorator boilerplate reduction)
+- D35 — AbstractForwardingMindMapStore (review-surfaced, decorator boilerplate reduction) — tracked as #223
 - `PipelineProvisioner.provisionAiReview()` — existing AgentProvider consumption pattern
