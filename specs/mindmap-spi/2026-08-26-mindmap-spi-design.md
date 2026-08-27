@@ -858,23 +858,23 @@ Typed Java interfaces with accessors that map to node properties by convention
 package io.casehub.neocortex.mindmap.intelligence;
 
 public interface Personable {
-    String birthday();
-    String role();
-    String email();
-    String phone();
+    Optional<String> birthday();
+    Optional<String> role();
+    Optional<String> email();
+    Optional<String> phone();
 }
 
 public interface Projectlike {
-    String status();
-    String startDate();
-    String endDate();
-    String description();
+    Optional<String> status();
+    Optional<String> startDate();
+    Optional<String> endDate();
+    Optional<String> description();
 }
 
 public interface Organisational {
-    String industry();
-    String size();
-    String location();
+    Optional<String> industry();
+    Optional<String> size();
+    Optional<String> location();
 }
 ```
 
