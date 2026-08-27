@@ -327,3 +327,88 @@
 **Sources:** spec §3.1 traversal result sets, D10 (SQLite backend rationale), D16 (graph analysis), R1-14 decision review finding
 **Exploration:** quick (surfaced by review)
 **Status:** captured
+
+## D26: Extraction input granularity — single conversation turn
+
+**Choice:** Each extraction call processes one conversation turn (one user message + optional assistant reply). Not a sliding window or full transcript.
+**Alternatives:**
+- Sliding window (last N turns) — better coreference resolution across turns, but higher token cost and needs window management
+- Full transcript — best extraction quality but impractical for long conversations (token cost, latency)
+**Rationale:** Fits the blocks tick-loop model where each turn fires CDI observers. Single-turn extraction is the simplest, lowest-latency option. Entity coreference across turns is handled by the graph itself — if "she" in turn N refers to "Alice" from turn N-1, the graph already has Alice and the extractor resolves against it. Multi-turn context is a future enhancement, not a V1 requirement.
+**Trade-offs:** May miss cross-turn coreferences when pronouns are used without sufficient context in a single turn. Acceptable — the graph accumulates context over time.
+**Sources:** spec §2.3, blocks InnerLifeOrchestrator tick-loop model
+**Exploration:** quick
+**Status:** captured
+
+## D27: Extractor shape — concrete @ApplicationScoped service
+
+**Choice:** `MindMapExtractor` is a concrete `@ApplicationScoped` CDI bean, not an SPI interface. Injected dependencies: `MindMapStore` (for graph queries and mutations) and `AgentProvider` (for LLM calls).
+**Alternatives:**
+- SPI interface with implementation split — more ceremony; `AgentProvider` is already the pluggable abstraction for LLM backends, so another SPI layer adds no value
+**Rationale:** The extraction pipeline is tightly coupled to the LLM prompt design and JSON parsing — swapping implementations means swapping prompt engineering, not just wiring. Testing pluggability comes from injecting a `TestAgentProvider` (GE-20260801-bcff35), not from an SPI interface.
+**Trade-offs:** Cannot provide a non-LLM extraction implementation without modifying or subclassing the concrete class. Acceptable — LLM extraction is the entire point of this capability.
+**Sources:** GE-20260801-bcff35 (TestAgentProvider pattern), GE-20260810-804c58 (CDI tiering), NoOpAgentProvider @DefaultBean
+**Exploration:** quick
+**Status:** captured
+
+## D28: Entity resolution strategy — extractor-side resolve-before-create
+
+**Choice:** The extractor queries `MindMapStore.resolveNode()` and `MindMapStore.search()` before creating nodes. If a match is found, the existing node is updated. New nodes are created only for genuinely new entities.
+**Alternatives:**
+- Extract-then-reconcile — always create new nodes, merge duplicates later. Simpler extractor but duplicate nodes exist transiently and require a separate reconciliation step.
+- LLM-assisted resolution — pass existing node IDs to the LLM so it outputs matches directly. Highest quality but significantly higher token cost per extraction.
+**Rationale:** Resolution close to the extraction context gives the best accuracy-to-cost ratio. The extractor has the conversation context AND the graph state — it can make informed decisions about whether "Alice" matches an existing node. The resolve-before-create approach prevents duplicate accumulation, which is the primary usability concern for a knowledge graph.
+**Trade-offs:** The search query may not find all matches (e.g., if "Alice Smith" is stored but the conversation just says "Alice"). Alias resolution and fuzzy matching mitigate this, but imperfect matches will occur. The curiosity engine (D16) can detect sparse subgraphs that suggest missed merges.
+**Sources:** MindMapStore.resolveNode() (spec §3.1), MindMapStore.search() (spec §3.8), D7 (entity aliasing first-class in SPI)
+**Exploration:** quick
+**Depends on:** D7 (entity aliasing)
+**Status:** captured
+
+## D29: LLM output format — JSON schema in system prompt
+
+**Choice:** Define the expected extraction output as a JSON schema in the system prompt. The LLM responds with a JSON object containing entities, relationships, and contradictions. The extractor parses this JSON in Java.
+**Alternatives:**
+- Tool-calling via AgentProvider — define extraction as tool calls. More structured but AgentProvider's ToolCallComplete events add parsing complexity, and mindmap-intelligence would need to handle the tool-calling protocol.
+- Natural language + second-pass parse — flexible but doubles token cost
+**Rationale:** JSON-in-prompt is the proven pattern in the platform (GE-20260810-b1da3b). The PipelineProvisioner example shows the standard text extraction pattern. JSON parsing is well-understood and testable. The extraction schema is stable — entities have names, types, properties; relationships have source, target, type.
+**Trade-offs:** JSON parsing must handle malformed LLM output gracefully (missing fields, extra fields, non-JSON text mixed in). A robust parser with fallback/retry is needed.
+**Sources:** GE-20260810-b1da3b (structured JSON output pattern), GE-20260801-0aee7e (blocking text extraction), PipelineProvisioner.provisionAiReview()
+**Exploration:** quick
+**Status:** captured
+
+## D30: Contradiction detection — same LLM invocation with graph context
+
+**Choice:** Existing relevant graph state is included in the LLM prompt. The LLM extracts entities/relationships AND flags contradictions in a single invocation. Contradictions are returned as part of `ExtractionResult`.
+**Alternatives:**
+- Separate post-extraction step — extract first, compare programmatically in Java, invoke LLM again only for ambiguous contradictions. More deterministic for simple contradictions but misses semantic contradictions and doubles round-trips for complex cases.
+**Rationale:** The LLM already needs graph context for entity resolution (D28). Including contradiction detection in the same call adds negligible token cost — the context is already there. The LLM can detect semantic contradictions ("works at Acme" vs. "left Acme last month") that programmatic comparison cannot.
+**Trade-offs:** Contradictions depend on the LLM's judgment — false positives and false negatives will occur. Acceptable — contradictions are informational, not blocking. The caller decides what to do with them.
+**Sources:** D28 (entity resolution needs graph context in prompt), spec §4.3 (contradiction clusters as quality signals)
+**Depends on:** D28 (entity resolution), D29 (JSON output format)
+**Exploration:** quick
+**Status:** captured
+
+## D31: Extractor pipeline — full pipeline with ExtractionResult receipt
+
+**Choice:** `MindMapExtractor.extract(text, tenantId)` owns the full pipeline: query graph for context → invoke LLM → parse JSON → resolve entities → create/update nodes and edges → return `ExtractionResult`. The caller gets a receipt of what happened (entities created/updated, relationships created, contradictions detected).
+**Alternatives:**
+- Command list — extract() returns graph commands without executing. Supports dry-run but pushes mutation responsibility to every caller, duplicating graph logic.
+**Rationale:** The extractor is the expert on how to turn LLM output into graph operations. Spreading this logic across callers is fragile. The ExtractionResult receipt gives the caller enough information to log, audit, or react to contradictions without needing to understand graph internals.
+**Trade-offs:** No dry-run capability. If needed later, a separate `extractDryRun()` method could return the command list. Not needed for V1 — the primary consumer (blocks tick loop) always wants to apply the extraction.
+**Sources:** D27 (concrete service), D28 (resolve-before-create), D30 (contradictions in result)
+**Depends on:** D27, D28, D29, D30
+**Exploration:** quick
+**Status:** captured
+
+## D32: Graph context gathering — search-based relevance
+
+**Choice:** The extractor uses `MindMapStore.search()` with terms from the conversation turn to find potentially matching nodes. Matched nodes plus their immediate edges (via `neighbors()`) are serialized into the LLM prompt as context. Token cost scales with relevance, not graph size.
+**Alternatives:**
+- Subgraph summary — include a condensed summary of all nodes in the tenant's graph. Complete context but token cost grows linearly with graph size, hitting token limits for larger graphs.
+- Two-phase extraction — first LLM call extracts raw entity names (cheap, no context), second call resolves with graph matches. Two round-trips but cleaner separation.
+**Rationale:** Search-based context is targeted — only relevant nodes appear in the prompt. For a conversation about "Alice at Acme," the search returns Alice and Acme nodes (if they exist) with their edges, not the entire graph. This keeps token cost proportional to the conversation's entity density, not the graph's total size.
+**Trade-offs:** Search quality depends on the text query matching node names/properties. FTS5 (SQLite backend) provides reasonable matching but won't find entities referenced only by alias if the alias doesn't overlap with the search terms. The `resolveNode()` call (D28) covers alias-based resolution separately.
+**Sources:** MindMapStore.search() (spec §3.8), MindMapStore.neighbors() (spec §3.1), D25 (agent-scale graphs — search results are small)
+**Depends on:** D28 (entity resolution)
+**Exploration:** quick
+**Status:** captured
