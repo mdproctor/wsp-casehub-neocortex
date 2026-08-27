@@ -16,7 +16,12 @@ flyway-next-v: none
 - [x] casehubio/neocortex#216 — Derived edge rules
 - [x] casehubio/neocortex#215 — MindMapAnalyzer
 - [x] casehubio/neocortex#217 — CaseMemoryStore erasure notification
-- [ ] casehubio/neocortex#218 — NodeRef GDPR cleanup ← active
-- [ ] casehubio/neocortex#219 — Trait system
+- [x] casehubio/neocortex#218 — NodeRef GDPR cleanup
+- [ ] casehubio/neocortex#219 — Trait system ← active
+  - [ ] Batch 1: Decorator Engine
+    - [ ] Task 1: TraitRule SPI + TraitApplicationDecorator + tests
+  - [ ] Batch 2: Intelligence Module
+    - [ ] Task 2: mindmap-intelligence module + trait interfaces + standard rules
+    - [ ] Task 3: TraitProxy — JDK Proxy generation + tests
 - [ ] casehubio/neocortex#220 — LLM extraction
 - [ ] casehubio/neocortex#221 — Curiosity engine
