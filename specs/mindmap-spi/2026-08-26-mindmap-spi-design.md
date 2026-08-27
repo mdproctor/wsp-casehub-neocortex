@@ -989,15 +989,398 @@ The trait system is intentionally modelled after Drools Traits but implemented
 independently. A future integration could delegate trait management to Drools when
 available, using the same interfaces and rule definitions.
 
-## 6. Storage Backends
+## 6. LLM Entity/Relationship Extraction
 
-### 6.1 In-Memory (`mindmap-inmem`)
+### 6.1 Overview
+
+`MindMapExtractor` is the LLM-powered extraction pipeline that converts
+conversation text into graph structure. Given a single conversation turn
+(one user message + optional assistant reply), it extracts entities (people,
+projects, organisations, concepts), identifies relationships between them,
+resolves matches against existing graph nodes, creates or updates nodes
+and edges, and detects contradictions with existing knowledge.
+
+The extractor lives in `mindmap-intelligence/` alongside the trait system.
+It depends on `AgentProvider` (from `casehub-platform-agent-api`) for LLM
+calls and `MindMapStore` for graph operations.
+
+### 6.2 `MindMapExtractor` — Concrete Service
+
+```java
+package io.casehub.neocortex.mindmap.intelligence;
+
+@ApplicationScoped
+public class MindMapExtractor {
+
+    private final MindMapStore store;
+    private final Instance<AgentProvider> agentProviderInstance;
+
+    @Inject
+    public MindMapExtractor(MindMapStore store,
+                            Instance<AgentProvider> agentProviderInstance) {
+        this.store = store;
+        this.agentProviderInstance = agentProviderInstance;
+    }
+
+    public ExtractionResult extract(String conversationText,
+                                     String tenantId) { ... }
+
+    public ExtractionResult extract(String conversationText,
+                                     String tenantId,
+                                     List<String> recentEntityNames) { ... }
+}
+```
+
+The service is a concrete `@ApplicationScoped` bean (D27), not an SPI interface.
+`AgentProvider` is already the pluggable abstraction for LLM backends — another
+SPI layer adds no value.
+
+**AgentProvider optionality (D34):** Injected via `Instance<AgentProvider>`
+for graceful degradation. If unsatisfied or if the resolved provider returns
+an empty stream (NoOpAgentProvider), `extract()` returns
+`ExtractionResult.EMPTY`. The module works without an LLM backend — trait
+rules and proxy still function independently.
+
+**Two-argument vs three-argument form:** The two-argument form is the simple
+entry point. The three-argument form accepts a list of recently-mentioned
+entity names from the previous extraction (entity carry-forward, D26).
+The two-argument form delegates to the three-argument form with an empty list.
+
+### 6.3 Extraction Pipeline
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ extract(conversationText, tenantId, recentEntityNames)  │
+│                                                         │
+│  1. Search graph for relevant context (D32)             │
+│     └─ store.search(text terms) → matching nodes        │
+│     └─ store.neighbors(nodeId) → edges per match        │
+│                                                         │
+│  2. Build LLM prompt                                    │
+│     └─ System prompt: JSON extraction schema            │
+│     └─ User prompt:                                     │
+│        - Conversation text                              │
+│        - Existing graph context (serialized nodes/edges)│
+│        - Recently mentioned entities (carry-forward)    │
+│                                                         │
+│  3. Invoke AgentProvider (D33)                          │
+│     └─ agentProvider.invoke(AgentSessionConfig)          │
+│     └─ Collect TextDelta events → joined text           │
+│     └─ Parse JSON response                              │
+│                                                         │
+│  4. Resolve and apply (D28)                             │
+│     └─ For each extracted entity:                       │
+│        - resolveNode(name, subgraphId, tenantId)        │
+│        - If found: updateNode() with new properties     │
+│        - If not found: addNode() with extracted data    │
+│     └─ For each extracted relationship:                 │
+│        - addEdge() (vocabulary normalization fires       │
+│          transparently via decorator chain)              │
+│     └─ Trait rules fire automatically via               │
+│        TraitApplicationDecorator on the mutations       │
+│                                                         │
+│  5. Return ExtractionResult                             │
+│     └─ Created/updated entities                         │
+│     └─ Created relationships                            │
+│     └─ Detected contradictions                          │
+│     └─ Entity names for carry-forward                   │
+└─────────────────────────────────────────────────────────┘
+```
+
+### 6.4 `ExtractionResult`
+
+```java
+public record ExtractionResult(
+    List<ExtractedEntity> entities,
+    List<ExtractedRelationship> relationships,
+    List<Contradiction> contradictions,
+    List<String> entityNames
+) {
+    public static final ExtractionResult EMPTY =
+        new ExtractionResult(List.of(), List.of(), List.of(), List.of());
+}
+
+public record ExtractedEntity(
+    String nodeId,          // the created or updated node ID
+    String name,
+    boolean created,        // true if new, false if updated existing
+    String subgraphType,    // PERSON, PROJECT, TOPIC, ORGANISATION, CONCEPT, GENERAL
+    Map<String, String> properties
+) {}
+
+public record ExtractedRelationship(
+    String edgeId,
+    String sourceName,
+    String targetName,
+    String edgeType,        // vocabulary-normalised by decorator chain
+    ConfidenceOrigin confidenceOrigin
+) {}
+
+public record Contradiction(
+    String entityName,
+    String property,        // e.g., "works-at"
+    String existingValue,   // e.g., "Acme Corp"
+    String extractedValue,  // e.g., "Initech"
+    String description      // LLM-generated explanation
+) {}
+```
+
+`entityNames` is the compact list of all entity names from this extraction,
+used as carry-forward input to the next extraction call (D26).
+
+### 6.5 LLM Prompt Design
+
+**System prompt:**
+
+```
+You are a knowledge graph extraction agent. Given a conversation turn
+and existing graph context, extract entities and relationships.
+
+Respond with a JSON object:
+{
+  "entities": [
+    {
+      "name": "Alice Smith",
+      "type": "PERSON",
+      "properties": {"role": "engineer", "email": "alice@acme.com"},
+      "confidence": "STATED"
+    }
+  ],
+  "relationships": [
+    {
+      "source": "Alice Smith",
+      "target": "Acme Corp",
+      "type": "works-at",
+      "confidence": "STATED"
+    }
+  ],
+  "contradictions": [
+    {
+      "entity": "Alice Smith",
+      "property": "works-at",
+      "existing": "Acme Corp",
+      "extracted": "Initech",
+      "explanation": "The conversation says Alice left Acme and joined Initech"
+    }
+  ]
+}
+
+Entity types: PERSON, PROJECT, TOPIC, ORGANISATION, CONCEPT, GENERAL.
+Confidence levels: STATED (directly asserted), INFERRED (implied),
+SPECULATED (guessed).
+
+Rules:
+- Extract only entities and relationships explicitly or strongly implied
+  in the conversation text
+- Use the existing graph context to avoid creating duplicates
+- Use recently mentioned entities to resolve pronouns
+- Flag contradictions when extracted facts conflict with existing graph
+- Respond with valid JSON only — no additional text
+```
+
+**User prompt (template):**
+
+```
+Conversation:
+{conversationText}
+
+Existing graph context:
+{serializedNodes}
+
+Recently mentioned entities:
+{recentEntityNames}
+```
+
+### 6.6 JSON Parsing
+
+The JSON parser handles common LLM output issues:
+
+- **Markdown wrapping** — strip ` ```json ` / ` ``` ` if present
+- **Trailing text** — extract the first `{...}` block
+- **Missing fields** — default empty arrays for missing `entities`,
+  `relationships`, `contradictions`
+- **Unknown fields** — ignore gracefully
+- **Parse failure** — log warning, return `ExtractionResult.EMPTY`
+
+No retry on parse failure in V1. The extraction call is cheap enough that
+the next conversation turn will capture any missed entities. A retry budget
+can be added if extraction miss rates warrant it.
+
+### 6.7 Graph Context Serialization (D32)
+
+The extractor queries the graph for relevant context before building the
+LLM prompt:
+
+```java
+// Search for nodes matching terms from the conversation
+List<MindMapNode> matches = store.search(
+    new MindMapQuery(tenantId, null, conversationText,
+                     null, null, null, null, false, 20));
+
+// For each match, get immediate neighbors
+Map<String, List<MindMapEdge>> context = new LinkedHashMap<>();
+for (MindMapNode node : matches) {
+    context.put(node.id(), store.neighbors(node.id(), tenantId));
+}
+```
+
+Serialization format for the prompt (compact, structured):
+
+```
+- Alice Smith [PERSON] (confidence: 0.95, traits: Personable)
+  → works-at → Acme Corp [STATED]
+  → parent-of → Bob Smith [INFERRED]
+- Acme Corp [ORGANISATION] (confidence: 1.0, traits: Organisational)
+  ← works-at ← Alice Smith [STATED]
+```
+
+### 6.8 Entity Carry-Forward (D26)
+
+The `ExtractionResult.entityNames()` field contains the names of all entities
+from the current extraction. The caller passes this list to the next
+`extract()` call via the `recentEntityNames` parameter.
+
+This solves the most common coreference pattern — a pronoun in the current
+turn referring to an entity from the previous turn:
+
+- Turn 1: "Alice got promoted at Acme" → extracts `["Alice", "Acme"]`
+- Turn 2: "She mentioned leaving" → carry-forward provides `["Alice", "Acme"]`
+  → LLM resolves "she" → Alice
+
+The carry-forward is bounded (one turn of names only) and adds negligible
+token cost. The caller (blocks tick loop) maintains the per-agent
+last-extraction-result.
+
+### 6.9 Concurrency Model (D28)
+
+Extraction is single-threaded per agent, serialized by the blocks
+orchestrator's per-agent `ReentrantLock` in the tick loop. The
+resolve-before-create approach (D28) is safe under this guarantee.
+
+Callers outside the tick loop (REST endpoints, manual imports) must
+provide their own serialization or accept transient duplicates that
+`mergeNodes()` resolves after the fact.
+
+### 6.10 AgentProvider Invocation (D33)
+
+```java
+private String invokeLlm(String systemPrompt, String userPrompt) {
+    AgentProvider provider = agentProviderInstance.get();
+
+    List<AgentEvent> events = provider.invoke(
+        AgentSessionConfig.of(systemPrompt, userPrompt))
+            .collect().asList()
+            .await().atMost(Duration.ofMinutes(2));
+
+    return events.stream()
+        .filter(AgentEvent.TextDelta.class::isInstance)
+        .map(AgentEvent.TextDelta.class::cast)
+        .map(AgentEvent.TextDelta::text)
+        .collect(Collectors.joining());
+}
+```
+
+One-shot `invoke()` per extraction (D33). Each call is stateless.
+Session-based optimization (GE-20260707-4ea952) can be added later if
+extraction frequency warrants it.
+
+### 6.11 Contradiction Detection (D30)
+
+Contradictions are detected by the LLM during extraction — the existing
+graph context in the prompt enables the LLM to identify conflicts. This
+is complemented by `MindMapAnalyzer.contradictions()`, which detects
+structural contradictions programmatically (multiple values for functional
+edge types).
+
+- **LLM detection** — fires at extraction time, catches semantic
+  contradictions ("works at Acme" vs. "left Acme last month")
+- **Programmatic detection** — fires during periodic graph analysis,
+  catches structural contradictions (multiple `works-at` edges from
+  the same node)
+
+### 6.12 Testing
+
+Tests use `TestAgentProvider` (GE-20260801-bcff35) — a static inner class
+implementing `AgentProvider` that returns canned JSON responses:
+
+```java
+static class TestAgentProvider implements AgentProvider {
+    private final String response;
+    int invocationCount = 0;
+    String lastUserPrompt;
+
+    TestAgentProvider(String response) { this.response = response; }
+
+    @Override
+    public Multi<AgentEvent> invoke(AgentSessionConfig config) {
+        invocationCount++;
+        lastUserPrompt = config.userPrompt();
+        return Multi.createFrom().items(
+            new AgentEvent.TextDelta(response),
+            new AgentEvent.InvocationComplete(
+                100, 50, 0, 0, 0, 0.001, 500L, 400L, "test", 1, false));
+    }
+
+    @Override
+    public AgentSession openSession(AgentSessionInit init) {
+        throw new UnsupportedOperationException();
+    }
+}
+```
+
+Test scenarios:
+
+- Extract entities from text → verify nodes created with correct names,
+  types, properties
+- Extract relationships → verify edges created with correct types
+- Entity resolution — pre-populate graph with "Alice" → extract text
+  mentioning "Alice" → verify existing node updated (not duplicated)
+- Contradiction detection — pre-populate "works-at Acme" → extract
+  "works at Initech" → verify contradiction in result
+- Carry-forward — extract with recent entity names → verify pronoun
+  resolution in subsequent extraction
+- Empty/malformed JSON response → verify graceful degradation
+- NoOpAgentProvider → verify ExtractionResult.EMPTY returned
+- Properties applied → verify trait rules fire automatically (e.g.,
+  adding "email" property triggers Personable trait)
+
+### 6.13 Module Dependencies
+
+```
+mindmap-api     ← MindMapStore, MindMapNode, MindMapEdge, etc.
+    ↑
+mindmap-intelligence
+    ├── TraitRule implementations (existing — #219)
+    ├── Trait interfaces: Personable, Projectlike, Organisational (existing)
+    ├── TraitProxy (existing)
+    ├── MindMapExtractor (new — #220)
+    ├── ExtractionResult, ExtractedEntity, ExtractedRelationship (new)
+    ├── Contradiction (new)
+    └── ExtractionJsonParser (new — internal)
+
+Dependencies:
+    mindmap-api (compile)
+    quarkus-arc (compile)
+    casehub-platform-agent-api (compile — for AgentProvider)
+    smallrye-mutiny (compile — for Multi consumption)
+    mindmap-inmem (test)
+    junit-jupiter (test)
+    assertj-core (test)
+```
+
+`casehub-platform-agent-api` is a new compile dependency for
+mindmap-intelligence. It is a Tier 1 module (pure Java + CDI annotations)
+with no heavy transitive dependencies.
+
+## 7. Storage Backends
+
+### 7.1 In-Memory (`mindmap-inmem`)
 
 `InMemoryMindMapStore` — `ConcurrentHashMap`-based implementation for tests.
 `@Alternative @Priority(1)`. Supports all capabilities. Provides `clearAll()`
 for test isolation.
 
-### 6.2 SQLite (`mindmap-sqlite`)
+### 7.2 SQLite (`mindmap-sqlite`)
 
 `SqliteMindMapStore` — SQLite + HikariCP WAL + Flyway migrations. Production
 backend for single-node deployments.
@@ -1015,7 +1398,7 @@ supersessions  — target_id, superseding_id, reason, timestamps
 FTS5 index on node names and properties for text search. Indexes on edge type,
 source/target, subgraph membership.
 
-### 6.3 Future Backends
+### 7.3 Future Backends
 
 - **TinkerPop/ArcadeDB** — if traversal complexity outgrows recursive CTEs
 - **Qdrant** — if semantic similarity search over node content is needed
@@ -1024,9 +1407,9 @@ source/target, subgraph membership.
 The SPI insulates consumers from backend changes. The capability enum allows
 backends to declare which operations they support.
 
-## 7. Testing
+## 8. Testing
 
-### 7.1 Contract Tests (`mindmap-testing`)
+### 8.1 Contract Tests (`mindmap-testing`)
 
 `MindMapStoreContractTest` — abstract base class that all backends must pass.
 Tests cover:
@@ -1050,7 +1433,7 @@ Tests cover:
 - Affective annotations
 - Capability self-description
 
-### 7.2 Integration Tests
+### 8.2 Integration Tests
 
 Dedicated integration tests that verify cross-store bridging:
 
@@ -1070,8 +1453,13 @@ Dedicated integration tests that verify cross-store bridging:
 - Proxy generation — `TraitProxy.as(node, Personable.class)` reads properties
 - Truth maintenance — property removal / edge deletion triggers trait retraction
 - Cycle prevention — trait → edge → derived edge chain bounded by decorators
+- LLM extraction — conversation text → entities and relationships created in graph
+- Entity resolution — existing node matched and updated, not duplicated
+- Contradiction detection — conflict between extracted and existing facts reported
+- Carry-forward — pronoun resolution via recently-mentioned entity names
+- Graceful degradation — NoOpAgentProvider returns ExtractionResult.EMPTY
 
-## 8. Module Coordinates
+## 9. Module Coordinates
 
 | Element | Value |
 |---|---|
@@ -1085,7 +1473,7 @@ Dedicated integration tests that verify cross-store bridging:
 | MindMap Intelligence | `casehub-neocortex-mindmap-intelligence` |
 | Root Java package | `io.casehub.neocortex.mindmap` |
 
-## 9. ARC42STORIES Integration
+## 10. ARC42STORIES Integration
 
 ### Journey
 
@@ -1109,7 +1497,7 @@ Dedicated integration tests that verify cross-store bridging:
 | L17 MindMap Runtime | `mindmap`, `mindmap-inmem`, `mindmap-sqlite` | CDI library / backends |
 | L18 MindMap Intelligence | `mindmap-intelligence` | CDI library, requires AgentProvider |
 
-## 10. Design Decisions
+## 11. Design Decisions
 
 ### No reactive SPI variant
 
@@ -1144,3 +1532,11 @@ following the established `@DefaultBean` bridge pattern (see L6 RAG SPI,
 - D23-D25 — Review-surfaced decisions (SPI boundary, atomicity, scale assumption)
 - MoodState / MoodModulatedRetrieval — PAD model for mood-congruent recall
 - `CbrOutcome` — numeric confidence with categorical provenance (pattern for §3.10)
+- GE-20260801-0aee7e — AgentEvent sealed hierarchy and blocking text extraction pattern
+- GE-20260801-bcff35 — Mockito-free TestAgentProvider inner class pattern
+- GE-20260810-b1da3b — Structured JSON output via system prompt (extraction output format)
+- GE-20260707-4ea952 — AgentProvider.openSession() persistent session (future optimization)
+- GE-20260810-804c58 — AgentProvider CDI tiering (NoOp < ChatModel < Claude)
+- D26-D34 — LLM extraction design decisions (input granularity, service shape, resolution, output format, contradictions, pipeline, context gathering, invocation, optionality)
+- D35 — AbstractForwardingMindMapStore (review-surfaced, decorator boilerplate reduction)
+- `PipelineProvisioner.provisionAiReview()` — existing AgentProvider consumption pattern
