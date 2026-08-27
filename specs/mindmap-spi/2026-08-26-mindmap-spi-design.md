@@ -418,28 +418,30 @@ the target SPI available.
    store's classpath and cannot verify existence.
 
 2. **GDPR erasure cascade** — when a source store erases an entity, the
-   `mindmap` CDI module must be notified to remove all `NodeRef`s pointing
+   `mindmap` CDI module is notified to remove all `NodeRef`s pointing
    to the erased entity. Under GDPR Art.17, references that identify a data
    subject are themselves personal data. Cleanup is proactive, not lazy.
 
-   **Integration prerequisite:** a unified erasure notification event must
-   be defined in `memory-api`. The existing pattern is `CbrCasesErased`
-   (sealed interface with `ByRequest`, `ByEntity`, `ByScope` variants),
-   fired by `ErasureNotificationCbrCaseMemoryStore` (`@Decorator
-   @Priority(45)`). This covers `CbrCaseMemoryStore` erasures only.
+   **Existing implementation:** the erasure cascade is fully wired:
 
-   For MindMap NodeRef cleanup, either:
-   - (a) Define a new `MemoryEntityErased` event in `memory-api` fired by
-     a new `ErasureNotificationCaseMemoryStore` decorator on
-     `CaseMemoryStore`, plus observe the existing `CbrCasesErased.ByEntity`,
-     or
-   - (b) Define a unified `EntityErased` event that both store decorators
-     fire.
+   - `MemoryEntityErased` — sealed interface in `memory-api` with three
+     variants: `ByRequest`, `ByEntity`, `CrossTenant`.
+   - `ErasureNotificationCaseMemoryStore` — `@Decorator @Priority(45)` on
+     `CaseMemoryStore`. Fires `MemoryEntityErased` events after
+     `erase()`, `eraseEntity()`, and `eraseEntityAcrossTenants()`.
+   - `ErasureNotificationCbrCaseMemoryStore` — `@Decorator @Priority(45)`
+     on `CbrCaseMemoryStore`. Fires `CbrCasesErased` events.
+   - `NodeRefCleanupObserver` — `@ApplicationScoped` in the `mindmap` CDI
+     module. Observes `MemoryEntityErased.ByEntity` (removes NodeRefs
+     with scheme `"memory"`) and `CbrCasesErased.ByEntity` (removes
+     NodeRefs with scheme `"cbr"`). Cleanup scans all tenant nodes via
+     `store.search()` (limit 10,000), finds nodes with matching refs,
+     and removes the refs via `updateNode()`.
 
-   Either approach requires a new decorator on `CaseMemoryStore`'s chain
-   (which currently has no erasure notification decorator). This is a
-   cross-cutting platform prerequisite — tracked as a separate issue
-   before MindMap implementation begins.
+   **Known limitation:** the cleanup does an O(N) scan over all nodes in
+   the tenant per erasure event. Acceptable at V1 scale (hundreds to low
+   thousands of nodes per tenant). At higher scale, an inverted index
+   from `(scheme, refId)` → node IDs would avoid the full scan.
 
 3. **Non-GDPR dangling refs** — when a referenced entity is deleted for
    non-GDPR reasons (e.g., supersession, consolidation), the `NodeRef`
@@ -1181,8 +1183,25 @@ warms from `listSubgraphs()` (§3.1) to avoid creating duplicate subgraphs
 after application restart.
 
 The `SubgraphType` mapping from extracted entity types is direct — the
-LLM prompt (§6.5) uses the `SubgraphType` enum values, so
-`SubgraphType.valueOf(extractedEntity.type)` is a valid conversion.
+LLM prompt (§6.5) uses the `SubgraphType` enum values. The conversion
+is defensive: if the LLM returns an unrecognized type string, the
+entity maps to `GENERAL` rather than failing the entire extraction:
+
+```java
+private SubgraphType parseSubgraphType(String type) {
+    try {
+        return SubgraphType.valueOf(type);
+    } catch (IllegalArgumentException e) {
+        LOG.fine("Unknown entity type '" + type + "', mapping to GENERAL");
+        return SubgraphType.GENERAL;
+    }
+}
+```
+
+This prevents a single invalid entity type (e.g., the LLM returning
+`"TOPIC"` or `"LOCATION"`) from discarding the entire extraction
+result. `GENERAL` is the correct fallback — it is the catch-all
+subgraph type for entities that don't fit a specific category.
 
 Cross-subgraph edges (relationships between entities of different types)
 are naturally "bridge edges" queryable via `bridgeEdges()`.
