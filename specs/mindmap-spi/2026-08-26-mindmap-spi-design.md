@@ -185,6 +185,7 @@ public interface MindMapStore {
     MindMapSubgraph getSubgraph(String subgraphId, String tenantId);
     void updateSubgraph(String subgraphId, String rootNodeId,
                         String tenantId);
+    List<MindMapSubgraph> listSubgraphs(String tenantId);
     List<MindMapNode> nodesIn(String subgraphId, String tenantId);
     List<MindMapEdge> bridgeEdges(String subgraphId, String tenantId);
 
@@ -1102,8 +1103,9 @@ The two-argument form delegates to the three-argument form with an empty list.
 ┌─────────────────────────────────────────────────────────┐
 │ extract(conversationText, tenantId, recentEntityNames)  │
 │                                                         │
-│  1. Search graph for relevant context (D32)             │
-│     └─ store.search(text terms) → matching nodes        │
+│  1. Retrieve graph context (D32)                        │
+│     └─ resolveNode() per carry-forward name             │
+│     └─ search() per extracted candidate term            │
 │     └─ store.neighbors(nodeId) → edges per match        │
 │                                                         │
 │  2. Build LLM prompt                                    │
@@ -1151,24 +1153,36 @@ Bob), all PERSON entities share a single PERSON subgraph, all PROJECT
 entities share a single PROJECT subgraph, etc.
 
 ```java
-private String findOrCreateSubgraph(SubgraphType type, String tenantId) {
-    // Search for existing subgraph of this type in this tenant
-    // (maintained as a per-tenant cache in MindMapExtractor)
-    String cached = subgraphCache.get(type);
-    if (cached != null) return cached;
+// Tenant-aware cache: outer key is tenantId, inner key is SubgraphType
+private final Map<String, Map<SubgraphType, String>> subgraphCache =
+    new ConcurrentHashMap<>();
 
-    String subgraphId = store.createSubgraph(
-        new SubgraphInput(type.name(), type, null), tenantId);
-    subgraphCache.put(type, subgraphId);
-    return subgraphId;
+private String findOrCreateSubgraph(SubgraphType type, String tenantId) {
+    Map<SubgraphType, String> tenantCache = subgraphCache
+        .computeIfAbsent(tenantId, t -> {
+            // Warm cache from existing subgraphs on first access per tenant
+            Map<SubgraphType, String> warm = new ConcurrentHashMap<>();
+            for (MindMapSubgraph sg : store.listSubgraphs(t)) {
+                warm.putIfAbsent(sg.type(), sg.id());
+            }
+            return warm;
+        });
+
+    return tenantCache.computeIfAbsent(type, t ->
+        store.createSubgraph(
+            new SubgraphInput(t.name(), t, null), tenantId));
 }
 ```
 
+The cache is keyed by `(tenantId, SubgraphType)` to prevent cross-tenant
+contamination (`MindMapExtractor` is `@ApplicationScoped` — the same bean
+instance handles all tenants). On first access per tenant, the cache
+warms from `listSubgraphs()` (§3.1) to avoid creating duplicate subgraphs
+after application restart.
+
 The `SubgraphType` mapping from extracted entity types is direct — the
 LLM prompt (§6.5) uses the `SubgraphType` enum values, so
-`SubgraphType.valueOf(extractedEntity.type)` is a valid conversion. The
-extractor caches the type→subgraphId mapping for the duration of the
-extraction call to avoid repeated lookups.
+`SubgraphType.valueOf(extractedEntity.type)` is a valid conversion.
 
 Cross-subgraph edges (relationships between entities of different types)
 are naturally "bridge edges" queryable via `bridgeEdges()`.
@@ -1292,23 +1306,63 @@ No retry on parse failure in V1. The extraction call is cheap enough that
 the next conversation turn will capture any missed entities. A retry budget
 can be added if extraction miss rates warrant it.
 
-### 6.7 Graph Context Serialization (D32)
+### 6.7 Graph Context Retrieval (D32)
 
 The extractor queries the graph for relevant context before building the
-LLM prompt:
+LLM prompt. Context retrieval uses two strategies — precise name
+resolution first, then broad term search:
 
 ```java
-// Search for nodes matching terms from the conversation
-List<MindMapNode> matches = store.search(
-    new MindMapQuery(tenantId, null, conversationText,
-                     null, null, null, null, false, 20));
+private Map<String, List<MindMapEdge>> retrieveContext(
+        String conversationText, String tenantId,
+        List<String> recentEntityNames) {
+    Map<String, List<MindMapEdge>> context = new LinkedHashMap<>();
 
-// For each match, get immediate neighbors
-Map<String, List<MindMapEdge>> context = new LinkedHashMap<>();
-for (MindMapNode node : matches) {
-    context.put(node.id(), store.neighbors(node.id(), tenantId));
+    // Strategy 1: resolve carry-forward names (precise)
+    for (String name : recentEntityNames) {
+        MindMapNode node = store.resolveNode(name, null, tenantId);
+        if (node != null) {
+            context.put(node.id(),
+                store.neighbors(node.id(), tenantId));
+        }
+    }
+
+    // Strategy 2: search for candidate terms from conversation (broad)
+    for (String term : extractCandidateTerms(conversationText)) {
+        if (context.size() >= 20) break;
+        List<MindMapNode> hits = store.search(
+            new MindMapQuery(tenantId, null, term,
+                             null, null, null, null, false, 5));
+        for (MindMapNode node : hits) {
+            context.computeIfAbsent(node.id(), id ->
+                store.neighbors(id, tenantId));
+        }
+    }
+    return context;
 }
 ```
+
+**Strategy 1 — name resolution** uses `resolveNode()` for exact
+name/alias matching. This is the most reliable path for entity
+resolution: carry-forward provides entity names from the previous
+extraction, and `resolveNode()` matches them against the graph's name
+and alias index. No false positives.
+
+**Strategy 2 — term search** extracts candidate entity names from the
+conversation text (capitalized word sequences, filtering common words
+like "The", "I", "We") and searches for each individually.
+`MindMapQuery.text` is a search query interpreted by the backend:
+`InMemoryMindMapStore` does substring matching (sufficient for tests);
+`SqliteMindMapStore` uses FTS5 `MATCH` with BM25 ranking (§7.2).
+Individual terms match correctly under both strategies — unlike raw
+conversation text, which would match nothing as a substring.
+
+**Result deduplication:** `computeIfAbsent` on the context map ensures
+each node appears at most once, even if found by both strategies.
+
+**Cap at 20 context nodes** to bound token cost in the LLM prompt.
+Carry-forward names (strategy 1) take priority over broad search
+(strategy 2).
 
 Serialization format for the prompt (compact, structured):
 
@@ -1567,8 +1621,19 @@ node_refs      — node_id, scheme, ref_id, qualifier
 supersessions  — target_id, superseding_id, reason, timestamps
 ```
 
-FTS5 index on node names and properties for text search. Indexes on edge type,
-source/target, subgraph membership.
+**Text search:** FTS5 virtual table `mindmap_fts` on node names and
+properties, maintained by insert/update/delete triggers (following the
+`memory-sqlite` pattern — GE-20260801-bcff35). The `search()` method
+uses `JOIN mindmap_fts ON mindmap_fts.rowid = n.rowid WHERE mindmap_fts
+MATCH ?` with `ORDER BY rank` for BM25 relevance ranking. Query text
+is sanitised via `sanitiseForFts()` to strip FTS5 operator characters
+before binding.
+
+`InMemoryMindMapStore` uses simple substring matching on node names and
+property values — sufficient for contract tests where stored text
+includes the search term.
+
+Indexes on edge type, source/target, subgraph membership.
 
 ### 7.3 Future Backends
 
