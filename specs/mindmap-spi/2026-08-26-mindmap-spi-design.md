@@ -728,59 +728,251 @@ codebase. This enables:
 
 ## 5. Trait System
 
-### 5.1 SPI Boundary
+### 5.1 SPI Boundary (`mindmap-api/`)
 
-The SPI stores trait names as opaque `Set<String>` metadata on nodes. It does not
-know what trait names mean, how they are applied, or what interfaces they represent.
+The SPI stores trait names as opaque `Set<String>` metadata on nodes (D9). It does
+not know what trait names mean, how they are applied, or what interfaces they
+represent.
 
-### 5.2 Intelligence Layer (mindmap-intelligence)
-
-The intelligence layer owns:
-
-- **Trait interfaces** — Java interfaces (`Personable`, `Projectlike`,
-  `Organisational`) with typed accessors that read from node properties
-- **Proxy generation** — creates runtime proxies that implement trait interfaces,
-  abstracting over core fields and dynamic properties
-- **Forward-chaining rules** — determine when traits should be applied or retracted
-  based on node properties and edges. "If a node has 'birthday' property and edges
-  of type 'parent-of', apply Personable trait."
-- **Truth maintenance** — when the evidence for a trait is retracted (e.g., the
-  'birthday' property is removed), the trait is automatically retracted
-- **Compaction** — over time, when a property appears consistently on all nodes
-  with a given trait, it can be promoted from dynamic properties to a core field.
-  The proxy hides this migration from consumers.
-
-#### 5.2.1 Rule Specification
-
-Rules are Java CDI beans implementing `TraitRule`:
+The `TraitRule` SPI interface lives in `mindmap-api/` alongside `DerivedEdgeRule`
+(D23 — extension point contracts belong in the SPI module):
 
 ```java
+package io.casehub.neocortex.mindmap;
+
 public interface TraitRule {
     String traitName();
     boolean matches(MindMapNode node, List<MindMapEdge> edges);
 }
 ```
 
-**Evaluation trigger:** rules fire on node mutation — `addNode()`,
-`updateNode()`, `addEdge()`, `removeEdge()`. The decorator intercepts
-these calls and re-evaluates applicable rules for the affected node(s).
-`addNode()` is included because a node created with properties matching a
-rule (e.g., a node with a "birthday" property) must receive its traits
-immediately — not after a subsequent `updateNode()`. Rules do NOT fire on
-every query — only on state changes.
+Rule implementations depend only on `mindmap-api/` (zero deps). The CDI module
+discovers them; the intelligence module provides standard implementations.
 
-**Conflict resolution:** if multiple rules target the same trait on the same
-node, application wins over retraction (a trait is applied if ANY rule
-matches, retracted only when NO rules match). This is conservative — the
-intelligence layer can always retract explicitly via `traitsToRemove`.
+### 5.2 TraitApplicationDecorator (`mindmap/`)
 
-**Cycle prevention:** derived edge insertion from trait application (e.g.,
-applying `Personable` creates a `person-type` edge) is limited to a maximum
-chain depth of 3. If a derived edge triggers a rule that triggers another
-derived edge, the chain terminates after 3 levels. Deeper chains indicate a
-rule design problem, not a legitimate knowledge structure.
+`TraitApplicationDecorator` is a CDI `@Decorator @Priority(70)` on `MindMapStore`,
+living in the `mindmap/` CDI module alongside `DerivedEdgeDecorator` (D22). It
+discovers `TraitRule` beans via CDI `Instance<TraitRule>` — no-op when no rules are
+on the classpath.
 
-### 5.3 Future Reconciliation with Drools
+#### 5.2.1 Decorator Chain Ordering (D19)
+
+The decorator chain from outermost to innermost:
+
+```
+TraitApp(70) → DerivedEdge(80) → Store
+```
+
+TraitApp is outermost so it evaluates trait rules on the **return path** — after
+DerivedEdge has stored the edge and fired derived rules. This ensures trait rules
+see the complete edge picture including derived edges.
+
+#### 5.2.2 Evaluation Trigger
+
+The decorator intercepts four mutation methods:
+
+| Method | Affected nodes |
+|---|---|
+| `addNode(input)` | The new node |
+| `updateNode(nodeId, update)` | The updated node |
+| `addEdge(input)` | Source node and target node |
+| `removeEdge(edgeId)` | Source node and target node (looked up before removal) |
+
+For each affected node, the decorator:
+1. Queries the node's current state (`getNode`)
+2. Queries the node's edges (`neighbors`)
+3. Evaluates all `TraitRule` beans against the node + edges
+4. Computes the delta: traits to add (rule matches, trait not present) and traits
+   to retract (no rule matches, trait present)
+5. If delta is non-empty, calls `delegate.updateNode()` with `traitsToAdd` /
+   `traitsToRemove`
+
+Rules do NOT fire on query methods — only on state changes.
+
+#### 5.2.3 Conflict Resolution
+
+If multiple rules target the same trait on the same node, application wins over
+retraction: a trait is applied if ANY rule's `matches()` returns true, retracted
+only when NO rules match. This is conservative — the intelligence layer can always
+retract explicitly via `traitsToRemove` on `NodeUpdate`.
+
+#### 5.2.4 Cycle Prevention — Reentrancy Guard (D20)
+
+A `ThreadLocal<Boolean>` reentrancy guard prevents recursive trait evaluation.
+When trait evaluation is in progress, any mutations triggered BY the evaluation
+(`delegate.updateNode` for trait changes, `delegate.addEdge` for trait-associated
+edges) go through the decorator chain but skip trait re-evaluation:
+
+```java
+private static final ThreadLocal<Boolean> evaluating =
+    ThreadLocal.withInitial(() -> false);
+
+@Override
+public String addEdge(EdgeInput input, String tenantId) {
+    String edgeId = delegate.addEdge(input, tenantId);
+    if (!evaluating.get()) {
+        evaluating.set(true);
+        try {
+            evaluateTraitsForNode(input.sourceNodeId(), tenantId);
+            evaluateTraitsForNode(input.targetNodeId(), tenantId);
+        } finally {
+            evaluating.set(false);
+        }
+    }
+    return edgeId;
+}
+```
+
+This means trait evaluation fires **once** per user-initiated mutation. Trait-
+triggered edges get their derived edges (bounded by DerivedEdge's depth-3 counter),
+but those derived edges don't trigger further trait evaluation. The cross-decorator
+chain (trait → edge → trait → ...) is bounded at one trait evaluation level plus
+DerivedEdge's depth limit.
+
+**Trade-off:** If applying trait A triggers an edge whose derived edge would make
+trait B applicable on a different node, trait B won't be discovered until the next
+user-triggered mutation. Acceptable for V1 — multi-level trait chains are unusual
+and can be addressed later.
+
+### 5.3 Intelligence Module (`mindmap-intelligence/`)
+
+New module. Depends on `mindmap-api/` (zero deps). Contains trait KNOWLEDGE while
+`mindmap/` contains the trait ENGINE (D22).
+
+#### 5.3.1 Trait Interfaces
+
+Typed Java interfaces with accessors that map to node properties by convention
+(method name = property key):
+
+```java
+package io.casehub.neocortex.mindmap.intelligence;
+
+public interface Personable {
+    String birthday();
+    String role();
+    String email();
+    String phone();
+}
+
+public interface Projectlike {
+    String status();
+    String startDate();
+    String endDate();
+    String description();
+}
+
+public interface Organisational {
+    String industry();
+    String size();
+    String location();
+}
+```
+
+These are pure marker/accessor interfaces — no logic, no dependencies. They define
+the VOCABULARY of typed properties for their respective trait categories.
+
+#### 5.3.2 Proxy Generation (D21)
+
+JDK `java.lang.reflect.Proxy` with convention-based method dispatch:
+
+```java
+package io.casehub.neocortex.mindmap.intelligence;
+
+public final class TraitProxy {
+
+    public static <T> T as(MindMapNode node, Class<T> traitInterface) {
+        if (!traitInterface.isInterface()) {
+            throw new IllegalArgumentException("Trait must be an interface");
+        }
+        return traitInterface.cast(Proxy.newProxyInstance(
+            traitInterface.getClassLoader(),
+            new Class<?>[] { traitInterface },
+            new TraitInvocationHandler(node)));
+    }
+}
+```
+
+The `TraitInvocationHandler` dispatches by method name:
+- `methodName()` → `node.property(methodName)` → type conversion based on return type
+- `String` → passthrough (property value or null)
+- `Optional<String>` → `Optional.ofNullable(property value)`
+- `Integer`, `Long`, `Double` → parse from string, null if absent or unparseable
+- `equals`, `hashCode`, `toString` → delegate to node identity
+
+Zero external deps. Convention-based mapping (method name = property key) matches
+the Drools Traits model (§5.5). No compile-time verification that property keys
+exist — the proxy returns null/empty for missing properties.
+
+#### 5.3.3 Standard TraitRule Implementations
+
+CDI beans implementing `TraitRule`, discovered by `TraitApplicationDecorator`:
+
+```java
+@ApplicationScoped
+public class PersonableTraitRule implements TraitRule {
+    @Override
+    public String traitName() { return "Personable"; }
+
+    @Override
+    public boolean matches(MindMapNode node, List<MindMapEdge> edges) {
+        // A node is Personable if it has person-identifying properties
+        // OR person-relationship edges
+        boolean hasPersonProperties = node.property("birthday").isPresent()
+            || node.property("role").isPresent()
+            || node.property("email").isPresent();
+        boolean hasPersonEdges = edges.stream()
+            .anyMatch(e -> e.edgeType().equals("parent-of")
+                || e.edgeType().equals("child-of")
+                || e.edgeType().equals("works-at"));
+        return hasPersonProperties || hasPersonEdges;
+    }
+}
+```
+
+Similar implementations for `ProjectlikeTraitRule` and `OrganisationalTraitRule`.
+
+#### 5.3.4 Truth Maintenance
+
+When evidence for a trait is retracted (property removed, edge deleted), the
+`TraitApplicationDecorator` re-evaluates all rules for the affected node. If no
+rule matches a previously-applied trait, the trait is retracted via
+`delegate.updateNode(nodeId, NodeUpdate(...traitsToRemove=Set.of(traitName)...))`.
+
+Truth maintenance is automatic — consumers don't invoke it. The decorator's
+interception of `updateNode()` (property changes) and `removeEdge()` (edge
+deletion) ensures re-evaluation on every state change.
+
+#### 5.3.5 Compaction (Future)
+
+When a dynamic property appears consistently on all nodes with a given trait,
+it can be promoted from a dynamic property to a core column. The proxy layer
+hides this migration — `TraitProxy.as(node, Personable.class).birthday()`
+returns the same value regardless of whether `birthday` is a core field or a
+dynamic property, because `MindMapNode.property(key)` provides unified access
+(§3.2).
+
+Compaction is a schema evolution concern — it requires Flyway migration and is
+deferred to a future issue.
+
+### 5.4 Module Dependencies
+
+```
+mindmap-api     ← TraitRule SPI, DerivedEdgeRule SPI
+    ↑
+mindmap         ← TraitApplicationDecorator @Priority(70)
+    ↑              DerivedEdgeDecorator @Priority(80)
+    ↑              (discovers rules via CDI Instance)
+mindmap-intelligence ← TraitRule implementations
+                       Trait interfaces (Personable, etc.)
+                       TraitProxy (JDK Proxy generation)
+```
+
+Application modules can provide their own `TraitRule` beans by depending only on
+`mindmap-api/`. The intelligence module provides the standard rules — it's a
+library of reusable knowledge, not a required dependency.
+
+### 5.5 Future Reconciliation with Drools
 
 The trait system is intentionally modelled after Drools Traits but implemented
 independently. A future integration could delegate trait management to Drools when
@@ -860,6 +1052,13 @@ Dedicated integration tests that verify cross-store bridging:
 - Vocabulary normalization decorator fires transparently on addEdge
 - Derived edge rules fire (has-child → parent edge created) and truth maintenance
   retracts when evidence removed
+- Trait rules fire on node mutation — trait applied when rule matches, retracted
+  when no rules match
+- Trait evaluation reentrancy guard — trait-triggered edges don't cause recursive
+  trait evaluation
+- Proxy generation — `TraitProxy.as(node, Personable.class)` reads properties
+- Truth maintenance — property removal / edge deletion triggers trait retraction
+- Cycle prevention — trait → edge → derived edge chain bounded by decorators
 
 ## 8. Module Coordinates
 
@@ -928,5 +1127,9 @@ following the established `@DefaultBean` bridge pattern (see L6 RAG SPI,
 - blocks `CuriosityDrive` — motivation for knowledge-seeking behavior
 - blocks `MemoryHygieneOrchestrator` — memory consolidation and gap detection
 - Drools Traits — dynamic trait application via proxy, truth maintenance
+- GE-20260716-f292d3 — CDI decorator ordering gotcha (informed D19 chain ordering)
+- GE-20260803-0c691f — CDI Instance<T> stubbing via JDK Proxy (informed D21)
+- D19-D22 — Trait system design decisions (decorator ordering, reentrancy, proxy, module placement)
+- D23-D25 — Review-surfaced decisions (SPI boundary, atomicity, scale assumption)
 - MoodState / MoodModulatedRetrieval — PAD model for mood-congruent recall
 - `CbrOutcome` — numeric confidence with categorical provenance (pattern for §3.10)
