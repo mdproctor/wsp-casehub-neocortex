@@ -222,3 +222,53 @@
 **Sources:** Conversation on graph analysis prioritization, CuriosityDrive (blocks), no existing calendar capability in the platform
 **Exploration:** quick
 **Status:** captured
+
+## D19: TraitApplicationDecorator chain ordering — @Priority(70), outermost
+
+**Choice:** `TraitApplicationDecorator` at `@Priority(70)` in the CDI decorator chain, outermost relative to `DerivedEdgeDecorator` at `@Priority(80)`. Evaluates trait rules on the return path after all inner decorators (including DerivedEdge) have completed. Chain: `TraitApp(70) → DerivedEdge(80) → Store`.
+**Alternatives:**
+- @Priority(85), innermost — trait rules fire before derived edges exist, so they see an incomplete edge picture. Wrong ordering: "does node have parent-of edges?" requires derived inverses to already exist.
+- Plain wrapper (no CDI @Decorator) — loses CDI discovery of TraitRule beans, breaks the DerivedEdgeDecorator pattern.
+**Rationale:** Trait rules need to see ALL edges — including derived ones — to make correct decisions. The outermost decorator delegates first (lets DerivedEdge store the edge and fire derived rules), then evaluates trait rules against the node's complete edge set on the return path. When traits change, calls `delegate.updateNode()` (passthrough in DerivedEdge) and optionally `delegate.addEdge()` (goes through DerivedEdge, bounded by its depth counter).
+**Trade-offs:** Trait rules fire for every edge mutation (including derived edges if CDI routing goes through the full chain). Performance impact is bounded by O(rules × mutations-per-user-action). Acceptable for agent-scale graphs.
+**Sources:** DerivedEdgeDecorator @Priority(80) implementation, GE-20260716-f292d3 (CDI decorator ordering gotcha), spec §5.2.1
+**Exploration:** deep-analysis
+**Depends on:** D5 (intelligence layer placement)
+**Status:** captured
+
+## D20: Trait evaluation cycle prevention — reentrancy guard
+
+**Choice:** `ThreadLocal<Boolean>` reentrancy guard in `TraitApplicationDecorator`. Trait evaluation fires once per user-initiated mutation. During evaluation, the guard is set. Mutations triggered BY trait evaluation (`delegate.updateNode`, `delegate.addEdge`) go through DerivedEdge (bounded by its own depth-3 counter) but skip trait re-evaluation.
+**Alternatives:**
+- Shared `ThreadLocal<Integer>` counter across DerivedEdge and TraitApp — allows multi-level trait chaining but couples two independent decorators through shared mutable state in a utility class.
+- Independent depth counter (max 2) in TraitApp — total chain length is multiplicative (DerivedEdge depth × TraitApp depth), hard to reason about the interaction.
+**Rationale:** The spec's "max depth 3" chain (trait → edge → trait → ...) is naturally enforced: the edge side is bounded by DerivedEdge's own counter, and the trait side fires at most once per user action. Trait-triggered edges get their derived edges (bounded at 3), but those derived edges don't trigger further trait evaluation. Simple, bounded, correct. No shared state between decorators.
+**Trade-offs:** If applying trait A triggers an edge whose derived edge would make trait B applicable on a different node, trait B won't be discovered until the next user-triggered mutation. Acceptable for V1 — multi-level trait chains are unusual and can be addressed later if needed.
+**Sources:** DerivedEdgeDecorator ThreadLocal<Integer> depth tracking, spec §5.2.1 (cycle prevention)
+**Exploration:** deep-analysis
+**Depends on:** D19 (chain ordering)
+**Status:** captured
+
+## D21: Proxy generation — JDK Proxy.newProxyInstance()
+
+**Choice:** JDK `java.lang.reflect.Proxy` with convention-based method dispatch. `TraitProxy.as(node, Personable.class)` creates a proxy where `birthday()` → `node.property("birthday")`. Method name = property key. Return type drives conversion (String passthrough, Optional wrapping, Integer/Double parsing).
+**Alternatives:**
+- ByteBuddy — can proxy abstract classes, better stack traces. But trait interfaces are interfaces by design; adds a dependency for no architectural benefit.
+- Manual implementation classes — no reflection, explicit, but every new trait interface requires a new hand-written class. Defeats the purpose of proxy generation.
+**Rationale:** Zero external deps. Interface-only (which is exactly what trait interfaces are). Well-proven pattern (GE-20260803-0c691f uses the same approach for CDI Instance<T> stubbing). Convention-based mapping (method name = property key) matches the Drools Traits model the spec references (§5.3).
+**Trade-offs:** JDK Proxy has worse stack traces than ByteBuddy. No compile-time verification that property keys match trait methods. Reflection has minor overhead per call (acceptable for graph queries, not hot-path inference).
+**Sources:** GE-20260803-0c691f (CDI Instance stubbing via Proxy), spec §5.2 (proxy generation), §5.3 (Drools Traits model)
+**Exploration:** quick
+**Status:** captured
+
+## D22: TraitApplicationDecorator placement — mindmap/ CDI module
+
+**Choice:** `TraitApplicationDecorator` lives in `mindmap/` (CDI module), same as `DerivedEdgeDecorator`. Discovers `TraitRule` beans via CDI `Instance<TraitRule>`. No-op when no rules on classpath. Module split: `mindmap-api/` has `TraitRule` SPI interface, `mindmap/` has the decorator engine, `mindmap-intelligence/` has rule implementations + trait interfaces + `TraitProxy`.
+**Alternatives:**
+- In `mindmap-intelligence/` — decorator only exists when intelligence module is present. Cleaner isolation but breaks the established pattern. DerivedEdgeDecorator is in mindmap/ even though DerivedEdgeRule implementations could be in mindmap-intelligence/. Also means basic trait evaluation requires the intelligence module on the classpath.
+**Rationale:** Follows the DerivedEdgeDecorator pattern exactly: decorator is the ENGINE (fires rules, applies/retracts traits), rules are the KNOWLEDGE (implementations in separate module). The decorator is useful even without the intelligence module — a consumer could provide their own TraitRule beans. Consistent CDI wiring story.
+**Trade-offs:** mindmap/ has a decorator that does nothing when mindmap-intelligence/ is not on the classpath. Acceptable — same as DerivedEdgeDecorator with no DerivedEdgeRule beans.
+**Sources:** DerivedEdgeDecorator pattern (mindmap/ module), D5 (intelligence layer split)
+**Exploration:** quick
+**Depends on:** D5 (intelligence layer placement), D19 (chain ordering)
+**Status:** captured
