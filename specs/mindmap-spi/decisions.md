@@ -25,16 +25,17 @@
 
 ## D3: Subgraph boundaries
 
-**Choice:** Declared subgraphs with typed root nodes
+**Choice:** Declared subgraphs with typed root nodes. SubgraphType enum: `{PERSON, PROJECT, TOPIC, ORGANISATION, CONCEPT, GENERAL}`.
 **Alternatives:**
 - Emergent from edge density — more flexible but requires graph analysis to answer "which subgraph?"
 - Declared but optional — hybrid that allows orphan nodes, more complex query model
 - SubgraphType as String with vocabulary registration (following D6's edge type governance model) — rejected: SubgraphType is architect-driven (determines structural analysis expectations, decay rates, partitioning semantics), not discovery-driven (LLM-extracted). Edge types grow through LLM extraction and need open vocabulary; subgraph types define how the graph is partitioned and each carries structural expectations. Different governance models are appropriate for different growth patterns. GENERAL serves as the catch-all for uncategorised content.
-**Rationale:** Gives typed schema expectations per subgraph type (PROJECT has different expectations than PERSON). Simple to query ("give me the project subgraph for neocortex"). Cross-subgraph edges are explicit bridges, making the merge points visible. The enum enforces that adding a new structural category is a deliberate SPI evolution, not something that happens silently via configuration.
+- RESEARCH_AREA instead of TOPIC — rejected: too domain-specific, assumes academic/research context. TOPIC covers research areas, hobbies, professional interests, medical conditions, financial concerns, and any other thematic grouping without forcing a categorization mismatch.
+**Rationale:** Gives typed schema expectations per subgraph type (PROJECT has different expectations than PERSON). Simple to query ("give me the project subgraph for neocortex"). Cross-subgraph edges are explicit bridges, making the merge points visible. The enum enforces that adding a new structural category is a deliberate SPI evolution, not something that happens silently via configuration. TOPIC replaces the earlier RESEARCH_AREA value to provide domain-neutral thematic grouping suitable for any agent context — not just research/academic scenarios.
 **Trade-offs:** Every node must belong to a subgraph — no free-floating concepts. May need a "general" or "uncategorised" subgraph as a catch-all. Application repos cannot introduce domain-specific subgraph types without modifying the SPI — this is intentional friction: each new type carries structural expectations (decay rates, analysis heuristics) that should be designed, not discovered.
-**Sources:** Mind map mental model from conversation, R1-03 decision review finding
+**Sources:** Mind map mental model from conversation, R1-03 decision review finding, R1-07 decision review finding (RESEARCH_AREA → TOPIC)
 **Exploration:** quick
-**Status:** captured
+**Status:** revised (was: RESEARCH_AREA in enum; renamed to TOPIC for domain neutrality)
 
 ## D4: Naming
 
@@ -57,10 +58,11 @@
 - Enrichment pipeline in the SPI (like CaseEnrichmentStep) — less flexible than decorators
 **Rationale:** The CBR system proves this pattern: `TrendEnrichmentCbrCaseMemoryStore` at `@Priority(90)` enriches transparently; LLM-based operations are explicit. The same split applies here: vocabulary normalization and forward-chaining rules for derived edges are cheap, deterministic, and should fire transparently on every addEdge(). LLM extraction, gap detection, and active learning are expensive, non-deterministic, and should be explicitly invoked.
 **Truth maintenance durability:** Derived edge provenance properties (`mindmap.derived.trigger-edge-id`, `mindmap.derived.rule-name`, `mindmap.derived=true`) persisted as edge properties in the store are the **authoritative** source for trigger-to-derived edge relationships. The `DerivedEdgeDecorator`'s in-memory `ConcurrentHashMap<String, List<String>> triggerToDerived` is a session-scoped performance cache — it must NOT be the sole mechanism for truth maintenance cascades. `removeEdge()` must query the store for edges carrying `PROPERTY_TRIGGER_EDGE_ID = edgeId` to discover derived edges that should be retracted, falling back to persisted provenance when the cache is cold (e.g., after process restart). This ensures truth maintenance survives restarts and is correct regardless of cache state.
+**V1 implementation gap:** The current `DerivedEdgeDecorator.removeEdge()` implementation uses only the in-memory `triggerToDerived` cache, not a store query. After process restart, the cache is empty and derived edge retraction does not cascade. This is a known V1 limitation — the store-query fallback is the target design and must be implemented before the truth maintenance requirement is considered met. The provenance properties are already persisted on every derived edge (via `addProvenance()`), so the data for store-query-based retraction exists; the query mechanism in `removeEdge()` is the missing piece.
 **Trade-offs:** Decorator chain adds implementation complexity. Decorator ordering must be documented. Transparent rules must be fast — slow rules should be moved to the explicit intelligence layer. Truth maintenance via store query on `removeEdge()` adds a query per removal — acceptable at agent scale (D25).
-**Sources:** CbrCaseMemoryStore decorator chain (TrendEnrichment, OutcomeWeighting, TrustWeighted), CaseEnrichmentStep, R1-04 decision review finding, R2-03 decision review finding (truth maintenance durability)
+**Sources:** CbrCaseMemoryStore decorator chain (TrendEnrichment, OutcomeWeighting, TrustWeighted), CaseEnrichmentStep, R1-04 decision review finding, R2-03 decision review finding (truth maintenance durability), R1-01 decision review finding (V1 implementation gap acknowledgement)
 **Exploration:** quick
-**Status:** revised (was: all intelligence above SPI; added: truth maintenance durability requirement)
+**Status:** revised (was: all intelligence above SPI; added: truth maintenance durability requirement; added: V1 implementation gap acknowledgement)
 
 ## D6: Controlled vocabulary governance — soft registration with validation tiers
 
@@ -70,10 +72,11 @@
 - Open with normalization above — flexible but allows synonym accumulation without any governance
 **Rationale:** The LLM extraction layer (D5) may discover novel relationship types that aren't pre-registered. Hard rejection forces pre-registration of all possible types (defeating LLM discovery) or on-the-fly registration (making the boundary meaningless). Soft governance preserves the controlled vocabulary as the goal while allowing discovery. Edges carry a validation tier: `REGISTERED` (normalised, governed) or `UNVALIDATED` (accepted, flagged for review). A promotion path moves validated types from UNVALIDATED to REGISTERED.
 **Trade-offs:** UNVALIDATED types can accumulate if the intelligence layer doesn't actively review them. Needs a periodic cleanup/promotion mechanism. Queries should distinguish between validated and unvalidated edges when governance matters.
+**Edge type cardinality:** `EdgeTypeDefinition` carries a `Cardinality` enum: `FUNCTIONAL` (single-valued — e.g., "works-at", "lives-in", "born-on") or `MULTI_VALUED` (e.g., "knows", "interested-in", "collaborated-with"). Default is `MULTI_VALUED` when unspecified. Cardinality metadata enables deterministic programmatic contradiction detection for functional edge types: if a node has two "works-at" edges to different targets, that's a contradiction detectable without LLM involvement. `MindMapAnalyzer.contradictions()` uses cardinality to distinguish genuine contradictions (multiple values for a functional type) from normal multi-valued relationships (multiple "knows" edges). This complements LLM-based semantic contradiction detection (D30) — the programmatic detector catches simple functional contradictions deterministically and for free; the LLM catches semantic contradictions ("works at Acme" vs. "left Acme last month") that programmatic comparison cannot.
 **Scope:** Edge type vocabulary only. Trait name governance is intentionally intelligence-layer scope (per D9) — the SPI stores trait names as opaque strings and has no vocabulary governing what they mean. Trait name normalization ("person" vs "individual" vs "human") is the responsibility of TraitRule implementations and the intelligence layer, not the SPI. This follows the D5 split: transparent concerns (vocabulary normalization for edges) are SPI-level; semantic concerns (trait classification and normalization) are intelligence-level.
-**Sources:** CbrFeatureSchema.registerSchema() pattern, conversation on vocabulary governance, R1-05 decision review finding, R1-04 decision review finding (scope clarification)
+**Sources:** CbrFeatureSchema.registerSchema() pattern, conversation on vocabulary governance, R1-05 decision review finding, R1-04 decision review finding (scope clarification), R1-06 decision review finding (cardinality metadata for contradiction detection)
 **Exploration:** quick
-**Status:** revised (was: hard rejection of unregistered types)
+**Status:** revised (was: hard rejection of unregistered types; added: edge type cardinality metadata)
 
 ## D7: Entity aliasing
 
@@ -151,41 +154,45 @@
 
 ## D13: Capability self-description
 
-**Choice:** The SPI includes a `capabilities()` method returning `Set<MindMapCapability>` and a `requireCapability(MindMapCapability)` guard, following the `MemoryCapability` pattern. Initial capabilities include `TRAVERSAL`, `MERGE`, `VOCABULARY`, `ALIAS`, `SUBGRAPH`, `SEARCH`, `ERASE_NODE`, `ERASE_SUBGRAPH`. Backends declare which operations they support; consumers can check before calling optional operations.
+**Choice:** The SPI includes a `capabilities()` method returning `Set<MindMapCapability>` and a `requireCapability(MindMapCapability)` guard, following the `MemoryCapability` pattern. Capabilities: `TRAVERSAL`, `MERGE`, `VOCABULARY`, `ALIAS`, `SUBGRAPH`, `SEARCH`, `SUPERSESSION`, `ERASE_NODE`, `ERASE_SUBGRAPH`, `ERASE_ENTITY`, `CROSS_TENANT_ERASE`, `GRAPH_ANALYSIS`. Backends declare which operations they support; consumers can check before calling optional operations.
 **Alternatives:**
 - No capabilities — all methods are mandatory on all backends. Simpler but forces every backend to implement everything, even if some operations are expensive or unsupported.
 - Exceptions on unsupported operations — same result but less discoverable than a capability check.
 **Rationale:** The in-memory backend will support everything. A future TinkerPop backend may not support atomic merge. A minimal backend may skip traversal. Capability self-description lets consumers adapt without catching exceptions.
 **Trade-offs:** Adds an enum and two methods to the SPI. Backends must maintain an accurate capability set.
-**Sources:** MemoryCapability enum, CaseMemoryStore.capabilities()/requireCapability(), R1-11 decision review finding
+**Capability rationale:** `SUPERSESSION` gates `supersede()`/`reinstate()`/`getSupersessionStatus()` (D15). `ERASE_ENTITY` gates `eraseEntity()` for entity-level erasure. `CROSS_TENANT_ERASE` gates `eraseEntityAcrossTenants()` for GDPR Art.17 cross-tenant erasure (D11). `GRAPH_ANALYSIS` gates all `MindMapAnalyzer` methods (D16) — backends that don't support the traversal patterns required for graph analysis can omit this capability.
+**Sources:** MemoryCapability enum, CaseMemoryStore.capabilities()/requireCapability(), R1-11 decision review finding, R1-08 decision review finding (capability list synchronisation)
 **Exploration:** quick
-**Status:** captured
+**Status:** revised (was: 8 capabilities listed; updated to 12 matching implementation)
 
 ## D14: Blocks integration — connective tissue for cognitive subsystems
 
-**Choice:** The mind map graph serves as the connective tissue linking blocks' cognitive subsystems. Currently each orchestrator (MentalModel, Strategy, UserModel, Narrative) has its own isolated CBR store. The mind map unifies these: a mental model about a user IS a subgraph, connected to the user profile node, connected to the strategies used with them, connected to narrative episodes from their interactions. Integration is via CDI observers on blocks' domain events (MentalStateSignal, EngagementSignal, DriverEvent) that create/update nodes and edges in the graph. The mind map intelligence layer participates in the InnerLifeOrchestrator's tick loop for rule evaluation, gap detection, and trait maintenance.
+**Choice:** The mind map graph serves as the connective tissue linking blocks' cognitive subsystems. Currently each orchestrator (MentalModel, Strategy, UserModel, Narrative) has its own isolated CBR store. The mind map unifies these: a mental model about a user IS a subgraph, connected to the user profile node, connected to the strategies used with them, connected to narrative episodes from their interactions. Integration is via CDI observers on blocks' domain events that create/update nodes and edges in the graph. The mind map intelligence layer participates in the InnerLifeOrchestrator's tick loop for rule evaluation, gap detection, and trait maintenance.
+**Integration mechanism:** Blocks currently passes domain signals (MentalStateSignal, EngagementSignal, DriverEvent) via direct method calls within orchestrator tick loops, with per-agent `ReentrantLock` concurrency control. These signals are plain sealed interfaces/records, not CDI events. The only existing CDI `@Observes` usage in blocks is `ThreadSummaryObserver` observing `MessageReceivedEvent` from qhorus. For mind map integration, blocks must evolve to emit CDI events for domain signals — following the ThreadSummaryObserver pattern. The mindmap module observes these events via `@Observes` methods that create/update graph nodes and edges. This decouples blocks from mindmap at the module boundary while enabling the platform's standard cross-module integration pattern. Until blocks emits CDI events, mind map integration uses direct tick-loop participation.
 **Alternatives:**
 - Keep separate CBR stores, use NodeRef to link — preserves existing architecture but doesn't unify
 - Replace all CBR stores with graph — too aggressive, loses CBR's similarity scoring
 **Rationale:** The existing orchestrators (InnerLifeOrchestrator → DriveOrchestrator → MentalModelOrchestrator → UserModelOrchestrator → StrategyLearningOrchestrator → NarrativeOrchestrator → MemoryHygieneOrchestrator) are silos. Each has its own CBR backend (CbrMentalModelStore, CbrStrategyStore, CbrUserProfileStore, CbrNarrativeStore). The mind map makes cross-system connections explicit and queryable. CuriosityDrive can traverse the graph to find knowledge gaps. Narrative episodes link to the entities they mention. Strategy profiles connect to the situations they apply in. The graph is the shared substrate; the CBR stores continue to own domain-specific similarity retrieval.
 **Trade-offs:** Blocks depends on the mindmap-api module. Observer-based integration adds latency on each domain event. The circular data flow (blocks → graph → analyzer → curiosity → blocks) is intentional — it is a cognitive feedback loop, not an architectural smell. Knowledge begets curiosity begets more knowledge.
-**Consistency model:** Best-effort, fire-and-forget via CDI observers — no convergence guarantee. If a CDI observer fails (e.g., `MentalStateSignal` processed by CbrMentalModelStore but the graph observer throws), the CBR store and graph diverge silently. For entities mentioned repeatedly, subsequent events will re-establish the connection. For entities mentioned once (a peripheral colleague, a one-time project), observer failure creates permanent divergence — the graph will never learn about that connection. This is acceptable because: (1) the graph is supplementary — the CBR stores remain authoritative for domain-specific retrieval; (2) `MindMapAnalyzer` detects sparse subgraphs and dangling NodeRefs, surfacing gaps as curiosity signals that can prompt re-discovery; (3) the cost of retry/compensation infrastructure exceeds the value of guaranteed convergence for a supplementary view. No retry, no compensation, no anti-entropy mechanism.
+**Consistency model:** Best-effort, fire-and-forget via CDI observers — no convergence guarantee. If a CDI observer fails, the CBR store and graph diverge silently. For entities mentioned repeatedly, subsequent events will re-establish the connection. For entities mentioned once (a peripheral colleague, a one-time project), observer failure creates permanent divergence for that structural link. This is acceptable because: (1) the graph is supplementary — the CBR stores remain authoritative for domain-specific retrieval; (2) the extraction pipeline (D26-D34) is the primary source of entity knowledge from conversation — entities mentioned in conversation appear in the graph via extraction, not via CDI observers. Observer integration provides structural links to cognitive subsystem contexts (mental models, strategies, narrative episodes), not entity creation. Observer failure means a missed structural link, not an absent entity; (3) `MindMapAnalyzer` detects sparse subgraphs and orphan nodes — entities that exist (from extraction) but lack structural links (from failed observers) are surfaced as curiosity signals; (4) the cost of retry/compensation infrastructure exceeds the value of guaranteed convergence for structural links in a supplementary view. No retry, no compensation, no anti-entropy mechanism.
 **Tick-loop budget:** Graph analysis on each tick is bounded by the analysis implementation (see D16). The integration pattern itself (CDI observer → addNode/addEdge) is O(1) per event. The cost concern is in the analysis phase, not the integration phase — addressed in D16.
-**Sources:** blocks InnerLifeOrchestrator, MentalModelOrchestrator, DriveOrchestrator, CbrMentalModelStore, CbrStrategyStore, CbrUserProfileStore, CbrNarrativeStore, MemoryHygieneOrchestrator, KnowledgeGapSummary, R1-07 decision review finding
+**Sources:** blocks InnerLifeOrchestrator, MentalModelOrchestrator, DriveOrchestrator, CbrMentalModelStore, CbrStrategyStore, CbrUserProfileStore, CbrNarrativeStore, MemoryHygieneOrchestrator, KnowledgeGapSummary, ThreadSummaryObserver (CDI @Observes precedent), R1-07 decision review finding, R1-02 decision review finding (integration mechanism correction, extraction/observer role clarification)
 **Exploration:** deep-analysis
-**Status:** revised (was: consistency model unspecified)
+**Status:** revised (was: consistency model unspecified; updated: integration mechanism corrected from assumed CDI events to actual direct method calls with CDI evolution path; clarified extraction pipeline as primary entity source vs observers as structural link source)
 
 ## D15: Decay, supersession, and temporal lifecycle on nodes and edges
 
-**Choice:** Nodes and edges carry temporal lifecycle metadata, following the CBR pattern (`CbrOutcome`, `supersede()`, `reinstate()`, `SupersessionStatus`). Confidence decays over time for unconfirmed knowledge. Facts can be superseded by newer facts with an audit trail. The SPI exposes: `supersede(nodeOrEdgeId, supersedingId, reason, tenantId)`, `reinstate(nodeOrEdgeId, tenantId)`, `getSupersessionStatus(nodeOrEdgeId, tenantId)`. Decay is a configurable function (half-life or linear) applied at query time — stale knowledge loses confidence without being deleted. Explicit confirmation resets the decay clock.
+**Choice:** Nodes and edges carry temporal lifecycle metadata, following the CBR pattern (`CbrOutcome`, `supersede()`, `reinstate()`, `SupersessionStatus`). Confidence decays over time for unconfirmed knowledge. Facts can be superseded by newer facts with an audit trail. The SPI exposes: `supersede(nodeOrEdgeId, supersedingId, reason, tenantId)`, `reinstate(nodeOrEdgeId, tenantId)`, `getSupersessionStatus(nodeOrEdgeId, tenantId)`. Decay is a configurable function (half-life) applied at query time — stale knowledge loses confidence without being deleted. Explicit confirmation resets the decay clock.
+**Decay configuration:** Per-edge-type decay half-life is configured via the vocabulary (D6) — `EdgeTypeDefinition.defaultDecayHalfLifeDays` specifies the half-life for each registered edge type. Employment relationships (365 days) decay slower than project assignments (90 days). This follows the vocabulary-level governance model: decay rates are structural properties of edge types, not per-query parameters.
+**Decay application mechanism:** `MindMapQuery` includes an `Instant asOf` reference time parameter (nullable — null means no decay applied). When `asOf` is provided, the store applies decay to confidence values using the vocabulary-configured half-life: `effectiveConfidence = baseConfidence × 2^(-(asOf - confirmedAt) / halfLifeDays)`. The store backend can implement this in the query itself (e.g., SQL expression in SQLite) for efficiency. Edges with no vocabulary entry or no configured decay half-life are returned at base confidence. This parallels `CbrQuery.temporalDecay` in the CBR system but uses vocabulary-configured half-lives rather than per-query decay functions, which is simpler and appropriate for knowledge graphs where decay rates are properties of relationship types.
 **Alternatives:**
 - No decay — knowledge stays at original confidence forever. Stale facts accumulate and mislead.
 - Hard expiry — knowledge is deleted after a time window. Loses historical context.
 **Rationale:** Knowledge goes stale. "Alice works at Acme" is high-confidence when stated, but after 2 years without confirmation it should decay. Supersession handles explicit updates ("Alice now works at Initech" supersedes the Acme edge). Decay handles uncertainty from age. Both are needed — supersession for known changes, decay for unknown staleness. The CBR system proved this pattern works (CbrOutcome EMA, supersession chains, reinstatement).
 **Trade-offs:** Adds lifecycle methods to the SPI. Decay at query time adds computation. Need to decide default half-life per edge type (employment relationships decay slower than project assignments).
-**Sources:** CbrCaseMemoryStore.supersede/reinstate/getSupersessionStatus, CbrOutcome, TemporalDecay (HalfLife, Linear, Step), conversation on temporal bounds
+**Sources:** CbrCaseMemoryStore.supersede/reinstate/getSupersessionStatus, CbrOutcome, TemporalDecay (HalfLife, Linear, Step), CbrQuery.temporalDecay, EdgeTypeDefinition.defaultDecayHalfLifeDays, conversation on temporal bounds, R1-09 decision review finding (decay mechanism specification)
 **Exploration:** quick
-**Status:** captured
+**Status:** revised (was: decay mechanism unspecified; added: vocabulary-based configuration, MindMapQuery.asOf for query-time application)
 
 ## D16: Graph analysis and curiosity indexing
 
@@ -330,15 +337,17 @@
 
 ## D26: Extraction input granularity — single conversation turn
 
-**Choice:** Each extraction call processes one conversation turn (one user message + optional assistant reply). Not a sliding window or full transcript.
+**Choice:** Each extraction call processes one conversation turn (one user message + optional assistant reply), augmented with a lightweight entity carry-forward from the previous extraction. Not a sliding window or full transcript.
+**Entity carry-forward:** The `ExtractionResult` from the previous turn includes the names of entities that were created or updated. These entity names are passed to the next `extract()` call as context — not the full text of the previous turn, but a compact list of recently-mentioned entity names (e.g., `["Alice", "Acme Corp", "project-phoenix"]`). This list is included in the LLM prompt alongside the graph context (D32), enabling pronoun resolution: when the current turn says "she mentioned leaving," the carry-forward provides "Alice" as a recently-mentioned entity, allowing the LLM to resolve "she" → "Alice." The carry-forward is bounded (last turn only, names only) and adds negligible token cost.
 **Alternatives:**
-- Sliding window (last N turns) — better coreference resolution across turns, but higher token cost and needs window management
+- Sliding window (last N turns) — better coreference resolution across turns, but higher token cost and needs window management. The entity carry-forward captures 90% of the benefit at 1% of the cost.
 - Full transcript — best extraction quality but impractical for long conversations (token cost, latency)
-**Rationale:** Fits the blocks tick-loop model where each turn fires CDI observers. Single-turn extraction is the simplest, lowest-latency option. Entity coreference across turns is handled by the graph itself — if "she" in turn N refers to "Alice" from turn N-1, the graph already has Alice and the extractor resolves against it. Multi-turn context is a future enhancement, not a V1 requirement.
-**Trade-offs:** May miss cross-turn coreferences when pronouns are used without sufficient context in a single turn. Acceptable — the graph accumulates context over time.
-**Sources:** spec §2.3, blocks InnerLifeOrchestrator tick-loop model
+- No carry-forward (original design) — the graph "handles coreference" claim was circular: search terms from a pronoun-heavy turn ("she", "leaving") won't match an Alice node. Resolving "she" → "Alice" IS the coreference problem; the graph can't solve it without knowing the referent.
+**Rationale:** Fits the blocks tick-loop model where each turn triggers extraction. Single-turn text input keeps the extraction prompt focused and low-cost. The entity carry-forward bridges the coreference gap without requiring multi-turn text context — it provides the resolver with a compact menu of candidate referents from the immediately preceding turn. This solves the most common coreference pattern (pronoun referring to an entity from the previous turn) without the complexity of a sliding window.
+**Trade-offs:** Carry-forward only covers the previous turn's entities. A pronoun referring to an entity from 5 turns ago won't benefit. The graph search (D32) handles older entities via name matching; the carry-forward handles the recency gap. MindMapExtractor must maintain a per-agent last-extraction-result, adding minimal state.
+**Sources:** spec §2.3, blocks InnerLifeOrchestrator tick-loop model, R1-03 decision review finding (circular coreference argument)
 **Exploration:** quick
-**Status:** captured
+**Status:** revised (was: no coreference mitigation; added: lightweight entity carry-forward)
 
 ## D27: Extractor shape — concrete @ApplicationScoped service
 
@@ -358,11 +367,12 @@
 - Extract-then-reconcile — always create new nodes, merge duplicates later. Simpler extractor but duplicate nodes exist transiently and require a separate reconciliation step.
 - LLM-assisted resolution — pass existing node IDs to the LLM so it outputs matches directly. Highest quality but significantly higher token cost per extraction.
 **Rationale:** Resolution close to the extraction context gives the best accuracy-to-cost ratio. The extractor has the conversation context AND the graph state — it can make informed decisions about whether "Alice" matches an existing node. The resolve-before-create approach prevents duplicate accumulation, which is the primary usability concern for a knowledge graph.
+**Concurrency assumption:** Extraction is single-threaded per agent, serialized by the blocks orchestrator's per-agent `ReentrantLock` in the tick loop. Concurrent duplicate creation (two extract() calls both finding no Alice and both creating one) cannot occur within a single agent's tick sequence. This guarantee comes from the caller (blocks), not the callee (mindmap). If mindmap extraction is ever invoked outside the tick loop (e.g., a REST endpoint, a manual import), the duplicate-creation race returns with no protection. Callers outside the tick loop must provide their own serialization or accept transient duplicates that `mergeNodes()` resolves after the fact.
 **Trade-offs:** The search query may not find all matches (e.g., if "Alice Smith" is stored but the conversation just says "Alice"). Alias resolution and fuzzy matching mitigate this, but imperfect matches will occur. The curiosity engine (D16) can detect sparse subgraphs that suggest missed merges.
-**Sources:** MindMapStore.resolveNode() (spec §3.1), MindMapStore.search() (spec §3.8), D7 (entity aliasing first-class in SPI)
+**Sources:** MindMapStore.resolveNode() (spec §3.1), MindMapStore.search() (spec §3.8), D7 (entity aliasing first-class in SPI), R1-12 decision review finding (concurrency assumption)
 **Exploration:** quick
 **Depends on:** D7 (entity aliasing)
-**Status:** captured
+**Status:** revised (was: concurrency assumption implicit; added: explicit tick-loop serialization dependency)
 
 ## D29: LLM output format — JSON schema in system prompt
 
@@ -382,11 +392,12 @@
 **Alternatives:**
 - Separate post-extraction step — extract first, compare programmatically in Java, invoke LLM again only for ambiguous contradictions. More deterministic for simple contradictions but misses semantic contradictions and doubles round-trips for complex cases.
 **Rationale:** The LLM already needs graph context for entity resolution (D28). Including contradiction detection in the same call adds negligible token cost — the context is already there. The LLM can detect semantic contradictions ("works at Acme" vs. "left Acme last month") that programmatic comparison cannot.
-**Trade-offs:** Contradictions depend on the LLM's judgment — false positives and false negatives will occur. Acceptable — contradictions are informational, not blocking. The caller decides what to do with them.
-**Sources:** D28 (entity resolution needs graph context in prompt), spec §4.3 (contradiction clusters as quality signals)
-**Depends on:** D28 (entity resolution), D29 (JSON output format)
+**Hybrid detection strategy:** LLM-based contradiction detection in the extraction call is complemented by deterministic programmatic detection in `MindMapAnalyzer.contradictions()`. With edge type cardinality metadata (D6), the analyzer can distinguish genuine contradictions (multiple values for a `FUNCTIONAL` type like "works-at") from normal multi-valued relationships (multiple "knows" edges). The programmatic detector covers simple functional contradictions deterministically and for free; the LLM handles semantic contradictions ("works at Acme" vs. "left Acme last month") that code cannot catch. These serve different purposes: LLM detection fires at extraction time (immediate, in-context); programmatic detection fires during graph analysis (periodic, graph-wide).
+**Trade-offs:** Contradictions depend on the LLM's judgment — false positives and false negatives will occur. Acceptable — contradictions are informational, not blocking. The caller decides what to do with them. Programmatic detection via cardinality metadata adds no LLM cost and provides deterministic coverage for the common case.
+**Sources:** D28 (entity resolution needs graph context in prompt), spec §4.3 (contradiction clusters as quality signals), MindMapAnalyzer.contradictions() (existing programmatic detection), R1-06 decision review finding (hybrid approach)
+**Depends on:** D28 (entity resolution), D29 (JSON output format), D6 (cardinality metadata)
 **Exploration:** quick
-**Status:** captured
+**Status:** revised (was: LLM-only detection; added: hybrid strategy with programmatic complement via D6 cardinality)
 
 ## D31: Extractor pipeline — full pipeline with ExtractionResult receipt
 
@@ -433,4 +444,18 @@
 **Trade-offs:** The `Instance<AgentProvider>` check adds a runtime branch. The NoOp detection must be reliable — checking `instanceof NoOpAgentProvider` directly is fragile (name-based coupling to the platform module). Instead, check if the invoke() result is empty.
 **Sources:** GE-20260810-804c58 (CDI tiering), NoOpAgentProvider @DefaultBean, casehub-platform-agent-api
 **Exploration:** quick
+**Status:** captured
+
+## D35: Abstract decorator base class — ForwardingMindMapStore
+
+**Choice:** Provide an `AbstractForwardingMindMapStore` base class in `mindmap-api/` that delegates all 27 `MindMapStore` methods to a wrapped delegate. Concrete decorators extend this base and override only the methods they intercept. The base class is not a CDI bean — it's a plain abstract class that decorators can extend.
+**Alternatives:**
+- No base class (current implicit design) — each decorator independently implements all 27 pass-through methods. With CbrCaseMemoryStore at 14 methods, this was tolerable (~50 lines of delegation per decorator). At 27 methods, it's ~110 lines of boilerplate per decorator and compounds with each new decorator in the chain.
+- Resource-oriented interface decomposition (one interface per concept) — rejected in D8 as over-decomposition with complex CDI wiring. The base class achieves the maintenance benefit without decomposing the interface.
+- Kotlin delegation (`class Decorator(delegate: MindMapStore) : MindMapStore by delegate`) — the platform is Java; Kotlin delegation is not available.
+**Rationale:** `DerivedEdgeDecorator` (195 lines, ~110 delegation) and `TraitApplicationDecorator` (206 lines, ~110 delegation) each independently implement 25+ pass-through methods. With a projected 4-5 decorators (vocabulary normalization, trait application, derived edges, confidence decay, erasure notification), the total boilerplate approaches 135+ delegation methods. This is the standard `Forwarding*` pattern (Guava's `ForwardingList`, `ForwardingMap`). The base class reduces each decorator to only the methods it intercepts, making the decorating logic more readable and reducing maintenance when `MindMapStore` acquires new methods (new methods inherit delegation automatically).
+**Placement:** `mindmap-api/` — the base class depends only on the `MindMapStore` interface, which is in the same module. Decorators in `mindmap/` (CDI module) extend it and add CDI annotations.
+**Trade-offs:** Adds one abstract class to `mindmap-api/`. Decorators that need to intercept eraseNode/eraseSubgraph (which DerivedEdgeDecorator does) still override those methods explicitly. The base class makes the DEFAULT path (delegation) invisible, which is the point — it's the interception that matters.
+**Sources:** DerivedEdgeDecorator (110 lines delegation), TraitApplicationDecorator (110 lines delegation), Guava ForwardingList/ForwardingMap pattern, CbrCaseMemoryStore (14 methods, 8 decorators — manageable without base class), R1-04 decision review finding, R1-10 decision review finding (implicit decision surfaced)
+**Exploration:** quick (surfaced by review)
 **Status:** captured
