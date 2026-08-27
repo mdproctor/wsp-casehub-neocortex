@@ -20,8 +20,8 @@ flyway-next-v: none
 - [ ] casehubio/neocortex#219 — Trait system ← active
   - [x] Batch 1: Decorator Engine
     - [x] Task 1: TraitRule SPI + TraitApplicationDecorator + tests
-  - [ ] Batch 2: Intelligence Module
-    - [ ] Task 2: mindmap-intelligence module + trait interfaces + standard rules
-    - [ ] Task 3: TraitProxy — JDK Proxy generation + tests
+  - [x] Batch 2: Intelligence Module
+    - [x] Task 2: mindmap-intelligence module + trait interfaces + standard rules
+    - [x] Task 3: TraitProxy — JDK Proxy generation + tests
 - [ ] casehubio/neocortex#220 — LLM extraction
 - [ ] casehubio/neocortex#221 — Curiosity engine
