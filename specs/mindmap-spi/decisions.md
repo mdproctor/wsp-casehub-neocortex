@@ -412,3 +412,25 @@
 **Depends on:** D28 (entity resolution)
 **Exploration:** quick
 **Status:** captured
+
+## D33: AgentProvider consumption — one-shot invoke()
+
+**Choice:** Each `extract()` call uses `AgentProvider.invoke(AgentSessionConfig.of(systemPrompt, userPrompt))`. Stateless, no session management.
+**Alternatives:**
+- Persistent `openSession()` — keep a warm `AgentSession` across calls. ~5x faster per call (GE-20260707-4ea952) but requires `synchronized` access, failure recovery, and session lifecycle management.
+**Rationale:** Extraction runs in a background tick loop, not on the request path. Latency is not critical. The simplicity of stateless one-shot calls outweighs the performance benefit of sessions. Session-based optimization can be added later if extraction frequency warrants it.
+**Trade-offs:** Each invocation spawns a new subprocess (if backed by Claude CLI). At the expected extraction rate (one per conversation turn, not per second), this is acceptable.
+**Sources:** GE-20260801-0aee7e (blocking text extraction pattern), GE-20260707-4ea952 (session-based optimization), PipelineProvisioner.provisionAiReview()
+**Exploration:** quick
+**Status:** captured
+
+## D34: AgentProvider optionality — CDI Instance for graceful degradation
+
+**Choice:** `MindMapExtractor` injects `Instance<AgentProvider>` (CDI programmatic lookup). If unsatisfied or `NoOpAgentProvider`, `extract()` returns an empty `ExtractionResult`. The module works without an LLM backend — trait rules and proxy still function.
+**Alternatives:**
+- Required constructor injection — startup fails without AgentProvider. Simpler code but forces every consumer of mindmap-intelligence to provide an LLM backend, even if they only want traits.
+**Rationale:** The mindmap-intelligence module contains two independent concerns: (1) trait system (interfaces, rules, proxy — pure Java, no LLM) and (2) LLM extraction. Requiring AgentProvider forces trait-only consumers to provide an LLM backend. `Instance<AgentProvider>` preserves the module's composability — add casehub-platform-agent-api to get extraction, omit it for traits only. The NoOpAgentProvider @DefaultBean pattern (GE-20260810-804c58) means an AgentProvider is always injectable, but the extractor should detect the NoOp and skip the LLM call rather than wasting tokens on an empty stream.
+**Trade-offs:** The `Instance<AgentProvider>` check adds a runtime branch. The NoOp detection must be reliable — checking `instanceof NoOpAgentProvider` directly is fragile (name-based coupling to the platform module). Instead, check if the invoke() result is empty.
+**Sources:** GE-20260810-804c58 (CDI tiering), NoOpAgentProvider @DefaultBean, casehub-platform-agent-api
+**Exploration:** quick
+**Status:** captured
