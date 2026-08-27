@@ -2,8 +2,7 @@
 
 ## 0. Tracking
 
-**Epic:** TBD — a tracking epic must be created in `casehubio/neocortex` before
-implementation begins.
+**Epic:** casehubio/neocortex#213
 
 ## 1. Problem Statement
 
@@ -81,8 +80,9 @@ mindmap/              — CDI wiring, NoOp default, decorators (vocabulary norma
 mindmap-inmem/        — In-memory adapter for tests
 mindmap-sqlite/       — SQLite adapter (day-one production backend)
 mindmap-testing/      — Contract test suite + integration test scenarios
-mindmap-intelligence/ — LLM extraction, gap detection, active learning, trait proxy,
-                        curiosity engine (all require AgentProvider)
+mindmap-intelligence/ — trait proxy + standard trait rules (pure Java, no LLM);
+                        LLM extraction, gap detection, active learning,
+                        curiosity engine (these require AgentProvider)
 ```
 
 The SPI is standalone — it does not extend `CaseMemoryStore`, `GraphCaseMemoryStore`,
@@ -134,7 +134,7 @@ Following the CBR decorator pattern, intelligence concerns split into two tiers:
 - Gap detection and curiosity signal generation
 - Active learning question generation
 - Contradiction analysis and resolution prompts
-- Trait proxy generation and truth maintenance
+- Trait proxy generation (truth maintenance is transparent — see §5.2)
 
 ## 3. SPI — `MindMapStore`
 
@@ -748,6 +748,9 @@ public interface TraitRule {
 
 Rule implementations depend only on `mindmap-api/` (zero deps). The CDI module
 discovers them; the intelligence module provides standard implementations.
+`TraitRule.matches()` receives the node and its edges — the decorator queries the
+graph and passes the results, so rules don't need direct store access (unlike
+`DerivedEdgeRule.derive()` which receives the store — D23).
 
 ### 5.2 TraitApplicationDecorator (`mindmap/`)
 
@@ -789,6 +792,12 @@ For each affected node, the decorator:
    `traitsToRemove`
 
 Rules do NOT fire on query methods — only on state changes.
+
+**Performance:** cost is O(rules × mutations-per-user-action) — each user mutation
+triggers evaluation of all rules for affected nodes. At agent scale (D25), with
+a handful of rules and low-thousands of nodes, this completes in sub-millisecond
+time. If rule count grows significantly, consider indexing rules by triggering
+edge type or property key.
 
 #### 5.2.3 Conflict Resolution
 
@@ -897,7 +906,9 @@ The `TraitInvocationHandler` dispatches by method name:
 - `methodName()` → `node.property(methodName)` → type conversion based on return type
 - `String` → passthrough (property value or null)
 - `Optional<String>` → `Optional.ofNullable(property value)`
-- `Integer`, `Long`, `Double` → parse from string, null if absent or unparseable
+- `Integer`, `Long`, `Double` (boxed only) → parse from string, null if absent
+  or unparseable. Trait interface methods MUST use boxed types or `Optional`, not
+  primitives — primitive return types would NPE on absent properties
 - `equals`, `hashCode`, `toString` → delegate to node identity
 
 Zero external deps. Convention-based mapping (method name = property key) matches
