@@ -18,13 +18,8 @@ flyway-next-v: none
 - [x] casehubio/neocortex#217 — CaseMemoryStore erasure notification
 - [x] casehubio/neocortex#218 — NodeRef GDPR cleanup
 - [x] casehubio/neocortex#219 — Trait system
-- [ ] casehubio/neocortex#220 — LLM extraction ← active
-  - [x] Batch 1: Value types + JSON parser
-    - [x] Task 1: ExtractionResult records
-    - [x] Task 2: ExtractionJsonParser
-  - [x] Batch 2: SPI + Extractor
-    - [x] Task 3: listSubgraphs SPI method
-    - [x] Task 4: MindMapExtractor service
-  - [x] Batch 3: Context + Edge cases
-    - [x] Task 5: Context serialization + edge cases
-- [ ] casehubio/neocortex#221 — Curiosity engine
+- [x] casehubio/neocortex#220 — LLM extraction
+- [ ] casehubio/neocortex#221 — Curiosity engine ← active
+  - [x] Batch 1: Curiosity engine
+    - [x] Task 1: CuriositySignal value types
+    - [x] Task 2: CuriositySignalGenerator implementation
