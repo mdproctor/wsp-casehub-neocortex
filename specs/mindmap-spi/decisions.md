@@ -459,3 +459,64 @@
 **Sources:** DerivedEdgeDecorator (110 lines delegation), TraitApplicationDecorator (110 lines delegation), Guava ForwardingList/ForwardingMap pattern, CbrCaseMemoryStore (14 methods, 8 decorators — manageable without base class), R1-04 decision review finding, R1-10 decision review finding (implicit decision surfaced)
 **Exploration:** quick (surfaced by review)
 **Status:** captured
+
+## D36: Curiosity engine integration — SPI in neocortex, consumed by blocks
+
+**Choice:** Define a `CuriositySignalProvider` SPI interface in `mindmap-api/` (or `mindmap-intelligence/`). `CuriositySignalGenerator` implements it in `mindmap-intelligence/`. Blocks' `CuriosityDrive` injects the SPI via CDI `Instance<CuriositySignalProvider>` and adds graph-based signals to its existing hygiene-based intensity calculation.
+**Alternatives:**
+- CDI event bridge — CuriositySignalGenerator fires CDI events. Decoupled but asynchronous — CuriosityDrive can't synchronously query graph signals during `evaluate()`.
+- Pure computation, no integration — standalone utility, blocks integration deferred. Simplest scope but no actual drive integration.
+**Rationale:** The dependency direction is neocortex ← blocks (blocks depends on neocortex). An SPI in neocortex consumed by blocks follows this direction. `CuriosityDrive.evaluate()` is synchronous — it needs signals in-band, not via async events. The SPI follows the same pattern as `MindMapStore` (neocortex SPI consumed by blocks observers).
+**Trade-offs:** Blocks' `CuriosityDrive` must be updated to inject and consume the SPI. This is a blocks-side change — create a follow-up issue on blocks.
+**Sources:** CuriosityDrive.evaluate() (blocks), DriveSource @FunctionalInterface, spec §4.3 (curiosity engine integration)
+**Exploration:** quick
+**Status:** captured
+
+## D37: Signal data model — typed signal list
+
+**Choice:** `CuriositySignalProvider.computeSignals(String tenantId)` returns `List<CuriositySignal>`. Each signal has a `SignalCategory` (STRUCTURAL, QUALITY, TEMPORAL, CENTRALITY, PROXIMITY), a `score` [0,1], a `targetNodeId` (nullable), a `targetSubgraphId` (nullable), a `question` (generated from template), and a `description` (human-readable explanation).
+**Alternatives:**
+- Composite intensity — single `double` + trigger string, matching `DriveIntensity`'s shape. Loses per-signal detail needed for targeted question generation and consumer-side filtering.
+**Rationale:** A list of typed signals gives consumers (CuriosityDrive, active learning, question generation) the information they need to filter, rank, and act on specific knowledge gaps. A single composite score would require re-running the analysis to find which specific gap to address. The category enum enables consumer-side prioritisation policies.
+**Trade-offs:** More complex data model than a single score. Consumers must implement ranking/selection logic. Acceptable — the consumer knows its priorities.
+**Sources:** MindMapAnalyzer output records (OrphanNode, StaleNode, ContradictionCluster, etc.), spec §4.3 signal categories
+**Exploration:** quick
+**Status:** captured
+
+## D38: Question generation — template-based, pure Java
+
+**Choice:** Each signal type has a question template. `CuriositySignalGenerator` fills templates with entity names and context from the graph. Pure Java string formatting — no LLM dependency. Examples: orphan node → "What is {name}'s connection to other entities?", stale node → "Is {name} still relevant? Last updated {age} ago.", contradiction → "Does {name} still {edgeType} {target1}, or has that changed to {target2}?"
+**Alternatives:**
+- LLM-based question generation — higher quality but adds AgentProvider dependency + latency to the curiosity evaluation path (which runs on every tick).
+- Defer question generation — produce signals without questions. Pushes question formatting to every consumer.
+**Rationale:** Template-based is fast (sub-millisecond), deterministic, and requires no LLM backend. The curiosity engine runs on every orchestrator tick — LLM calls would be impractical. Templates cover the common cases; LLM-based refinement can be added as an optional enrichment step later (not on the tick path).
+**Trade-offs:** Templates produce formulaic questions. Acceptable for V1 — the agent's LLM can rephrase the question when it decides to ask it.
+**Sources:** spec §4.3 (curiosity signal categories), MindMapAnalyzer output records
+**Depends on:** D37 (signal model includes question field)
+**Exploration:** quick
+**Status:** captured
+
+## D39: Temporal proximity — exponential urgency ramp
+
+**Choice:** Temporal proximity score = `1.0 / (1.0 + daysUntilEvent)`. Events approaching in the near future score highest: 30 days → 0.03, 7 days → 0.13, 1 day → 0.5, today → 1.0. Past events (validUntil < now) score 0 with a different signal: "event passed — check outcome."
+**Alternatives:**
+- Linear ramp: `max(0, 1 - daysUntilEvent / horizon)` — uniform increase over a configurable horizon. Simpler but doesn't model the urgency spike as deadlines approach.
+**Rationale:** Human attention follows an exponential urgency curve — "next week" feels distant, "tomorrow" feels urgent, "today" demands attention. The `1/(1+d)` formula captures this with zero configuration (no horizon parameter).
+**Trade-offs:** Very distant events (> 30 days) score near-zero and are effectively invisible. If long-horizon planning is needed, a configurable scaling factor can be added. Not needed for V1.
+**Sources:** spec §4.3 (temporal proximity), spec §3.2 (validFrom/validUntil on nodes), D18 (temporal proximity for curiosity)
+**Depends on:** D37 (signal category PROXIMITY)
+**Exploration:** quick
+**Status:** captured
+
+## D40: Affect-aware filtering — PAD pleasure score dampening
+
+**Choice:** Multiply each signal's score by an affect factor derived from the target node's PAD `pleasure` dimension. When `pleasure < 0`: factor = `max(0.1, 1.0 + pleasure)`. When `pleasure >= 0` or null: factor = 1.0 (no dampening). Example: pleasure = -0.8 → factor = 0.2, reducing signal score to 20%. Signals are never fully suppressed (floor at 0.1).
+**Alternatives:**
+- Hard threshold suppression — drop signals for nodes with pleasure < threshold. Binary, loses nuance.
+- Defer affect filtering to consumer — cleanest separation but pushes affect logic to every consumer.
+**Rationale:** Score dampening preserves the signal (the knowledge gap still exists) while deprioritising sensitive topics. The 0.1 floor ensures the signal can surface if nothing else is more urgent. The agent's mood system (MoodModulatedRetrieval) handles additional mood-congruent filtering downstream — the curiosity engine's affect filter is a coarse pre-filter.
+**Trade-offs:** Only uses the pleasure dimension — arousal and dominance are ignored. Acceptable for V1 — pleasure is the most relevant PAD dimension for "should I probe this?" (positive = safe to explore, negative = tread carefully). Arousal/dominance modulation can be added later.
+**Sources:** spec §4.3 (affect-aware curiosity), spec §3.2 (PAD annotations on nodes), D17 (affective annotations), MoodModulatedRetrieval
+**Depends on:** D37 (signal model)
+**Exploration:** quick
+**Status:** captured
