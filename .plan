@@ -19,7 +19,4 @@ flyway-next-v: none
 - [x] casehubio/neocortex#218 — NodeRef GDPR cleanup
 - [x] casehubio/neocortex#219 — Trait system
 - [x] casehubio/neocortex#220 — LLM extraction
-- [ ] casehubio/neocortex#221 — Curiosity engine ← active
-  - [x] Batch 1: Curiosity engine
-    - [x] Task 1: CuriositySignal value types
-    - [x] Task 2: CuriositySignalGenerator implementation
+- [x] casehubio/neocortex#221 — Curiosity engine
