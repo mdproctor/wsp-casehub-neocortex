@@ -496,27 +496,46 @@
 **Exploration:** quick
 **Status:** captured
 
-## D39: Temporal proximity — exponential urgency ramp
+## D39: Temporal proximity — scaled inverse with configurable horizon
 
-**Choice:** Temporal proximity score = `1.0 / (1.0 + daysUntilEvent)`. Events approaching in the near future score highest: 30 days → 0.03, 7 days → 0.13, 1 day → 0.5, today → 1.0. Past events (validUntil < now) score 0 with a different signal: "event passed — check outcome."
+**Choice:** Temporal proximity score = `1.0 / (1.0 + daysUntilEvent / scale)` where `scale` defaults to 7.0. This produces: 30 days → 0.19, 14 days → 0.33, 7 days → 0.50, 1 day → 0.88, today → 1.0. Past events (`validUntil < now`) score 0 with a different signal category: "event passed — check outcome."
 **Alternatives:**
-- Linear ramp: `max(0, 1 - daysUntilEvent / horizon)` — uniform increase over a configurable horizon. Simpler but doesn't model the urgency spike as deadlines approach.
-**Rationale:** Human attention follows an exponential urgency curve — "next week" feels distant, "tomorrow" feels urgent, "today" demands attention. The `1/(1+d)` formula captures this with zero configuration (no horizon parameter).
-**Trade-offs:** Very distant events (> 30 days) score near-zero and are effectively invisible. If long-horizon planning is needed, a configurable scaling factor can be added. Not needed for V1.
-**Sources:** spec §4.3 (temporal proximity), spec §3.2 (validFrom/validUntil on nodes), D18 (temporal proximity for curiosity)
+- Linear ramp: `max(0, 1 - daysUntilEvent / horizon)` — uniform increase, simpler but no urgency spike
+- Unscaled `1/(1+d)` — original proposal, but events 14+ days out score below 0.07 (effectively invisible), suppressing useful planning-horizon curiosity. A trip to visit parents in 3 weeks should drive curiosity at 14 days, not 1 day.
+- Logistic sigmoid with configurable inflection — more tunable but adds complexity for V1
+**Rationale:** The `scale` parameter controls the inflection point — where the score crosses 0.5. With `scale=7`, the midpoint is at 7 days, and 14-day events score 0.33 (visible, not dominant). The formula is still monotonically increasing as events approach, with a natural urgency curve. The scale factor can be configured per-subgraph-type if different knowledge categories have different planning horizons.
+**Trade-offs:** One configuration parameter (`scale`). Default of 7 days may not suit all contexts — project deadlines might need scale=14, personal events scale=7. Acceptable for V1 with a single default; per-type scaling is a future enhancement.
+**Sources:** spec §4.3 (temporal proximity), spec §3.2 (validFrom/validUntil on nodes), D18 (temporal proximity for curiosity), R1-09 curiosity review finding
 **Depends on:** D37 (signal category PROXIMITY)
 **Exploration:** quick
-**Status:** captured
+**Status:** revised (was: unscaled 1/(1+d); added: configurable scale factor per R1-09)
 
-## D40: Affect-aware filtering — PAD pleasure score dampening
+## D40: Affect-aware filtering — PAD pleasure dampening with PROXIMITY bypass
 
-**Choice:** Multiply each signal's score by an affect factor derived from the target node's PAD `pleasure` dimension. When `pleasure < 0`: factor = `max(0.1, 1.0 + pleasure)`. When `pleasure >= 0` or null: factor = 1.0 (no dampening). Example: pleasure = -0.8 → factor = 0.2, reducing signal score to 20%. Signals are never fully suppressed (floor at 0.1).
+**Choice:** Multiply each signal's score by an affect factor derived from the target node's PAD `pleasure` dimension. When `pleasure < 0`: factor = `max(0.1, 1.0 + pleasure)`. When `pleasure >= 0` or null: factor = 1.0 (no dampening). Example: pleasure = -0.8 → factor = 0.2, reducing signal score to 20%.
+**PROXIMITY signals bypass affect dampening entirely.** Temporal proximity signals are time-critical regardless of emotional valence — "mother seriously ill, visiting next week" should intensify curiosity, not suppress it. The approaching event demands knowledge-gathering (health updates, travel plans) even though the topic is emotionally negative. The bypass applies only to PROXIMITY category signals; all other categories (STRUCTURAL, QUALITY, TEMPORAL, CENTRALITY) are dampened normally.
 **Alternatives:**
 - Hard threshold suppression — drop signals for nodes with pleasure < threshold. Binary, loses nuance.
 - Defer affect filtering to consumer — cleanest separation but pushes affect logic to every consumer.
-**Rationale:** Score dampening preserves the signal (the knowledge gap still exists) while deprioritising sensitive topics. The 0.1 floor ensures the signal can surface if nothing else is more urgent. The agent's mood system (MoodModulatedRetrieval) handles additional mood-congruent filtering downstream — the curiosity engine's affect filter is a coarse pre-filter.
-**Trade-offs:** Only uses the pleasure dimension — arousal and dominance are ignored. Acceptable for V1 — pleasure is the most relevant PAD dimension for "should I probe this?" (positive = safe to explore, negative = tread carefully). Arousal/dominance modulation can be added later.
-**Sources:** spec §4.3 (affect-aware curiosity), spec §3.2 (PAD annotations on nodes), D17 (affective annotations), MoodModulatedRetrieval
-**Depends on:** D37 (signal model)
+- No bypass — dampen all signals uniformly. Simpler but suppresses time-critical signals about emotionally negative topics, which is the worst failure mode (the agent becomes avoidant about things that matter most).
+**Rationale:** Score dampening preserves the signal while deprioritising sensitive topics. The 0.1 floor ensures non-PROXIMITY signals can still surface. The PROXIMITY bypass ensures time-critical knowledge-seeking is never suppressed by emotional valence — the curiosity engine should be avoidant about idle exploration of negative topics, not about preparing for approaching events.
+**Trade-offs:** Only uses the pleasure dimension — arousal and dominance are ignored. The PROXIMITY bypass is categorical, not graduated — a marginal proximity signal (30 days out, score 0.19) gets the same bypass as an urgent one (tomorrow, score 0.88). Acceptable because the proximity score itself handles graduation; the bypass just prevents the affect multiplier from zeroing it out.
+**Sources:** spec §4.3 (affect-aware curiosity), spec §3.2 (PAD annotations on nodes), D17 (affective annotations), MoodModulatedRetrieval, R1-10 curiosity review finding
+**Depends on:** D37 (signal model), D39 (proximity scoring)
 **Exploration:** quick
+**Status:** revised (was: uniform dampening; added: PROXIMITY bypass per R1-10)
+
+## D41: Cycle-breaking — curiosity intensity decay by topical distance
+
+**Choice:** When computing curiosity signal scores, apply a topical distance dampening factor. Signals targeting nodes that are N hops from any entity mentioned in the most recent conversation turn receive a dampening factor of `1.0 / (1.0 + N)`. Direct mentions get factor 1.0, 1-hop neighbors get 0.5, 2-hop get 0.33, 3-hop get 0.25. This prevents the curiosity engine from endlessly expanding into ever-more-peripheral knowledge after each extraction fills one gap and creates new adjacent gaps.
+**Alternatives:**
+- No dampening — all signals scored equally regardless of topical proximity. Risks unbounded cascade: fill gap → discover adjacent gap → fill that → discover another → ...
+- Hard hop cutoff — suppress signals beyond N hops entirely. Loses serendipitous discovery.
+- Per-tick budget — limit the number of signals per tick. Bounds cost but doesn't prioritise relevance.
+**Rationale:** The curiosity engine participates in a feedback loop: curiosity → question → extraction → new knowledge → new curiosity signals. Without dampening, each cycle expands the curiosity frontier outward, producing increasingly peripheral questions. Topical distance dampening ensures curiosity intensifies around recently-discussed topics and fades for distant regions — matching natural human curiosity patterns.
+**Implementation:** The most recent conversation entities are passed to `computeSignals()` as a `Set<String> recentEntityIds`. For each signal, compute the shortest-path distance from the signal's target node to any recent entity using BFS (bounded at depth 4). The dampening factor applies after all other score adjustments (affect, proximity).
+**Trade-offs:** BFS per signal adds computation. At agent scale (D25, hundreds of nodes), BFS to depth 4 completes in sub-millisecond time. If signal count × graph size becomes problematic, cache the distance map per `computeSignals()` call.
+**Sources:** spec §4.3 (curiosity engine), D16 (graph analysis budgets), D25 (agent-scale assumption), R1-12 curiosity review finding
+**Depends on:** D37 (signal model), D36 (curiosity engine integration)
+**Exploration:** quick (surfaced by review)
 **Status:** captured
