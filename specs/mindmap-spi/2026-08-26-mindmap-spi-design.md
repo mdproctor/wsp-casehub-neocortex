@@ -1617,15 +1617,283 @@ Dependencies:
 mindmap-intelligence. It is a Tier 1 module (pure Java + CDI annotations)
 with no heavy transitive dependencies.
 
-## 7. Storage Backends
+## 7. Curiosity Engine
 
-### 7.1 In-Memory (`mindmap-inmem`)
+### 7.1 Overview
+
+The curiosity engine computes prioritised curiosity signals from the mind map
+graph. It consumes `MindMapAnalyzer`'s structural, quality, temporal, and
+centrality computations, adds temporal proximity and affect-aware filtering,
+and produces a ranked list of `CuriositySignal` records with generated
+questions. These signals feed blocks' `CuriosityDrive` to drive
+knowledge-seeking behavior.
+
+The engine lives in `mindmap-intelligence/` alongside the extractor and
+trait system. It depends only on `mindmap-api/` (for `MindMapStore` and
+`MindMapAnalyzer`) — no AgentProvider dependency.
+
+### 7.2 `CuriositySignalProvider` — SPI Interface
+
+```java
+package io.casehub.neocortex.mindmap.intelligence;
+
+public interface CuriositySignalProvider {
+    List<CuriositySignal> computeSignals(String tenantId,
+                                          Set<String> recentEntityIds);
+}
+```
+
+The SPI lives in `mindmap-intelligence/` (D36). `recentEntityIds` is
+the set of node IDs from the most recent conversation extraction —
+used for topical distance dampening (D41). Consumers pass an empty
+set when no recent context is available.
+
+### 7.3 `CuriositySignal`
+
+```java
+public record CuriositySignal(
+    SignalCategory category,
+    double score,           // [0.0, 1.0] after all dampening
+    String targetNodeId,    // nullable — some signals are subgraph-level
+    String targetSubgraphId,
+    String question,        // template-generated natural language question
+    String description      // human-readable explanation of the signal
+) {}
+
+public enum SignalCategory {
+    STRUCTURAL,     // orphan nodes, sparse subgraphs, structural holes
+    QUALITY,        // low confidence, contradictions, unvalidated edges, dangling refs
+    TEMPORAL,       // stale nodes, supersession chains
+    CENTRALITY,     // high-betweenness bridge nodes, high-degree hubs
+    PROXIMITY       // approaching temporal events (attention magnets)
+}
+```
+
+### 7.4 `CuriositySignalGenerator` — Implementation
+
+```java
+@ApplicationScoped
+public class CuriositySignalGenerator implements CuriositySignalProvider {
+
+    private final MindMapStore store;
+
+    @Inject
+    public CuriositySignalGenerator(MindMapStore store) {
+        this.store = store;
+    }
+
+    @Override
+    public List<CuriositySignal> computeSignals(String tenantId,
+                                                 Set<String> recentEntityIds) {
+        List<CuriositySignal> signals = new ArrayList<>();
+
+        for (MindMapSubgraph sg : store.listSubgraphs(tenantId)) {
+            collectStructuralSignals(sg, tenantId, signals);
+            collectQualitySignals(sg, tenantId, signals);
+            collectTemporalSignals(sg, tenantId, signals);
+            collectCentralitySignals(sg, tenantId, signals);
+        }
+        collectProximitySignals(tenantId, signals);
+
+        applyAffectDampening(signals, tenantId);
+        applyTopicalDistanceDampening(signals, recentEntityIds, tenantId);
+
+        signals.sort(Comparator.comparingDouble(CuriositySignal::score).reversed());
+        return signals;
+    }
+}
+```
+
+### 7.5 Signal Generation
+
+Each signal category maps to `MindMapAnalyzer` methods:
+
+| Category | MindMapAnalyzer method | Signal generated when |
+|---|---|---|
+| STRUCTURAL | `orphanNodes()` | Node has zero edges |
+| STRUCTURAL | `subgraphDensity()` | Density < 0.1 (sparse) |
+| QUALITY | `lowConfidenceCluster()` | Ratio > 0.5 (majority low confidence) |
+| QUALITY | `contradictions()` | Multiple targets for same edge type |
+| QUALITY | `unvalidatedEdgeRatio()` | Ratio > 0.3 |
+| TEMPORAL | `staleNodes()` | Nodes not updated in > 90 days |
+| CENTRALITY | `betweennessCentrality()` | Top 3 bridge nodes per subgraph |
+| CENTRALITY | `degreeCentrality()` | Top 3 high-degree nodes per subgraph |
+| PROXIMITY | (direct query) | Nodes with `validFrom` in the future |
+
+**Raw scores** before dampening:
+
+- Structural: `1.0` for orphan nodes (maximum gap), density ratio for
+  sparse subgraphs
+- Quality: ratio of low-confidence/unvalidated/contradicting items
+- Temporal: `min(1.0, staleDays / 180.0)` — linearly increasing staleness
+- Centrality: normalized betweenness/degree score (0-1 range from analyzer)
+- Proximity: `1.0 / (1.0 + daysUntilEvent / scale)` where `scale = 7.0` (D39)
+
+### 7.6 Question Templates (D38)
+
+Each signal type has a question template filled with entity/subgraph names:
+
+```java
+private static String generateQuestion(SignalCategory category,
+                                         String nodeName, String detail) {
+    return switch (category) {
+        case STRUCTURAL -> "What is " + nodeName + "'s connection to other entities?";
+        case QUALITY -> "Is the information about " + nodeName + " still accurate? " + detail;
+        case TEMPORAL -> "Is " + nodeName + " still relevant? " + detail;
+        case CENTRALITY -> "Tell me more about " + nodeName
+            + " — it connects many areas of knowledge.";
+        case PROXIMITY -> "What should I know about " + nodeName
+            + " before " + detail + "?";
+    };
+}
+```
+
+Sparse subgraphs use a different template: "What else is part of {subgraph}?"
+
+### 7.7 Temporal Proximity Signals (D39)
+
+Nodes with `validFrom` in the future act as attention magnets. The
+engine queries all nodes across all subgraphs for upcoming temporal
+events:
+
+```java
+private void collectProximitySignals(String tenantId,
+                                      List<CuriositySignal> signals) {
+    Instant now = Instant.now();
+    for (MindMapSubgraph sg : store.listSubgraphs(tenantId)) {
+        for (MindMapNode node : store.nodesIn(sg.id(), tenantId)) {
+            if (node.validFrom() != null && node.validFrom().isAfter(now)) {
+                double daysUntil = Duration.between(now, node.validFrom())
+                    .toDays();
+                double score = 1.0 / (1.0 + daysUntil / 7.0);
+                signals.add(new CuriositySignal(
+                    SignalCategory.PROXIMITY, score,
+                    node.id(), sg.id(),
+                    generateQuestion(SignalCategory.PROXIMITY,
+                        node.name(), formatDate(node.validFrom())),
+                    "Approaching event: " + node.name()));
+            }
+            if (node.validUntil() != null && node.validUntil().isBefore(now)) {
+                signals.add(new CuriositySignal(
+                    SignalCategory.TEMPORAL, 0.8,
+                    node.id(), sg.id(),
+                    "Did " + node.name() + " happen? What was the outcome?",
+                    "Past event: " + node.name()));
+            }
+        }
+    }
+}
+```
+
+### 7.8 Affect-Aware Dampening (D40)
+
+Multiply each signal's score by an affect factor. PROXIMITY signals
+bypass dampening entirely — time-critical signals should never be
+suppressed by emotional valence.
+
+```java
+private void applyAffectDampening(List<CuriositySignal> signals,
+                                    String tenantId) {
+    for (int i = 0; i < signals.size(); i++) {
+        CuriositySignal signal = signals.get(i);
+        if (signal.category() == SignalCategory.PROXIMITY) continue;
+        if (signal.targetNodeId() == null) continue;
+
+        MindMapNode node = store.getNode(signal.targetNodeId(), tenantId);
+        if (node != null && node.pleasure() != null && node.pleasure() < 0) {
+            double factor = Math.max(0.1, 1.0 + node.pleasure());
+            signals.set(i, new CuriositySignal(
+                signal.category(), signal.score() * factor,
+                signal.targetNodeId(), signal.targetSubgraphId(),
+                signal.question(), signal.description()));
+        }
+    }
+}
+```
+
+### 7.9 Topical Distance Dampening (D41)
+
+Signals targeting nodes far from the most recent conversation entities
+are dampened to prevent unbounded curiosity expansion.
+
+```java
+private void applyTopicalDistanceDampening(List<CuriositySignal> signals,
+                                            Set<String> recentEntityIds,
+                                            String tenantId) {
+    if (recentEntityIds.isEmpty()) return;
+
+    for (int i = 0; i < signals.size(); i++) {
+        CuriositySignal signal = signals.get(i);
+        if (signal.targetNodeId() == null) continue;
+        if (recentEntityIds.contains(signal.targetNodeId())) continue;
+
+        int distance = bfsDistance(signal.targetNodeId(),
+                                   recentEntityIds, tenantId, 4);
+        if (distance > 0) {
+            double factor = 1.0 / (1.0 + distance);
+            signals.set(i, new CuriositySignal(
+                signal.category(), signal.score() * factor,
+                signal.targetNodeId(), signal.targetSubgraphId(),
+                signal.question(), signal.description()));
+        }
+    }
+}
+
+private int bfsDistance(String fromNodeId, Set<String> targetIds,
+                        String tenantId, int maxDepth) {
+    // BFS from fromNodeId, return shortest path to any targetId
+    // Returns maxDepth + 1 if no path found within maxDepth
+}
+```
+
+### 7.10 Testing
+
+Tests use `InMemoryMindMapStore` with synthetic graphs:
+
+- **Structural signals:** Create orphan nodes → verify STRUCTURAL signals
+  generated with correct questions
+- **Quality signals:** Create contradictions (multiple edges of same type)
+  → verify QUALITY signals
+- **Temporal signals:** Create stale nodes (updatedAt 180 days ago) →
+  verify TEMPORAL signals with staleness description
+- **Centrality signals:** Create hub node with many edges → verify
+  CENTRALITY signal for high-degree node
+- **Proximity signals:** Create node with `validFrom` 3 days from now →
+  verify PROXIMITY signal with score ~0.70
+- **Past events:** Create node with `validUntil` in the past → verify
+  "did it happen?" signal
+- **Affect dampening:** Create node with pleasure = -0.8, verify signal
+  score dampened to 20%; verify PROXIMITY signals are NOT dampened
+- **Topical distance:** Create graph with chain A→B→C→D, set A as recent
+  entity → verify D's signal dampened by factor 1/(1+3)=0.25
+- **Empty graph:** Verify empty signal list, no exceptions
+- **Signal ordering:** Verify signals sorted by score descending
+
+### 7.11 Module Dependencies
+
+```
+mindmap-api       ← MindMapStore, MindMapAnalyzer, MindMapNode, etc.
+    ↑
+mindmap-intelligence
+    ├── CuriositySignalProvider (SPI interface)
+    ├── CuriositySignal, SignalCategory (value types)
+    ├── CuriositySignalGenerator (@ApplicationScoped implementation)
+    ├── MindMapExtractor (existing — #220)
+    └── Trait system (existing — #219)
+
+No new Maven dependencies required — uses only mindmap-api and quarkus-arc
+(both already present).
+```
+
+## 8. Storage Backends
+
+### 8.1 In-Memory (`mindmap-inmem`)
 
 `InMemoryMindMapStore` — `ConcurrentHashMap`-based implementation for tests.
 `@Alternative @Priority(1)`. Supports all capabilities. Provides `clearAll()`
 for test isolation.
 
-### 7.2 SQLite (`mindmap-sqlite`)
+### 8.2 SQLite (`mindmap-sqlite`)
 
 `SqliteMindMapStore` — SQLite + HikariCP WAL + Flyway migrations. Production
 backend for single-node deployments.
@@ -1654,7 +1922,7 @@ includes the search term.
 
 Indexes on edge type, source/target, subgraph membership.
 
-### 7.3 Future Backends
+### 8.3 Future Backends
 
 - **TinkerPop/ArcadeDB** — if traversal complexity outgrows recursive CTEs
 - **Qdrant** — if semantic similarity search over node content is needed
@@ -1663,9 +1931,9 @@ Indexes on edge type, source/target, subgraph membership.
 The SPI insulates consumers from backend changes. The capability enum allows
 backends to declare which operations they support.
 
-## 8. Testing
+## 9. Testing
 
-### 8.1 Contract Tests (`mindmap-testing`)
+### 9.1 Contract Tests (`mindmap-testing`)
 
 `MindMapStoreContractTest` — abstract base class that all backends must pass.
 Tests cover:
@@ -1689,7 +1957,7 @@ Tests cover:
 - Affective annotations
 - Capability self-description
 
-### 8.2 Integration Tests
+### 9.2 Integration Tests
 
 Dedicated integration tests that verify cross-store bridging:
 
@@ -1714,8 +1982,15 @@ Dedicated integration tests that verify cross-store bridging:
 - Contradiction detection — conflict between extracted and existing facts reported
 - Carry-forward — pronoun resolution via recently-mentioned entity names
 - Graceful degradation — NoOpAgentProvider returns ExtractionResult.EMPTY
+- Curiosity signals — structural/quality/temporal/centrality/proximity signals
+  generated from synthetic graphs
+- Affect dampening — negative-pleasure nodes have signal scores dampened;
+  PROXIMITY signals bypass dampening
+- Topical distance — signals for distant nodes dampened by hop count
+- Signal ordering — sorted by score descending after all dampening
+- Empty graph — empty signal list, no exceptions
 
-## 9. Module Coordinates
+## 10. Module Coordinates
 
 | Element | Value |
 |---|---|
@@ -1729,7 +2004,7 @@ Dedicated integration tests that verify cross-store bridging:
 | MindMap Intelligence | `casehub-neocortex-mindmap-intelligence` |
 | Root Java package | `io.casehub.neocortex.mindmap` |
 
-## 10. ARC42STORIES Integration
+## 11. ARC42STORIES Integration
 
 ### Journey
 
@@ -1760,7 +2035,7 @@ implementation.
 | L17 MindMap Runtime | `mindmap`, `mindmap-inmem`, `mindmap-sqlite` | CDI library / backends |
 | L18 MindMap Intelligence | `mindmap-intelligence` | CDI library, requires AgentProvider |
 
-## 11. Design Decisions
+## 12. Design Decisions
 
 ### No reactive SPI variant
 
@@ -1803,3 +2078,7 @@ following the established `@DefaultBean` bridge pattern (see L6 RAG SPI,
 - D26-D34 — LLM extraction design decisions (input granularity, service shape, resolution, output format, contradictions, pipeline, context gathering, invocation, optionality)
 - D35 — AbstractForwardingMindMapStore (review-surfaced, decorator boilerplate reduction) — tracked as #223
 - `PipelineProvisioner.provisionAiReview()` — existing AgentProvider consumption pattern
+- `CuriosityDrive` (blocks) — consumes curiosity signals via DriveSource.evaluate()
+- `DriveSource` / `DriveIntensity` / `DriveAxis` — blocks drive integration types
+- `MindMapAnalyzer` — 8 static utility methods providing raw graph signals
+- D36-D41 — Curiosity engine design decisions (integration, signal model, question templates, temporal proximity, affect dampening, cycle-breaking)
