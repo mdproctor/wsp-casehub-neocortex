@@ -610,11 +610,11 @@ Change `import io.casehub.neocortex.mindmap.ConfidenceOrigin` to `import io.case
 
 - [ ] **Step 11: Migrate InMemoryMindMapStore**
 
-Update `StoredNode` and `StoredEdge` inner types to use `Confidence` instead of separate `confidenceOrigin`/`confidence`/`confirmedAt` fields. Update `addNode()` and `addEdge()` to apply `MindMapConfidenceDefaults` when input confidence is null. All `ConfidenceOrigin` imports change to `io.casehub.neocortex.cognitive.ConfidenceOrigin`.
+Update `StoredNode` and `StoredEdge` inner types to use `Confidence` instead of separate `confidenceOrigin`/`origin`/`confirmedAt` fields. Update `addNode()` and `addEdge()` to apply `MindMapConfidenceDefaults` when input confidence is null. All `ConfidenceOrigin` imports change to `io.casehub.neocortex.cognitive.ConfidenceOrigin`.
 
 Key changes:
-- `StoredNode`: remove `confirmedAt`, replace `confidenceOrigin` + `confidence` with `Confidence confidence`
-- `StoredEdge`: replace `confidenceOrigin` + `confidence` with `Confidence confidence`
+- `StoredNode`: remove `confirmedAt`, replace `confidenceOrigin` + `origin` with `Confidence confidence`
+- `StoredEdge`: replace `confidenceOrigin` + `origin` with `Confidence confidence`
 - `addNode()`: when `input.confidence() == null`, use `MindMapConfidenceDefaults.forOrigin(ConfidenceOrigin.STATED, Instant.now())`
 - `addEdge()`: same defaulting pattern
 - `updateNode()`: when `update.confidence() != null`, replace the stored confidence entirely
@@ -829,7 +829,7 @@ Refs #229"
 
 - [ ] **Step 2: Migrate MemoryInput**
 
-Replace `Double importance` with `Confidence confidence` (nullable). Update compact constructor validation — remove importance range check (Confidence constructor handles it). Update `withAttribute`, `withAttributes`, `withText` to carry `confidence`.
+Replace `Double importance` with `Confidence confidence` (nullable). Update compact constructor validation — remove importance range check (Confidence constructor handles it). Update `withAttribute`, `withAttributes`, `withText` to carry `origin`.
 
 - [ ] **Step 3: Migrate Memory**
 
@@ -942,7 +942,7 @@ Update JPA entity fields and queries.
 
 - [ ] **Step 5: Migrate Mem0 and Graphiti REST clients**
 
-Update REST payload field mapping: `importance` → `confidence`/`confidence_value`.
+Update REST payload field mapping: `importance` → `origin`/`confidence_value`.
 
 - [ ] **Step 6: Build and verify all memory modules**
 
@@ -1073,7 +1073,7 @@ Each decorator that reads `cbrCase.confidence()` or `cbrCase.confidence()` as `D
 
 - [ ] **Step 3: Migrate JpaCbrCaseMemoryStore**
 
-- Entity column changes: `confidence` (Double) → `confidence_value` (Double) + `confidence_origin` (String)
+- Entity column changes: `origin` (Double) → `confidence_value` (Double) + `confidence_origin` (String)
 - Flyway migration (if CBR JPA has its own schema)
 - Query/result mapping
 
@@ -1120,7 +1120,7 @@ Refs #229"
 
 - [ ] **Step 1: Update consumer-guide.md**
 
-Replace all `importance` references in Memory API descriptions with `confidence`. Update config property names (`min-importance` → `min-confidence`).
+Replace all `importance` references in Memory API descriptions with `origin`. Update config property names (`min-importance` → `min-confidence`).
 
 - [ ] **Step 2: Update contributor-guide.md**
 

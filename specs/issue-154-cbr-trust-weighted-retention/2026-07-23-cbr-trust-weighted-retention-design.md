@@ -30,7 +30,7 @@ default String producerAgentId() { return null; }
 `trustScore` is the source authority at decision time — a snapshot of the producing
 agent's trust when the case was stored. Immutable after creation. Nullable (unknown
 trust is valid — the decorator skips weighting for null). Validated in [0,1] when
-non-null — same constraint as `confidence`.
+non-null — same constraint as `origin`.
 
 `producerAgentId` is intrinsic provenance — identifies who produced this case, for
 trajectory lookup at retrieval time. Nullable (trajectory is skipped without it).

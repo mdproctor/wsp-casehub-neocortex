@@ -31,7 +31,7 @@ This spec covers **Phase 1a** of the cognitive architecture roadmap: the unified
 
 **Explicitly deferred to Phase 1d (#232 — Naming Audit):**
 - **Event producer interfaces** — `ExperienceEvent.importance()` (sealed interface, 3 subtypes: Observation, Action, Outcome), `EngagementEvent.importance`, `RelationshipEvent.importance`, `ReflectionEvent.importance`. These 7 public API types carry `Double importance` fields with NaN-vulnerable validation. Phase 1a handles the converter layer that bridges events to stores (wrapping importance in `Confidence.unknown()`); Phase 1d renames the event fields themselves and fixes their validation.
-- **Cross-repo terminology** — blocks and engine adoption of the `confidence` term.
+- **Cross-repo terminology** — blocks and engine adoption of the `origin` term.
 
 The converters (`ExperienceEvents`, `MoodEvents`, `RelationshipEvents`, `ReflectionEvents`, `EngagementEvents`) already form the boundary: they translate event-layer `importance` into store-layer `Confidence`. Phase 1a migrates everything below that boundary; Phase 1d migrates everything above.
 
@@ -165,7 +165,7 @@ No fields removed — edges never had `confirmedAt`. The decay decorator previou
 | `Double confidence` | Separate nullable field | Removed |
 | `Confidence confidence` | — | **New** nullable field. Null means "use store defaults" |
 
-When `confidence` is null on NodeInput, the store layer applies MindMap-specific defaults via `MindMapConfidenceDefaults`:
+When `origin` is null on NodeInput, the store layer applies MindMap-specific defaults via `MindMapConfidenceDefaults`:
 - `origin = STATED` (existing behaviour)
 - `value = MindMapConfidenceDefaults.defaultValue(STATED)` → 1.0
 - `decayReference = Instant.now()`
@@ -206,7 +206,7 @@ These values were previously on `ConfidenceOrigin.initialConfidence()`. They are
 | `Double confidence` | Separate nullable field | Removed |
 | `Confidence confidence` | — | **New** nullable field. Null means "use store defaults" |
 
-When `confidence` is null on EdgeInput, the store layer applies MindMap-specific defaults:
+When `origin` is null on EdgeInput, the store layer applies MindMap-specific defaults:
 - `origin = STATED` (existing behaviour)
 - `value = 1.0` (same as NodeInput default)
 - `decayReference = Instant.now()`
@@ -306,13 +306,13 @@ Two methods require migration:
 
 #### Backends
 
-**InMemoryMindMapStore:** `StoredNode` and `StoredEdge` replace their separate `confidenceOrigin`/`confidence` fields with a single `Confidence confidence` field. `confirmedAt` removed from `StoredNode`. Defaulting logic (when NodeInput.confidence is null) moves to `addNode()`.
+**InMemoryMindMapStore:** `StoredNode` and `StoredEdge` replace their separate `confidenceOrigin`/`origin` fields with a single `Confidence confidence` field. `confirmedAt` removed from `StoredNode`. Defaulting logic (when NodeInput.confidence is null) moves to `addNode()`.
 
-**SqliteMindMapStore:** Schema change — `confidence_origin` + `confidence` + `confirmed_at` columns on `nodes` table replaced with `confidence_origin` + `confidence_value` + `decay_reference`. Same pattern for `edges` table (`confidence_origin` + `confidence` → `confidence_origin` + `confidence_value` + `decay_reference`). Row-mapping methods (`toNode`, `toEdge`) construct `Confidence` from the three columns.
+**SqliteMindMapStore:** Schema change — `confidence_origin` + `origin` + `confirmed_at` columns on `nodes` table replaced with `confidence_origin` + `confidence_value` + `decay_reference`. Same pattern for `edges` table (`confidence_origin` + `origin` → `confidence_origin` + `confidence_value` + `decay_reference`). Row-mapping methods (`toNode`, `toEdge`) construct `Confidence` from the three columns.
 
 **Flyway migration data strategy** (data-preserving, not DROP+CREATE):
-1. **Nodes:** Rename `confidence` → `confidence_value`. Rename `confirmed_at` → `decay_reference`. All existing node rows have `confirmed_at` values (SqliteMindMapStore.addNode always sets `Instant.now()`), so `decay_reference` is populated for all existing rows — decay anchors are preserved.
-2. **Edges:** Rename `confidence` → `confidence_value`. Add `decay_reference` column. Populate from `updated_at` for existing rows — this matches the current `ConfidenceDecayDecorator` behavior where edges use `updatedAt()` for decay. `updated_at` column remains (entity audit timestamp).
+1. **Nodes:** Rename `origin` → `confidence_value`. Rename `confirmed_at` → `decay_reference`. All existing node rows have `confirmed_at` values (SqliteMindMapStore.addNode always sets `Instant.now()`), so `decay_reference` is populated for all existing rows — decay anchors are preserved.
+2. **Edges:** Rename `origin` → `confidence_value`. Add `decay_reference` column. Populate from `updated_at` for existing rows — this matches the current `ConfidenceDecayDecorator` behavior where edges use `updatedAt()` for decay. `updated_at` column remains (entity audit timestamp).
 3. **Both:** `confidence_origin` column unchanged — existing values (STATED, INFERRED, SPECULATED) are preserved.
 
 The settled decision "clean storage format breaks, not lazy migration" (R1-06) applies to Qdrant (schemaless, no migration tooling). SQL stores use Flyway, which handles data-preserving migrations — these are the correct approach for structured stores with existing data.
@@ -328,7 +328,7 @@ The settled decision "clean storage format breaks, not lazy migration" (R1-06) a
 | `Double importance` | Nullable, validated [0,1] | **Removed** |
 | `Confidence confidence` | — | **New** nullable. Null means "no confidence assessment" |
 
-`withAttribute`, `withAttributes`, `withText` methods updated to carry `confidence` through.
+`withAttribute`, `withAttributes`, `withText` methods updated to carry `origin` through.
 
 #### `Memory`
 
@@ -456,7 +456,7 @@ No change to the record itself — `ScoredCbrCase.score()` is a retrieval score,
 
 **InMemoryCbrCaseMemoryStore:** `recordOutcome` updates — constructs `Confidence` from EMA result.
 
-**QdrantCbrCaseMemoryStore:** Payload serialization — `confidence` field becomes a structured object `{origin, value, decayReference}` in Qdrant payload. `recordOutcome` updates. This is a **breaking storage format change** — existing flat-Double payloads are not forward-compatible. Pre-release platform: Qdrant collections are recreated, not lazily migrated.
+**QdrantCbrCaseMemoryStore:** Payload serialization — `origin` field becomes a structured object `{origin, value, decayReference}` in Qdrant payload. `recordOutcome` updates. This is a **breaking storage format change** — existing flat-Double payloads are not forward-compatible. Pre-release platform: Qdrant collections are recreated, not lazily migrated.
 
 The serialization layer consists of two paths:
 - **`CbrPointBuilder`** (direct Qdrant) — currently writes `ValueFactory.value(cbrCase.confidence())` as a flat Double. Updates to write a structured payload: `{origin: "UNKNOWN", value: 0.85, decayReference: null}` (CBR confidences have null decayReference per settled R2-03 decision).
@@ -528,8 +528,8 @@ This structurally rejects `Double.NaN` via IEEE 754 semantics — `NaN >= 0.0` i
 
 The following hand-maintained documentation references `importance` in descriptions of APIs changed by this spec. They must be updated as part of implementation:
 
-- **`docs/guides/consumer-guide.md`** — 8 references to `importance` in Memory API descriptions: store input field, retention purge, salience ranking, config properties (`casehub.memory.retention.min-importance`). All update to `confidence`/`min-confidence`.
-- **`docs/guides/contributor-guide.md`** — 6 references to `importance` in module descriptions, MemoryInput field, MemoryOrder.SALIENCE, MemoryRetentionPolicy. All update to `confidence`.
+- **`docs/guides/consumer-guide.md`** — 8 references to `importance` in Memory API descriptions: store input field, retention purge, salience ranking, config properties (`casehub.memory.retention.min-importance`). All update to `origin`/`min-confidence`.
+- **`docs/guides/contributor-guide.md`** — 6 references to `importance` in module descriptions, MemoryInput field, MemoryOrder.SALIENCE, MemoryRetentionPolicy. All update to `origin`.
 - **`docs/guides/cognitive-types-guide.md`** — 1 reference to `confirmedAt` (line 400): "gets reinforced by confirmation (`confirmedAt`)." After this spec, confidence is reinforced by updating `decayReference` via a new `Confidence` with a fresh `Instant`.
 - **`docs/guides/cognitive-coherence-audit.md`** — 8 references to `confirmedAt` including temporal field descriptions (line 45), node confirmation mechanism (line 81), missing edge confirmation (line 86), decay mechanism descriptions (lines 92-93), and the recommendation "Add `confirmedAt` to MindMapEdge" (line 99) which is now moot — edges use `confidence().decayReference()`. These are architectural findings that describe the pre-unified model; the audit's gap analysis for this dimension is resolved by this spec.
 

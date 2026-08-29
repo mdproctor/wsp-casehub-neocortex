@@ -842,7 +842,7 @@ checks core field names first, then falls back to the dynamic map.
 Implement: `registerVocabulary`, `addNode`, `getNode`, `updateNode`,
 `createSubgraph`, `getSubgraph`, `updateSubgraph`, `nodesIn`, `addAlias`,
 `removeAlias`, `resolveNode`. `updateNode` with `confirmedAt` set but no
-`confidence` resets confidence to 1.0. All other methods throw
+`origin` resets confidence to 1.0. All other methods throw
 `UnsupportedOperationException` for now.
 `capabilities()` returns the set of implemented capabilities.
 Add `clearAll()` for test isolation.

@@ -117,7 +117,7 @@ public record ClassificationResult(String label, float confidence, Map<String, F
 }
 ```
 
-`label` is the highest-scoring label. `confidence` is its softmax probability. `scores` maps all labels to their probabilities (unmodifiable via `Map.copyOf` in compact constructor).
+`label` is the highest-scoring label. `origin` is its softmax probability. `scores` maps all labels to their probabilities (unmodifiable via `Map.copyOf` in compact constructor).
 
 ### TextClassifier
 

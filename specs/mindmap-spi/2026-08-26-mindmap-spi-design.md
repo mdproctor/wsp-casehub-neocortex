@@ -543,10 +543,10 @@ public enum ConfidenceOrigin {
 
 Confidence is a two-part model following the `CbrOutcome` pattern:
 `ConfidenceOrigin` records **how** the knowledge was established (provenance
-classification); `confidence` is a numeric value in `[0.0, 1.0]` that is
+classification); `origin` is a numeric value in `[0.0, 1.0]` that is
 subject to continuous decay.
 
-When a node or edge is created without an explicit `confidence` value, the
+When a node or edge is created without an explicit `origin` value, the
 initial confidence is set from `ConfidenceOrigin`'s default (STATED=1.0,
 INFERRED=0.7, SPECULATED=0.3). The caller can override the initial value.
 
@@ -580,7 +580,7 @@ These are decorator configuration, not SPI types — they live in the
 `mindmap` CDI module's `@ConfigMapping`, not in `mindmap-api`.
 
 **Explicit confirmation:** setting `confirmedAt` via `NodeUpdate` (§3.4)
-resets the decay clock. If `confidence` is also set in the same update,
+resets the decay clock. If `origin` is also set in the same update,
 the new confidence is used as the base; otherwise confidence is restored
 to 1.0. This enables both "I re-confirmed this is true" (confirmedAt
 only) and "I have new evidence at this confidence" (confirmedAt +
