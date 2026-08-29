@@ -89,17 +89,20 @@ public record Confidence(
         }
     }
 
-    // --- MindMap factories (decay-aware) ---
+    // --- MindMap factories (decay-aware, non-null decayReference enforced) ---
 
     public static Confidence stated(double value, Instant decayReference) {
+        Objects.requireNonNull(decayReference, "MindMap confidences require a decayReference");
         return new Confidence(ConfidenceOrigin.STATED, value, decayReference);
     }
 
     public static Confidence inferred(double value, Instant decayReference) {
+        Objects.requireNonNull(decayReference, "MindMap confidences require a decayReference");
         return new Confidence(ConfidenceOrigin.INFERRED, value, decayReference);
     }
 
     public static Confidence speculated(double value, Instant decayReference) {
+        Objects.requireNonNull(decayReference, "MindMap confidences require a decayReference");
         return new Confidence(ConfidenceOrigin.SPECULATED, value, decayReference);
     }
 
@@ -122,10 +125,10 @@ public record Confidence(
 ```
 
 **Factory API rationale:** The factory methods partition into two categories by usage context:
-- **MindMap factories** (`stated`, `inferred`, `speculated`) require an `Instant decayReference` — MindMap confidences MUST decay, and the factory signature enforces this.
+- **MindMap factories** (`stated`, `inferred`, `speculated`) require a non-null `Instant decayReference` — enforced by `Objects.requireNonNull`. MindMap confidences MUST decay; both the parameter type AND the runtime check enforce this. `Confidence.stated(1.0, null)` throws `NullPointerException`.
 - **Memory/CBR factory** (`unknown`) produces non-decaying confidence with null `decayReference` — appropriate for contexts where decay is not configured.
 
-There is no `of(ConfidenceOrigin, double)` convenience factory. Such a method would silently create non-decaying confidence for any origin, including MindMap origins that must decay — an API foot-gun on a brand-new type. Callers who need fine-grained control use the 3-arg constructor directly.
+There is no `of(ConfidenceOrigin, double)` convenience factory. The 3-arg constructor remains nullable on `decayReference` — it is the escape hatch for deserialization and edge cases where the caller has already validated their inputs.
 
 **Validation:** Uses `!(value >= 0.0 && value <= 1.0)` — the inverted range check that structurally rejects NaN via IEEE 754 semantics (per GE-20260604-043617).
 
@@ -162,10 +165,33 @@ No fields removed — edges never had `confirmedAt`. The decay decorator previou
 | `Double confidence` | Separate nullable field | Removed |
 | `Confidence confidence` | — | **New** nullable field. Null means "use store defaults" |
 
-When `confidence` is null on NodeInput, the store layer applies MindMap-specific defaults:
+When `confidence` is null on NodeInput, the store layer applies MindMap-specific defaults via `MindMapConfidenceDefaults`:
 - `origin = STATED` (existing behaviour)
-- `value = origin.initialConfidence()` equivalent (1.0 for STATED) — this logic moves to a package-private `MindMapConfidenceDefaults` utility in the mindmap store layer
+- `value = MindMapConfidenceDefaults.defaultValue(STATED)` → 1.0
 - `decayReference = Instant.now()`
+
+**`MindMapConfidenceDefaults`** is a public utility class in `mindmap-api` (not package-private in the store layer). Both the store layer and the intelligence layer (`MindMapExtractor` in `mindmap-intelligence`) need access to these defaults:
+
+```java
+package io.casehub.neocortex.mindmap;
+
+public final class MindMapConfidenceDefaults {
+    public static double defaultValue(ConfidenceOrigin origin) {
+        return switch (origin) {
+            case STATED -> 1.0;
+            case INFERRED -> 0.7;
+            case SPECULATED -> 0.3;
+            case UNKNOWN -> 1.0;
+        };
+    }
+
+    public static Confidence forOrigin(ConfidenceOrigin origin, Instant decayReference) {
+        return new Confidence(origin, defaultValue(origin), decayReference);
+    }
+}
+```
+
+These values were previously on `ConfidenceOrigin.initialConfidence()`. They are MindMap extraction defaults (not cognitive axioms), but they are domain contract — both store implementations and the intelligence layer need them. `mindmap-api` is the correct module: `mindmap-intelligence` depends on it, and store modules either are part of it or depend on it.
 
 #### `EdgeInput`
 
@@ -191,6 +217,8 @@ Note: edges never had `confirmedAt`. The decay decorator previously used `update
 | `Instant confirmedAt` | Separate field | Removed |
 | `Confidence confidence` | — | **New** nullable field. Null = "don't change confidence". Non-null replaces entire confidence including decayReference. |
 
+**Behavioral change from D6:** The current store contract implicitly resets confidence to 1.0 when `confirmedAt` is set without an explicit confidence value (enforced by contract test `updateNode_confirmedAtWithoutConfidence_resetsTo1`). Under the new model, "confirmation" means updating decayReference only — value and origin are preserved unless the caller explicitly provides new values. A SPECULATED node at 0.3 that is "confirmed" stays at 0.3 with a fresh decay clock, rather than silently jumping to 1.0. To reset value to 1.0, the caller constructs `new Confidence(origin, 1.0, Instant.now())` explicitly. This is a deliberate improvement: the implicit reset erased the epistemic distinction between SPECULATED and STATED knowledge.
+
 #### `MindMapQuery`
 
 `Double minConfidence` and `ConfidenceOrigin confidenceOrigin` **stay as separate query predicates**. These are independent filters ("find nodes with confidence above X" / "find nodes that were stated"), not a value composition. They do not become a `Confidence` field on the query.
@@ -200,6 +228,32 @@ Note: edges never had `confirmedAt`. The decay decorator previously used `update
 `ConfidenceOrigin confidence` renamed to `ConfidenceOrigin origin` for clarity. ParsedEntity carries origin only — the confidence value is derived at store time via defaults.
 
 ParsedEntity is package-private in `mindmap-intelligence` (package `io.casehub.neocortex.mindmap.intelligence`), not in `mindmap-api`. The import changes from `io.casehub.neocortex.mindmap.ConfidenceOrigin` to `io.casehub.neocortex.cognitive.ConfidenceOrigin` — the transitive dependency chain (`mindmap-intelligence` → `mindmap-api` → `cognitive-api`) provides the import.
+
+**`ExtractedRelationship`** (`mindmap-intelligence`, public) also carries `ConfidenceOrigin confidenceOrigin` — same import update, no field rename needed (it captures the origin of the extracted relationship for the caller).
+
+**`ParsedRelationship`** (`mindmap-intelligence`, package-private) carries `ConfidenceOrigin confidence` → renamed to `ConfidenceOrigin origin` (same as ParsedEntity).
+
+#### `MindMapExtractor` conversion path (`mindmap-intelligence`)
+
+`MindMapExtractor.applyExtraction()` constructs `NodeInput` and `EdgeInput` from parsed origins. After field collapse, it must construct full `Confidence` records instead of passing separate `ConfidenceOrigin` and `null` confidence:
+
+```java
+// Before:
+store.addNode(new NodeInput(
+    pe.name(), sgId, pe.confidence(), null, ...));
+//                  ↑ ConfidenceOrigin   ↑ Double confidence (null → store defaults)
+
+// After:
+store.addNode(new NodeInput(
+    pe.name(), sgId,
+    MindMapConfidenceDefaults.forOrigin(pe.origin(), Instant.now()),
+    ...));
+//  ↑ Full Confidence with origin-appropriate default value + decay reference
+```
+
+Same pattern for `EdgeInput` construction from `ParsedRelationship.origin()`.
+
+Without this, passing `null` for NodeInput.confidence would default to STATED/1.0, losing the parsed origin (e.g., an LLM-extracted INFERRED entity at 0.7 would become STATED at 1.0).
 
 #### `ConfidenceDecayDecorator`
 
@@ -293,6 +347,20 @@ new MemoryInput(entityId, domain, tenantId, null, text, attrs,
 
 The `CaseMemoryStore.purge(MemoryRetentionPolicy)` SPI signature is unchanged — it takes the policy record. All store implementations that read `policy.minImportance()` update to `policy.minConfidence()`. The record constructor validation message updates accordingly.
 
+#### `MemoryRetentionConfig` and `MemoryRetentionScheduler` (`memory` runtime)
+
+The Quarkus config interface that feeds `MemoryRetentionPolicy` also updates:
+
+| Component | Before | After |
+|-----------|--------|-------|
+| `MemoryRetentionConfig.minImportance()` | `Optional<Double>` method | Renamed to `minConfidence()` |
+| Config property | `casehub.memory.retention.min-importance` | `casehub.memory.retention.min-confidence` |
+| `MemoryRetentionScheduler.purgeExpired()` | reads `config.minImportance().orElse(null)` | reads `config.minConfidence().orElse(null)` |
+
+The config property rename is a **deployment-visible breaking change** — any `application.properties` or deployment config using `casehub.memory.retention.min-importance` must update. Pre-release platform: this is acceptable.
+
+`MemoryRetentionSchedulerTest` updates to use the renamed config method.
+
 #### `MemoryOrder.SALIENCE`
 
 Javadoc currently references `Memory#importance()`: "null importance treated as 1.0." Updates to reference `Memory#confidence()`: "null confidence treated as value 1.0."
@@ -344,15 +412,15 @@ public static double adjustConfidence(Double oldConfidence, double successRate,
 
 // After:
 public static Confidence adjustConfidence(Confidence old, double successRate,
-                                          double learningRate, Instant observedAt) {
+                                          double learningRate) {
     double oldValue = old != null ? old.value() : 1.0;
     double newValue = (1.0 - learningRate) * oldValue + learningRate * successRate;
     ConfidenceOrigin origin = old != null ? old.origin() : ConfidenceOrigin.UNKNOWN;
-    return new Confidence(origin, newValue, observedAt);
+    return new Confidence(origin, newValue, null);
 }
 ```
 
-Preserves origin (how the case was originally established), updates value via EMA, sets decayReference to `observedAt`.
+Preserves origin (how the case was originally established), updates value via EMA. `decayReference` is null — CBR has no decay mechanism (`ConfidenceDecayDecorator` wraps MindMap stores only). The `observedAt` timestamp is already on `CbrOutcome.observedAt()` — it records when the outcome was observed, which is CBR-specific metadata, not a decay anchor. Setting non-null `decayReference` on CBR confidences would create semantic inconsistency: in Phase 4 cross-store queries, CBR confidences would be incorrectly decayed.
 
 #### `OutcomeWeightingCbrCaseMemoryStore`
 
@@ -435,12 +503,21 @@ This structurally rejects `Double.NaN` via IEEE 754 semantics — `NaN >= 0.0` i
 ## Testing Strategy
 
 1. **cognitive-api:** Unit tests for `Confidence` — construction, validation (boundary values, NaN rejection), factory methods (`stated`, `inferred`, `speculated`, `unknown`), `withValue`/`withDecayReference`
-2. **mindmap-api:** `MindMapStoreContractTest` updates (72 tests) — all test helpers and assertions migrate
+2. **mindmap-api:** `MindMapStoreContractTest` updates (72 tests) — all test helpers and assertions migrate. **Exception:** `updateNode_confirmedAtWithoutConfidence_resetsTo1` is intentionally **removed** (not migrated) — the implicit 1.0 reset behavior it tested is eliminated by D6. Replaced by a new test verifying that confirmation (updating decayReference) preserves the existing confidence value and origin.
 3. **memory-api:** `CbrCaseMemoryStoreContractTest` updates (151 tests) — confidence field changes
 4. **memory-testing:** `CaseMemoryStoreContractTest` — `importance_roundTrip` and `importance_nullDefault` rename to `confidence_roundTrip` and `confidence_nullDefault`, reading `confidence()` instead of `importance()`. `purge_importanceBased` updates to use `minConfidence` on `MemoryRetentionPolicy`.
 5. **memory-testing:** `CbrOutcomeTest` — `adjustConfidence` now returns `Confidence`
 6. **Backends:** Each backend's integration tests verify persistence of the three Confidence components (origin, value, decayReference)
 7. **Decorators:** `ConfidenceDecayDecoratorTest` — decay reads `decayReference` from `Confidence`, not `confirmedAt`/`updatedAt`
+
+---
+
+## Documentation Updates
+
+The following hand-maintained documentation references `importance` in descriptions of APIs changed by this spec. They must be updated as part of implementation:
+
+- **`docs/guides/consumer-guide.md`** — 8 references to `importance` in Memory API descriptions: store input field, retention purge, salience ranking, config properties (`casehub.memory.retention.min-importance`). All update to `confidence`/`min-confidence`.
+- **`docs/guides/contributor-guide.md`** — 6 references to `importance` in module descriptions, MemoryInput field, MemoryOrder.SALIENCE, MemoryRetentionPolicy. All update to `confidence`.
 
 ---
 
