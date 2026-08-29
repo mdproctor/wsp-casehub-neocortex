@@ -35,3 +35,29 @@
 **Sources:** cognitive-architecture-roadmap.md §Terminology ("importance becomes value with origin=null"), ConfidenceOrigin.java
 **Exploration:** quick
 **Status:** captured
+
+## D4: API surface — single Confidence accessor replaces split fields
+
+**Choice:** MindMapNode/MindMapEdge: `confidenceOrigin()` + `confidence()` → single `Confidence confidence()`. NodeInput/EdgeInput: separate fields → single `Confidence confidence`. MemoryInput/Memory: `Double importance` → `Confidence confidence` (nullable). CbrCase: `Double confidence()` → `Confidence confidence()`.
+**Alternatives:**
+- Keep split fields + add Confidence — backwards compatible but duplicates the concept, confuses which to use.
+- Adapter layer — old methods delegate to Confidence internally. Avoids breaking callers but adds indirection that never gets cleaned up.
+**Rationale:** Pre-release platform — breaking changes cost nothing. One concept = one method. All callers update to `node.confidence().value()` which is more explicit about what they're reading. Eliminates the possibility of confidenceOrigin and confidence being inconsistent.
+**Trade-offs:** Every caller of `node.confidence()` (expecting double) must update. 155 ConfidenceOrigin references + all confidence() call sites.
+**Depends on:** D2 (record shape)
+**Sources:** MindMapNode.java, MindMapEdge.java, MemoryInput.java, Memory.java, CbrCase.java
+**Exploration:** quick
+**Status:** captured
+
+## D5: CbrOutcome.adjustConfidence operates on Confidence
+
+**Choice:** `adjustConfidence(Confidence old, double successRate, double learningRate)` → returns `Confidence` (preserves origin, updates value + decayReference to observedAt). CbrOutcome itself stays in memory-api — it's a CBR-specific operation record, not a cross-cutting type.
+**Alternatives:**
+- Keep Double-based adjustConfidence — callers wrap/unwrap Confidence manually. Works but error-prone.
+- Move EMA into Confidence itself — couples a CBR-specific operation into the shared type.
+**Rationale:** The operation naturally preserves origin (how we originally learned this) while updating the numeric value and when it was last assessed. CbrOutcome stays in memory-api because it carries CBR-specific fields (result, successRate, detail).
+**Trade-offs:** CbrOutcome gains a dependency on cognitive-api (via memory-api's transitive dependency).
+**Depends on:** D1 (module placement), D4 (API surface)
+**Sources:** CbrOutcome.java:30-34 adjustConfidence, CbrCaseMemoryStore.java:23 recordOutcome
+**Exploration:** quick
+**Status:** captured
