@@ -14,8 +14,8 @@ flyway-next-v: none
 ## Queue
 - [x] casehubio/neocortex#253 — Issue #253
 - [ ] casehubio/neocortex#229 — Unified confidence model ← active
-  - [ ] Batch 1: Foundation
-    - [ ] Task 1: cognitive-api module
+  - [x] Batch 1: Foundation
+    - [x] Task 1: cognitive-api module
   - [ ] Batch 2: MindMap SPI
     - [ ] Task 2: mindmap-api + InMemoryMindMapStore
     - [ ] Task 3: decorators + analyzer
