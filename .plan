@@ -13,22 +13,8 @@ flyway-next-v: none
 
 ## Queue
 - [x] casehubio/neocortex#253 — Issue #253
-- [ ] casehubio/neocortex#229 — Unified confidence model ← active
-  - [x] Batch 1: Foundation
-    - [x] Task 1: cognitive-api module
-  - [ ] Batch 2: MindMap SPI
-    - [ ] Task 2: mindmap-api + InMemoryMindMapStore
-    - [ ] Task 3: decorators + analyzer
-    - [ ] Task 4: intelligence + sqlite
-  - [ ] Batch 3: Memory SPI
-    - [ ] Task 5: memory-api + converters + InMemory
-    - [ ] Task 6: SQL backends
-  - [ ] Batch 4: CBR SPI
-    - [ ] Task 7: CbrCase + CbrOutcome + InMemory
-    - [ ] Task 8: decorators + backends
-  - [ ] Batch 5: Docs
-    - [ ] Task 9: documentation + CLAUDE.md
-- [ ] casehubio/neocortex#232 — Naming audit
+- [x] casehubio/neocortex#229 — Unified confidence model
+- [ ] casehubio/neocortex#232 — Naming audit ← active
 - [ ] casehubio/neocortex#234 — Temporal taxonomy
 - [ ] casehubio/neocortex#235 — Event timestamps
 - [ ] casehubio/neocortex#236 — Temporal MindMapQuery
