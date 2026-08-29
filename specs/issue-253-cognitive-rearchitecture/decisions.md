@@ -69,17 +69,19 @@
 
 ## D6: confirmedAt resolution — remove from MindMapNode
 
-**Choice:** Remove `confirmedAt` from `MindMapNode`. Node confirmation = updating `Confidence` with `decayReference=Instant.now()` (value and origin unchanged). NodeUpdate's `confirmedAt` field is subsumed by the new `Confidence confidence` field — callers construct a Confidence with updated decayReference.
+**Choice:** Remove `confirmedAt` from `MindMapNode`. Node confirmation = updating `Confidence` with `decayReference=Instant.now()`. Value and origin are preserved unless the caller explicitly provides new values. NodeUpdate's `confirmedAt` field is subsumed by the new `Confidence confidence` field — callers construct a Confidence with updated decayReference.
+**Semantic change from current behavior:** The current store contract implicitly resets confidence to 1.0 when `confirmedAt` is set without an explicit confidence value (`InMemoryMindMapStore.java:124-131`, `SqliteMindMapStore.java:300-303`, enforced by contract test `updateNode_confirmedAtWithoutConfidence_resetsTo1`). Under D6, confirmation resets only the decay anchor — value is preserved. A SPECULATED node at 0.3 that is "confirmed" stays at 0.3 with a fresh decay clock, rather than silently jumping to 1.0. To reset value to 1.0, the caller must explicitly construct `new Confidence(origin, 1.0, Instant.now())`. This is a deliberate improvement: the current implicit reset erases the epistemic distinction between SPECULATED and STATED knowledge. Confirming means "I've re-verified this is still believed" — it does NOT mean "I've upgraded my certainty to maximum." The contract test `updateNode_confirmedAtWithoutConfidence_resetsTo1` will be removed; a new test will verify that confirmation preserves value while resetting decayReference.
 **Alternatives:**
 - Keep confirmedAt, derive decayReference from it — contradicts D2's design (decayReference is on the Confidence record, not derived from entity fields). Two sources of truth.
 - Keep both, enforce equality — redundant fields with an invariant to maintain. Store implementations must keep them in sync.
 - Keep confirmedAt as audit-only — adds a field that no consumer reads for audit purposes (verified: only ConfidenceDecayDecorator.java:78 and MindMapAnalyzer.java:163 read confirmedAt, both for decay/staleness).
+- Preserve the implicit 1.0 reset on confirmation — caller passes `Confidence confidence` without value, store defaults to 1.0. Rejects because Confidence is a record with non-null fields (D2: `double value`, not `Double`); there is no "without value" state. The caller is always explicit.
 **Rationale:** `confirmedAt` was always the decay anchor for nodes. After unification, `confidence().decayReference()` serves this role. The two runtime consumers (ConfidenceDecayDecorator, MindMapAnalyzer.staleNodes) read `confirmedAt` purely for decay computation — both migrate to `confidence().decayReference()`. No consumer reads confirmedAt for audit/human-readable purposes. `updatedAt` already captures "when was this entity last modified" for audit needs.
-**Trade-offs:** Callers that set `NodeUpdate.confirmedAt` must construct a Confidence record instead. Breaking change — but pre-release platform.
+**Trade-offs:** Callers that set `NodeUpdate.confirmedAt` must construct a Confidence record instead. The implicit 1.0 reset is lost — callers that intend a value reset must be explicit. Breaking change — but pre-release platform, and the breakage forces callers to be explicit about what "confirmation" means in their context.
 **Depends on:** D2 (decayReference on Confidence), D4 (NodeUpdate surface change)
-**Sources:** MindMapNode.java:26, ConfidenceDecayDecorator.java:78, MindMapAnalyzer.java:163, MindMapStoreContractTest.java:222
-**Exploration:** surfaced by review (R1-06)
-**Status:** captured
+**Sources:** MindMapNode.java:26, ConfidenceDecayDecorator.java:78, MindMapAnalyzer.java:163, MindMapStoreContractTest.java:222, InMemoryMindMapStore.java:124-131 (implicit 1.0 reset), SqliteMindMapStore.java:300-303 (same)
+**Exploration:** surfaced by review (R1-06, R2-02)
+**Status:** revised — confirmation semantics explicitly documented as deliberate change from implicit 1.0 reset (R2-02)
 
 ## D7: Memory importance → Confidence.value mapping
 
