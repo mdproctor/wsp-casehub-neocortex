@@ -25,6 +25,18 @@ A single `Confidence` record in a new `cognitive-api` module, replacing all thre
 
 ---
 
+## Phase Scope
+
+This spec covers **Phase 1a** of the cognitive architecture roadmap: the unified type, store-layer migration, and all public API types that carry confidence/importance values in their store or query contracts.
+
+**Explicitly deferred to Phase 1d (#232 — Naming Audit):**
+- **Event producer interfaces** — `ExperienceEvent.importance()` (sealed interface, 3 subtypes: Observation, Action, Outcome), `EngagementEvent.importance`, `RelationshipEvent.importance`, `ReflectionEvent.importance`. These 7 public API types carry `Double importance` fields with NaN-vulnerable validation. Phase 1a handles the converter layer that bridges events to stores (wrapping importance in `Confidence.unknown()`); Phase 1d renames the event fields themselves and fixes their validation.
+- **Cross-repo terminology** — blocks and engine adoption of the `confidence` term.
+
+The converters (`ExperienceEvents`, `MoodEvents`, `RelationshipEvents`, `ReflectionEvents`, `EngagementEvents`) already form the boundary: they translate event-layer `importance` into store-layer `Confidence`. Phase 1a migrates everything below that boundary; Phase 1d migrates everything above.
+
+---
+
 ## New Module: `cognitive-api`
 
 **Maven coordinates:** `io.casehub:casehub-neocortex-cognitive-api`
@@ -77,21 +89,27 @@ public record Confidence(
         }
     }
 
-    public static Confidence of(ConfidenceOrigin origin, double value) {
-        return new Confidence(origin, value, null);
-    }
-
-    public static Confidence of(double value) {
-        return new Confidence(ConfidenceOrigin.UNKNOWN, value, null);
-    }
+    // --- MindMap factories (decay-aware) ---
 
     public static Confidence stated(double value, Instant decayReference) {
         return new Confidence(ConfidenceOrigin.STATED, value, decayReference);
     }
 
+    public static Confidence inferred(double value, Instant decayReference) {
+        return new Confidence(ConfidenceOrigin.INFERRED, value, decayReference);
+    }
+
+    public static Confidence speculated(double value, Instant decayReference) {
+        return new Confidence(ConfidenceOrigin.SPECULATED, value, decayReference);
+    }
+
+    // --- Memory/CBR factory (non-decaying) ---
+
     public static Confidence unknown(double value) {
         return new Confidence(ConfidenceOrigin.UNKNOWN, value, null);
     }
+
+    // --- Transformers ---
 
     public Confidence withValue(double newValue) {
         return new Confidence(origin, newValue, decayReference);
@@ -102,6 +120,12 @@ public record Confidence(
     }
 }
 ```
+
+**Factory API rationale:** The factory methods partition into two categories by usage context:
+- **MindMap factories** (`stated`, `inferred`, `speculated`) require an `Instant decayReference` — MindMap confidences MUST decay, and the factory signature enforces this.
+- **Memory/CBR factory** (`unknown`) produces non-decaying confidence with null `decayReference` — appropriate for contexts where decay is not configured.
+
+There is no `of(ConfidenceOrigin, double)` convenience factory. Such a method would silently create non-decaying confidence for any origin, including MindMap origins that must decay — an API foot-gun on a brand-new type. Callers who need fine-grained control use the 3-arg constructor directly.
 
 **Validation:** Uses `!(value >= 0.0 && value <= 1.0)` — the inverted range check that structurally rejects NaN via IEEE 754 semantics (per GE-20260604-043617).
 
@@ -145,7 +169,18 @@ When `confidence` is null on NodeInput, the store layer applies MindMap-specific
 
 #### `EdgeInput`
 
-Same pattern as NodeInput.
+| Field | Before | After |
+|-------|--------|-------|
+| `ConfidenceOrigin confidenceOrigin` | Separate field, defaults to STATED | Removed |
+| `Double confidence` | Separate nullable field | Removed |
+| `Confidence confidence` | — | **New** nullable field. Null means "use store defaults" |
+
+When `confidence` is null on EdgeInput, the store layer applies MindMap-specific defaults:
+- `origin = STATED` (existing behaviour)
+- `value = 1.0` (same as NodeInput default)
+- `decayReference = Instant.now()`
+
+Note: edges never had `confirmedAt`. The decay decorator previously used `updatedAt()` as the decay reference for edges; under the new model, edges use `confidence().decayReference()` like nodes. The `updatedAt()` field remains as an entity audit timestamp.
 
 #### `NodeUpdate`
 
@@ -160,9 +195,11 @@ Same pattern as NodeInput.
 
 `Double minConfidence` and `ConfidenceOrigin confidenceOrigin` **stay as separate query predicates**. These are independent filters ("find nodes with confidence above X" / "find nodes that were stated"), not a value composition. They do not become a `Confidence` field on the query.
 
-#### `ParsedEntity`
+#### `ParsedEntity` (`mindmap-intelligence`)
 
 `ConfidenceOrigin confidence` renamed to `ConfidenceOrigin origin` for clarity. ParsedEntity carries origin only — the confidence value is derived at store time via defaults.
+
+ParsedEntity is package-private in `mindmap-intelligence` (package `io.casehub.neocortex.mindmap.intelligence`), not in `mindmap-api`. The import changes from `io.casehub.neocortex.mindmap.ConfidenceOrigin` to `io.casehub.neocortex.cognitive.ConfidenceOrigin` — the transitive dependency chain (`mindmap-intelligence` → `mindmap-api` → `cognitive-api`) provides the import.
 
 #### `ConfidenceDecayDecorator`
 
@@ -187,11 +224,26 @@ private MindMapNode withDecayedConfidence(MindMapNode node) {
 }
 ```
 
-`DecayedNode`/`DecayedEdge` simplify — `confirmedAt()` delegation is no longer needed on DecayedNode (field removed from interface). One fewer method to delegate.
+`DecayedNode`/`DecayedEdge` simplify — `confirmedAt()` delegation is no longer needed on DecayedNode (field removed from interface). One fewer method to delegate. `DecayedNode.confidence()` and `DecayedEdge.confidence()` return the new `Confidence` record with decayed value (via `c.withValue(decayed)`), not a raw double.
 
-#### `MindMapAnalyzer.staleNodes`
+The post-decay filter in `search()` also updates:
 
-Currently reads `confirmedAt` for staleness detection. Migrates to `confidence().decayReference()`.
+```java
+// Before:
+results.removeIf(n -> n.confidence() < query.minConfidence());
+// After:
+results.removeIf(n -> n.confidence().value() < query.minConfidence());
+```
+
+This is a compile error without the fix — `Confidence < Double` does not compile.
+
+#### `MindMapAnalyzer`
+
+Two methods require migration:
+
+**`staleNodes`** — currently reads `confirmedAt` for staleness detection. Migrates to `confidence().decayReference()`.
+
+**`lowConfidenceCluster`** — currently reads `node.confidence()` expecting a `double` return for comparison against `threshold`. Migrates to `node.confidence().value() < threshold`.
 
 #### Backends
 
@@ -233,13 +285,36 @@ new MemoryInput(entityId, domain, tenantId, null, text, attrs,
     Confidence.unknown(Math.min(0.3 + level * 0.2, 1.0)))
 ```
 
-#### `PersonalityWeightedRetrieval` and `MoodModulatedRetrieval`
+#### `MemoryRetentionPolicy`
 
-Currently read `memory.importance()`. Update to read `memory.confidence()` — null-safe, using `confidence != null ? confidence.value() : defaultValue`.
+| Field | Before | After |
+|-------|--------|-------|
+| `Double minImportance` | Nullable, validated [0,1] (NaN-vulnerable) | **Renamed** to `Double minConfidence`. Validation adopts NaN-safe pattern: `!(minConfidence >= 0.0 && minConfidence <= 1.0)` |
+
+The `CaseMemoryStore.purge(MemoryRetentionPolicy)` SPI signature is unchanged — it takes the policy record. All store implementations that read `policy.minImportance()` update to `policy.minConfidence()`. The record constructor validation message updates accordingly.
+
+#### `MemoryOrder.SALIENCE`
+
+Javadoc currently references `Memory#importance()`: "null importance treated as 1.0." Updates to reference `Memory#confidence()`: "null confidence treated as value 1.0."
+
+#### `PersonalityWeightedRetrieval`, `MoodModulatedRetrieval`, and `InMemoryMemoryStore`
+
+All three read `memory.importance()` with the same null-coalescing pattern. Update to read `memory.confidence()`:
+
+```java
+// Before:
+double importance = m.importance() != null ? m.importance() : 1.0;
+// After:
+double confidence = m.confidence() != null ? m.confidence().value() : 1.0;
+```
+
+**`InMemoryMemoryStore.salience()`** — uses the null-coalesced value for recency × importance ranking.
+
+**`InMemoryMemoryStore.purge()`** — reads both `m.importance()` (→ `m.confidence().value()`) and `policy.minImportance()` (→ `policy.minConfidence()`) for retention filtering.
 
 #### Backends
 
-**InMemoryMemoryStore:** Internal map value updates field name.
+**InMemoryMemoryStore:** `store()` method passes `input.importance()` → `input.confidence()` when constructing `Memory`. `salience()` and `purge()` read confidence value with null-coalescing (see §PersonalityWeightedRetrieval above).
 
 **SqliteMemoryStore:** Column rename `importance` → `confidence_value`. Add `confidence_origin` column (stores enum name, defaults to `UNKNOWN`). Flyway migration.
 
@@ -283,6 +358,16 @@ Preserves origin (how the case was originally established), updates value via EM
 
 Currently reads `cbrCase.confidence()` as a Double for score modulation. Updates to read `cbrCase.confidence().value()`, null-guarded.
 
+#### `CbrRetrievalTrace.TracedCase`
+
+| Field | Before | After |
+|-------|--------|-------|
+| `Double confidence` | Nullable scalar snapshot | `Confidence confidence` — nullable, captures full confidence state at retrieval time |
+
+TracedCase is a diagnostic record in `memory-api` (package `io.casehub.neocortex.memory.cbr`). It snapshots the case's confidence at retrieval time for tracing. After migration, the snapshot includes origin and decayReference — useful for debugging why a case was ranked a certain way (e.g., was it INFERRED at 0.7 or STATED at 0.7? Was decay applied?).
+
+Writers (`TrackingCbrCaseMemoryStore`, `SqliteCbrRetrievalTracker`, `InMemoryCbrRetrievalTracker`) update to read `cbrCase.confidence()` as a `Confidence` instead of `Double`.
+
 #### `ScoredCbrCase`
 
 No change to the record itself — `ScoredCbrCase.score()` is a retrieval score, not a confidence value. `ScoredCbrCase.storedAt()` stays — it's an entity timestamp, distinct from `Confidence.decayReference`.
@@ -291,7 +376,11 @@ No change to the record itself — `ScoredCbrCase.score()` is a retrieval score,
 
 **InMemoryCbrCaseMemoryStore:** `recordOutcome` updates — constructs `Confidence` from EMA result.
 
-**QdrantCbrCaseMemoryStore:** Payload serialization — `confidence` field becomes a structured object `{origin, value, decayReference}` in Qdrant payload. `recordOutcome` updates.
+**QdrantCbrCaseMemoryStore:** Payload serialization — `confidence` field becomes a structured object `{origin, value, decayReference}` in Qdrant payload. `recordOutcome` updates. This is a **breaking storage format change** — existing flat-Double payloads are not forward-compatible. Pre-release platform: Qdrant collections are recreated, not lazily migrated.
+
+The serialization layer consists of two paths:
+- **`CbrPointBuilder`** (direct Qdrant) — currently writes `ValueFactory.value(cbrCase.confidence())` as a flat Double. Updates to write a structured payload: `{origin: "UNKNOWN", value: 0.85, decayReference: 1719532800000}`.
+- **`CbrMemorySerializer`** (via CaseMemoryStore) — currently calls `MemoryAttributeKeys.formatConfidence(cbrCase.confidence())`. Updates to serialize the full `Confidence` record into attributes (or the scalar value if the Memory store handles confidence natively after migration).
 
 **JpaCbrCaseMemoryStore:** Entity column changes + Flyway migration.
 
@@ -337,16 +426,21 @@ if (!(value >= 0.0 && value <= 1.0)) {
 
 This structurally rejects `Double.NaN` via IEEE 754 semantics — `NaN >= 0.0` is `false`, so `!(false && ...)` is `true`, and the guard fires. Explicit `Double.isNaN()` is not needed.
 
+**`MemoryAttributeKeys.formatConfidence(double v)`** currently uses the NaN-vulnerable pattern `if (v < 0 || v > 1)`. This method serializes confidence values for Qdrant payload storage. After migration, most callers pass values already validated by the `Confidence` constructor — but `formatConfidence` is a public utility and defense-in-depth demands the NaN-safe guard. Updates to `if (!(v >= 0.0 && v <= 1.0))`.
+
+**`MemoryRetentionPolicy`** validation also adopts the NaN-safe pattern (see §Memory migration).
+
 ---
 
 ## Testing Strategy
 
-1. **cognitive-api:** Unit tests for `Confidence` — construction, validation (boundary values, NaN rejection), factory methods, `withValue`/`withDecayReference`
+1. **cognitive-api:** Unit tests for `Confidence` — construction, validation (boundary values, NaN rejection), factory methods (`stated`, `inferred`, `speculated`, `unknown`), `withValue`/`withDecayReference`
 2. **mindmap-api:** `MindMapStoreContractTest` updates (72 tests) — all test helpers and assertions migrate
 3. **memory-api:** `CbrCaseMemoryStoreContractTest` updates (151 tests) — confidence field changes
-4. **memory-testing:** `CbrOutcomeTest` — `adjustConfidence` now returns `Confidence`
-5. **Backends:** Each backend's integration tests verify persistence of the three Confidence components (origin, value, decayReference)
-6. **Decorators:** `ConfidenceDecayDecoratorTest` — decay reads `decayReference` from `Confidence`, not `confirmedAt`/`updatedAt`
+4. **memory-testing:** `CaseMemoryStoreContractTest` — `importance_roundTrip` and `importance_nullDefault` rename to `confidence_roundTrip` and `confidence_nullDefault`, reading `confidence()` instead of `importance()`. `purge_importanceBased` updates to use `minConfidence` on `MemoryRetentionPolicy`.
+5. **memory-testing:** `CbrOutcomeTest` — `adjustConfidence` now returns `Confidence`
+6. **Backends:** Each backend's integration tests verify persistence of the three Confidence components (origin, value, decayReference)
+7. **Decorators:** `ConfidenceDecayDecoratorTest` — decay reads `decayReference` from `Confidence`, not `confirmedAt`/`updatedAt`
 
 ---
 
