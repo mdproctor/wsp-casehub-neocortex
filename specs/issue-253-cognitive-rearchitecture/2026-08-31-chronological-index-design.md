@@ -70,7 +70,7 @@ public record TemporalEntry(
 }
 ```
 
-Natural ordering is chronological (oldest first). Confidence is nullable — CBR cases carry confidence, memories carry confidence, MindMap nodes carry confidence. All unified via the `Confidence` record from cognitive-api.
+Natural ordering is chronological (oldest first). Confidence is nullable — Memory and MindMapNode carry `Confidence` (nullable per D7), CBR carries confidence on the underlying `CbrCase`. Null means "no confidence assessment" — the entry is still valid, just unscored.
 
 ### TemporalSource
 
@@ -154,6 +154,7 @@ public record TemporalQuery(
 - `from`/`to` are both nullable. Null `from` = no lower bound. Null `to` = no upper bound.
 - `upcoming()` factory queries only MindMap (future events have `validFrom` — memories and CBR cases don't have future timestamps).
 - `sources` controls which stores are queried. Default: all available. This is a query-level filter independent of classpath availability (D17 handles classpath).
+- **MindMap timestamp selection heuristic:** When querying MindMap, TemporalIndex uses `updatedAfter` (recent changes) by default. `upcoming()` sets `sources` to `MINDMAP` only — TemporalIndex detects this and uses `validAfter` instead. The heuristic: if the query window starts at or after `Instant.now()` (± 1 second tolerance), use `validAfter`; otherwise use `updatedAfter`. This avoids adding an explicit mode field to TemporalQuery.
 
 ### TemporalRanker
 
@@ -276,11 +277,18 @@ public class TemporalIndex {
 
 | Store | `from` maps to | `to` maps to | Timestamp extracted from |
 |-------|---------------|-------------|------------------------|
-| MindMapStore | `MindMapQuery.validAfter` or `MindMapQuery.updatedAfter` | `MindMapQuery.validBefore` | `node.validFrom()` for future events; `node.updatedAt()` for recent changes |
+| MindMapStore | `since`/`window`: `updatedAfter`; `upcoming`: `validAfter` | `MindMapQuery.validBefore` | `since`/`window`: `node.updatedAt()`; `upcoming`: `node.validFrom()` |
 | CaseMemoryStore | `MemoryQuery.since` | Post-query filter (`memory.createdAt().isBefore(to)`) | `memory.createdAt()` |
 | CbrCaseMemoryStore | `CbrQuery.notBefore` | Post-query filter | `summary.storedAt()` via scan |
 
-**MindMap dual-timestamp handling:** A MindMap node can produce two temporal entries: one for its `validFrom` (an upcoming event) and one for its `updatedAt` (a recent change). The index queries MindMapStore twice per tenant when both past and future are in the query window — once with `validAfter` (future events) and once with `updatedAfter` (recent changes). Deduplication by node ID prevents double-counting.
+**MindMap dual-timestamp handling:** MindMap nodes carry two temporal signals: `updatedAt` (when the node was last changed) and `validFrom` (when the event occurs). These are distinct temporal events — "something was recently changed" vs. "something is coming up."
+
+The index queries MindMapStore differently depending on the `TemporalQuery`:
+- `since()` / `window()`: queries with `updatedAfter` — returns recently-changed nodes. Does NOT query `validAfter` to avoid returning all future-dated nodes.
+- `upcoming()`: queries with `validAfter` — returns future-dated nodes by their event time. Uses `node.validFrom()` as the entry timestamp.
+- Custom queries can request both by calling `query()` twice with different `from`/`to` bounds.
+
+A node can legitimately appear in both a `since()` and `upcoming()` result set with different timestamps — this is correct, not duplication.
 
 **CaseMemoryStore limitation:** `MemoryQuery` has `since` (lower bound) but no `until` (upper bound). The `to` bound is applied as a post-query filter on `memory.createdAt()`. If this becomes a performance concern, an `until` field can be added to `MemoryQuery` in a follow-up.
 
@@ -322,8 +330,9 @@ When #254 lands (MemorySpace wiring), the caller resolves `agent → spaces → 
 10. Limit enforcement — global limit trims merged results
 11. `upcoming()` — queries only MindMap, returns future-dated nodes
 12. `window()` — entries outside the window are excluded
-13. MindMap dual-timestamp — both future events and recent changes appear, deduplicated by node ID
-14. `TemporalQuery.withSources()` — only requested stores are queried
+13. MindMap `since()` — uses `updatedAt`, not `validFrom`; future-dated nodes not returned unless recently changed
+14. MindMap `upcoming()` — uses `validFrom`; same node can appear in both `since()` and `upcoming()` with different timestamps
+15. `TemporalQuery.withSources()` — only requested stores are queried
 
 ## References
 
@@ -336,5 +345,5 @@ When #254 lands (MemorySpace wiring), the caller resolves `agent → spaces → 
 - CbrQuery.java:18 — notBefore field
 - Memory.java:16 — createdAt field
 - MindMapNode.java:24-28 — updatedAt, validFrom, validUntil
-- D12-D17 in decisions.md — design decisions for this spec
+- D12-D18 in decisions.md — design decisions for this spec
 - Issue #254 — follow-up for MemorySpace visibility layer wiring
