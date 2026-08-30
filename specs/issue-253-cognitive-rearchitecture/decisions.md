@@ -217,3 +217,15 @@
 **Sources:** MultiModalEmbedderProducer.java (Instance pattern), SeparateModelEmbedder.java (optional SparseEmbedder), CbrReconciliationService.java (optional EmbeddingModel)
 **Exploration:** quick
 **Status:** captured
+
+## D18: Stateless query aggregator — not a materialized index
+
+**Choice:** TemporalIndex is a stateless query aggregator. It re-queries the underlying stores on every call and merges results. No persistence, no materialized data structure, no update mechanism. Same architectural category as `MindMapAnalyzer` and `RetrievalAnalyzer`. All public classes carry javadoc explaining this intent.
+**Alternatives:**
+- Materialized SPI (interface + inmem + SQLite backends) — maintains a persistent sorted timeline, updated via CDI events or polling. Higher query efficiency (O(log n) lookup) but introduces dual-write consistency burden, requires store mutation events that don't exist today, and adds SPI + 2 backends for something that could be 50 lines of orchestration.
+- Cached aggregator — stateless with a TTL cache. Middle ground but premature optimisation — the underlying stores already have temporal indexes.
+**Rationale:** The underlying stores already persist the data and have temporal indexes (#236). Each store query is O(log n) on an indexed column. Worst case per call: 3 tenants × 3 stores = 9 indexed queries — negligible for a tick-loop consumer. A materialized index would create a second source of truth with consistency obligations (the `CbrReconciliationService` problem) for zero practical gain. If performance becomes a concern: (1) add TTL cache to CDI bean (minutes of work), (2) add CDI event listeners + in-memory sorted set (hours), (3) materialize only if query frequency reaches thousands/second (unlikely).
+**Trade-offs:** Every call re-queries stores. No pre-computed result. Acceptable — 9 indexed queries take microseconds-to-milliseconds. The tick loop runs at most every few seconds.
+**Sources:** MindMapAnalyzer.java (same pattern — pure computation over store data), RetrievalAnalyzer.java (same pattern), CbrReconciliationService.java (cautionary — dual-write complexity), cognitive-coherence-audit.md §Temporal (CuriositySignalGenerator tick loop)
+**Exploration:** deep-analysis
+**Status:** captured
