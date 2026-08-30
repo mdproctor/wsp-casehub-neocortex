@@ -2,32 +2,33 @@
 
 ## Last Session
 
-Continued #229 (unified confidence model) on `issue-253-cognitive-rearchitecture`. Completed Batches 4-5 (Tasks 7-9) — 3 commits this session:
+Continued cognitive rearchitecture on `issue-253-cognitive-rearchitecture`. Completed 4 issues this session (#232, #234, #235, #236), advancing queue from position 1 to 5 of 25.
 
-1. **Task 7 — CBR API types + InMemory**: `CbrCase.confidence()` returns `Confidence` (was `Double`). `CbrOutcome.adjustConfidence` takes/returns `Confidence` with origin preservation. `TracedCase` carries full `Confidence` snapshot. `TextualCbrCase`, `FeatureVectorCbrCase`, `PlanCbrCase` — confidence validation removed (delegated to `Confidence` constructor). `DependencyConstraintTest` updated to allow `cognitive-api`. 183 contract tests passing.
+1. **#232 — Naming audit**: Renamed `importance` → `confidence` on 7 memory event types (ExperienceEvent hierarchy, RelationshipEvent, ReflectionEvent, EngagementEvent). Renamed `sentimentShift` → `affectShift` on EngagementEvent + attribute key. DB columns renamed in V1 Flyway migrations (JPA + SQLite). Updated all converters, local variables, error messages, test methods. Cross-repo checklist filed as casehubio/blocks#218. 41 files.
 
-2. **Task 8 — CBR decorators + backends**: `OutcomeWeightingCbrCaseMemoryStore` reads `confidence().value()`. `DefaultExplanationRenderer` formats `confidence().value()`. JPA store wraps/unwraps `Confidence` for entity persistence. Qdrant `CbrPointBuilder`/`CbrMemorySerializer` extract value for payload storage. `QdrantCbrCaseMemoryStore` and `CbrMemoryDeserializer` reconstruct `Confidence.unknown()` from stored doubles. 6 example demos updated. All 20 affected modules compile and pass tests.
+2. **#234 — Temporal taxonomy**: Created `TemporalMark` sealed interface in `cognitive-api` with 3 variants: `WallClock(Instant)`, `Relative(Duration, @Nullable Instant anchor)`, `Ordinal(String turnId, Instant resolved)`. Each implements `resolveToInstant(Instant now)`. Static factories. 22 tests. 4 files.
 
-3. **Task 9 — Documentation**: consumer-guide (8 importance→confidence refs), contributor-guide (6 refs), cognitive-types-guide (confirmedAt→decayReference), cognitive-coherence-audit (decay asymmetry resolved, 2 recommendations struck), cognitive-architecture-roadmap (§1a marked DONE).
+3. **#235 — Event timestamps**: Added `Instant timestamp()` to all 7 event types. Nullable with `Instant.now()` default in compact constructors. Converters propagate to TIMESTAMP attribute key. 38 files.
 
-**Issue #229 is now fully implemented.** All 9 tasks across 5 batches complete. Full project compiles clean. One pre-existing flaky Qdrant test (`discoverTenants_returnsDistinctTenants`) — unrelated.
+4. **#236 — Temporal MindMapQuery**: Added `validAfter`, `validBefore`, `updatedAfter` temporal predicates to MindMapQuery. Implemented in InMemoryMindMapStore (stream filters) and SqliteMindMapStore (WHERE clauses). 5 new contract tests. 8 files.
+
+Roadmap §1d, §2a, §2b, §2c all marked DONE. Full project compiles clean. One pre-existing flaky Qdrant test (`discoverTenants_returnsDistinctTenants`) — unrelated.
 
 ## Immediate Next Step
 
-Issue #229 is complete. Run `work next` to advance to the next issue in the queue (#232 — Naming audit).
-
-Before closing #229, consider running `work end` to close the branch, or continue with `work next` to keep working on the same branch.
+Run `work next` to advance to #237 (Chronological index, M/Med). This is the cross-store `TemporalIndex` that unifies temporal queries across MindMap, Memory, and CBR.
 
 ## What's Next
 
 | Item | Scale / Complexity |
 |------|--------------------|
-| #232 — Naming audit | S / Low |
-| #234 — Temporal taxonomy | M / Med |
-| #235 — Event timestamps | S / Low |
+| #237 — Chronological index | M / Med |
+| #238 — PAD on Memory | S / Low |
+| #239 — Affect trajectory log | S / Low |
 
 ## References
 
-- Spec: `specs/issue-253-cognitive-rearchitecture/2026-08-29-unified-confidence-model-design.md`
-- Plan: `plans/2026-08-29-unified-confidence-model.md`
-- Decisions: `specs/issue-253-cognitive-rearchitecture/decisions.md`
+- Spec: `specs/issue-253-cognitive-rearchitecture/2026-08-30-temporal-taxonomy-design.md`
+- Decisions: `specs/issue-253-cognitive-rearchitecture/decisions.md` (D8-D11 for temporal)
+- Roadmap: `docs/guides/cognitive-architecture-roadmap.md`
+- Cross-repo: casehubio/blocks#218 (naming adoption checklist)
