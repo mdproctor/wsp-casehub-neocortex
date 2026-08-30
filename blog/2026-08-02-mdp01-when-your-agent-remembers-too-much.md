@@ -29,7 +29,7 @@ The separation matters. Stored-trust purging is a data filter — every backend 
 
 The general memory store (`CaseMemoryStore`) had a different gap. It's append-only — every memory is equally important until explicitly erased. A compliance-critical diagnosis and a routine status update occupy the same space with the same retention weight.
 
-Adding `importance` to `MemoryInput` gives the caller a way to signal significance at creation time. A landmark event gets 1.0. A routine interaction gets 0.3. An ephemeral greeting gets 0.1. The field is nullable — existing memories without importance are treated as fully important (1.0), so they're never purge-eligible by importance alone.
+Adding `confidence` to `MemoryInput` gives the caller a way to signal significance at creation time. A landmark event gets 1.0. A routine interaction gets 0.3. An ephemeral greeting gets 0.1. The field is nullable — existing memories without importance are treated as fully important (1.0), so they're never purge-eligible by importance alone.
 
 The retention semantics here differ from CBR deliberately. CBR uses OR: any criterion independently triggers purging. Memory uses AND: a memory must be *both* old and unimportant to be purged. Important memories survive regardless of age — a key diagnosis from two years ago should persist. Recent unimportant memories also survive — they might still be contextually relevant. Only old *and* unimportant memories are garbage-collected.
 

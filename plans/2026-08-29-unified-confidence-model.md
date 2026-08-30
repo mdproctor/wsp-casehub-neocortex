@@ -942,7 +942,7 @@ Update JPA entity fields and queries.
 
 - [ ] **Step 5: Migrate Mem0 and Graphiti REST clients**
 
-Update REST payload field mapping: `importance` → `origin`/`confidence_value`.
+Update REST payload field mapping: `confidence` → `origin`/`confidence_value`.
 
 - [ ] **Step 6: Build and verify all memory modules**
 
@@ -1120,11 +1120,11 @@ Refs #229"
 
 - [ ] **Step 1: Update consumer-guide.md**
 
-Replace all `importance` references in Memory API descriptions with `origin`. Update config property names (`min-importance` → `min-confidence`).
+Replace all `confidence` references in Memory API descriptions with `origin`. Update config property names (`min-importance` → `min-confidence`).
 
 - [ ] **Step 2: Update contributor-guide.md**
 
-Replace `importance` references. Update module descriptions to include `cognitive-api`.
+Replace `confidence` references. Update module descriptions to include `cognitive-api`.
 
 - [ ] **Step 3: Update cognitive-types-guide.md**
 
@@ -1140,7 +1140,7 @@ Mark §1a (Unified Confidence Model) as complete.
 
 - [ ] **Step 6: Update CLAUDE.md**
 
-Add `cognitive-api` module to the module structure table and Maven coordinates. Update `mindmap-api` and `memory-api` descriptions to reference `Confidence` instead of `ConfidenceOrigin`/`importance`. Add `cognitive-api` dependency note.
+Add `cognitive-api` module to the module structure table and Maven coordinates. Update `mindmap-api` and `memory-api` descriptions to reference `Confidence` instead of `ConfidenceOrigin`/`confidence`. Add `cognitive-api` dependency note.
 
 - [ ] **Step 7: Commit**
 

@@ -33,7 +33,7 @@ This spec covers **Phase 1a** of the cognitive architecture roadmap: the unified
 - **Event producer interfaces** — `ExperienceEvent.importance()` (sealed interface, 3 subtypes: Observation, Action, Outcome), `EngagementEvent.importance`, `RelationshipEvent.importance`, `ReflectionEvent.importance`. These 7 public API types carry `Double importance` fields with NaN-vulnerable validation. Phase 1a handles the converter layer that bridges events to stores (wrapping importance in `Confidence.unknown()`); Phase 1d renames the event fields themselves and fixes their validation.
 - **Cross-repo terminology** — blocks and engine adoption of the `origin` term.
 
-The converters (`ExperienceEvents`, `MoodEvents`, `RelationshipEvents`, `ReflectionEvents`, `EngagementEvents`) already form the boundary: they translate event-layer `importance` into store-layer `Confidence`. Phase 1a migrates everything below that boundary; Phase 1d migrates everything above.
+The converters (`ExperienceEvents`, `MoodEvents`, `RelationshipEvents`, `ReflectionEvents`, `EngagementEvents`) already form the boundary: they translate event-layer `confidence` into store-layer `Confidence`. Phase 1a migrates everything below that boundary; Phase 1d migrates everything above.
 
 ---
 
@@ -339,7 +339,7 @@ The settled decision "clean storage format breaks, not lazy migration" (R1-06) a
 
 #### Converters
 
-All converters (`ExperienceEvents`, `MoodEvents`, `RelationshipEvents`, `ReflectionEvents`, `EngagementEvents`) currently pass `importance` when constructing `MemoryInput`. They update to pass `Confidence`:
+All converters (`ExperienceEvents`, `MoodEvents`, `RelationshipEvents`, `ReflectionEvents`, `EngagementEvents`) currently pass `confidence` when constructing `MemoryInput`. They update to pass `Confidence`:
 
 ```java
 // Before (ReflectionEvents):
@@ -396,7 +396,7 @@ double confidence = m.confidence() != null ? m.confidence().value() : 1.0;
 
 **InMemoryMemoryStore:** `store()` method passes `input.importance()` → `input.confidence()` when constructing `Memory`. `salience()` and `purge()` read confidence value with null-coalescing (see §PersonalityWeightedRetrieval above).
 
-**SqliteMemoryStore:** Column rename `importance` → `confidence_value`. Add `confidence_origin` column (stores enum name, defaults to `UNKNOWN`). Flyway migration.
+**SqliteMemoryStore:** Column rename `confidence` → `confidence_value`. Add `confidence_origin` column (stores enum name, defaults to `UNKNOWN`). Flyway migration.
 
 **JpaMemoryStore:** Entity field rename. Flyway migration for the PostgreSQL table.
 
@@ -526,10 +526,10 @@ This structurally rejects `Double.NaN` via IEEE 754 semantics — `NaN >= 0.0` i
 
 ## Documentation Updates
 
-The following hand-maintained documentation references `importance` in descriptions of APIs changed by this spec. They must be updated as part of implementation:
+The following hand-maintained documentation references `confidence` in descriptions of APIs changed by this spec. They must be updated as part of implementation:
 
-- **`docs/guides/consumer-guide.md`** — 8 references to `importance` in Memory API descriptions: store input field, retention purge, salience ranking, config properties (`casehub.memory.retention.min-importance`). All update to `origin`/`min-confidence`.
-- **`docs/guides/contributor-guide.md`** — 6 references to `importance` in module descriptions, MemoryInput field, MemoryOrder.SALIENCE, MemoryRetentionPolicy. All update to `origin`.
+- **`docs/guides/consumer-guide.md`** — 8 references to `confidence` in Memory API descriptions: store input field, retention purge, salience ranking, config properties (`casehub.memory.retention.min-importance`). All update to `origin`/`min-confidence`.
+- **`docs/guides/contributor-guide.md`** — 6 references to `confidence` in module descriptions, MemoryInput field, MemoryOrder.SALIENCE, MemoryRetentionPolicy. All update to `origin`.
 - **`docs/guides/cognitive-types-guide.md`** — 1 reference to `confirmedAt` (line 400): "gets reinforced by confirmation (`confirmedAt`)." After this spec, confidence is reinforced by updating `decayReference` via a new `Confidence` with a fresh `Instant`.
 - **`docs/guides/cognitive-coherence-audit.md`** — 8 references to `confirmedAt` including temporal field descriptions (line 45), node confirmation mechanism (line 81), missing edge confirmation (line 86), decay mechanism descriptions (lines 92-93), and the recommendation "Add `confirmedAt` to MindMapEdge" (line 99) which is now moot — edges use `confidence().decayReference()`. These are architectural findings that describe the pre-unified model; the audit's gap analysis for this dimension is resolved by this spec.
 
