@@ -15,10 +15,8 @@ flyway-next-v: none
 - [x] casehubio/neocortex#253 — Issue #253
 - [x] casehubio/neocortex#229 — Unified confidence model
 - [x] casehubio/neocortex#232 — Naming audit
-- [ ] casehubio/neocortex#234 — Temporal taxonomy ← active
-  - [x] Batch 1: TemporalMark
-    - [x] Task 1: TemporalMark sealed interface + tests
-- [ ] casehubio/neocortex#235 — Event timestamps
+- [x] casehubio/neocortex#234 — Temporal taxonomy
+- [ ] casehubio/neocortex#235 — Event timestamps ← active
 - [ ] casehubio/neocortex#236 — Temporal MindMapQuery
 - [ ] casehubio/neocortex#237 — Chronological index
 - [ ] casehubio/neocortex#238 — PAD on Memory
