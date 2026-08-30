@@ -143,3 +143,77 @@
 **Sources:** .plan queue (#235, #236 follow immediately), issue #234 scope
 **Exploration:** quick
 **Status:** captured
+
+## D12: Multi-tenant parameters — no MemorySpace dependency
+
+**Choice:** `TemporalIndex.query()` takes `Collection<String> tenantIds`. No dependency on MemorySpace types (#230). Follow-up issue #254 wires the visibility layer when #230 lands.
+**Alternatives:**
+- Design space-aware now with placeholder types — invents types #230 will define authoritatively. Speculative infrastructure.
+- Single tenantId only — forces callers to query once per space and merge results themselves. Defeats the purpose of a cross-store aggregator.
+**Rationale:** MemorySpace maps spaces to tenants ("each space IS a tenant"). The only thing TemporalIndex needs from MemorySpace is a list of tenantIds to query across. A `Collection<String>` captures that without a type dependency. #254 filed as the wiring follow-up.
+**Trade-offs:** TemporalIndex is space-agnostic until #254 lands. Callers must resolve spaces to tenantIds themselves in the interim.
+**Sources:** cognitive-architecture-roadmap.md §1f, §2d (memory space impact), issue #230 (scope), issue #254 (follow-up)
+**Exploration:** quick
+**Status:** captured
+
+## D13: Pure chronological aggregator — no salience scoring in the index
+
+**Choice:** TemporalIndex returns `List<TemporalEntry>` sorted by timestamp. No salience scoring, no ranking policy. Ranking is a separate composable concern (D14).
+**Alternatives:**
+- Ranker inside the index — `index.query(timeRange, tenantIds, ranker)`. Two responsibilities: aggregation AND ranking. Couples scoring policy to data access.
+- Salience as the primary sort — TemporalIndex produces a ranked "attention list." But salience depends on context (agent's current task, affect state) that the index shouldn't know about.
+**Rationale:** The index answers "what happened in this time window?" — a data aggregation question. "What's important right now?" is a policy question for TemporalFocus (#244). Keeping them separate means the index is testable without scoring policy and the ranker is testable without store dependencies.
+**Trade-offs:** Callers that want ranked results must compose index + ranker at the call site (two lines, not one).
+**Depends on:** D14 (composable ranking)
+**Sources:** cognitive-architecture-roadmap.md §2d, §4b (TemporalFocus)
+**Exploration:** quick
+**Status:** captured
+
+## D14: Composable ranking via standalone TemporalRanker
+
+**Choice:** `TemporalRanker` is a standalone `@FunctionalInterface` in cognitive-index: `double score(TemporalEntry entry, Instant now)`. Composes with TemporalIndex output at the call site. Default implementation: recency-based (newer = higher). TemporalFocus (#244) becomes a TemporalRanker implementation, not a separate utility wrapping the index.
+**Alternatives:**
+- Ranker as index parameter — couples ranking to query execution (violates D13).
+- No ranker abstraction — TemporalFocus as a wrapper class. Works but duplicates the aggregation call; new ranking strategies require new wrapper classes.
+**Rationale:** Runtime composable without coupling. The index produces data, the ranker re-orders it. They're orthogonal types connected by `List<TemporalEntry>`. TemporalFocus (#244) shrinks from "aggregation + ranking utility" to "a TemporalRanker implementation" — S-sized instead of M.
+**Trade-offs:** Ranker can't influence what the index fetches (e.g., can't skip CBR results if only MindMap events are salient). Acceptable — the index already supports selective store querying via configuration.
+**Sources:** cognitive-architecture-roadmap.md §4b (TemporalFocus), FusionStrategy pattern in fusion-api, OutcomeWeightingFunction pattern in memory-api
+**Exploration:** quick
+**Status:** captured
+
+## D15: Sealed TemporalSource on TemporalEntry — zero information loss
+
+**Choice:** `TemporalEntry` carries a `TemporalSource` sealed interface with variants: `FromMindMap(MindMapNode node)`, `FromMemory(Memory memory)`, `FromCbr(ScoredCbrCase<?> cbrCase)`. Callers pattern-match to access the original object.
+**Alternatives:**
+- Normalized common shape — flatten to `(id, text, source, timestamp, confidence)`. Lossy — callers needing node-specific fields (validUntil, traits, PAD) require a second query.
+- Opaque Object payload — maximum flexibility, zero type safety. Defeats sealed exhaustiveness.
+**Rationale:** The index aggregates heterogeneous results. Pattern matching gives callers type-safe access to the full original object. Sealed interface ensures exhaustive switch coverage — adding a new store variant is a compile error at every consumer. Zero information loss means no second query needed.
+**Trade-offs:** TemporalEntry carries the full store object (MindMapNode, Memory, ScoredCbrCase). Memory footprint is higher than a normalized shape. Acceptable — these are query results already in memory.
+**Sources:** MindMapNode.java (validFrom, validUntil, traits, PAD), Memory.java (createdAt, confidence), ScoredCbrCase (caseId, score)
+**Exploration:** quick
+**Status:** captured
+
+## D16: Module placement — new cognitive-index module
+
+**Choice:** New `cognitive-index` module. Depends on cognitive-api + mindmap-api + memory-api. Houses TemporalIndex (CDI bean), TemporalEntry, TemporalSource, TemporalRanker. Clear growth path for CognitiveProfile (#243) and TemporalFocus (#244).
+**Alternatives:**
+- cognitive-api + separate module — types in cognitive-api (zero-dep), bean in new module. Splits the concept across two modules. cognitive-api's growth path (D1) anticipated cross-cutting types, not cross-store query utilities.
+- Existing mindmap module — couples a cross-store concern to a single store's CDI wiring. MindMap is the primary temporal source but not the only one.
+**Rationale:** `cognitive-index` names the architectural role: cross-store cognitive queries. It's the natural home for all Phase 4 utilities (CognitiveProfile, TemporalFocus) that span MindMap + Memory + CBR. cognitive-api stays zero-deps for value types; cognitive-index is the query/service tier above it.
+**Trade-offs:** Adds a module to the build. But the alternative is scattering cross-store concerns across individual store modules.
+**Depends on:** D1 (cognitive-api established as cross-cutting type home)
+**Sources:** cognitive-architecture-roadmap.md §4a (CognitiveProfile), §4b (TemporalFocus), module structure in CLAUDE.md
+**Exploration:** quick
+**Status:** captured
+
+## D17: CDI bean with Instance<T> for graceful degradation
+
+**Choice:** `TemporalIndex` is `@ApplicationScoped`. Injects stores via `Instance<MindMapStore>`, `Instance<CaseMemoryStore>`, `Instance<CbrCaseMemoryStore>`. Checks `isResolvable()` at query time. Missing stores are silently skipped — the index returns entries from whatever stores are available.
+**Alternatives:**
+- Optional constructor params (nullable) — similar effect but requires explicit null-checking. Less idiomatic in Quarkus/CDI.
+- Require all stores — hard dependency. Forces apps to include all store modules even when they only use one subsystem. Breaks the modular classpath design.
+**Rationale:** An app using only MindMap should get temporal indexing for MindMap nodes without pulling in memory-sqlite or memory-qdrant. `Instance<T>.isResolvable()` is the standard Quarkus pattern for optional dependencies — used throughout the codebase (e.g., `MultiModalEmbedderProducer`, `SeparateModelEmbedder`).
+**Trade-offs:** Runtime discovery means a missing store is a silent no-op, not a compile error. Acceptable — TemporalIndex is enrichment, not critical path.
+**Sources:** MultiModalEmbedderProducer.java (Instance pattern), SeparateModelEmbedder.java (optional SparseEmbedder), CbrReconciliationService.java (optional EmbeddingModel)
+**Exploration:** quick
+**Status:** captured
