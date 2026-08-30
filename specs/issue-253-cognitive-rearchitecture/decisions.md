@@ -111,7 +111,7 @@
 
 ## D9: Ordinal resolution — carry pre-resolved Instant
 
-**Choice:** `Ordinal(String turnId, int sequence, Instant resolved)` — the wall-clock timestamp is resolved at construction time and carried within the record. `resolveToInstant()` returns the pre-resolved value.
+**Choice:** `Ordinal(String turnId, Instant resolved)` — the wall-clock timestamp is resolved at construction time and carried within the record. `resolveToInstant()` returns the pre-resolved value. No separate `sequence` field — no event type currently provides one, and sub-turn ordering can be encoded in the turnId if needed.
 **Alternatives:**
 - External resolver function — `resolveToInstant(Function<String, Instant> turnResolver)`. More flexible but every call site needs a resolver, and cognitive-api can't reference store types.
 - Fallback to now — `resolveToInstant(Instant now)` always returns `now` for ordinals. Simplest but loses temporal precision entirely.
