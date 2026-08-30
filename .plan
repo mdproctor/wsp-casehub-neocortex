@@ -16,6 +16,8 @@ flyway-next-v: none
 - [x] casehubio/neocortex#229 — Unified confidence model
 - [x] casehubio/neocortex#232 — Naming audit
 - [ ] casehubio/neocortex#234 — Temporal taxonomy ← active
+  - [ ] Batch 1: TemporalMark
+    - [ ] Task 1: TemporalMark sealed interface + tests
 - [ ] casehubio/neocortex#235 — Event timestamps
 - [ ] casehubio/neocortex#236 — Temporal MindMapQuery
 - [ ] casehubio/neocortex#237 — Chronological index
