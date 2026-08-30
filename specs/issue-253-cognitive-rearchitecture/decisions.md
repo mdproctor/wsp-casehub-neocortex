@@ -95,3 +95,51 @@
 **Sources:** cognitive-architecture-roadmap.md §Terminology ("importance becomes value with origin=null"), Memory.java:14 (importance field), MemoryInput.java:13 (importance field), PersonalityWeightedRetrieval usage, MoodModulatedRetrieval usage
 **Exploration:** surfaced by review (R1-17)
 **Status:** captured
+
+## D8: TemporalMark placement — cognitive-api
+
+**Choice:** `TemporalMark` sealed interface goes in `cognitive-api` alongside `Confidence` and `ConfidenceOrigin`.
+**Alternatives:**
+- New `temporal-api` module — clean separation but adds a build artifact for a single sealed interface. cognitive-api would need to depend on it or vice versa.
+- `mindmap-api` — temporal bounds already live there, but couples a cross-cutting concept to the mindmap subsystem. Memory and CBR would gain a mindmap dependency.
+**Rationale:** cognitive-api is the zero-deps cross-cutting cognitive types module. TemporalMark is a cognitive concept on par with Confidence — it represents how the system understands time across all subsystems. D1 explicitly anticipated this placement.
+**Trade-offs:** cognitive-api grows from 2 to 4 types (TemporalMark + 3 inner records). Still lean.
+**Depends on:** D1 (module placement established cognitive-api as the cross-cutting home)
+**Sources:** cognitive-architecture-roadmap.md §2a, cognitive-api/src/main/java/io/casehub/neocortex/cognitive/
+**Exploration:** quick
+**Status:** captured
+
+## D9: Ordinal resolution — carry pre-resolved Instant
+
+**Choice:** `Ordinal(String turnId, int sequence, Instant resolved)` — the wall-clock timestamp is resolved at construction time and carried within the record. `resolveToInstant()` returns the pre-resolved value.
+**Alternatives:**
+- External resolver function — `resolveToInstant(Function<String, Instant> turnResolver)`. More flexible but every call site needs a resolver, and cognitive-api can't reference store types.
+- Fallback to now — `resolveToInstant(Instant now)` always returns `now` for ordinals. Simplest but loses temporal precision entirely.
+**Rationale:** A zero-deps type can't perform lookups. Carrying the resolved timestamp makes the mark self-contained — once constructed, it can be sorted, compared, and persisted without external dependencies. The resolver is the caller's responsibility at construction time, not at usage time.
+**Trade-offs:** Resolution must happen at construction. If the turn-timestamp mapping changes later, the mark becomes stale. Acceptable — timestamps of past turns don't change.
+**Sources:** cognitive-architecture-roadmap.md §2a (resolveToInstant design), ExperienceEvent.java (turnId field), memory-api event types
+**Exploration:** quick
+**Status:** captured
+
+## D10: Relative anchor nullability — nullable
+
+**Choice:** `Relative(Duration offset, @Nullable Instant anchor)`. When anchor is null, `resolveToInstant(Instant now)` returns `now + offset`. When non-null, returns `anchor + offset`.
+**Alternatives:**
+- Required anchor — caller must pin to a concrete Instant at construction. Simpler but loses the distinction between "3 days from now" (floating, re-resolves each call) and "3 days after the meeting" (pinned).
+**Rationale:** LLM-extracted temporal references naturally produce both kinds: "next week" (relative to now, floating) and "3 days after the project started" (relative to a known anchor). The nullable anchor preserves this distinction for downstream consumers.
+**Trade-offs:** Floating relative marks produce different values on each `resolveToInstant()` call. Consumers that persist the resolved value should call once and store the result.
+**Sources:** cognitive-architecture-roadmap.md §2a, MindMapExtractor temporal parsing use case
+**Exploration:** quick
+**Status:** captured
+
+## D11: Scope — type definition only, no adoption
+
+**Choice:** #234 defines `TemporalMark` in cognitive-api with factory methods and `resolveToInstant()`. Adoption on existing types is scoped to follow-up issues: #235 (event timestamps), #236 (temporal MindMapQuery).
+**Alternatives:**
+- Type + MindMapExtractor integration — also integrate into temporal parsing. Bigger scope, crosses into mindmap.
+- Type + all event timestamps — combine with #235. Scope creep, M → L.
+**Rationale:** The type is independently valuable and testable. Follow-up issues are already defined in the queue. Keeping this S-sized means it can land quickly.
+**Trade-offs:** TemporalMark exists but nothing uses it until #235/#236. Brief period of unused code.
+**Sources:** .plan queue (#235, #236 follow immediately), issue #234 scope
+**Exploration:** quick
+**Status:** captured
