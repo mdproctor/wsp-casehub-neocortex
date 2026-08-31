@@ -1,7 +1,7 @@
 format_version: 1
-state: DECISION_REVIEW
-entered: 2026-08-31T10:35:00Z
-decision_count: 25
+state: SPEC_WRITING
+entered: 2026-08-31T12:10:00Z
+decision_count: 26
 dimensions_completed: 0
 dimensions_total: 0
 ordered: false
