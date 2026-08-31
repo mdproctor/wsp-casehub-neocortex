@@ -22,8 +22,8 @@ active: casehubio/neocortex#241
 - [x] casehubio/neocortex#237 — Chronological index
 - [x] casehubio/neocortex#238 — PAD on Memory
 - [x] casehubio/neocortex#239 — Affect trajectory log
-- [ ] casehubio/neocortex#241 — Prospective event model
-- [ ] casehubio/neocortex#242 — Trajectory-aware curiosity
+- [x] casehubio/neocortex#241 — Prospective event model
+- [ ] casehubio/neocortex#242 — Trajectory-aware curiosity ← active
 - [ ] casehubio/neocortex#244 — TemporalFocus utility
 - [ ] casehubio/neocortex#243 — Cross-store entity resolution
 - [ ] casehubio/neocortex#245 — Graph reasoning exploration
