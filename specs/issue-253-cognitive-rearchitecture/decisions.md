@@ -341,3 +341,40 @@
 **Sources:** D1 (cognitive-api module), D8 (TemporalMark placement reasoning), D25 (AffectType placement reasoning), cognitive-architecture-roadmap.md §Principles (Orthogonality)
 **Exploration:** surfaced by review (R1-10)
 **Status:** captured
+
+## D27: Trajectory data access — direct dependency on memory-api + cognitive-index
+
+**Choice:** Add `memory-api` and `cognitive-index` as dependencies to `mindmap-intelligence`. `CuriositySignalGenerator` injects `Instance<CaseMemoryStore>` for graceful degradation. `AffectTrajectoryAnalyzer` is a static utility — no runtime coupling.
+**Alternatives:**
+- Trajectory provider SPI — define interface in mindmap-api, cognitive-index implements. Clean but adds an interface for a single consumer.
+- Pass trajectory externally — caller pre-computes and passes. Pushes complexity to every caller.
+**Rationale:** Follows the established `Instance<T>` pattern (AffectTrajectoryDecorator, MultiModalEmbedderProducer). No circular dependencies — cognitive-index depends on mindmap-api, not mindmap-intelligence.
+**Trade-offs:** mindmap-intelligence gains two new dependencies. Acceptable — it already depends on mindmap, mindmap-api, and quarkus-arc.
+**Sources:** CuriositySignalGenerator.java, AffectTrajectoryDecorator.java (Instance pattern), cognitive-architecture-roadmap.md §3e
+**Exploration:** quick
+**Status:** captured
+
+## D28: PROXIMITY signals participate in trajectory modulation
+
+**Choice:** Remove the `if (category == PROXIMITY) continue` skip. PROXIMITY signals get trajectory-based modulation: worsening boosts, improving dampens. Implements the roadmap's "approaching + worsening = highest priority" temporal-affective interplay.
+**Alternatives:**
+- Keep PROXIMITY exempt — simpler but misses the roadmap's core design (temporal-affective interplay is the point of this issue).
+**Rationale:** The roadmap explicitly defines the interplay matrix (approaching + worsening = highest priority, approaching + improving = lower priority). Exempting PROXIMITY signals defeats the purpose.
+**Trade-offs:** PROXIMITY scores now depend on memory data. If no CaseMemoryStore, fallback to snapshot preserves current behavior.
+**Depends on:** D27 (dependency access)
+**Sources:** CuriositySignalGenerator.java:185, cognitive-architecture-roadmap.md §3e (temporal-affective interplay table)
+**Exploration:** quick
+**Status:** captured
+
+## D29: Trajectory thresholds via CuriosityConfig record
+
+**Choice:** New `CuriosityConfig` record in `mindmap-intelligence` with trajectory dampening thresholds. Provides `defaults()` factory. Injected into `CuriositySignalGenerator` via `Instance<CuriosityConfig>` — falls back to `CuriosityConfig.defaults()` if not provided. Also absorbs existing hardcoded constants (PROXIMITY_SCALE, STALE_THRESHOLD, MAX_BFS_DEPTH, TOP_CENTRALITY).
+**Alternatives:**
+- Quarkus `@ConfigMapping` — config-file driven. More flexible but the thresholds are agent-specific (per cognitive profile), not deployment-specific. Config mapping is the wrong layer.
+- Keep hardcoded — simplest but the thresholds are tunable parameters that belong in configuration.
+**Rationale:** A record with defaults matches the Phase 5 roadmap design — `CuriosityConfig` will eventually be produced from cognitive profile YAML. For now, a CDI-injectable record with sensible defaults gives testability (pass config in tests) and future YAML wiring without adding config-file infrastructure.
+**Trade-offs:** Adds a type for what was previously 4 constants. Worth it — the trajectory thresholds double the number of tunable parameters.
+**Depends on:** D27 (trajectory access)
+**Sources:** CuriositySignalGenerator.java:26-29 (existing constants), cognitive-architecture-roadmap.md §5c (cognitive profile YAML)
+**Exploration:** quick
+**Status:** captured
