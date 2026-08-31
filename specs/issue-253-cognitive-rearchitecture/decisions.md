@@ -414,3 +414,140 @@
 **Sources:** TemporalEntry.java (entry record), cognitive-architecture-roadmap.md §4b
 **Exploration:** quick
 **Status:** captured
+
+## D33: CognitiveProfile API shape — CDI bean + query object
+
+**Choice:** `CognitiveProfile` is an `@ApplicationScoped` CDI bean in `cognitive-index`, following TemporalIndex's pattern. Injects `Instance<MindMapStore>`, `Instance<CaseMemoryStore>`, `Instance<CbrCaseMemoryStore>` for graceful degradation. Single `resolve(CognitiveProfileQuery)` method returns `Optional<EntityKnowledge>`. Dual-constructor pattern (CDI + test) for testability.
+**Alternatives:**
+- Static utility (like TemporalFocus) — pushes all query orchestration to the caller, defeating the single-call aggregation purpose.
+- Hybrid CDI orchestrator + static assembler — unnecessary split; the assembly logic is trivial record construction.
+**Rationale:** The value proposition is one-call cross-store aggregation. That requires store access, which means CDI. `Instance<T>` graceful degradation means apps without all three stores still work. The query object is extensible (future space parameters without breaking callers).
+**Trade-offs:** Requires CDI for real-world use; test constructor mitigates.
+**Depends on:** D13 (pure aggregator precedent in cognitive-index)
+**Sources:** TemporalIndex.java (CDI + Instance pattern), CognitiveProfile roadmap §4a, GE-20260805-a28f5b (three-tier CDI composition)
+**Exploration:** quick
+**Status:** captured
+
+## D34: Module placement — cognitive-index
+
+**Choice:** `CognitiveProfile` lives in `cognitive-index` alongside `TemporalIndex`, `TemporalFocus`, and `AffectTrajectoryAnalyzer`.
+**Alternatives:**
+- New `cognitive-profile` module — adds a module for one utility. cognitive-index already has the right dependencies and description ("cross-store cognitive query tier").
+- mindmap-intelligence — wrong level; mindmap-intelligence is about MindMap-specific analysis, not cross-store aggregation.
+**Rationale:** cognitive-index already depends on mindmap-api and memory-api, has CDI wiring (jakarta.enterprise, jakarta.inject), and test deps on mindmap-inmem and memory-inmem. CognitiveProfile fits the module's purpose exactly.
+**Trade-offs:** cognitive-index grows from 11 to ~14 types. Acceptable — they're all cross-store query utilities.
+**Sources:** cognitive-index/pom.xml (dependencies), cognitive-architecture-roadmap.md §4a
+**Exploration:** quick
+**Status:** captured
+
+## D35: Entity resolution input — factory methods on query record
+
+**Choice:** `CognitiveProfileQuery` record with factory methods: `byId(nodeId, tenantId)` resolves via `getNode`; `byName(entityName, tenantId)` and `byName(entityName, subgraphId, tenantId)` resolve via `resolveNode`. Internally: `nodeId` and `entityName` are nullable fields with validation (exactly one must be non-null). `withX()` immutable builder methods follow CbrQuery's pattern.
+**Alternatives:**
+- Sealed `EntityRef` input type (`ById`, `ByName`) — cleaner type safety but adds a type for two-variant dispatch. The validation approach is simpler and consistent with how CbrQuery handles optional fields.
+- Overloaded `resolve()` methods — fragile; adding parameters means new overloads. Query object scales better.
+**Rationale:** Factory methods express intent clearly (`byId` vs `byName`), nullable fields with validation are idiomatic for this codebase, and the `withX()` pattern is proven (CbrQuery, MemoryQuery).
+**Trade-offs:** Runtime validation vs compile-time — accepted because the codebase pattern is consistent.
+**Depends on:** D33 (CDI bean + query object)
+**Sources:** CbrQuery.java (withX pattern), MindMapStore.resolveNode/getNode signatures
+**Exploration:** quick
+**Status:** captured
+
+## D36: EntityKnowledge record structure
+
+**Choice:** `EntityKnowledge(MindMapNode node, List<MindMapEdge> edges, Map<MemoryDomain, List<Memory>> memories, AffectTrajectory trajectory, Set<NodeRef> unresolvedRefs, String tenantId)`. Node is non-null (Optional.empty() from resolve() if not found). Edges are direct connections. Memories keyed by domain — only requested domains appear. Trajectory always computed from affect memories if available (cheap). UnresolvedRefs captures NodeRefs (e.g., scheme="cbr") that couldn't be followed.
+**Alternatives:**
+- Flat record with named domain fields (`List<Memory> experiences`, `List<Memory> relationships`, etc.) — hardcodes domains at the type level; new domains need record changes.
+- Wrapper types per section (`MemorySection`, `GraphSection`) — unnecessary nesting; the record is already structured by field name.
+**Rationale:** `Map<MemoryDomain, List<Memory>>` is the natural structure — open to new domains without type changes. Trajectory as a derived field (computed from affect memories) follows the TemporalFocus pattern (derived scores from raw entries). UnresolvedRefs acknowledges known gaps (CBR has no get-by-ID) without silently dropping information.
+**Trade-offs:** Caller must check `memories.containsKey(domain)` rather than calling a typed getter. Acceptable — Map access is idiomatic.
+**Depends on:** D33, D37 (graph depth), D38 (domain scope)
+**Sources:** AffectTrajectoryAnalyzer.java (trajectory computation), MindMapNode.refs() (NodeRef set), MemoryDomain.java (domain type)
+**Exploration:** quick
+**Status:** captured
+
+## D37: Graph depth — entity + direct edges
+
+**Choice:** Include the entity's direct edges (`List<MindMapEdge>` from `neighbors(nodeId, tenantId)`) but do NOT recursively resolve adjacent nodes. The edges carry target node IDs and edge types — enough for "who is Alice connected to?" without triggering cascading resolution.
+**Alternatives:**
+- Entity only — callers who want edges call `neighbors()` separately. Works but forces two calls for a common use case.
+- Entity + full neighbor resolution — richer but expensive. Each neighbor could trigger its own memory/trajectory lookups. Risk of recursive fan-out.
+**Rationale:** Edges are cheap (single store call) and provide essential structural context. Full neighbor resolution is a profile-per-neighbor operation — the caller can resolve specific neighbors if needed.
+**Trade-offs:** No neighbor properties/traits in the result; caller must resolve individually.
+**Sources:** MindMapStore.neighbors() signature, cognitive-architecture-roadmap.md §4a
+**Exploration:** quick
+**Status:** captured
+
+## D38: Domain scope — configurable via query, default all
+
+**Choice:** `CognitiveProfileQuery` has a `Set<MemoryDomain> domains` field. Empty set = all known domains (experience, relationship, reflection, mood, engagement, affect). Callers specify a subset to skip expensive queries. `withDomains(Set<MemoryDomain>)` builder method.
+**Alternatives:**
+- Always all — simpler API but 6+ store queries per call even when only one aspect is needed.
+- Tiered presets (SUMMARY, SOCIAL, FULL) — middle ground but restrictive; callers may want arbitrary combinations.
+**Rationale:** Follows CbrQuery's configurability pattern. Default-all is the "tell me everything" use case; selective is for efficiency when the caller knows what they need.
+**Trade-offs:** More complex query object than a simple method signature. Acceptable — the withX() pattern keeps construction readable.
+**Depends on:** D33 (query object)
+**Sources:** CbrQuery.java (configurable query pattern), memory domain constants in ExperienceEvents/RelationshipEvents/etc.
+**Exploration:** quick
+**Status:** captured
+
+## D39: Memory entity ID resolution — query both nodeId + node name
+
+**Choice:** When querying memories for a resolved entity, use `MemoryQuery.forEntities(List.of(nodeId, nodeName), domain, tenantId)` to catch memories stored under either convention. AffectTrajectoryDecorator stores with entityId=nodeId (UUID); other producers may use the human-readable name. MemoryQuery supports up to 25 entityIds, so adding both is safe.
+**Alternatives:**
+- Query nodeId only — misses memories stored with the human-readable name. Forces all future memory producers to know the internal nodeId.
+- Query name + all NodeRef IDs — may pull unrelated memories if refs point to different entities.
+**Rationale:** Simple, comprehensive, follows the existing multi-entityId API. The two IDs (internal UUID, human-readable name) are the two natural ways to store memories about an entity.
+**Trade-offs:** May return memories from unrelated entities if a node's name collides with another entity's memory entityId. Low risk in practice — entityIds are typically scoped by domain + tenant.
+**Depends on:** D36 (EntityKnowledge structure)
+**Sources:** AffectTrajectoryDecorator.java:83 (entityId=nodeId pattern), AffectEvents.toMemoryInput (nodeId as entityId), MemoryQuery.forEntities (multi-entityId support)
+**Exploration:** quick
+**Status:** captured
+
+## D40: NodeRef following — scheme="memory" resolved, scheme="cbr" recorded
+
+**Choice:** CognitiveProfile follows `NodeRef(scheme="memory")` by querying memories with `ref.id()` as an additional entityId. `NodeRef(scheme="cbr")` is recorded in `EntityKnowledge.unresolvedRefs()` because `CbrCaseMemoryStore` has no get-by-ID method. Other schemes are also recorded as unresolved.
+**Alternatives:**
+- Add get-by-ID to CbrCaseMemoryStore — correct long-term but scope creep for this issue. Separate issue.
+- Ignore NodeRefs entirely — loses the cross-store linking that the roadmap explicitly calls for.
+**Rationale:** Following memory refs is natural (entityId-based query). CBR's lack of entity lookup is a known gap — recording it as unresolved makes the gap visible without blocking progress. The gap can be filled by adding `findByCaseId()` to CbrCaseMemoryStore later.
+**Trade-offs:** CBR data is invisible in EntityKnowledge until the SPI is extended. Acceptable — the NodeRef records the link for future resolution.
+**Depends on:** D36 (unresolvedRefs field)
+**Sources:** NodeRef.java (scheme/id/qualifier), CbrCaseMemoryStore.java (no get-by-ID), AffectTrajectoryDecorator.java:83 (NodeRef convention)
+**Exploration:** quick
+**Status:** captured
+
+## D41: Error handling — Optional<EntityKnowledge>
+
+**Choice:** `CognitiveProfile.resolve()` returns `Optional<EntityKnowledge>`. `Optional.empty()` when the MindMap node doesn't exist (name/ID not found). When the node exists but some stores are unavailable, the corresponding sections are empty (empty list/map, null trajectory) — graceful degradation, not error.
+**Alternatives:**
+- Return EntityKnowledge with null node — meaningless result; the node is the anchor for everything else.
+- Throw EntityNotFoundException — too aggressive for a query operation. Callers would need try/catch for a normal "not found" case.
+**Rationale:** Optional is the Java idiom for "this entity might not exist." Graceful degradation for unavailable stores follows TemporalIndex's pattern (missing stores are silently skipped).
+**Sources:** TemporalIndex.java (Instance<T> graceful degradation)
+**Exploration:** quick
+**Status:** captured
+
+## D42: AffectTrajectoryAnalyzer composition
+
+**Choice:** CognitiveProfile queries affect-domain memories via `MemoryQuery.forEntities([nodeId, nodeName], AffectEvents.DOMAIN, tenantId)`, then passes the result to `AffectTrajectoryAnalyzer.analyze()` to compute the trajectory. Pure composition — no trajectory logic duplicated.
+**Alternatives:**
+- Recompute trajectory inline — duplicates existing code.
+- Skip trajectory (caller computes) — misses the whole-profile purpose; trajectory is a core aspect of "everything about Alice."
+**Rationale:** AffectTrajectoryAnalyzer is a pure static utility designed for exactly this — computing trajectory from a list of affect memories. Composing with it keeps CognitiveProfile focused on orchestration.
+**Depends on:** D39 (memory entity ID resolution)
+**Sources:** AffectTrajectoryAnalyzer.java (static analyze method), AffectEvents.DOMAIN constant
+**Exploration:** quick
+**Status:** captured
+
+## D43: Space-aware API — single tenantId, designed for extension
+
+**Choice:** v1 uses `String tenantId` (single tenant). The query record is designed for future extension via `withTenantIds(Set<String>)` — each memory space maps to a tenant, so multi-space resolution is multi-tenant querying. Breaking change is acceptable (pre-release platform).
+**Alternatives:**
+- Start with `Set<String> tenantIds` now — premature; the memory space model (#230) isn't designed yet. Building multi-tenant query aggregation without the space model risks wrong abstractions.
+- No space consideration — forces a breaking change later when spaces are added.
+**Rationale:** Single tenant is correct for the current system. The query record's immutable-builder pattern means `withTenantIds()` is a non-breaking addition. When #230 lands, the extension is mechanical.
+**Trade-offs:** v1 can only profile entities within one tenant. Acceptable — multi-tenant entity resolution needs the space model first.
+**Sources:** cognitive-architecture-roadmap.md §4a (space impact), issue #230 (memory space model)
+**Exploration:** quick
+**Status:** captured
