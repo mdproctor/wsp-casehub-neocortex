@@ -2,33 +2,33 @@
 
 ## Last Session
 
-Continued cognitive rearchitecture on `issue-253-cognitive-rearchitecture`. Completed 4 issues this session (#232, #234, #235, #236), advancing queue from position 1 to 5 of 25.
+Continued cognitive rearchitecture on `issue-253-cognitive-rearchitecture`. Completed 3 issues this session (#237, #238, #239), advancing queue from position 7 to 10 of 25.
 
-1. **#232 — Naming audit**: Renamed `importance` → `confidence` on 7 memory event types (ExperienceEvent hierarchy, RelationshipEvent, ReflectionEvent, EngagementEvent). Renamed `sentimentShift` → `affectShift` on EngagementEvent + attribute key. DB columns renamed in V1 Flyway migrations (JPA + SQLite). Updated all converters, local variables, error messages, test methods. Cross-repo checklist filed as casehubio/blocks#218. 41 files.
+1. **#237 — Chronological index** (M): New `cognitive-index` module with TemporalIndex CDI bean, TemporalEntry, TemporalSource (sealed), TemporalQuery, TemporalRanker. Stateless cross-store temporal aggregator over MindMap + Memory stores. Instance<T> graceful degradation. 27 tests. Design decisions D12-D18 captured. Filed #254 as follow-up for MemorySpace visibility layer wiring.
 
-2. **#234 — Temporal taxonomy**: Created `TemporalMark` sealed interface in `cognitive-api` with 3 variants: `WallClock(Instant)`, `Relative(Duration, @Nullable Instant anchor)`, `Ordinal(String turnId, Instant resolved)`. Each implements `resolveToInstant(Instant now)`. Static factories. 22 tests. 4 files.
+2. **#238 — PAD on Memory** (S): Added nullable pleasure/arousal/dominance to MemoryInput (10 fields) and Memory (12 fields). Updated all 5 backends: InMemory (pass-through), SQLite (V2 migration), JPA (V2 migration + entity), Mem0 (null), Graphiti (null). MoodModulatedRetrieval reads typed fields with attribute fallback. MoodEvents passes typed PAD. 37 files changed via ide_change_signature.
 
-3. **#235 — Event timestamps**: Added `Instant timestamp()` to all 7 event types. Nullable with `Instant.now()` default in compact constructors. Converters propagate to TIMESTAMP attribute key. 38 files.
+3. **#239 — Affect trajectory log** (M): AffectEvents converter (domain="affect" memories), AffectRecorded CDI event, AffectTrajectoryDecorator (@Decorator @Priority(70) on MindMapStore — intercepts updateNode PAD changes), AffectTrajectoryAnalyzer (cognitive-index — linear regression slope, volatility, trend direction). 20 tests.
 
-4. **#236 — Temporal MindMapQuery**: Added `validAfter`, `validBefore`, `updatedAfter` temporal predicates to MindMapQuery. Implemented in InMemoryMindMapStore (stream filters) and SqliteMindMapStore (WHERE clauses). 5 new contract tests. 8 files.
-
-Roadmap §1d, §2a, §2b, §2c all marked DONE. Full project compiles clean. One pre-existing flaky Qdrant test (`discoverTenants_returnsDistinctTenants`) — unrelated.
+Roadmap §2d, §3a, §3b all marked DONE. Full project compiles clean. One pre-existing flaky Qdrant test (`discoverTenants_returnsDistinctTenants`) — unrelated.
 
 ## Immediate Next Step
 
-Run `work next` to advance to #237 (Chronological index, M/Med). This is the cross-store `TemporalIndex` that unifies temporal queries across MindMap, Memory, and CBR.
+Run `work next` to advance to #241 (Prospective event model, M/Med). This adds event traits (Appointable, Aspirational, Threatening, Opportunistic), lifecycle state machine (PLANNED→CONFIRMED→ACTIVE→COMPLETED/CANCELLED), anticipatory affect, and recurring events via RRULE. Needs brainstorming — 4 distinct concerns.
+
+IntelliJ was unresponsive at session end — restart before resuming.
 
 ## What's Next
 
 | Item | Scale / Complexity |
 |------|--------------------|
-| #237 — Chronological index | M / Med |
-| #238 — PAD on Memory | S / Low |
-| #239 — Affect trajectory log | S / Low |
+| #241 — Prospective event model | M / Med |
+| #242 — Trajectory-aware curiosity | S / Low |
+| #244 — TemporalFocus utility | M / Med |
 
 ## References
 
-- Spec: `specs/issue-253-cognitive-rearchitecture/2026-08-30-temporal-taxonomy-design.md`
-- Decisions: `specs/issue-253-cognitive-rearchitecture/decisions.md` (D8-D11 for temporal)
+- Spec: `specs/issue-253-cognitive-rearchitecture/2026-08-31-chronological-index-design.md`
+- Decisions: `specs/issue-253-cognitive-rearchitecture/decisions.md` (D12-D18 for this session)
 - Roadmap: `docs/guides/cognitive-architecture-roadmap.md`
-- Cross-repo: casehubio/blocks#218 (naming adoption checklist)
+- Follow-up: #254 (MemorySpace + TemporalIndex wiring)
