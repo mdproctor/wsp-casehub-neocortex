@@ -110,11 +110,41 @@ DerivedEdgeDecorator.
 
 ## Recommendation
 
-**Do not integrate DesiredState's graph engine with MindMap.** The
-type-level incompatibility, cycle semantics mismatch, and information
-loss make the adapter effort high and the payoff negative.
+**Do not use DesiredStateGraph as MindMap's graph type.** The DAG
+enforcement, `Dependency` provisioning semantics, and `NodeSpec` model
+are structurally incompatible with MindMap's cyclic semantic graph.
 
-**Instead, extend MindMapAnalyzer** with the missing graph queries:
+**Do study desiredstate's algorithmic patterns** — three are directly
+transferable:
+
+1. **GraphRuleEngine** — iterative evaluate → pattern-match → mutate →
+   convergence-check loop. Graph-type-agnostic algorithm. MindMap's
+   `DerivedEdgeDecorator` is a simplified single-pass version. When
+   MindMap rules need multi-hop inference or cross-subgraph reasoning,
+   this architecture is the reference implementation.
+
+2. **PatternEvaluator** — structural graph pattern matching that
+   produces variable bindings ("find all pairs where A has edge type X
+   to B"). MindMap's `TraitRule` does simple property matching;
+   PatternEvaluator does graph-structural matching. Directly useful
+   for MindMap inference rules.
+
+3. **Declarative rule model** — `@GraphRule` annotation + declarative
+   DSL. Working reference for roadmap §5d (Declarative Rule DSL) —
+   compiling YAML rules into executable graph transformations.
+
+**Platform extraction opportunity:** The pure graph reasoning layer
+(rule engine, pattern evaluator, traversal utilities) could be
+extracted to platform behind a generic graph interface. Both
+desiredstate and MindMap would be consumers with different graph
+implementations — desiredstate's DAG (acyclicity enforced, provisioning
+semantics) and MindMap's general graph (cycles meaningful, typed
+edges). The rule engine, pattern matching, and convergence detection
+are graph-type-agnostic — they need `nodes()`, `edges()`, and a
+mutation model. Constraint enforcement (acyclic vs cyclic) lives in
+the graph implementation, not the reasoning layer.
+
+**Short-term: extend MindMapAnalyzer** with missing traversal queries:
 
 | Query | Algorithm | Effort |
 |-------|-----------|--------|
@@ -122,14 +152,8 @@ loss make the adapter effort high and the payoff negative.
 | `reachableFrom(nodeId, maxDepth, tenantId)` | BFS with depth limit | S (~20 lines) |
 | `connectedComponents(subgraphId, tenantId)` | Union-find or BFS | S (~40 lines) |
 
-These use `neighbors()` directly — no adapter, no information loss,
-cycle-safe by default. Total effort: S, implementable in a single
-session alongside other Phase 4 work.
-
-**GraphRuleEngine integration:** Park for future consideration. The
-trigger is when DerivedEdgeDecorator's single-pass forward chaining
-becomes insufficient for complex multi-hop inference patterns. Not
-expected in the current roadmap horizon.
+These use `neighbors()` directly — no adapter needed for simple
+traversal queries.
 
 ## References
 
