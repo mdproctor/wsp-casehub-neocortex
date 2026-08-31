@@ -235,7 +235,7 @@
 
 ## D19: Event trait classification — property-driven, two-axis
 
-**Choice:** Event traits use two orthogonal properties: `event-kind` (scheduled / anticipated) and `event-valence` (positive / negative / aspirational). TraitRules match on these explicit properties, not on PAD inference.
+**Choice:** Event traits use two orthogonal properties: `eventKind` (scheduled / anticipated) and `eventValence` (positive / negative / aspirational). TraitRules match on these explicit properties, not on PAD inference.
 - Appointable: `event-kind=scheduled` (valence irrelevant — a funeral is appointable)
 - Aspirational: `event-kind=anticipated` + `event-valence=aspirational`
 - Threatening: `event-kind=anticipated` + `event-valence=negative`
@@ -246,7 +246,7 @@
 - Single `event-type` property — forces mutual exclusivity (can't be both Appointable and Threatening).
 - Boolean properties per trait — verbose for LLM extractors.
 **Rationale:** Orthogonality. An event CAN carry both `event-kind=scheduled` (Appointable) AND `event-valence=negative` (Threatening). The axes are independent — kind is about temporal fixedness, valence is about emotional anticipation. PAD inference is fragile because emotional nuance doesn't map cleanly to thresholds. Explicit properties are set by the LLM extractor or the caller — the source that understands the semantic context.
-**Trade-offs:** Requires the extractor to set the right properties. If `event-kind` is missing, no event traits fire — but this is the correct behavior (not every future-dated node is an "event").
+**Trade-offs:** Requires the extractor to set the right properties. If `eventKind` is missing, no event traits fire — but this is the correct behavior (not every future-dated node is an "event").
 **Sources:** TraitRule.java (matches on node + edges), PersonableTraitRule.java (property-checking pattern), ProjectlikeTraitRule.java (status property check), cognitive-architecture-roadmap.md §3c
 **Exploration:** quick
 **Status:** captured
@@ -308,7 +308,7 @@
 **Choice:** One `Eventlike` interface covering all event-related properties: `eventKind()`, `eventValence()`, `status()`, `rrule()`. Accessible via `TraitProxy.as(node, Eventlike.class)`. Separate from the 4 TraitRule implementations — the rules classify, the interface provides typed access.
 **Alternatives:**
 - Per-trait interfaces (Appointable, Aspirational, Threatening, Opportunistic) — follows existing pattern (Personable, Projectlike, Organisational). But event traits share a property namespace — splitting creates 4 interfaces with overlapping property access.
-**Rationale:** Event traits share a property namespace (`event-kind`, `event-valence`, `status`, `rrule`). A node classified as both Appointable and Threatening has the same properties accessible through either trait. One interface avoids duplication and provides a single typed view of all event properties. The existing pattern (one interface per trait) works when traits have disjoint property namespaces; event traits don't.
+**Rationale:** Event traits share a property namespace (`eventKind`, `eventValence`, `status`, `rrule`). A node classified as both Appointable and Threatening has the same properties accessible through either trait. One interface avoids duplication and provides a single typed view of all event properties. The existing pattern (one interface per trait) works when traits have disjoint property namespaces; event traits don't.
 **Trade-offs:** Consumer code uses `Eventlike` for all event types rather than a specific interface. The trait name (`Set<String> traits()`) still carries the specific classification.
 **Depends on:** D19 (event trait properties)
 **Sources:** Personable.java (trait interface pattern), TraitProxy.java (JDK Proxy accessor), cognitive-architecture-roadmap.md §3c

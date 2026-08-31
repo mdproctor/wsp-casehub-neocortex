@@ -26,10 +26,12 @@ Two orthogonal properties classify event nodes:
 
 | Property | Values | Semantics |
 |----------|--------|-----------|
-| `event-kind` | `scheduled`, `anticipated` | Temporal fixedness |
-| `event-valence` | `positive`, `negative`, `aspirational` | Emotional anticipation |
+| `eventKind` | `scheduled`, `anticipated` | Temporal fixedness |
+| `eventValence` | `positive`, `negative`, `aspirational` | Emotional anticipation |
 
-These compose — a funeral can be `event-kind=scheduled` AND `event-valence=negative`.
+CamelCase keys match the existing convention (`birthday`, `startDate`, `endDate`) and enable direct mapping via `TraitProxy` — `TraitInvocationHandler` resolves method names to `node.property(methodName)` with no transformation.
+
+These compose — a funeral can be `eventKind=scheduled` AND `eventValence=negative`.
 
 ### 1.2 TraitRule Implementations
 
@@ -37,10 +39,10 @@ Four new `@ApplicationScoped` TraitRule beans in `mindmap-intelligence`:
 
 | TraitRule | Trait name | Match criteria |
 |-----------|-----------|----------------|
-| `AppointableTraitRule` | `Appointable` | `event-kind=scheduled` |
-| `AspirationalTraitRule` | `Aspirational` | `event-kind=anticipated` + `event-valence=aspirational` |
-| `ThreateningTraitRule` | `Threatening` | `event-kind=anticipated` + `event-valence=negative` |
-| `OpportunisticTraitRule` | `Opportunistic` | `event-kind=anticipated` + `event-valence=positive` |
+| `AppointableTraitRule` | `Appointable` | `eventKind=scheduled` |
+| `AspirationalTraitRule` | `Aspirational` | `eventKind=anticipated` + `eventValence=aspirational` |
+| `ThreateningTraitRule` | `Threatening` | `eventKind=anticipated` + `eventValence=negative` |
+| `OpportunisticTraitRule` | `Opportunistic` | `eventKind=anticipated` + `eventValence=positive` |
 
 All four follow the existing pattern (`PersonableTraitRule`, `ProjectlikeTraitRule`): check `node.property()` values. The existing `TraitApplicationDecorator` (@Priority 70) automatically evaluates these rules after every `addNode`, `updateNode`, `addEdge`, and `removeEdge`.
 
@@ -92,7 +94,9 @@ MindMapStore is a generic graph store. Lifecycle enforcement belongs in the appl
 
 ### 2.3 TraitRule Interaction
 
-TraitRules react to status changes automatically via `TraitApplicationDecorator`. An `AppointableTraitRule` implementation can optionally require non-cancelled status — adding `&& !node.property("status").map("cancelled"::equals).orElse(false)` to exclude cancelled events from the Appointable classification. Initial implementation does NOT filter by status — all four rules check only `event-kind` and `event-valence`, not `status`.
+TraitRules react to status changes automatically via `TraitApplicationDecorator`. An `AppointableTraitRule` implementation can optionally require non-cancelled status — adding `&& !node.property("status").map("cancelled"::equals).orElse(false)` to exclude cancelled events from the Appointable classification. Initial implementation does NOT filter by status — all four rules check only `eventKind` and `eventValence`, not `status`.
+
+If `eventKind` is not set on a node, no event traits fire. This is deliberate — not every future-dated node is an "event." (D19)
 
 ## 3. Anticipatory Affect
 
@@ -200,8 +204,8 @@ The generator is a pure function — no CDI, no store interaction. The caller de
 | `rrule` | RRULE string | Not present |
 | `template-node-id` | Not present | Template node ID |
 | `recurrence-index` | Not present | 0-based sequence number |
-| `event-kind` | Inherited | Inherited |
-| `event-valence` | Inherited | Inherited |
+| `eventKind` | Inherited | Inherited |
+| `eventValence` | Inherited | Inherited |
 | `status` | Not typically set | `planned` (default) |
 
 ## Module Impact
