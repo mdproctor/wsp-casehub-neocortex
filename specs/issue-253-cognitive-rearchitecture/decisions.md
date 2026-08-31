@@ -640,3 +640,53 @@
 **Sources:** NoOpMindMapStore.java (pattern), NoOpCaseMemoryStore.java (pattern), light review finding
 **Exploration:** quick (surfaced by review)
 **Status:** captured
+
+## D51: RetrievalModulator scope — post-retrieval only
+
+**Choice:** RetrievalModulator operates after retrieval from any store. CBR decorators (TrustWeightedCbrCaseMemoryStore, OutcomeWeightingCbrCaseMemoryStore, ScopeDecayCbrCaseMemoryStore) remain unchanged. The modulator adds mood/personality/recency on top of whatever the store returned.
+**Alternatives:**
+- Replace CBR decorators — moves trust weighting out of the decorator stack into RetrievalModulator. Unifies all score modulation but loses per-retrieval trust trajectory cache, @IfBuildProperty gating, and the decorator composition model that CBR relies on.
+- Hybrid — trust stays in decorator for CBR, modulator adds mood/personality for Memory/MindMap. Trust also in ModulationContext for stores without decorators. Inconsistent: trust is both inside and outside the store boundary.
+**Rationale:** Clean separation of concerns. Store-internal decorators handle store-specific scoring (similarity, trust, scope decay). Post-retrieval modulation handles cross-cutting cognitive factors (mood, personality, recency). No coupling between the two layers.
+**Trade-offs:** CBR results are modulated on top of an already-weighted score, so the modulator's contribution is additive, not foundational. This is correct — CBR similarity is the primary signal.
+**Sources:** TrustWeightedCbrCaseMemoryStore.java, OutcomeWeightingCbrCaseMemoryStore.java, ScopeDecayCbrCaseMemoryStore.java, cognitive-architecture-roadmap.md §1c
+**Exploration:** quick
+**Status:** captured
+
+## D52: Field extraction via accessor functions (ModulationProfile<T>)
+
+**Choice:** A `ModulationProfile<T>` record carrying lambda accessors (`Function<T, Confidence>`, `Function<T, Double>` for PAD, `Function<T, Instant>` for timestamp). Pre-built profiles for Memory, MindMapNode, ScoredCbrCase in cognitive-index. No changes to existing types.
+**Alternatives:**
+- Common trait interface (Modulatable) — Memory/MindMapNode already have the methods, but Memory is a record (can't add implements without recompilation of all callers) and ScoredCbrCase would need a wrapper. Type-invasive.
+- Unscored wrapper (ScoredItem<T>) — wrap every result before modulation. Uniform but adds allocation overhead and an extra unwrap step.
+**Rationale:** Accessor functions are non-invasive — no changes to existing types. Type-safe via generics. The profile is a compile-time description of how to read fields from T. Method references (`Memory::confidence`, `MindMapNode::pleasure`) are concise and clear.
+**Trade-offs:** Profile must be passed at every call site. Mitigated: pre-built constants in ModulationProfiles utility class.
+**Depends on:** D51 (post-retrieval scope — profiles describe retrieval result types)
+**Sources:** Memory.java, MindMapNode.java, ScoredCbrCase.java, CbrCase.java
+**Exploration:** quick
+**Status:** captured
+
+## D53: Composable modulation factors via multiplication
+
+**Choice:** Each factor is a `@FunctionalInterface ModulationFactor<T>` returning a double multiplier. Factors compose via multiplication to produce a composite score. Callers pick which factors to apply. Pre-built factory methods for common combos.
+**Alternatives:**
+- Monolithic modulator per store type — simpler call-site but can't mix-and-match factors. Adding a factor means changing each implementation.
+- Pipeline with ordering — explicit ordered chain where each factor sees previous output. More powerful (factors could drop items) but harder to reason about. Multiplication is commutative — order doesn't matter.
+**Rationale:** Multiplication-based composition is simple, commutative (order-independent), and extensible. New factors are just new implementations of ModulationFactor<T>. Follows the existing OutcomeWeightingFunction and TrustWeightingFunction patterns — functional interfaces that produce a double multiplier.
+**Trade-offs:** Factors can only re-weight, not filter or restructure. Sufficient for mood/personality/recency/confidence modulation. If filtering is needed later, a separate pipeline layer can be added.
+**Sources:** OutcomeWeightingFunction.java, TrustWeightingFunction.java, MoodModulatedRetrieval.java (score method — already multiplicative)
+**Exploration:** quick
+**Status:** captured
+
+## D54: Core types in cognitive-api, pre-built instances in cognitive-index
+
+**Choice:** `ModulationFactor<T>`, `ModulationProfile<T>`, and `RetrievalModulator` (static utility) in cognitive-api (zero deps, tier-0). `ModulationProfiles` (pre-built profiles for Memory, MindMapNode), `ModulationFactors` (factory methods), and `ModulationContext` (convenience record) in cognitive-index (depends on memory-api, mindmap-api).
+**Alternatives:**
+- All in cognitive-index — simpler but prevents memory-api or mindmap-api from referencing the modulation framework. Acceptable today but closes future options.
+- New module (modulation-api) — follows fusion-api pattern but adds a module for ~3 types. Unnecessary when cognitive-api exists.
+**Rationale:** The framework types (interface, profile, utility) are pure Java with no dependencies — they belong in cognitive-api alongside Confidence and TemporalMark. The concrete instances that reference Memory/MindMapNode belong in cognitive-index which already depends on both store APIs.
+**Trade-offs:** The type/instance split means consumers need both cognitive-api (compile) and cognitive-index (for pre-built profiles). This is the same pattern as Confidence (cognitive-api) + CognitiveProfile (cognitive-index).
+**Depends on:** D1 (cognitive-api module), D52 (accessor functions)
+**Sources:** cognitive-api/pom.xml, cognitive-index/pom.xml, Confidence.java, CognitiveProfile.java
+**Exploration:** quick
+**Status:** captured
