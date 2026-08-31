@@ -20,11 +20,12 @@
 - Both with fallback — internal with external override. Migration-friendly but adds precedence rules.
 - DecayAnchor interface on entities — entities implement `DecayAnchor { Instant decayReference(); }` and decorator reads the interface. Clean separation but breaks when Confidence is passed without its owning entity (cross-store queries, serialized records, API responses — decay cannot be computed from Confidence alone).
 **Rationale:** "When was this confidence level last established?" is a property of the confidence itself, not the entity. Eliminates the awkward asymmetry where MindMapNode uses `confirmedAt` and MindMapEdge uses `updatedAt` for the same conceptual purpose. Makes `ConfidenceDecayDecorator` generic — it reads `confidence().decayReference()` regardless of entity type. Null decayReference explicitly means "this confidence does not decay" (e.g., Memory) — cleaner than entity-type checking. Critically, Confidence records are passed across subsystem boundaries (cross-store queries in Phase 4, serialized snapshots, API responses) — the decay anchor must travel WITH the value to remain computable.
+**Factory method semantics:** `stated()`, `inferred()`, `speculated()` require non-null decayReference — if you know HOW something was established, you should know WHEN. This is an origin-semantics constraint, not a MindMap-specific one: an epistemically grounded confidence (known provenance) always has a temporal anchor. Error messages must be domain-neutral ("decayReference required"), not MindMap-specific. `unknown()` creates with null decayReference because UNKNOWN is provenance-less — there's no meaningful decay anchor. The raw constructor remains available for edge cases where a caller has a non-UNKNOWN origin but genuinely no temporal anchor.
 **Trade-offs:** MindMapNode's `confirmedAt` becomes redundant — resolved by D6 (remove confirmedAt). Backends must persist decayReference alongside origin+value.
 **Depends on:** D1 (module placement)
 **Sources:** ConfidenceDecayDecorator.java (mindmap/runtime), MindMapNode.java:27 confirmedAt, MindMapEdge.java:22 updatedAt
 **Exploration:** quick
-**Status:** captured
+**Status:** revised — factory method null check documented as origin-semantics (not MindMap-specific), error messages domain-neutralized (R1-09)
 
 ## D3: ConfidenceOrigin scope — keep 3 values + UNKNOWN, non-nullable
 
@@ -53,19 +54,19 @@
 **Exploration:** quick
 **Status:** revised — NodeUpdate, MindMapQuery, ParsedEntity, CbrCase.withOutcome explicitly addressed (R1-11, R1-12)
 
-## D5: CbrOutcome.adjustConfidence operates on Confidence
+## D5: EMA confidence smoothing — instance method on Confidence
 
-**Choice:** `adjustConfidence(Confidence old, double successRate, double learningRate, Instant observedAt)` → returns `Confidence` (preserves origin, updates value via EMA, sets decayReference to observedAt). CbrOutcome itself stays in memory-api — it's a CBR-specific operation record, not a cross-cutting type.
+**Choice:** `Confidence.adjust(double observedRate, double learningRate, Instant newDecayReference)` — instance method on the Confidence record. Returns a new Confidence with the same origin, EMA-smoothed value (`(1 - learningRate) * this.value + learningRate * observedRate`), and the given decayReference. CbrOutcome.adjustConfidence is removed — callers use `confidence.adjust(successRate, lr, outcome.observedAt())` directly. CbrOutcome itself stays in memory-api unchanged (it carries CBR-specific fields: result, successRate, detail).
 **Alternatives:**
-- Keep Double-based adjustConfidence — callers wrap/unwrap Confidence manually. Works but error-prone.
-- Move EMA into Confidence itself (`Confidence.adjust(...)`) — couples a CBR-specific operation trigger into the shared type. EMA is general-purpose math but only CBR uses it today; adding it to Confidence would be speculative.
-- Pass entire CbrOutcome to the method — couples CbrOutcome to Confidence construction. The method is a math utility, not an event processor.
-**Rationale:** The operation naturally preserves origin (how we originally learned this) while updating the numeric value and when it was last assessed. `Instant observedAt` as an explicit parameter makes the decayReference update clear in the method signature. CbrOutcome stays in memory-api because it carries CBR-specific fields (result, successRate, detail). adjustConfidence stays on CbrOutcome because it captures "how CBR outcomes adjust confidence" — the trigger context matters even though the math is general.
-**Trade-offs:** CbrOutcome gains a dependency on cognitive-api (via memory-api's transitive dependency). Method signature gains a fourth parameter.
+- Static method on CbrOutcome (original D5) — couples general-purpose EMA math to a CBR-specific type. Future consumers (engagement scoring, reflection consolidation, trajectory analysis) would need a CbrOutcome dependency to access a math function that takes and returns Confidence.
+- Standalone utility class — adds a class for a single method with no clear home.
+- Keep Double-based adjustConfidence — callers wrap/unwrap Confidence manually. Error-prone.
+**Rationale:** The EMA formula is general-purpose numerical smoothing — it takes a Confidence and returns a Confidence, a pure transformation on the type itself. Placing the method on the type it transforms is not speculative; it follows the principle of methods-on-their-types (like `withValue()` and `withDecayReference()` already on Confidence). The roadmap shows engagement scoring, reflection levels, and trajectory analysis as future EMA consumers — all would naturally call `confidence.adjust()` without any CBR dependency. The "trigger context" (CBR outcome, engagement event, reflection) is irrelevant to the transformation itself; the trigger selects the observedRate and learningRate to pass.
+**Trade-offs:** Confidence gains one method. CbrOutcome stores that called adjustConfidence update to `old.adjust(successRate, lr, outcome.observedAt())` — a mechanical migration.
 **Depends on:** D1 (module placement), D4 (API surface)
-**Sources:** CbrOutcome.java:30-34 adjustConfidence, InMemoryCbrCaseMemoryStore.java:198 (call site with outcome.observedAt() available), JpaCbrCaseMemoryStore.java:228, QdrantCbrCaseMemoryStore.java:671
+**Sources:** CbrOutcome.java:30-34 adjustConfidence, InMemoryCbrCaseMemoryStore.java:198, JpaCbrCaseMemoryStore.java:228, QdrantCbrCaseMemoryStore.java:671, cognitive-architecture-roadmap.md §3c (engagement, reflection as future confidence consumers)
 **Exploration:** quick
-**Status:** revised — Instant observedAt added as explicit parameter (R1-14)
+**Status:** revised — EMA adjustment moves from CbrOutcome static method to Confidence.adjust() instance method (R1-02, supersedes R1-14)
 
 ## D6: confirmedAt resolution — remove from MindMapNode
 
@@ -115,11 +116,11 @@
 **Alternatives:**
 - External resolver function — `resolveToInstant(Function<String, Instant> turnResolver)`. More flexible but every call site needs a resolver, and cognitive-api can't reference store types.
 - Fallback to now — `resolveToInstant(Instant now)` always returns `now` for ordinals. Simplest but loses temporal precision entirely.
-**Rationale:** A zero-deps type can't perform lookups. Carrying the resolved timestamp makes the mark self-contained — once constructed, it can be sorted, compared, and persisted without external dependencies. The resolver is the caller's responsibility at construction time, not at usage time.
-**Trade-offs:** Resolution must happen at construction. If the turn-timestamp mapping changes later, the mark becomes stale. Acceptable — timestamps of past turns don't change.
+**Rationale:** A zero-deps type can't perform lookups. Carrying the resolved timestamp makes the mark self-contained — once constructed, it can be sorted, compared, and persisted without external dependencies. The resolver is the caller's responsibility at construction time, not at usage time. The turnId is retained alongside the resolved Instant for audit/traceability: it links the temporal mark back to its conversational origin ("this timestamp came from turn X"). This enables debugging (why is this event at this time?), provenance tracking, and potential re-resolution if timestamps are corrected. The resolved Instant is sufficient for sorting and comparison; the turnId serves the orthogonal concern of provenance.
+**Trade-offs:** Resolution must happen at construction. If the turn-timestamp mapping changes later, the mark becomes stale. Acceptable — timestamps of past turns don't change. Ordinal carries turnId even after resolution — this is intentional for audit, not dead weight.
 **Sources:** cognitive-architecture-roadmap.md §2a (resolveToInstant design), ExperienceEvent.java (turnId field), memory-api event types
 **Exploration:** quick
-**Status:** captured
+**Status:** revised — documented turnId audit/traceability purpose (R1-13)
 
 ## D10: Relative anchor nullability — nullable
 
@@ -158,16 +159,18 @@
 
 ## D13: Pure chronological aggregator — no salience scoring in the index
 
-**Choice:** TemporalIndex returns `List<TemporalEntry>` sorted by timestamp. No salience scoring, no ranking policy. Ranking is a separate composable concern (D14).
+**Choice:** TemporalIndex returns `List<TemporalEntry>` sorted by timestamp. No salience scoring, no ranking policy. Ranking is a separate composable concern (D14). TemporalQuery carries a `Collection<MemoryDomain> memoryDomains` field specifying which memory domains to include when querying the Memory store. Defaults to `{experience}` — the highest-signal domain for temporal content. Callers that need affect trajectories, mood snapshots, or engagement events pass the relevant domains explicitly.
 **Alternatives:**
 - Ranker inside the index — `index.query(timeRange, tenantIds, ranker)`. Two responsibilities: aggregation AND ranking. Couples scoring policy to data access.
 - Salience as the primary sort — TemporalIndex produces a ranked "attention list." But salience depends on context (agent's current task, affect state) that the index shouldn't know about.
-**Rationale:** The index answers "what happened in this time window?" — a data aggregation question. "What's important right now?" is a policy question for TemporalFocus (#244). Keeping them separate means the index is testable without scoring policy and the ranker is testable without store dependencies.
-**Trade-offs:** Callers that want ranked results must compose index + ranker at the call site (two lines, not one).
+- Query all memory domains by default — returns every mood snapshot, PAD change, and engagement tick. High noise-to-signal for the primary "what happened?" use case.
+- Hardcoded domain filter (original implementation) — silently excludes 5 domains with no caller override. Undocumented restriction.
+**Rationale:** The index answers "what happened in this time window?" — a data aggregation question. "What's important right now?" is a policy question for TemporalFocus (#244). Keeping them separate means the index is testable without scoring policy and the ranker is testable without store dependencies. The `memoryDomains` filter follows the same pattern as `sources` (StoreKind filter) — configurable with a sensible default. TemporalFocus (#244) will pass `{experience, affect}` to include affect trajectories for anticipatory processing.
+**Trade-offs:** Callers that want ranked results must compose index + ranker at the call site (two lines, not one). Callers that need non-experience domains must specify them explicitly.
 **Depends on:** D14 (composable ranking)
-**Sources:** cognitive-architecture-roadmap.md §2d, §4b (TemporalFocus)
+**Sources:** cognitive-architecture-roadmap.md §2d, §4b (TemporalFocus), ExperienceEvents.DOMAIN, AffectEvents.DOMAIN, MoodEvents.DOMAIN, RelationshipEvents.DOMAIN, ReflectionEvents.DOMAIN, EngagementEvents.DOMAIN
 **Exploration:** quick
-**Status:** captured
+**Status:** revised — added configurable memoryDomains filter to TemporalQuery, replacing hardcoded EXPERIENCE_DOMAIN (R1-04)
 
 ## D14: Composable ranking via standalone TemporalRanker
 
@@ -280,8 +283,9 @@
 - Full RRULE via library — RFC 5545 with EXDATE, RDATE, WKST, BYMONTH, BYHOUR. Heavy dependency for a string property on a graph node.
 - Opaque string, no parsing — maximum simplicity but defers all value to the caller. The generator couldn't exist in neocortex.
 - CDI bean generator — @ApplicationScoped for injection. Adds CDI weight for a stateless pure function.
-**Rationale:** The minimal subset covers >90% of real-world recurrence patterns (weekly team meeting, monthly review, annual check-up). The record in `mindmap-api` enables downstream consumers (e.g., calendar queries in blocks) to parse the property without depending on mindmap-intelligence. The generator in mindmap-intelligence follows the `CuriositySignalGenerator` pattern — a static utility that operates on graph data.
-**Trade-offs:** No EXDATE/RDATE support — can't express "every Monday except holidays." Acceptable for v1; extend the record later if needed.
+**Rationale:** The minimal subset covers the core recurrence patterns needed for cognitive modelling (weekly team meeting, monthly review, annual check-up). The record in `mindmap-api` enables downstream consumers (e.g., calendar queries in blocks) to parse the property without depending on mindmap-intelligence. The generator in mindmap-intelligence follows the `CuriositySignalGenerator` pattern — a static utility that operates on graph data.
+**Trade-offs:** No EXDATE/RDATE support — can't express "every Monday except holidays." For a cognitive model, exceptions are handled by cancelling individual instance nodes (`status=CANCELLED`), which captures the cancellation as a cognitively meaningful event with its own affect. EXDATE is a planned extension for v2 when declarative exception intent becomes necessary.
+**Planned extensions:** EXDATE (exception dates), RDATE (additional dates), BYMONTH, BYHOUR — added when real usage demonstrates need beyond the core cognitive model.
 **Sources:** RFC 5545 §3.3.10 (RRULE), CuriositySignalGenerator.java (static utility pattern), cognitive-architecture-roadmap.md §3c
 **Exploration:** quick
 **Status:** captured
@@ -311,14 +315,29 @@
 **Exploration:** quick
 **Status:** captured
 
-## D25: AffectType enum placement — memory-api
+## D25: AffectType enum placement — cognitive-api
 
-**Choice:** `AffectType` enum in `io.casehub.neocortex.memory.mood` alongside `AffectEvents`. Values: `INHERENT`, `ANTICIPATORY`.
+**Choice:** `AffectType` enum in `io.casehub.neocortex.cognitive` alongside `ConfidenceOrigin` and `TemporalMark`. Values: `INHERENT`, `ANTICIPATORY`.
 **Alternatives:**
-- cognitive-api — cross-cutting cognitive type. But affect type is specific to the affect events converter pattern, not a cross-store concept.
+- memory-api alongside AffectEvents converter — colocates with the only current producer, but organizes by implementation proximity, not concept ownership. Future consumers (MindMap decorators distinguishing inherent from anticipatory PAD, CBR cases carrying affect type for retrieval scoring) would depend on memory-api for a cognitive concept.
 - mindmap-api — it's about MindMap node affect. But the enum is consumed by the memory converter, not the MindMap store.
-**Rationale:** Colocation with the converter that uses it. `AffectEvents.toMemoryInput()` is the only producer of the attribute — placing the enum alongside it makes the ownership clear. `memory-api` already hosts `AffectEvents`, `AffectRecorded`, and `MoodEvents`.
-**Trade-offs:** If a future cross-store affect system needs the enum, it would depend on memory-api. Acceptable — memory-api is already in the dependency tree of any affect consumer.
-**Sources:** AffectEvents.java (converter), MoodEvents.java (sibling pattern), memory-api package structure
+**Rationale:** AffectType classifies emotional relationship to events — a cognitive distinction independent of which subsystem produces or consumes it. Conceptually parallel to ConfidenceOrigin (classifies certainty provenance) and TemporalMark (classifies temporal reference). Meets the cognitive-api acceptance criteria (D26): it models a cognitive classification, is subsystem-independent, and its nature is inherently cross-cutting. AffectEvents in memory-api imports it, same as it already imports ConfidenceOrigin from cognitive-api. cognitive-api remains zero-deps — AffectType is a two-value enum.
+**Trade-offs:** AffectEvents must import from cognitive-api instead of a local type. This is the same pattern it already uses for ConfidenceOrigin.
+**Sources:** AffectEvents.java (converter), ConfidenceOrigin.java (parallel pattern), cognitive-api package structure, D26 (acceptance criteria)
 **Exploration:** quick
+**Status:** revised — moved from memory-api to cognitive-api per cognitive classification principle (R1-05)
+
+## D26: cognitive-api acceptance criteria
+
+**Choice:** cognitive-api houses types that classify or qualify cognitive state independent of which subsystem produced or consumes them. A type belongs in cognitive-api when it meets ALL of: (1) it models a cognitive classification or qualification (not domain-specific logic or converter utilities), (2) it is independent of any particular subsystem's implementation details, (3) it is zero-deps (no transitive dependencies beyond java.base). Types that are inherently cross-cutting by nature qualify even when currently consumed by a single subsystem — placement is by concept ownership, not consumer count.
+**Alternatives:**
+- Consumer-count heuristic — place in cognitive-api when 2+ subsystems use it. Fragile: a type can have one consumer today and three tomorrow. Leads to premature placement in module-specific packages followed by disruptive moves.
+- Producer-count heuristic — place where the only producer lives. Conflates implementation proximity with concept ownership. The producer is an implementation detail; the concept's nature is architectural.
+- No criteria — ad-hoc reasoning per decision. Leads to inconsistent placement over time as different decision-makers apply different heuristics.
+**Rationale:** The criterion separates concept ownership (architectural) from implementation proximity (mechanical). ConfidenceOrigin classifies certainty provenance, TemporalMark classifies temporal reference, AffectType classifies emotional relationship — all are cognitive classifications independent of the subsystem that produced the data. The "by nature" clause prevents reactive placement: a cognitive concept placed in a module-specific package just because it has one consumer today will need to move when the second consumer arrives. cognitive-api's zero-deps constraint (D1) is an additional filter — types that carry dependencies belong in their module's API, not cognitive-api.
+**Current members:** Confidence, ConfidenceOrigin, TemporalMark (WallClock, Relative, Ordinal), AffectType (D25).
+**Trade-offs:** Requires judgment about whether a type is a "cognitive classification" — but that judgment is now explicit and documented rather than implicit and ad-hoc.
+**Depends on:** D1 (module placement)
+**Sources:** D1 (cognitive-api module), D8 (TemporalMark placement reasoning), D25 (AffectType placement reasoning), cognitive-architecture-roadmap.md §Principles (Orthogonality)
+**Exploration:** surfaced by review (R1-10)
 **Status:** captured
