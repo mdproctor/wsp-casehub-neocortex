@@ -690,3 +690,40 @@
 **Sources:** cognitive-api/pom.xml, cognitive-index/pom.xml, Confidence.java, CognitiveProfile.java
 **Exploration:** quick
 **Status:** captured
+
+## D55: PerspectivalResolver in cognitive-index
+
+**Choice:** `PerspectivalResolver` as `@ApplicationScoped` CDI bean in cognitive-index with `Instance<MindMapStore>` and `Instance<SpaceMembershipStore>` graceful degradation. Convention constants (NodeRef scheme) in mindmap-api.
+**Alternatives:**
+- mindmap module (CDI wiring) — closer to MindMapStore but doesn't depend on memory-space-api and perspective crosses the space boundary.
+- New module (mindmap-perspective) — clean isolation but adds a module for ~2 types.
+**Rationale:** cognitive-index already hosts CognitiveProfile which does identical cross-store resolution (Instance<MindMapStore>, Instance<CaseMemoryStore>). Perspectival views are a cognitive concept. The resolver needs both MindMapStore (to look up overlay nodes) and SpaceMembershipStore (to know which tenants to query).
+**Trade-offs:** cognitive-index gains a dependency on memory-space-api. Acceptable — it already depends on memory-api and mindmap-api.
+**Depends on:** D44 (memory-space-api module), D1 (cognitive-api module)
+**Sources:** CognitiveProfile.java (Instance<T> pattern), shared-memory-design.md (overlay model), SpaceMembershipStore.java
+**Exploration:** quick
+**Status:** captured
+
+## D56: No-overlay returns shared node as-is (null PAD)
+
+**Choice:** When no private overlay exists for a shared node, return the shared node unchanged. Null PAD is semantically correct — the agent hasn't formed an emotional perspective yet.
+**Alternatives:**
+- Explicit zero PAD (0.0, 0.0, 0.0) — signals 'neutral' rather than 'unknown'. But imposes a default that may not be accurate.
+- Skip the node — too aggressive, agent wouldn't see new shared knowledge they haven't engaged with.
+**Rationale:** Null PAD means "no emotional data" which is exactly what "no overlay" means. The agent can add an overlay later through interaction. Zero PAD would be indistinguishable from a genuine neutral assessment.
+**Sources:** shared-memory-design.md (overlay model), MindMapNode.java (nullable PAD fields)
+**Exploration:** quick
+**Status:** captured
+
+## D57: Full overlay — PAD + confidence + properties
+
+**Choice:** Overlay nodes carry PAD (emotional perspective), confidence (epistemic perspective), and properties (personal annotations). Merge rule: overlay fields win when present, shared fields fill gaps.
+**Alternatives:**
+- PAD only — minimal but misses the "notes: love her" use case from the design doc.
+- PAD + confidence — clean boundary but misses personal annotations.
+**Rationale:** The design doc explicitly shows overlays with notes/properties ("love her", "so annoying"). Confidence override is needed because an agent may trust shared knowledge differently from the group consensus. Properties enable personal context without polluting the shared node.
+**Trade-offs:** More complex merge logic — must handle partial overlays (some fields present, others not). Mitigated: merge is a straightforward field-by-field overlay-wins-if-present rule.
+**Depends on:** D56 (no-overlay behavior)
+**Sources:** shared-memory-design.md (overlay model with notes), MindMapNode.java (confidence + properties fields)
+**Exploration:** quick
+**Status:** captured
