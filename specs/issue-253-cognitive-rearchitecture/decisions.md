@@ -378,3 +378,39 @@
 **Sources:** CuriositySignalGenerator.java:26-29 (existing constants), cognitive-architecture-roadmap.md §5c (cognitive profile YAML)
 **Exploration:** quick
 **Status:** captured
+
+## D30: TemporalFocus — pure static utility with pre-computed trajectories
+
+**Choice:** `TemporalFocus` is a pure static utility in `cognitive-index`. `focus(entries, now, trajectories, config)` returns `List<AttentionItem>`. `ranker(trajectories, config)` returns a composable `TemporalRanker`. No CDI, no store access. Caller pre-computes `Map<String, AffectTrajectory>` and passes it in.
+**Alternatives:**
+- CDI bean with Instance<CaseMemoryStore> — queries trajectories on demand. Convenient but impure, introduces N+1 query risk.
+- Wrapper class around TemporalIndex — violates D13 (pure chronological aggregator) and D14 (composable ranking).
+**Rationale:** Follows the established static utility pattern (AffectTrajectoryAnalyzer, MindMapAnalyzer, RetrievalAnalyzer). Pure function = testable without CDI, composable with any TemporalIndex query. Pre-computed trajectories avoid N+1 queries.
+**Trade-offs:** Caller must pre-compute trajectories. Acceptable — the tick-loop caller queries trajectories once and passes them to both CuriositySignalGenerator and TemporalFocus.
+**Depends on:** D13 (pure aggregator), D14 (composable ranker)
+**Sources:** TemporalRanker.java (functional interface), AffectTrajectoryAnalyzer.java (static utility pattern), cognitive-architecture-roadmap.md §4b
+**Exploration:** quick
+**Status:** captured
+
+## D31: TemporalFocusConfig — tunable scoring parameters
+
+**Choice:** `TemporalFocusConfig` record in `cognitive-index` with scoring parameters: `proximityScale` (7.0), `worseningBoostCap` (1.0), `improvingDampenFactor` (0.5), `volatilityBoostCap` (0.5). `defaults()` factory. Passed to `focus()` and `ranker()`. Aligns with Phase 5 cognitive profile YAML.
+**Alternatives:**
+- Hardcoded constants — simple but inconsistent with D29 (CuriosityConfig established the configurable-thresholds pattern).
+**Rationale:** Consistency with CuriosityConfig. Both are cognitive scoring utilities whose parameters will be derived from the cognitive profile YAML in Phase 5.
+**Depends on:** D29 (CuriosityConfig pattern)
+**Sources:** CuriosityConfig.java (pattern), cognitive-architecture-roadmap.md §5c
+**Exploration:** quick
+**Status:** captured
+
+## D32: AttentionItem record — scored entry with reason
+
+**Choice:** `AttentionItem(TemporalEntry entry, double salience, String reason)` record in `cognitive-index`. Implements `Comparable<AttentionItem>` (descending salience). Reason is a human-readable string: "approaching event", "recent experience", "worsening affect".
+**Alternatives:**
+- Extend TemporalEntry with score+reason — breaks the clean separation between data (entry) and scoring (ranker).
+- Enum-based reason — structured but limits expressiveness; string is simpler and the reason is for display, not programmatic use.
+**Rationale:** Clean composition: TemporalEntry is data, AttentionItem is scored data. The record is the return type of `focus()` — it carries everything a consumer needs to render an attention list.
+**Depends on:** D30 (TemporalFocus design)
+**Sources:** TemporalEntry.java (entry record), cognitive-architecture-roadmap.md §4b
+**Exploration:** quick
+**Status:** captured
