@@ -253,7 +253,7 @@
 
 ## D20: Anticipatory affect — explicit caller via AffectType enum
 
-**Choice:** New `AffectType` enum (`INHERENT`, `ANTICIPATORY`) in `memory-api`. `AffectEvents` gets a new overload: `toMemoryInput(nodeId, tenantId, p, a, d, AffectType type)` that sets `affect-type` attribute. The existing overload defaults to `INHERENT`. `AffectTrajectoryDecorator` always logs as `INHERENT` — it captures the node's PAD, which is inherent affect. Anticipatory affect is logged by a separate caller.
+**Choice:** New `AffectType` enum (`INHERENT`, `ANTICIPATORY`) in `cognitive-api` (see D25 for placement). `AffectEvents` gets a new overload: `toMemoryInput(nodeId, tenantId, p, a, d, AffectType type)` that sets `affect-type` attribute. The existing overload defaults to `INHERENT`. `AffectTrajectoryDecorator` always logs as `INHERENT` — it captures the node's PAD, which is inherent affect. Anticipatory affect is logged by a separate caller.
 **Alternatives:**
 - Auto-detect from `validFrom` — if node is future-dated, tag as ANTICIPATORY. Conflates "future node" with "anticipatory affect." You can set inherent affect on a future event (a funeral's inherent sadness ≠ the agent's anticipatory grief).
 - Dual-PAD on NodeUpdate — 6 PAD fields (3 inherent + 3 anticipatory). Heavy record expansion for a distinction that belongs in the memory log, not on the node itself.
