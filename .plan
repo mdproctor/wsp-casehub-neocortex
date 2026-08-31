@@ -25,15 +25,8 @@ active: casehubio/neocortex#241
 - [x] casehubio/neocortex#241 — Prospective event model
 - [x] casehubio/neocortex#242 — Trajectory-aware curiosity
 - [x] casehubio/neocortex#244 — TemporalFocus utility
-- [ ] casehubio/neocortex#243 — Cross-store entity resolution ← active
-  - [x] Batch 1: Query+Result Types
-    - [x] Task 1: CognitiveProfileQuery record
-    - [x] Task 2: EntityKnowledge record
-  - [x] Batch 2: CognitiveProfile Bean
-    - [x] Task 3: CognitiveProfile resolve()
-  - [x] Batch 3: Docs+Roadmap
-    - [x] Task 4: Update CLAUDE.md and roadmap
-- [ ] casehubio/neocortex#245 — Graph reasoning exploration
+- [x] casehubio/neocortex#243 — Cross-store entity resolution
+- [ ] casehubio/neocortex#245 — Graph reasoning exploration ← active
 - [ ] casehubio/neocortex#230 — Memory space model
 - [ ] casehubio/neocortex#233 — Cross-store retrieval modulation
 - [ ] casehubio/neocortex#240 — Perspectival affect overlays
