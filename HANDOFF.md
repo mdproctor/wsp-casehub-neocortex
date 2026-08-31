@@ -2,33 +2,32 @@
 
 ## Last Session
 
-Continued cognitive rearchitecture on `issue-253-cognitive-rearchitecture`. Completed 3 issues this session (#237, #238, #239), advancing queue from position 7 to 10 of 25.
+Continued cognitive rearchitecture on `issue-253-cognitive-rearchitecture`. Completed 3 issues this session (#241, #242, #244), advancing queue from position 9 to 12 of 25.
 
-1. **#237 — Chronological index** (M): New `cognitive-index` module with TemporalIndex CDI bean, TemporalEntry, TemporalSource (sealed), TemporalQuery, TemporalRanker. Stateless cross-store temporal aggregator over MindMap + Memory stores. Instance<T> graceful degradation. 27 tests. Design decisions D12-D18 captured. Filed #254 as follow-up for MemorySpace visibility layer wiring.
+1. **#241 — Prospective event model** (M): Four event TraitRules (AppointableTraitRule, AspirationalTraitRule, ThreateningTraitRule, OpportunisticTraitRule) using two-axis property convention (eventKind/eventValence). Eventlike trait interface for typed property access via TraitProxy. RecurrenceRule record in mindmap-api with RFC 5545 RRULE subset (parse/toString). RecurrenceGenerator static utility in mindmap-intelligence (template → instance expansion). AffectType enum in cognitive-api (INHERENT/ANTICIPATORY). AffectEvents 6-arg overload with affect-type attribute. Event lifecycle as property convention (status=planned/confirmed/active/completed/cancelled/reviewed). Decisions D19-D26 captured and reviewed (standard, 3 rounds, $15.22). D25 revised — AffectType moved to cognitive-api per cognitive classification principle. D26 new — cognitive-api acceptance criteria.
 
-2. **#238 — PAD on Memory** (S): Added nullable pleasure/arousal/dominance to MemoryInput (10 fields) and Memory (12 fields). Updated all 5 backends: InMemory (pass-through), SQLite (V2 migration), JPA (V2 migration + entity), Mem0 (null), Graphiti (null). MoodModulatedRetrieval reads typed fields with attribute fallback. MoodEvents passes typed PAD. 37 files changed via ide_change_signature.
+2. **#242 — Trajectory-aware curiosity** (S): CuriosityConfig record absorbing hardcoded constants + trajectory thresholds. CuriositySignalGenerator.applyAffectDampening rewritten to use AffectTrajectoryAnalyzer slope — worsening boosts, improving dampens, volatility boosts. PROXIMITY signals now participate in trajectory modulation. Instance<CaseMemoryStore> for graceful degradation. memory-api + cognitive-index added as mindmap-intelligence dependencies. Decisions D27-D29.
 
-3. **#239 — Affect trajectory log** (M): AffectEvents converter (domain="affect" memories), AffectRecorded CDI event, AffectTrajectoryDecorator (@Decorator @Priority(70) on MindMapStore — intercepts updateNode PAD changes), AffectTrajectoryAnalyzer (cognitive-index — linear regression slope, volatility, trend direction). 20 tests.
+3. **#244 — TemporalFocus utility** (M): TemporalFocus static utility in cognitive-index — ranked attention list with proximity/recency/trajectory scoring. AttentionItem record (scored entry + reason string). TemporalFocusConfig record for tunable thresholds. Composable TemporalRanker factory. 8 tests. Decisions D30-D32.
 
-Roadmap §2d, §3a, §3b all marked DONE. Full project compiles clean. One pre-existing flaky Qdrant test (`discoverTenants_returnsDistinctTenants`) — unrelated.
+Roadmap sections marked DONE: §3c (Prospective Event Model), §3e (Trajectory-Aware Curiosity), §4b (TemporalFocus Utility). Full project compiles clean (pre-existing flaky Qdrant test discoverTenants_returnsDistinctTenants unrelated).
 
 ## Immediate Next Step
 
-Run `work next` to advance to #241 (Prospective event model, M/Med). This adds event traits (Appointable, Aspirational, Threatening, Opportunistic), lifecycle state machine (PLANNED→CONFIRMED→ACTIVE→COMPLETED/CANCELLED), anticipatory affect, and recurring events via RRULE. Needs brainstorming — 4 distinct concerns.
-
-IntelliJ was unresponsive at session end — restart before resuming.
+Run `work next` to advance to #243 (Cross-store entity resolution, M/Med). This builds a CognitiveProfile utility that aggregates everything the system knows about an entity — MindMap node, text memories, CBR cases, engagement events, affect trajectory — into a unified EntityKnowledge record. Depends on TemporalIndex (#237, done) and affect trajectory (#239, done).
 
 ## What's Next
 
 | Item | Scale / Complexity |
 |------|--------------------|
-| #241 — Prospective event model | M / Med |
-| #242 — Trajectory-aware curiosity | S / Low |
-| #244 — TemporalFocus utility | M / Med |
+| #243 — Cross-store entity resolution | M / Med |
+| #245 — Graph reasoning exploration | Exploration |
+| #230 — Memory space model | M / Med |
 
 ## References
 
-- Spec: `specs/issue-253-cognitive-rearchitecture/2026-08-31-chronological-index-design.md`
-- Decisions: `specs/issue-253-cognitive-rearchitecture/decisions.md` (D12-D18 for this session)
+- Spec: `specs/issue-253-cognitive-rearchitecture/2026-08-31-prospective-event-model-design.md`
+- Spec: `specs/issue-253-cognitive-rearchitecture/2026-08-31-trajectory-aware-curiosity-design.md`
+- Spec: `specs/issue-253-cognitive-rearchitecture/2026-08-31-temporal-focus-design.md`
+- Decisions: `specs/issue-253-cognitive-rearchitecture/decisions.md` (D19-D32 for this session)
 - Roadmap: `docs/guides/cognitive-architecture-roadmap.md`
-- Follow-up: #254 (MemorySpace + TemporalIndex wiring)
