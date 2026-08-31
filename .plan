@@ -27,15 +27,13 @@ active: casehubio/neocortex#241
 - [x] casehubio/neocortex#244 — TemporalFocus utility
 - [x] casehubio/neocortex#243 — Cross-store entity resolution
 - [x] casehubio/neocortex#245 — Graph reasoning exploration
-- [ ] casehubio/neocortex#230 — Memory space model ← active
-  - [x] Batch 1: API types and SPI
-    - [x] Task 1: Types SPI and validation tests
-  - [x] Batch 2: Contract and InMemory
-    - [x] Task 2: Contract tests and InMemory impl
-  - [x] Batch 3: CDI wiring
-    - [x] Task 3: NoOpSpaceMembershipStore
-    - [x] Task 4: SqliteSpaceMembershipStore
-- [ ] casehubio/neocortex#233 — Cross-store retrieval modulation
+- [x] casehubio/neocortex#230 — Memory space model
+- [ ] casehubio/neocortex#233 — Cross-store retrieval modulation ← active
+  - [x] Batch 1: Framework
+    - [x] Task 1: ModulationProfile ModulationFactor RetrievalModulator
+  - [x] Batch 2: Factors and cleanup
+    - [x] Task 2: ModulationFactors ModulationProfiles ModulationContext
+    - [x] Task 3: Delete old utilities and CLAUDE.md
 - [ ] casehubio/neocortex#240 — Perspectival affect overlays
 - [ ] casehubio/neocortex#252 — Memory space YAML
 - [ ] casehubio/neocortex#231 — Builder APIs
