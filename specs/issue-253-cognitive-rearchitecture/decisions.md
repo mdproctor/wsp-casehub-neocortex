@@ -229,3 +229,96 @@
 **Sources:** MindMapAnalyzer.java (same pattern — pure computation over store data), RetrievalAnalyzer.java (same pattern), CbrReconciliationService.java (cautionary — dual-write complexity), cognitive-coherence-audit.md §Temporal (CuriositySignalGenerator tick loop)
 **Exploration:** deep-analysis
 **Status:** captured
+
+## D19: Event trait classification — property-driven, two-axis
+
+**Choice:** Event traits use two orthogonal properties: `event-kind` (scheduled / anticipated) and `event-valence` (positive / negative / aspirational). TraitRules match on these explicit properties, not on PAD inference.
+- Appointable: `event-kind=scheduled` (valence irrelevant — a funeral is appointable)
+- Aspirational: `event-kind=anticipated` + `event-valence=aspirational`
+- Threatening: `event-kind=anticipated` + `event-valence=negative`
+- Opportunistic: `event-kind=anticipated` + `event-valence=positive`
+**Alternatives:**
+- PAD-derived — infer valence from PAD values (Threatening = negative pleasure). Fragile: PAD boundaries are arbitrary and overlapping; a stressful job interview has complex PAD.
+- Hybrid (explicit + PAD fallback) — two code paths, harder to test, unclear which classification the consumer is seeing.
+- Single `event-type` property — forces mutual exclusivity (can't be both Appointable and Threatening).
+- Boolean properties per trait — verbose for LLM extractors.
+**Rationale:** Orthogonality. An event CAN carry both `event-kind=scheduled` (Appointable) AND `event-valence=negative` (Threatening). The axes are independent — kind is about temporal fixedness, valence is about emotional anticipation. PAD inference is fragile because emotional nuance doesn't map cleanly to thresholds. Explicit properties are set by the LLM extractor or the caller — the source that understands the semantic context.
+**Trade-offs:** Requires the extractor to set the right properties. If `event-kind` is missing, no event traits fire — but this is the correct behavior (not every future-dated node is an "event").
+**Sources:** TraitRule.java (matches on node + edges), PersonableTraitRule.java (property-checking pattern), ProjectlikeTraitRule.java (status property check), cognitive-architecture-roadmap.md §3c
+**Exploration:** quick
+**Status:** captured
+
+## D20: Anticipatory affect — explicit caller via AffectType enum
+
+**Choice:** New `AffectType` enum (`INHERENT`, `ANTICIPATORY`) in `memory-api`. `AffectEvents` gets a new overload: `toMemoryInput(nodeId, tenantId, p, a, d, AffectType type)` that sets `affect-type` attribute. The existing overload defaults to `INHERENT`. `AffectTrajectoryDecorator` always logs as `INHERENT` — it captures the node's PAD, which is inherent affect. Anticipatory affect is logged by a separate caller.
+**Alternatives:**
+- Auto-detect from `validFrom` — if node is future-dated, tag as ANTICIPATORY. Conflates "future node" with "anticipatory affect." You can set inherent affect on a future event (a funeral's inherent sadness ≠ the agent's anticipatory grief).
+- Dual-PAD on NodeUpdate — 6 PAD fields (3 inherent + 3 anticipatory). Heavy record expansion for a distinction that belongs in the memory log, not on the node itself.
+**Rationale:** Inherent affect is a property of the event ("funerals are sad"). Anticipatory affect is a property of the agent's emotional response to the event ("I dread the funeral"). These are set by different actors at different times — inherent by the extractor at creation, anticipatory by the agent as the event approaches. Separate entry points enforce this distinction.
+**Trade-offs:** Anticipatory affect logging is not automatic — the consuming application must call the overloaded converter explicitly. This is intentional: neocortex provides the mechanism; the agent framework (blocks) provides the trigger.
+**Depends on:** D19 (event trait classification — anticipatory affect only applies to nodes with event traits)
+**Sources:** AffectEvents.java (converter pattern), AffectTrajectoryDecorator.java (intercepts updateNode), AffectRecorded.java (CDI event), cognitive-architecture-roadmap.md §3c
+**Exploration:** quick
+**Status:** captured
+
+## D21: Event lifecycle — convention only, no transition validation
+
+**Choice:** Lifecycle states (PLANNED, CONFIRMED, ACTIVE, COMPLETED, CANCELLED, REVIEWED) are property values on the `status` key. No transition enforcement — the system does not validate that status changes follow legal paths. TraitRules apply traits based on current status. Enforcement is the caller's responsibility.
+**Alternatives:**
+- Validated transitions via decorator — a new decorator validates state transitions against a legal transition table. Robust but couples MindMapStore to lifecycle semantics. The generic property system shouldn't know about event-specific state machines.
+- Convention + affect audit log — no enforcement but every status change logs an affect entry. Appealing but the AffectTrajectoryDecorator already logs PAD changes — status changes without PAD changes don't need affect logging.
+**Rationale:** The existing pattern. `ProjectlikeTraitRule` already checks `node.property("status").isPresent()` with no validation of values. Lifecycle enforcement belongs in the application layer (blocks/engine), not in the storage layer. MindMapStore is a graph database, not a business rule engine. The status values are documented in the consumer guide as a convention.
+**Trade-offs:** Nothing prevents invalid transitions (COMPLETED → PLANNED). Acceptable for a pre-release platform where the caller is always the LLM extractor or agent framework.
+**Sources:** ProjectlikeTraitRule.java:18 (status check), cognitive-architecture-roadmap.md §3c, GE-20260803-263c2c (state machine technique — relevant for consumers, not for the storage layer)
+**Exploration:** quick
+**Status:** captured
+
+## D22: RRULE — RecurrenceRule record in mindmap-api, generator in mindmap-intelligence
+
+**Choice:** `RecurrenceRule` record in `mindmap-api`: `RecurrenceRule(Frequency freq, int interval, Integer count, Instant until, Set<DayOfWeek> byDay)` with `parse(String rrule)` factory and `toString()` that produces an RRULE string. Minimal RFC 5545 subset: FREQ (DAILY/WEEKLY/MONTHLY/YEARLY), INTERVAL, COUNT, UNTIL, BYDAY. `RecurrenceGenerator` static utility in `mindmap-intelligence`: `List<NodeInput> generateInstances(MindMapNode template, RecurrenceRule rule, Instant horizon)`. Property key on template: `rrule`. Pure function, no CDI.
+**Alternatives:**
+- Full RRULE via library — RFC 5545 with EXDATE, RDATE, WKST, BYMONTH, BYHOUR. Heavy dependency for a string property on a graph node.
+- Opaque string, no parsing — maximum simplicity but defers all value to the caller. The generator couldn't exist in neocortex.
+- CDI bean generator — @ApplicationScoped for injection. Adds CDI weight for a stateless pure function.
+**Rationale:** The minimal subset covers >90% of real-world recurrence patterns (weekly team meeting, monthly review, annual check-up). The record in `mindmap-api` enables downstream consumers (e.g., calendar queries in blocks) to parse the property without depending on mindmap-intelligence. The generator in mindmap-intelligence follows the `CuriositySignalGenerator` pattern — a static utility that operates on graph data.
+**Trade-offs:** No EXDATE/RDATE support — can't express "every Monday except holidays." Acceptable for v1; extend the record later if needed.
+**Sources:** RFC 5545 §3.3.10 (RRULE), CuriositySignalGenerator.java (static utility pattern), cognitive-architecture-roadmap.md §3c
+**Exploration:** quick
+**Status:** captured
+
+## D23: Template-to-instance relationship — property link
+
+**Choice:** Instance nodes carry `template-node-id=<templateId>` and `recurrence-index=<N>` as properties. The template node carries `rrule=<RRULE string>`. No edges between template and instances.
+**Alternatives:**
+- NodeRef — `NodeRef(scheme="template", id=templateId)`. Type-safe but NodeRefs are for cross-system references (memory, cbr), not intra-graph relationships.
+- Edge — `edge-type="recurrence-instance"` from template to each instance. Graph-native but creates O(n) edges that clutter the graph and trigger DerivedEdgeRule evaluation for each.
+**Rationale:** Properties are the simplest mechanism for metadata that doesn't need graph traversal. "Find all instances of this template" is a property-value search, not a graph walk. Edges are for semantic relationships between entities; template→instance is an implementation relationship.
+**Trade-offs:** No graph-native traversal from template to instances. Property search works but isn't indexed in InMemoryMindMapStore's `search()` (it does text matching across values, not exact property-value lookup). Acceptable — the use case is rare and n is small.
+**Depends on:** D22 (RRULE design)
+**Sources:** MindMapNode.properties() (property system), NodeRef.java (cross-system ref), DerivedEdgeDecorator.java (edge-triggered rules)
+**Exploration:** quick
+**Status:** captured
+
+## D24: Trait interface — single Eventlike interface
+
+**Choice:** One `Eventlike` interface covering all event-related properties: `eventKind()`, `eventValence()`, `status()`, `rrule()`. Accessible via `TraitProxy.as(node, Eventlike.class)`. Separate from the 4 TraitRule implementations — the rules classify, the interface provides typed access.
+**Alternatives:**
+- Per-trait interfaces (Appointable, Aspirational, Threatening, Opportunistic) — follows existing pattern (Personable, Projectlike, Organisational). But event traits share a property namespace — splitting creates 4 interfaces with overlapping property access.
+**Rationale:** Event traits share a property namespace (`event-kind`, `event-valence`, `status`, `rrule`). A node classified as both Appointable and Threatening has the same properties accessible through either trait. One interface avoids duplication and provides a single typed view of all event properties. The existing pattern (one interface per trait) works when traits have disjoint property namespaces; event traits don't.
+**Trade-offs:** Consumer code uses `Eventlike` for all event types rather than a specific interface. The trait name (`Set<String> traits()`) still carries the specific classification.
+**Depends on:** D19 (event trait properties)
+**Sources:** Personable.java (trait interface pattern), TraitProxy.java (JDK Proxy accessor), cognitive-architecture-roadmap.md §3c
+**Exploration:** quick
+**Status:** captured
+
+## D25: AffectType enum placement — memory-api
+
+**Choice:** `AffectType` enum in `io.casehub.neocortex.memory.mood` alongside `AffectEvents`. Values: `INHERENT`, `ANTICIPATORY`.
+**Alternatives:**
+- cognitive-api — cross-cutting cognitive type. But affect type is specific to the affect events converter pattern, not a cross-store concept.
+- mindmap-api — it's about MindMap node affect. But the enum is consumed by the memory converter, not the MindMap store.
+**Rationale:** Colocation with the converter that uses it. `AffectEvents.toMemoryInput()` is the only producer of the attribute — placing the enum alongside it makes the ownership clear. `memory-api` already hosts `AffectEvents`, `AffectRecorded`, and `MoodEvents`.
+**Trade-offs:** If a future cross-store affect system needs the enum, it would depend on memory-api. Acceptable — memory-api is already in the dependency tree of any affect consumer.
+**Sources:** AffectEvents.java (converter), MoodEvents.java (sibling pattern), memory-api package structure
+**Exploration:** quick
+**Status:** captured
