@@ -28,13 +28,12 @@ active: casehubio/neocortex#241
 - [x] casehubio/neocortex#243 — Cross-store entity resolution
 - [x] casehubio/neocortex#245 — Graph reasoning exploration
 - [x] casehubio/neocortex#230 — Memory space model
-- [ ] casehubio/neocortex#233 — Cross-store retrieval modulation ← active
-  - [x] Batch 1: Framework
-    - [x] Task 1: ModulationProfile ModulationFactor RetrievalModulator
-  - [x] Batch 2: Factors and cleanup
-    - [x] Task 2: ModulationFactors ModulationProfiles ModulationContext
-    - [x] Task 3: Delete old utilities and CLAUDE.md
-- [ ] casehubio/neocortex#240 — Perspectival affect overlays
+- [x] casehubio/neocortex#233 — Cross-store retrieval modulation
+- [ ] casehubio/neocortex#240 — Perspectival affect overlays ← active
+  - [x] Batch 1: Convention and merge
+    - [x] Task 1: OverlayRef and PerspectivalMerge
+  - [x] Batch 2: Resolver
+    - [x] Task 2: PerspectivalResolver and CLAUDE.md
 - [ ] casehubio/neocortex#252 — Memory space YAML
 - [ ] casehubio/neocortex#231 — Builder APIs
 - [ ] casehubio/neocortex#246 — API-to-YAML audit
