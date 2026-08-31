@@ -628,3 +628,15 @@
 **Sources:** shared-memory-design.md §The Model, CognitiveProfile.java (consumer of spacesFor)
 **Exploration:** quick
 **Status:** captured
+
+## D50: NoOpSpaceMembershipStore @DefaultBean — graceful degradation
+
+**Choice:** `NoOpSpaceMembershipStore` as `@DefaultBean @ApplicationScoped` in `memory-space-api`. Returns a singleton private space derived from the agentId for `spacesFor()`. Single-agent apps work without adding space infrastructure. Multi-agent apps displace with the real implementation.
+**Alternatives:**
+- No DefaultBean (fail loud) — CDI fails at startup if no implementation is on the classpath. Breaks single-agent apps that add memory-space-api transitively. Inconsistent with the MindMapStore/CaseMemoryStore graceful degradation pattern.
+**Rationale:** Every existing store SPI (MindMapStore, CaseMemoryStore, CbrCaseMemoryStore) has a @DefaultBean no-op. SpaceMembershipStore should follow the same pattern. The no-op creates a private space per agentId — semantically correct for single-agent deployments where every agent's memory IS private.
+**Trade-offs:** Silent no-op if real implementation is missing. Mitigated: log a warning at startup when the no-op is active.
+**Depends on:** D44 (module placement), D49 (SPI shape)
+**Sources:** NoOpMindMapStore.java (pattern), NoOpCaseMemoryStore.java (pattern), light review finding
+**Exploration:** quick (surfaced by review)
+**Status:** captured

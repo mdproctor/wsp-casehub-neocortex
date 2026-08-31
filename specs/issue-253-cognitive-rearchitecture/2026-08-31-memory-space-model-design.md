@@ -155,9 +155,12 @@ memory-space-sqlite/    — SqliteSpaceMembershipStore
                           (HikariCP WAL + Flyway)
 ```
 
-No `@DefaultBean` no-op — space membership is required infrastructure,
-not optional. If no implementation is on the classpath, CDI fails at
-startup (intentional — misconfiguration should be loud).
+`NoOpSpaceMembershipStore` (`@DefaultBean`) — returns a singleton
+private space derived from the agentId. Single-agent apps work without
+adding space infrastructure. Multi-agent apps displace with the real
+implementation. Follows the MindMapStore/CaseMemoryStore graceful
+degradation pattern. Lives in the `memory-space-api` module alongside
+the SPI (same pattern as NoOpMindMapStore in `mindmap`).
 
 ### Integration Notes
 
@@ -220,6 +223,7 @@ D44-D49 in `decisions.md`. Key choices:
 - MemorySpace record with space-as-tenant, SpaceType enum (D47)
 - SpaceMembership with opaque string roles, temporal validity (D48)
 - Minimal SpaceMembershipStore SPI — spacesFor as key query (D49)
+- NoOpSpaceMembershipStore @DefaultBean for graceful degradation (D50)
 
 ## References
 
