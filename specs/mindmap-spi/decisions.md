@@ -29,9 +29,10 @@
 **Alternatives:**
 - Emergent from edge density — more flexible but requires graph analysis to answer "which subgraph?"
 - Declared but optional — hybrid that allows orphan nodes, more complex query model
-**Rationale:** Gives typed schema expectations per subgraph type (PROJECT has different expectations than PERSON). Simple to query ("give me the project subgraph for neocortex"). Cross-subgraph edges are explicit bridges, making the merge points visible.
-**Trade-offs:** Every node must belong to a subgraph — no free-floating concepts. May need a "general" or "uncategorised" subgraph as a catch-all.
-**Sources:** Mind map mental model from conversation
+- SubgraphType as String with vocabulary registration (following D6's edge type governance model) — rejected: SubgraphType is architect-driven (determines structural analysis expectations, decay rates, partitioning semantics), not discovery-driven (LLM-extracted). Edge types grow through LLM extraction and need open vocabulary; subgraph types define how the graph is partitioned and each carries structural expectations. Different governance models are appropriate for different growth patterns. GENERAL serves as the catch-all for uncategorised content.
+**Rationale:** Gives typed schema expectations per subgraph type (PROJECT has different expectations than PERSON). Simple to query ("give me the project subgraph for neocortex"). Cross-subgraph edges are explicit bridges, making the merge points visible. The enum enforces that adding a new structural category is a deliberate SPI evolution, not something that happens silently via configuration.
+**Trade-offs:** Every node must belong to a subgraph — no free-floating concepts. May need a "general" or "uncategorised" subgraph as a catch-all. Application repos cannot introduce domain-specific subgraph types without modifying the SPI — this is intentional friction: each new type carries structural expectations (decay rates, analysis heuristics) that should be designed, not discovered.
+**Sources:** Mind map mental model from conversation, R1-03 decision review finding
 **Exploration:** quick
 **Status:** captured
 
@@ -55,10 +56,11 @@
 - All intelligence in the SPI — couples storage to LLM dependencies
 - Enrichment pipeline in the SPI (like CaseEnrichmentStep) — less flexible than decorators
 **Rationale:** The CBR system proves this pattern: `TrendEnrichmentCbrCaseMemoryStore` at `@Priority(90)` enriches transparently; LLM-based operations are explicit. The same split applies here: vocabulary normalization and forward-chaining rules for derived edges are cheap, deterministic, and should fire transparently on every addEdge(). LLM extraction, gap detection, and active learning are expensive, non-deterministic, and should be explicitly invoked.
-**Trade-offs:** Decorator chain adds implementation complexity. Decorator ordering must be documented. Transparent rules must be fast — slow rules should be moved to the explicit intelligence layer.
-**Sources:** CbrCaseMemoryStore decorator chain (TrendEnrichment, OutcomeWeighting, TrustWeighted), CaseEnrichmentStep, R1-04 decision review finding
+**Truth maintenance durability:** Derived edge provenance properties (`mindmap.derived.trigger-edge-id`, `mindmap.derived.rule-name`, `mindmap.derived=true`) persisted as edge properties in the store are the **authoritative** source for trigger-to-derived edge relationships. The `DerivedEdgeDecorator`'s in-memory `ConcurrentHashMap<String, List<String>> triggerToDerived` is a session-scoped performance cache — it must NOT be the sole mechanism for truth maintenance cascades. `removeEdge()` must query the store for edges carrying `PROPERTY_TRIGGER_EDGE_ID = edgeId` to discover derived edges that should be retracted, falling back to persisted provenance when the cache is cold (e.g., after process restart). This ensures truth maintenance survives restarts and is correct regardless of cache state.
+**Trade-offs:** Decorator chain adds implementation complexity. Decorator ordering must be documented. Transparent rules must be fast — slow rules should be moved to the explicit intelligence layer. Truth maintenance via store query on `removeEdge()` adds a query per removal — acceptable at agent scale (D25).
+**Sources:** CbrCaseMemoryStore decorator chain (TrendEnrichment, OutcomeWeighting, TrustWeighted), CaseEnrichmentStep, R1-04 decision review finding, R2-03 decision review finding (truth maintenance durability)
 **Exploration:** quick
-**Status:** revised (was: all intelligence above SPI)
+**Status:** revised (was: all intelligence above SPI; added: truth maintenance durability requirement)
 
 ## D6: Controlled vocabulary governance — soft registration with validation tiers
 
@@ -68,7 +70,8 @@
 - Open with normalization above — flexible but allows synonym accumulation without any governance
 **Rationale:** The LLM extraction layer (D5) may discover novel relationship types that aren't pre-registered. Hard rejection forces pre-registration of all possible types (defeating LLM discovery) or on-the-fly registration (making the boundary meaningless). Soft governance preserves the controlled vocabulary as the goal while allowing discovery. Edges carry a validation tier: `REGISTERED` (normalised, governed) or `UNVALIDATED` (accepted, flagged for review). A promotion path moves validated types from UNVALIDATED to REGISTERED.
 **Trade-offs:** UNVALIDATED types can accumulate if the intelligence layer doesn't actively review them. Needs a periodic cleanup/promotion mechanism. Queries should distinguish between validated and unvalidated edges when governance matters.
-**Sources:** CbrFeatureSchema.registerSchema() pattern, conversation on vocabulary governance, R1-05 decision review finding
+**Scope:** Edge type vocabulary only. Trait name governance is intentionally intelligence-layer scope (per D9) — the SPI stores trait names as opaque strings and has no vocabulary governing what they mean. Trait name normalization ("person" vs "individual" vs "human") is the responsibility of TraitRule implementations and the intelligence layer, not the SPI. This follows the D5 split: transparent concerns (vocabulary normalization for edges) are SPI-level; semantic concerns (trait classification and normalization) are intelligence-level.
+**Sources:** CbrFeatureSchema.registerSchema() pattern, conversation on vocabulary governance, R1-05 decision review finding, R1-04 decision review finding (scope clarification)
 **Exploration:** quick
 **Status:** revised (was: hard rejection of unregistered types)
 
@@ -90,10 +93,10 @@
 - Batch-oriented operations — fewer methods but complex input types, harder to test individually
 - Resource-oriented (one interface per concept) — over-decomposition, complex CDI wiring
 **Rationale:** Same pattern as CbrCaseMemoryStore — a single interface with granular methods. Simple to implement, test, and decorate. The intelligence layer composes the primitives. Batch operations can be added later as default methods.
-**Trade-offs:** More methods on the interface (~15-20). Each must be independently tested in contract suite.
-**Sources:** CbrCaseMemoryStore pattern, CaseMemoryStore pattern
+**Trade-offs:** More methods on the interface (~27 including `updateSubgraph`). Each must be independently tested in contract suite. For comparison, `CbrCaseMemoryStore` has 14 methods and 8 decorators — each delegating all 14. The ratio is comparable and the pattern is proven at the platform's current decorator count. The method count reflects domain complexity (nodes + edges + aliases + subgraphs + traversal + vocabulary + lifecycle + erasure), not interface bloat.
+**Sources:** CbrCaseMemoryStore pattern (14 methods, 8 decorators), CaseMemoryStore pattern (12 methods), R1-05 decision review finding
 **Exploration:** quick
-**Status:** captured
+**Status:** revised (was: method count estimate ~15-20)
 
 ## D9: Node content model — hybrid core + dynamic properties + opaque trait metadata
 
@@ -124,15 +127,15 @@
 
 ## D11: Tenant isolation
 
-**Choice:** Tenant-isolated, consistent with all platform memory SPIs. Every mutating and querying method requires `tenantId`. The SPI enforces tenant boundaries — a node in tenant A is invisible to queries in tenant B. No cross-tenant operations on the SPI surface (unlike CaseMemoryStore's `eraseEntityAcrossTenants`); cross-tenant admin operations can be added later as capabilities if needed.
+**Choice:** Tenant-isolated, consistent with all platform memory SPIs. Every mutating and querying method requires `tenantId`. The SPI enforces tenant boundaries — a node in tenant A is invisible to queries in tenant B. Cross-tenant erasure is included on the SPI surface via `eraseEntityAcrossTenants(String entityName, Set<String> tenantIds)`, matching `CaseMemoryStore.eraseEntityAcrossTenants()` for GDPR compliance. Guarded by `CROSS_TENANT_ERASE` capability.
 **Alternatives:**
 - Tenant-unaware SPI with tenant filtering above — violates platform security conventions
-- Cross-tenant operations from day one — premature for the initial scope
-**Rationale:** Every memory SPI in the platform (`CaseMemoryStore`, `CbrCaseMemoryStore`) requires tenantId on every operation and enforces access via `MemoryPermissions.assertTenant()`. The mindmap SPI must follow the same convention for platform coherence and security.
-**Trade-offs:** Every method signature includes tenantId — slightly more verbose API. Cross-tenant admin (e.g., "find all nodes about this entity across tenants") requires a separate capability added later.
-**Sources:** CaseMemoryStore.store(MemoryInput) — tenantId required, CbrCaseMemoryStore — tenantId on every call, MemoryPermissions.assertTenant(), R1-11 decision review finding
+- No cross-tenant operations — cleaner SPI but forces GDPR cross-tenant erasure through per-tenant iteration at the caller, duplicating the pattern CaseMemoryStore already provides
+**Rationale:** Every memory SPI in the platform (`CaseMemoryStore`, `CbrCaseMemoryStore`) requires tenantId on every operation and enforces access via `MemoryPermissions.assertTenant()`. The mindmap SPI must follow the same convention for platform coherence and security. Cross-tenant erasure was added to match `CaseMemoryStore.eraseEntityAcrossTenants()` — GDPR Art.17 erasure requests apply across all tenants, and the platform convention is to provide this at the SPI level rather than forcing callers to iterate.
+**Trade-offs:** Every method signature includes tenantId — slightly more verbose API. Cross-tenant erasure requires admin-level authorization at the caller.
+**Sources:** CaseMemoryStore.store(MemoryInput) — tenantId required, CaseMemoryStore.eraseEntityAcrossTenants() — cross-tenant GDPR pattern, CbrCaseMemoryStore — tenantId on every call, MemoryPermissions.assertTenant(), R1-11 decision review finding, R1-02 decision review finding
 **Exploration:** quick
-**Status:** captured
+**Status:** revised (was: no cross-tenant operations on SPI surface)
 
 ## D12: GDPR erasure
 
@@ -165,10 +168,12 @@
 - Keep separate CBR stores, use NodeRef to link — preserves existing architecture but doesn't unify
 - Replace all CBR stores with graph — too aggressive, loses CBR's similarity scoring
 **Rationale:** The existing orchestrators (InnerLifeOrchestrator → DriveOrchestrator → MentalModelOrchestrator → UserModelOrchestrator → StrategyLearningOrchestrator → NarrativeOrchestrator → MemoryHygieneOrchestrator) are silos. Each has its own CBR backend (CbrMentalModelStore, CbrStrategyStore, CbrUserProfileStore, CbrNarrativeStore). The mind map makes cross-system connections explicit and queryable. CuriosityDrive can traverse the graph to find knowledge gaps. Narrative episodes link to the entities they mention. Strategy profiles connect to the situations they apply in. The graph is the shared substrate; the CBR stores continue to own domain-specific similarity retrieval.
-**Trade-offs:** Blocks depends on the mindmap-api module. Observer-based integration adds latency on each domain event. Need to ensure the graph doesn't become a bottleneck for the tick loop. CBR stores and graph can diverge if observers fail — need consistency guarantees or eventual consistency acceptance.
-**Sources:** blocks InnerLifeOrchestrator, MentalModelOrchestrator, DriveOrchestrator, CbrMentalModelStore, CbrStrategyStore, CbrUserProfileStore, CbrNarrativeStore, MemoryHygieneOrchestrator, KnowledgeGapSummary
+**Trade-offs:** Blocks depends on the mindmap-api module. Observer-based integration adds latency on each domain event. The circular data flow (blocks → graph → analyzer → curiosity → blocks) is intentional — it is a cognitive feedback loop, not an architectural smell. Knowledge begets curiosity begets more knowledge.
+**Consistency model:** Best-effort, fire-and-forget via CDI observers — no convergence guarantee. If a CDI observer fails (e.g., `MentalStateSignal` processed by CbrMentalModelStore but the graph observer throws), the CBR store and graph diverge silently. For entities mentioned repeatedly, subsequent events will re-establish the connection. For entities mentioned once (a peripheral colleague, a one-time project), observer failure creates permanent divergence — the graph will never learn about that connection. This is acceptable because: (1) the graph is supplementary — the CBR stores remain authoritative for domain-specific retrieval; (2) `MindMapAnalyzer` detects sparse subgraphs and dangling NodeRefs, surfacing gaps as curiosity signals that can prompt re-discovery; (3) the cost of retry/compensation infrastructure exceeds the value of guaranteed convergence for a supplementary view. No retry, no compensation, no anti-entropy mechanism.
+**Tick-loop budget:** Graph analysis on each tick is bounded by the analysis implementation (see D16). The integration pattern itself (CDI observer → addNode/addEdge) is O(1) per event. The cost concern is in the analysis phase, not the integration phase — addressed in D16.
+**Sources:** blocks InnerLifeOrchestrator, MentalModelOrchestrator, DriveOrchestrator, CbrMentalModelStore, CbrStrategyStore, CbrUserProfileStore, CbrNarrativeStore, MemoryHygieneOrchestrator, KnowledgeGapSummary, R1-07 decision review finding
 **Exploration:** deep-analysis
-**Status:** captured
+**Status:** revised (was: consistency model unspecified)
 
 ## D15: Decay, supersession, and temporal lifecycle on nodes and edges
 
@@ -193,11 +198,13 @@
 **Alternatives:**
 - No analysis — consumers query the raw graph and compute signals themselves. Duplicated logic, no indexing, expensive.
 - Full graph analysis on every query — accurate but too slow for tick-loop integration.
-**Rationale:** The graph's value as a curiosity driver depends on efficient access to "what's interesting." Without indexing, every tick would need a full graph scan. Incremental analysis (update indexes on each addNode/addEdge/supersede) keeps the cost proportional to changes, not graph size. The existing `RetrievalAnalyzer` pattern (pure computation over tracker data — documentStats, unretrievedDocuments, qualitySignals, correlationGraph) provides the architectural precedent.
-**Trade-offs:** Index maintenance adds overhead to every write operation. Indexes can lag behind the graph during high-throughput ingestion. Need to balance index freshness vs write performance — eventual consistency is acceptable for curiosity signals.
-**Sources:** RetrievalAnalyzer (rag-api), KnowledgeGapSummary (blocks memory), CuriosityDrive (blocks social/drive), DriveOrchestrator, conversation on graph analysis
+**Rationale:** The graph's value as a curiosity driver depends on efficient access to "what's interesting." The target architecture uses incremental indexes (update on each addNode/addEdge/supersede) to keep cost proportional to changes, not graph size. The existing `RetrievalAnalyzer` pattern (pure computation over tracker data — documentStats, unretrievedDocuments, qualitySignals, correlationGraph) provides the architectural precedent.
+**V1 implementation:** V1 uses full-scan analysis via static utility methods in `MindMapAnalyzer` — `orphanNodes()`, `degreeCentrality()`, `betweennessCentrality()` (Brandes' algorithm, O(V×E)), etc. all perform full graph traversal per call. This is adequate for agent-scale graphs (hundreds to low thousands of nodes per tenant, per D25) and serves as a proving ground for which signals are actually useful before investing in incremental index infrastructure.
+**Incremental index trigger:** When graph analysis per tick exceeds 10ms at the P99, the full-scan approach should be replaced with maintained indexes updated on each mutation. The specific signals to index will be determined by V1 usage patterns — not all signals may warrant indexing.
+**Trade-offs:** V1 full-scan adds O(V×E) worst-case per tick for betweenness centrality. Mitigated by: (a) agent-scale graphs are small; (b) analysis can be sampled (run betweenness every N ticks, not every tick); (c) cached results with TTL are acceptable for curiosity signals. Index maintenance (future) adds overhead to every write operation but makes analysis O(1).
+**Sources:** RetrievalAnalyzer (rag-api), KnowledgeGapSummary (blocks memory), CuriosityDrive (blocks social/drive), DriveOrchestrator, conversation on graph analysis, R1-06 decision review finding
 **Exploration:** deep-analysis
-**Status:** captured
+**Status:** revised (was: claimed incremental indexes without acknowledging V1 full-scan implementation)
 
 ## D17: Affective annotations on knowledge
 
@@ -211,14 +218,112 @@
 **Exploration:** quick
 **Status:** captured
 
-## D18: Temporal and spatial proximity for curiosity prioritization
+## D18: Temporal proximity for curiosity prioritization
 
-**Choice:** Nodes can carry temporal markers (future dates — events, deadlines, aspirations) and spatial markers (locations, regions). The graph analysis layer uses temporal proximity ("what's coming up soon?") and spatial proximity ("where am I / where am I going?") to prioritize which areas of the graph to expand. Future-dated nodes act as attention magnets — as the date approaches, the curiosity engine intensifies knowledge-seeking in connected areas. A "calendar" is simply a query over temporally-marked nodes — no separate calendar store needed.
+**Choice:** Nodes carry temporal markers via `validFrom`/`validUntil` fields (future dates — events, deadlines, aspirations). The graph analysis layer uses temporal proximity ("what's coming up soon?") to prioritize which areas of the graph to expand. Future-dated nodes act as attention magnets — as the date approaches, the curiosity engine intensifies knowledge-seeking in connected areas. A "calendar" is simply a query over temporally-marked nodes — no separate calendar store needed.
 **Alternatives:**
 - Separate calendar SPI — adds a new store for something the graph already models naturally
-- No temporal/spatial prioritization — curiosity engine treats all gaps equally regardless of relevance to upcoming events
-**Rationale:** Knowledge that matters next week is more valuable to expand than knowledge that matters next year. A node "visiting parents next Saturday" with temporal proximity = 5 days should drive questions about the parents, the trip, what they want to discuss. Similarly, spatial proximity elevates location-relevant knowledge when the user is travelling. These are properties on nodes (future date, location), not new node types — they participate in the existing graph structure and analysis.
-**Trade-offs:** Temporal markers require updates as events pass (are they still relevant? did they happen? what was the outcome?). Spatial awareness requires location input from somewhere. LLM extraction must recognize temporal and spatial references ("next week", "in London") and resolve them to concrete dates/locations.
-**Sources:** Conversation on graph analysis prioritization, CuriosityDrive (blocks), no existing calendar capability in the platform
+- No temporal prioritization — curiosity engine treats all gaps equally regardless of relevance to upcoming events
+**Rationale:** Knowledge that matters next week is more valuable to expand than knowledge that matters next year. A node "visiting parents next Saturday" with temporal proximity = 5 days should drive questions about the parents, the trip, what they want to discuss. These are properties on nodes (future date), not new node types — they participate in the existing graph structure and analysis.
+**Trade-offs:** Temporal markers require updates as events pass (are they still relevant? did they happen? what was the outcome?). LLM extraction must recognize temporal references ("next week") and resolve them to concrete dates.
+**Spatial proximity (future work):** Spatial markers (locations, regions) and spatial proximity ("where am I / where am I going?") are a natural extension but not designed to the same level as temporal. They require: (a) a location field type on nodes (lat/long? named place? hierarchical?), (b) a location source (device location? user statement? extracted from conversation?), (c) a proximity function (geographic distance? semantic like "London" ≈ "UK"?). None of these are resolved. Spatial proximity will be designed as a separate decision when the platform has a location model.
+**Sources:** Conversation on graph analysis prioritization, CuriosityDrive (blocks), no existing calendar capability in the platform, R1-09 decision review finding
 **Exploration:** quick
+**Status:** revised (was: spatial proximity presented as peer of temporal without design detail)
+
+## D19: TraitApplicationDecorator chain ordering — @Priority(70), outermost
+
+**Choice:** `TraitApplicationDecorator` at `@Priority(70)` in the CDI decorator chain, outermost relative to `DerivedEdgeDecorator` at `@Priority(80)`. Evaluates trait rules on the return path after all inner decorators (including DerivedEdge) have completed. Chain: `TraitApp(70) → DerivedEdge(80) → Store`.
+**Alternatives:**
+- @Priority(85), innermost — trait rules fire before derived edges exist, so they see an incomplete edge picture. Wrong ordering: "does node have parent-of edges?" requires derived inverses to already exist.
+- Plain wrapper (no CDI @Decorator) — loses CDI discovery of TraitRule beans, breaks the DerivedEdgeDecorator pattern.
+**Rationale:** Trait rules need to see ALL edges — including derived ones — to make correct decisions. The outermost decorator delegates first (lets DerivedEdge store the edge and fire derived rules), then evaluates trait rules against the node's complete edge set on the return path. When traits change, calls `delegate.updateNode()` (passthrough in DerivedEdge) and optionally `delegate.addEdge()` (goes through DerivedEdge, bounded by its depth counter).
+**Trade-offs:** Trait rules fire for every edge mutation (including derived edges if CDI routing goes through the full chain). Performance impact is bounded by O(rules × mutations-per-user-action). Acceptable for agent-scale graphs.
+**Sources:** DerivedEdgeDecorator @Priority(80) implementation, GE-20260716-f292d3 (CDI decorator ordering gotcha), spec §5.2.1
+**Exploration:** deep-analysis
+**Depends on:** D5 (intelligence layer placement)
+**Status:** captured
+
+## D20: Trait evaluation cycle prevention — reentrancy guard
+
+**Choice:** `ThreadLocal<Boolean>` reentrancy guard in `TraitApplicationDecorator`. Trait evaluation fires once per user-initiated mutation. During evaluation, the guard is set. Mutations triggered BY trait evaluation (`delegate.updateNode`, `delegate.addEdge`) go through DerivedEdge (bounded by its own depth-3 counter) but skip trait re-evaluation.
+**Alternatives:**
+- Shared `ThreadLocal<Integer>` counter across DerivedEdge and TraitApp — allows multi-level trait chaining but couples two independent decorators through shared mutable state in a utility class.
+- Independent depth counter (max 2) in TraitApp — total chain length is multiplicative (DerivedEdge depth × TraitApp depth), hard to reason about the interaction.
+**Rationale:** The spec's "max depth 3" chain (trait → edge → trait → ...) is naturally enforced: the edge side is bounded by DerivedEdge's own counter, and the trait side fires at most once per user action. Trait-triggered edges get their derived edges (bounded at 3), but those derived edges don't trigger further trait evaluation. Simple, bounded, correct. No shared state between decorators.
+**Trade-offs:** If applying trait A triggers an edge whose derived edge would make trait B applicable on a different node, trait B won't be discovered until the next user-triggered mutation. Acceptable for V1 — multi-level trait chains are unusual and can be addressed later if needed.
+**Sources:** DerivedEdgeDecorator ThreadLocal<Integer> depth tracking, spec §5.2.1 (cycle prevention)
+**Exploration:** deep-analysis
+**Depends on:** D19 (chain ordering)
+**Status:** captured
+
+## D21: Proxy generation — JDK Proxy.newProxyInstance()
+
+**Choice:** JDK `java.lang.reflect.Proxy` with convention-based method dispatch. `TraitProxy.as(node, Personable.class)` creates a proxy where `birthday()` → `node.property("birthday")`. Method name = property key. Return type drives conversion (String passthrough, Optional wrapping, Integer/Double parsing).
+**Alternatives:**
+- ByteBuddy — can proxy abstract classes, better stack traces. But trait interfaces are interfaces by design; adds a dependency for no architectural benefit.
+- Manual implementation classes — no reflection, explicit, but every new trait interface requires a new hand-written class. Defeats the purpose of proxy generation.
+**Rationale:** Zero external deps. Interface-only (which is exactly what trait interfaces are). Well-proven pattern (GE-20260803-0c691f uses the same approach for CDI Instance<T> stubbing). Convention-based mapping (method name = property key) matches the Drools Traits model the spec references (§5.3).
+**Trade-offs:** JDK Proxy has worse stack traces than ByteBuddy. No compile-time verification that property keys match trait methods. Reflection has minor overhead per call (acceptable for graph queries, not hot-path inference).
+**Sources:** GE-20260803-0c691f (CDI Instance stubbing via Proxy), spec §5.2 (proxy generation), §5.3 (Drools Traits model)
+**Exploration:** quick
+**Status:** captured
+
+## D22: TraitApplicationDecorator placement — mindmap/ CDI module
+
+**Choice:** `TraitApplicationDecorator` lives in `mindmap/` (CDI module), same as `DerivedEdgeDecorator`. Discovers `TraitRule` beans via CDI `Instance<TraitRule>`. No-op when no rules on classpath. Module split: `mindmap-api/` has `TraitRule` SPI interface, `mindmap/` has the decorator engine, `mindmap-intelligence/` has rule implementations + trait interfaces + `TraitProxy`.
+**Alternatives:**
+- In `mindmap-intelligence/` — decorator only exists when intelligence module is present. Cleaner isolation but breaks the established pattern. DerivedEdgeDecorator is in mindmap/ even though DerivedEdgeRule implementations could be in mindmap-intelligence/. Also means basic trait evaluation requires the intelligence module on the classpath.
+**Rationale:** Follows the DerivedEdgeDecorator pattern exactly: decorator is the ENGINE (fires rules, applies/retracts traits), rules are the KNOWLEDGE (implementations in separate module). The decorator is useful even without the intelligence module — a consumer could provide their own TraitRule beans. Consistent CDI wiring story.
+**Trade-offs:** mindmap/ has a decorator that does nothing when mindmap-intelligence/ is not on the classpath. Acceptable — same as DerivedEdgeDecorator with no DerivedEdgeRule beans.
+**Sources:** DerivedEdgeDecorator pattern (mindmap/ module), D5 (intelligence layer split)
+**Exploration:** quick
+**Depends on:** D5 (intelligence layer placement), D19 (chain ordering)
+**Status:** captured
+
+## D23: SPI module boundary — extension point contracts in mindmap-api
+
+**Choice:** `mindmap-api` contains both storage contracts (`MindMapStore`) and extension point contracts (`DerivedEdgeRule`, `TraitRule`). Rule interfaces live in the SPI module, rule implementations live in `mindmap-intelligence/` or application modules.
+**Alternatives:**
+- Extension point contracts in a separate module (`mindmap-rules-api`) — unnecessary module proliferation; the SPI module IS the extension point module
+- Extension point contracts in `mindmap/` (CDI module) — forces rule implementations to depend on the CDI module, not just the SPI
+- Extension point contracts in `mindmap-intelligence/` — breaks the engine/knowledge split: the decorator engine (in `mindmap/`) needs to discover rules via CDI, so the rule interface must be visible to `mindmap/`
+**Rationale:** Platform convention: SPI modules contain all extension point contracts. `rag-api` has `QueryExpander`, `MetadataExtractor`, `CursorStore`. `memory-api` has `CaseMemoryStore` and `MemoryCapability`. The SPI module defines what consumers implement and what the runtime discovers. `DerivedEdgeRule` is in `mindmap-api` so that any module (including `mindmap-intelligence/` and application-level modules) can provide rule implementations by depending only on the zero-dependency SPI module.
+**Trade-offs:** Rule implementations receive a `MindMapStore` parameter, giving them full read access to the store. This is by design — derived edge rules may need to query the graph to make decisions (e.g., "if the source node already has a parent-of edge, don't create a duplicate").
+**Sources:** rag-api QueryExpander/MetadataExtractor/CursorStore pattern, DerivedEdgeDecorator CDI discovery, R1-12 decision review finding
+**Exploration:** quick (surfaced by review)
+**Status:** captured
+
+## D24: Atomicity of compound SPI operations
+
+**Choice:** Compound SPI operations (`mergeNodes`, `eraseNode` with cascading cleanup, `eraseSubgraph`, `eraseEntityAcrossTenants`) must be atomic — they either complete fully or leave no partial state. This is a documented SPI contract, not an implementation detail.
+**Alternatives:**
+- Eventual consistency for compound operations — simpler implementation but allows structurally inconsistent graph states (e.g., `mergeNodes` repoints edges but fails to merge aliases)
+- Event-sourced mutation log with replay — full auditability and recovery, but heavyweight for the current scale and introduces a new infrastructure dependency
+**Rationale:** Graph structural consistency is a hard requirement. A partially-failed `mergeNodes` (edges repointed but aliases not merged) or `eraseNode` (node deleted but edges left dangling) produces a graph that violates structural invariants. The SPI contract must guarantee that these operations are atomic. The SQLite backend provides this via database transactions. Future backends (TinkerPop, PostgreSQL) support transactions (`graph.tx().commit()`, JDBC transactions). Any backend that cannot provide atomicity for these operations should not implement the corresponding capabilities.
+**Trade-offs:** Atomicity constrains backend implementation — backends must support transactions for compound operations. This is acceptable because the operations that require atomicity are the same ones that require transactional isolation in any graph store.
+**Sources:** SQLite transaction semantics, TinkerPop Transaction API, MergeResult (spec §3.9 — documents the expected atomic outcome), R1-13 decision review finding
+**Exploration:** quick (surfaced by review)
+**Status:** captured
+
+## D25: Scale assumption — agent-scale graphs
+
+**Choice:** The MindMap SPI is designed for agent-scale graphs: hundreds to low thousands of nodes and edges per tenant. This assumption is explicit and drives design choices throughout.
+**Design choices driven by this assumption:**
+- Unbounded result sets from `neighbors()`, `nodesIn()`, `bridgeEdges()` (spec §3.1) — truncating would produce incorrect graph analysis
+- Full-scan analysis in `MindMapAnalyzer` V1 (D16) — adequate at this scale
+- O(V×E) betweenness centrality without sampling — completes in milliseconds for thousands of nodes
+- SQLite as production backend (D10) — single-file embedded store, no operational overhead
+- No pagination on query methods — the full result set fits comfortably in memory
+**Scale triggers (when this assumption breaks):**
+- Nodes per tenant > 10,000 — add pagination to `nodesIn()`, `neighbors()`. Consider sampling for `betweennessCentrality()`.
+- Edges per tenant > 50,000 — implement incremental indexes (D16). Consider TinkerPop backend for traversal performance.
+- Graph analysis per tick > 10ms P99 — cache analysis results with TTL. Sample analysis (run expensive signals every N ticks).
+- Multiple agents sharing a tenant — partition by agent via subgraphs; if >5 agents share a tenant, evaluate per-agent tenant isolation.
+**Alternatives:**
+- Design for large-scale from day one — pagination, streaming, incremental indexes, distributed backend. Premature: adds complexity for a scale that may never arrive. Agent mind maps are inherently personal and bounded.
+- No explicit scale assumption — allows design choices to drift toward inconsistent scale models
+**Rationale:** An agent's mind map is bounded by the agent's experience. Even over years, an agent that has interacted with hundreds of people, dozens of projects, and thousands of facts produces a graph in the low thousands of nodes. Multi-agent tenants are the growth vector, not individual agent knowledge. Explicit thresholds and migration triggers prevent silent degradation.
+**Sources:** spec §3.1 traversal result sets, D10 (SQLite backend rationale), D16 (graph analysis), R1-14 decision review finding
+**Exploration:** quick (surfaced by review)
 **Status:** captured
