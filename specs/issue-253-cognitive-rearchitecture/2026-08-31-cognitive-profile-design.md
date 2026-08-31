@@ -119,17 +119,23 @@ public class CognitiveProfile {
    Collect into `Map<MemoryDomain, List<Memory>>`. Skip if
    CaseMemoryStore is unavailable.
 
-6. **Compute trajectory.** Extract affect-domain memories from the
-   memories map (or query them if affect wasn't in the requested
-   domains). Pass to `AffectTrajectoryAnalyzer.analyze()`. Null if
-   no affect data exists or CaseMemoryStore is unavailable.
+6. **Compute trajectory.** The trajectory is always computed regardless
+   of domain selection — it's cheap and frequently needed. If affect
+   memories were already fetched in step 5, reuse them. If the caller
+   excluded the affect domain from their query, fetch affect memories
+   separately (they won't appear in the `memories` map). Pass to
+   `AffectTrajectoryAnalyzer.analyze()`. Null if no affect data exists
+   or CaseMemoryStore is unavailable.
 
 7. **Assemble.** Return
    `Optional.of(new EntityKnowledge(node, edges, memories, trajectory, unresolvedRefs, tenantId))`.
 
 ### Known Domains
 
-The following memory domains are queried when `domains` is empty:
+The following memory domains are queried when `domains` is empty.
+CognitiveProfile maintains a `DEFAULT_DOMAINS` constant set referencing
+the converter DOMAIN constants. New cognitive domains added to the
+system require updating this set.
 
 | Domain | Converter constant | Content |
 |--------|-------------------|---------|
