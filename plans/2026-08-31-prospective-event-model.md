@@ -708,6 +708,7 @@ class RecurrenceGeneratorTest {
         assertThat(instance.properties()).doesNotContainKey("rrule");
         assertThat(instance.properties()).containsEntry("template-node-id", templateId);
         assertThat(instance.properties()).containsEntry("recurrence-index", "0");
+        assertThat(instance.properties()).containsEntry("status", "planned");
     }
 
     @Test
@@ -809,6 +810,7 @@ public final class RecurrenceGenerator {
             props.remove("rrule");
             props.put("template-node-id", template.id());
             props.put("recurrence-index", String.valueOf(generated));
+            props.putIfAbsent("status", "planned");
 
             instances.add(new NodeInput(
                 template.name(), template.subgraphId(),
