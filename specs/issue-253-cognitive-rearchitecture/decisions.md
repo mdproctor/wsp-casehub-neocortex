@@ -551,3 +551,80 @@
 **Sources:** cognitive-architecture-roadmap.md §4a (space impact), issue #230 (memory space model)
 **Exploration:** quick
 **Status:** captured
+
+## D44: Memory space module placement — new memory-space-api
+
+**Choice:** New `memory-space-api` module at tier-0 (zero deps). Contains MemorySpace, SpaceType, Visibility (sealed), SpaceMembership, and SpaceMembershipStore SPI. Implementations in `memory-space-inmem` (@Alternative @Priority(2)) and `memory-space-sqlite` (@Alternative @Priority(1)).
+**Alternatives:**
+- cognitive-api — cognitive-api houses cognitive classifications (Confidence, TemporalMark). Memory spaces are architectural infrastructure, not cognitive classification. Violates D26 acceptance criteria.
+- memory-api — memory-api is CaseMemoryStore-specific. MindMap and CBR also need space awareness — putting space types in memory-api creates a wrong dependency direction.
+**Rationale:** Memory spaces are cross-cutting architectural infrastructure that sits above all cognitive stores. A dedicated tier-0 module keeps the concern isolated and dependency-clean. Follows the cognitive-api pattern of zero-dep shared types.
+**Trade-offs:** One more module in the reactor. Acceptable — the concern is genuinely distinct.
+**Sources:** cognitive-api/pom.xml (zero-dep pattern), D26 (cognitive-api criteria), shared-memory-design.md
+**Exploration:** quick
+**Status:** captured
+
+## D45: Space membership persistence — three-tier CDI
+
+**Choice:** SpaceMembershipStore SPI with three-tier CDI: in-memory for tests, SQLite for production. Space membership is durable configuration — it can't be rederived from cognitive stores. Follows MindMapStore/CaseMemoryStore three-tier CDI priority ladder.
+**Alternatives:**
+- Config-file (YAML) only — can't handle runtime membership changes (temporal validity, joins/leaves).
+- Hybrid (YAML bootstrap + SPI mutations) — adds complexity. The SPI handles both initial setup and runtime changes; YAML loading (Phase 5g) is a future producer.
+**Rationale:** Space membership changes over time (kids grow up, partners separate). A durable SPI store is the only model that handles temporal membership correctly. The three-tier CDI pattern is proven across the codebase.
+**Trade-offs:** More infrastructure than a simple config file. Justified by the temporal membership requirement.
+**Depends on:** D44 (module placement)
+**Sources:** shared-memory-design.md (temporal membership), MindMapStore three-tier CDI (pattern)
+**Exploration:** quick
+**Status:** captured
+
+## D46: Selective visibility scope — define type, defer per-record filtering
+
+**Choice:** Define the full `Visibility` sealed hierarchy (Private, Shared, Selective) in this issue. Defer per-record visibility filtering to a future issue — adding a Visibility field to MemoryInput/NodeInput requires store changes (out of scope). The type is ready for when stores are extended.
+**Alternatives:**
+- Include store field additions — makes Selective end-to-end functional but requires modifying MemoryInput, NodeInput, and store query logic. Scope creep.
+- Drop Selective entirely — YAGNI for now, but the sealed hierarchy is cleaner with it defined upfront. Adding a variant to a sealed hierarchy later is a breaking change for pattern matches.
+**Rationale:** Defining all three variants now makes the sealed hierarchy complete and stable. Pattern matches in the visibility layer will compile-check exhaustively from day one. Per-record filtering is a store concern — separate issue.
+**Trade-offs:** Selective is defined but not functional until stores gain Visibility support.
+**Depends on:** D44 (module placement)
+**Sources:** shared-memory-design.md §Selective Sharing, issue scope ("no store implementation changes")
+**Exploration:** quick
+**Status:** captured
+
+## D47: MemorySpace record — space-as-tenant with type tag
+
+**Choice:** `MemorySpace(String id, SpaceType type, String name, String ownerId)`. `id` IS the tenantId for store operations. `SpaceType` enum: `PRIVATE`, `SHARED`. `ownerId` is the owning agent for PRIVATE spaces (null for SHARED). `name` is human-readable.
+**Alternatives:**
+- MemorySpace as a sealed interface with Private/Shared variants — adds type hierarchy for a two-value enum. The record + SpaceType enum is simpler.
+- Include role definitions on the space — roles are per-membership, not per-space. The space is just the container.
+**Rationale:** The key insight from the design doc: "each space IS a tenant." MemorySpace wraps a tenantId with metadata. Stores see tenantIds; the visibility layer sees MemorySpaces. Clean separation.
+**Trade-offs:** `ownerId` is null for SHARED spaces — a nullable field rather than type-enforced. Acceptable for two variants.
+**Depends on:** D44 (module placement)
+**Sources:** shared-memory-design.md §The Model (Option A)
+**Exploration:** quick
+**Status:** captured
+
+## D48: SpaceMembership record — temporal with opaque roles
+
+**Choice:** `SpaceMembership(String agentId, String spaceId, Set<String> roles, Instant validFrom, Instant validUntil)`. Roles are opaque strings — the platform doesn't interpret them. `validUntil` nullable (null = current member). Temporal validity enables "kids grow up, partners separate."
+**Alternatives:**
+- Enum-typed roles — restricts to platform-defined roles. casehub-life needs domain-specific roles (financial-authority, school-authority) that the platform shouldn't know about.
+- No temporal validity — can't model membership changes over time. The shared-memory-design.md explicitly requires this.
+**Rationale:** Opaque roles follow the traits pattern in MindMap — the platform provides the mechanism, consumers define the semantics. Temporal validity is a first-class requirement per the design doc.
+**Trade-offs:** No compile-time role validation. Acceptable — roles are domain-specific, not platform concepts.
+**Depends on:** D44 (module placement)
+**Sources:** shared-memory-design.md §Group Dynamics (temporal membership), MindMap traits (opaque strings pattern)
+**Exploration:** quick
+**Status:** captured
+
+## D49: SpaceMembershipStore SPI — minimal CRUD with temporal queries
+
+**Choice:** `SpaceMembershipStore` with: `createSpace(MemorySpace)`, `getSpace(String spaceId) → Optional<MemorySpace>`, `addMember(SpaceMembership)`, `revokeMember(String agentId, String spaceId, Instant revokedAt)`, `spacesFor(String agentId, Instant asOf) → List<MemorySpace>`, `membersOf(String spaceId, Instant asOf) → List<SpaceMembership>`.
+**Alternatives:**
+- Add deleteSpace — cascading logic (members still exist) adds complexity. Omit for now; add when needed.
+- Split read/write (CQRS-lite) — premature for a configuration store with low write volume.
+**Rationale:** `spacesFor(agentId, asOf)` is the key query — CognitiveProfile, TemporalIndex, and future space-aware utilities call this to resolve which tenant IDs to query. `membersOf` supports admin views. `revokeMember` sets `validUntil` rather than deleting — temporal history is preserved.
+**Trade-offs:** No deleteSpace — spaces can only be created, not removed. Acceptable for pre-release; add deletion when the data model stabilises.
+**Depends on:** D44 (module placement), D45 (three-tier CDI), D47 (MemorySpace), D48 (SpaceMembership)
+**Sources:** shared-memory-design.md §The Model, CognitiveProfile.java (consumer of spacesFor)
+**Exploration:** quick
+**Status:** captured
