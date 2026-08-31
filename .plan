@@ -24,8 +24,8 @@ active: casehubio/neocortex#241
 - [x] casehubio/neocortex#239 — Affect trajectory log
 - [x] casehubio/neocortex#241 — Prospective event model
 - [x] casehubio/neocortex#242 — Trajectory-aware curiosity
-- [ ] casehubio/neocortex#244 — TemporalFocus utility ← active
-- [ ] casehubio/neocortex#243 — Cross-store entity resolution
+- [x] casehubio/neocortex#244 — TemporalFocus utility
+- [ ] casehubio/neocortex#243 — Cross-store entity resolution ← active
 - [ ] casehubio/neocortex#245 — Graph reasoning exploration
 - [ ] casehubio/neocortex#230 — Memory space model
 - [ ] casehubio/neocortex#233 — Cross-store retrieval modulation
