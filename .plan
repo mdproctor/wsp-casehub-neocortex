@@ -38,3 +38,6 @@ active: casehubio/neocortex#231
 - [x] casehubio/neocortex#230 — Memory space model
 - [x] casehubio/neocortex#233 — Cross-store retrieval modulation
 - [x] casehubio/neocortex#240 — Perspectival affect overlays
+
+## Deferred
+- [ ] Memory space YAML (M / Med) [] — Blocked by #255 — space model invalidated, needs redesign
