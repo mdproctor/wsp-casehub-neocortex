@@ -14,6 +14,13 @@ active: casehubio/neocortex#231
 
 ## Queue
 - [ ] casehubio/neocortex#231 — Builder APIs ← active
+  - [ ] Batch 1: mindmap-api
+    - [ ] Task 1: MindMapQuery builders
+    - [ ] Task 2: NodeInput builders
+    - [ ] Task 3: EdgeInput builders
+    - [ ] Task 4: NodeUpdate builders
+  - [ ] Batch 2: memory-api
+    - [ ] Task 5: MemoryInput builders
 - [ ] casehubio/neocortex#246 — API-to-YAML audit
 - [ ] casehubio/neocortex#247 — YAML schema design
 - [ ] casehubio/neocortex#248 — Cognitive profile YAML
@@ -38,6 +45,3 @@ active: casehubio/neocortex#231
 - [x] casehubio/neocortex#230 — Memory space model
 - [x] casehubio/neocortex#233 — Cross-store retrieval modulation
 - [x] casehubio/neocortex#240 — Perspectival affect overlays
-
-## Deferred
-- [ ] Memory space YAML (M / Med) [] — Blocked by #255 — space model invalidated, needs redesign
