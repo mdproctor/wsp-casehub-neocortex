@@ -15,8 +15,8 @@ active: casehubio/neocortex#231
 ## Queue
 - [x] casehubio/neocortex#231 — Builder APIs
 - [x] casehubio/neocortex#255 — Remove memory-space modules
-- [ ] casehubio/neocortex#246 — API-to-YAML audit ← active
-- [ ] casehubio/neocortex#247 — YAML schema design
+- [x] casehubio/neocortex#246 — API-to-YAML audit
+- [ ] casehubio/neocortex#247 — YAML schema design ← active
 - [ ] casehubio/neocortex#248 — Cognitive profile YAML
 - [ ] casehubio/neocortex#249 — Declarative rule DSL
 - [ ] casehubio/neocortex#250 — YAML-to-Java compiler
