@@ -202,7 +202,7 @@ NodeInput.of("Alice", subgraphId)
 ```java
 public static EdgeInput of(String sourceNodeId, String targetNodeId, String edgeType) {
     return new EdgeInput(sourceNodeId, targetNodeId, edgeType, null, null,
-                         null, null, null, null, null, Map.of());
+                         null, null, null, null, null, null);
 }
 ```
 
