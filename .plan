@@ -6,7 +6,7 @@ state: active
 project-sha: e32d93897661c8fa2d5f8a1d60263eb943f7022f
 date: 2026-08-29
 issue-repo: casehubio/neocortex
-covers: 253,229,232,234,235,236,237,238,239,241,242,244,243,245,230,233,240,252,231,246,247,248,249,250,251
+covers: 253,229,232,234,235,236,237,238,239,241,242,244,243,245,230,233,240,252,231,246,247,248,249,250,251,255
 design-repo: project
 design-section-hashes: 4d2cc5ab:## §1 Introduction and Goals|4f6b26ef:## §2 Constraints|39b76cb9:## §3 Context and Scope|74aa736f:## §4 Solution Strategy|9ca8de62:## §5 Building Block View|f1938c56:## §6 Runtime View|65807a21:## §7 Deployment View|a03d508f:## §8 Crosscutting Concepts|b2e1b57c:## §9 Journeys and Chapters|598f3a04:## §10 Architectural Decisions|1f604475:## §11 Quality Requirements|af5f260f:## §12 Risks and Technical Debt|42d51385:## §13 Glossary
 flyway-next-v: none
@@ -21,11 +21,11 @@ active: casehubio/neocortex#231
     - [x] Task 4: NodeUpdate builders
   - [x] Batch 2: memory-api
     - [x] Task 5: MemoryInput builders
+- [ ] casehubio/neocortex#255 — Remove memory-space modules
 - [ ] casehubio/neocortex#246 — API-to-YAML audit
 - [ ] casehubio/neocortex#247 — YAML schema design
 - [ ] casehubio/neocortex#248 — Cognitive profile YAML
 - [ ] casehubio/neocortex#249 — Declarative rule DSL
-- [ ] casehubio/neocortex#252 — Memory space YAML
 - [ ] casehubio/neocortex#250 — YAML-to-Java compiler
 - [ ] casehubio/neocortex#251 — Identity-cognition derivation
 - [x] casehubio/neocortex#253 — Issue #253
