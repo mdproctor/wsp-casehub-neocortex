@@ -17,12 +17,8 @@ active: casehubio/neocortex#231
 - [x] casehubio/neocortex#255 — Remove memory-space modules
 - [x] casehubio/neocortex#246 — API-to-YAML audit
 - [x] casehubio/neocortex#247 — YAML schema design
-- [ ] casehubio/neocortex#248 — Cognitive profile YAML ← active
-  - [x] Batch 1: Record+Parser
-    - [x] Task 1: CognitiveDefaults record + PersonalityWeightsDeserializer + parser tests
-  - [x] Batch 2: Registry+Integration
-    - [x] Task 2: CognitiveDefaultsRegistry CDI bean + classpath loading + CLAUDE.md
-- [ ] casehubio/neocortex#249 — Declarative rule DSL
+- [x] casehubio/neocortex#248 — Cognitive profile YAML
+- [ ] casehubio/neocortex#249 — Declarative rule DSL ← active
 - [ ] casehubio/neocortex#250 — YAML-to-Java compiler
 - [ ] casehubio/neocortex#251 — Identity-cognition derivation
 - [x] casehubio/neocortex#253 — Issue #253
