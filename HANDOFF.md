@@ -2,33 +2,38 @@
 
 ## Last Session
 
-Continued cognitive rearchitecture on `issue-253-cognitive-rearchitecture`. Completed 3 issues this session (#230, #233, #240), advancing queue from position 14 to 17 of 25.
+Continued cognitive rearchitecture on `issue-253-cognitive-rearchitecture`. Completed #231 (Builder APIs), filed #255 (space model rearchitecture), reordered queue based on dependency analysis. Queue position 17→18 of 25 (one item removed, one added).
 
-1. **#230 — Memory space model** (M): 5 new modules implementing private/shared/selective memory visibility. `memory-space-api` (tier-0, zero deps: MemorySpace, SpaceType, Visibility sealed interface, SpaceMembership, SpaceMembershipStore SPI). `memory-space` (NoOpSpaceMembershipStore @DefaultBean — singleton private space per agentId). `memory-space-testing` (SpaceMembershipStoreContractTest, 10 tests). `memory-space-inmem` (InMemorySpaceMembershipStore @Alternative @Priority(2)). `memory-space-sqlite` (SqliteSpaceMembershipStore @Alternative @Priority(1), HikariCP WAL + Flyway). Space-as-tenant model — each space IS a tenantId. Spec deviation from design: NoOp placed in separate CDI module (not api) to preserve zero-dep guarantee, following mindmap/ pattern. 35 tests total. Decisions D44-D50.
+### Completed
 
-2. **#233 — Cross-store retrieval modulation** (M): Generic RetrievalModulator framework replacing Memory-only MoodModulatedRetrieval and PersonalityWeightedRetrieval. `ModulationProfile<T>` (accessor record), `ModulationFactor<T>` (@FunctionalInterface multiplier), `RetrievalModulator` (static utility) in cognitive-api. `ModulationFactors` (recencyDecay, confidenceWeight, moodCongruence, domainWeight), `ModulationProfiles` (MEMORY, NODE), `ModulationContext` in cognitive-index. Composable factors via multiplication. Post-retrieval only — CBR decorators unchanged. Deleted old utilities (zero callers). 17 tests. Decisions D51-D54.
+1. **#231 — Builder APIs** (S): Added CbrQuery-style `of()`/`empty()` factories and `withX()` methods to 5 record types. MindMapQuery (of + 10 withers), NodeInput (of + 12 withers including withPad, withProperty), EdgeInput (of + 10 withers), NodeUpdate (empty + 14 withers), MemoryInput (of + withCaseId + withConfidence completing existing coverage). Eliminates positional-null constructor calls. 38 new tests across mindmap-api and memory-api. Decisions D58-D61.
 
-3. **#240 — Perspectival affect overlays** (M): Per-agent PAD on shared MindMap nodes. `OverlayRef` convention in mindmap-api (NodeRef scheme="overlay", trait "overlay"). `PerspectivalMerge` pure utility and `PerspectivalResolver` CDI bean in cognitive-index. Overlay nodes in agent's private tenant linked to shared nodes via NodeRef. Resolver uses trait-based search, merges shared base + private PAD/confidence/properties. No store changes. Instance<MindMapStore> + Instance<SpaceMembershipStore> graceful degradation. 14 tests. Decisions D55-D57.
+### Architectural Discovery
 
-All modules compile clean. cognitive-index gained memory-space-api dependency for PerspectivalResolver.
+**Space-as-tenant model is a design mistake (D58).** The memory-space modules (api, inmem, sqlite, testing, space CDI) built a second tenancy system inside the first. The correct model: tenant is the hard boundary (organisation — home, business). Individual vs common memory is a property of the memory itself (entityId), not a partitioning system. SpaceMembershipStore is authorization infrastructure that belongs in the platform, not in the cognitive subsystem. Filed #255 to remove/rearchitect.
 
-## Immediate Next Step
+### Queue Changes
 
-Run `work next` to advance to #252 (Memory space YAML). This is a YAML configuration surface for the memory space model built in #230 — declarative space definitions, member lists, role assignments.
+- **Reordered queue** based on dependency analysis: #231 → #246 → #247 → remaining YAML path was wrong. Correct topological order: #231 → #255 → #246 → #247 → #248 → #249 → #250 → #251.
+- **Filed #255** — Remove memory-space modules. Added to queue after #231.
+- **Deferred #252** (Memory space YAML) — blocked by #255, removed from queue.
+- **Updated #252 on GitHub** — body marked as blocked, new blocker #255 noted.
 
 ## What's Next
 
-| Item | Scale / Complexity |
-|------|--------------------|
-| #252 — Memory space YAML | M / Med |
-| #231 — Builder APIs | M / Med |
-| #246 — API-to-YAML audit | S / Low |
+| # | Title | Scale | Complexity | Notes |
+|---|-------|-------|------------|-------|
+| 255 | Remove memory-space modules | M | Med | Next up — remove api/inmem/sqlite/testing/space modules, clean up PerspectivalResolver + CognitiveProfile space deps |
+| 246 | API-to-YAML mapping audit | S | Low | Audit only — no code changes. Blocked by #231 (done) |
+| 247 | YAML schema design | M | Med | Conventions doc + SealedHierarchyModule design. Blocked by #246 |
+| 248 | Cognitive profile YAML | M | Med | Agent cognitive config file. Blocked by #247 |
+| 249 | Declarative rule DSL | M | High | YAML trait rules + derived edge rules. Blocked by #247 |
+| 250 | YAML-to-Java compiler | L | High | Build-time/startup YAML→CDI loader. Blocked by #248, #249 |
+| 251 | Identity-cognition derivation | M | High | AgentDescriptor→CognitiveDefaults. Blocked by #248 |
 
-## References
+## Branch State
 
-- Spec: `specs/issue-253-cognitive-rearchitecture/2026-08-31-memory-space-model-design.md`
-- Spec: `specs/issue-253-cognitive-rearchitecture/2026-08-31-retrieval-modulation-design.md`
-- Spec: `specs/issue-253-cognitive-rearchitecture/2026-09-01-perspectival-overlays-design.md`
-- Decisions: `specs/issue-253-cognitive-rearchitecture/decisions.md` (D44-D57 for this session)
-- Roadmap: `docs/guides/cognitive-architecture-roadmap.md`
-- Design: `docs/guides/shared-memory-design.md` (authoritative design for memory spaces + overlays)
+- Branch: `issue-253-cognitive-rearchitecture`
+- All tests pass (mindmap-api 53, memory-api MemoryInputTest 21)
+- No uncommitted changes in project repo
+- Memory saved: space-model-correction (project memory)
