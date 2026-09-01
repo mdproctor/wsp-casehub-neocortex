@@ -774,3 +774,43 @@
 **Sources:** CbrQuery.java (withFilter + withFilters pattern), NodeUpdate.java (add/remove semantics)
 **Exploration:** quick
 **Status:** captured
+
+## D62: Delete all 5 memory-space modules
+
+**Choice:** Remove `memory-space-api`, `memory-space`, `memory-space-inmem`, `memory-space-sqlite`, `memory-space-testing` entirely. Remove from parent pom.xml module list and dependencyManagement. Remove `casehub-neocortex-memory-space-api` compile dependency and `casehub-neocortex-memory-space-inmem` test dependency from cognitive-index pom.xml.
+**Alternatives:**
+- Gut but keep the modules — remove all types except a stub SpaceMembershipStore. Preserves the module structure for future reimplementation. Rejected: the model itself is wrong (D58), not just the implementation. Keeping empty modules signals intent to reuse the same abstraction.
+- Move SpaceMembershipStore to platform — it's authorization infrastructure. Rejected: the SPI is designed around space-as-tenant; moving it doesn't fix the design mistake. Platform authorization is a separate concern to be designed independently.
+**Rationale:** D58 established that space-as-tenant is a design mistake. Tenant is the hard boundary (organisation). Individual vs common memory is a property of the memory (entityId). The 5 modules implement a wrong abstraction — clean deletion is the correct action. Reference analysis confirms zero cross-repo consumers and only one intra-repo consumer (PerspectivalResolver in cognitive-index, addressed by D63).
+**Trade-offs:** ~1800 lines of tested code deleted. Acceptable: the tests validated a wrong model. Future multi-agent memory sharing will need a different design.
+**Depends on:** D58 (space-as-tenant identified as wrong)
+**Sources:** PerspectivalResolver.java (sole external consumer), cognitive-index/pom.xml (sole external dependency), find-references results (all other refs self-contained within space modules or docs)
+**Exploration:** quick
+**Status:** captured
+
+## D63: PerspectivalResolver — agentId property replaces SpaceMembershipStore
+
+**Choice:** Change PerspectivalResolver to find overlay nodes by agentId property within the same tenant instead of querying SpaceMembershipStore for a private tenant. Signature changes from `resolve(List<MindMapNode>, String agentId, Instant asOf)` to `resolve(List<MindMapNode>, String agentId, String tenantId)`. Constructor drops SpaceMembershipStore — only MindMapStore remains. Overlay nodes carry `agentId` as a node property. Search by trait `"overlay"` within tenantId, then filter by property `agentId` client-side.
+**Alternatives:**
+- Add property filtering to MindMapQuery — semantically cleaner (server-side filter) but scope creep for a removal issue. Can be added later when performance requires it.
+- Encode agentId as a trait (e.g. `"agent:alice"`) — traits describe what a node IS, not ownership. Semantically wrong.
+- Per-agent subgraph for overlays — subgraphs are domain grouping, not ownership scoping. Over-engineered.
+**Rationale:** The caller already knows the tenant context (shared nodes come from a specific tenant). The agentId property on overlay nodes replaces the space membership lookup with a simple client-side filter. `asOf` is dropped — it only existed for temporal space membership queries. MindMapQuery property filtering is a natural future enhancement but not required here; overlay node counts per tenant are bounded.
+**Trade-offs:** Client-side filtering loads all overlay nodes in the tenant to filter by agentId. Acceptable for pre-release; bounded by number of agents × overlays per agent. Graceful degradation test for missing SpaceMembershipStore becomes unnecessary — replaced by the existing MindMapStore degradation test.
+**Depends on:** D62 (module removal), D64 (OverlayRef convention)
+**Sources:** PerspectivalResolver.java:57-63 (findPrivateTenant method to remove), PerspectivalResolverTest.java (6 test call sites, all in-module), MindMapQuery.java (no property filtering support)
+**Exploration:** quick
+**Status:** captured
+
+## D64: OverlayRef convention — agentId property constant
+
+**Choice:** Add `AGENT_ID = "agentId"` constant to OverlayRef. The property key is standardised so PerspectivalResolver and overlay creators use the same key. No changes to the OverlayRef.of() factory — agentId goes in the NodeInput properties map, not in the NodeRef.
+**Alternatives:**
+- No constant, raw string — callers use `"agentId"` directly. Fragile: typos and inconsistency between creator and consumer.
+- Extend OverlayRef.of() to return a record with both NodeRef and agentId — over-engineers the convention. NodeRef and properties are separate concerns on NodeInput.
+**Rationale:** OverlayRef already owns the overlay convention (SCHEME, of(), sharedNodeId()). Adding the property key constant keeps all convention knowledge in one place. The property is on the node, not the ref — OverlayRef.of() remains unchanged.
+**Trade-offs:** Minor: one more constant. The convention relies on callers remembering to set the property — no compile-time enforcement. Mitigated: PerspectivalResolver logs or returns unmerged when no matching overlay is found.
+**Depends on:** D63 (PerspectivalResolver needs this convention)
+**Sources:** OverlayRef.java (existing convention), PerspectivalResolver.java:65-77 (loadOverlays consumer)
+**Exploration:** quick
+**Status:** captured
