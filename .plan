@@ -17,8 +17,8 @@ active: casehubio/neocortex#231
 - [x] casehubio/neocortex#255 — Remove memory-space modules
 - [x] casehubio/neocortex#246 — API-to-YAML audit
 - [ ] casehubio/neocortex#247 — YAML schema design ← active
-  - [ ] Batch 1: Module+SealedHierarchy
-    - [ ] Task 1: Create schema-generator module + SealedHierarchyModule + EnumInliningModule
+  - [x] Batch 1: Module+SealedHierarchy
+    - [x] Task 1: Create schema-generator module + SealedHierarchyModule + EnumInliningModule
   - [ ] Batch 2: Shorthand+Generator
     - [ ] Task 2: ShorthandModule for Confidence/NodeRef/RecurrenceRule
     - [ ] Task 3: CognitiveSchemaGenerator + integration tests + conventions doc
