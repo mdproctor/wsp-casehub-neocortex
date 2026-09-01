@@ -10,9 +10,17 @@ covers: 253,229,232,234,235,236,237,238,239,241,242,244,243,245,230,233,240,252,
 design-repo: project
 design-section-hashes: 4d2cc5ab:## §1 Introduction and Goals|4f6b26ef:## §2 Constraints|39b76cb9:## §3 Context and Scope|74aa736f:## §4 Solution Strategy|9ca8de62:## §5 Building Block View|f1938c56:## §6 Runtime View|65807a21:## §7 Deployment View|a03d508f:## §8 Crosscutting Concepts|b2e1b57c:## §9 Journeys and Chapters|598f3a04:## §10 Architectural Decisions|1f604475:## §11 Quality Requirements|af5f260f:## §12 Risks and Technical Debt|42d51385:## §13 Glossary
 flyway-next-v: none
-active: casehubio/neocortex#241
+active: casehubio/neocortex#247
 
 ## Queue
+- [ ] casehubio/neocortex#247 — YAML schema design ← active
+- [ ] casehubio/neocortex#252 — Memory space YAML
+- [ ] casehubio/neocortex#231 — Builder APIs
+- [ ] casehubio/neocortex#246 — API-to-YAML audit
+- [ ] casehubio/neocortex#248 — Cognitive profile YAML
+- [ ] casehubio/neocortex#249 — Declarative rule DSL
+- [ ] casehubio/neocortex#250 — YAML-to-Java compiler
+- [ ] casehubio/neocortex#251 — Identity-cognition derivation
 - [x] casehubio/neocortex#253 — Issue #253
 - [x] casehubio/neocortex#229 — Unified confidence model
 - [x] casehubio/neocortex#232 — Naming audit
@@ -29,16 +37,4 @@ active: casehubio/neocortex#241
 - [x] casehubio/neocortex#245 — Graph reasoning exploration
 - [x] casehubio/neocortex#230 — Memory space model
 - [x] casehubio/neocortex#233 — Cross-store retrieval modulation
-- [ ] casehubio/neocortex#240 — Perspectival affect overlays ← active
-  - [x] Batch 1: Convention and merge
-    - [x] Task 1: OverlayRef and PerspectivalMerge
-  - [x] Batch 2: Resolver
-    - [x] Task 2: PerspectivalResolver and CLAUDE.md
-- [ ] casehubio/neocortex#252 — Memory space YAML
-- [ ] casehubio/neocortex#231 — Builder APIs
-- [ ] casehubio/neocortex#246 — API-to-YAML audit
-- [ ] casehubio/neocortex#247 — YAML schema design
-- [ ] casehubio/neocortex#248 — Cognitive profile YAML
-- [ ] casehubio/neocortex#249 — Declarative rule DSL
-- [ ] casehubio/neocortex#250 — YAML-to-Java compiler
-- [ ] casehubio/neocortex#251 — Identity-cognition derivation
+- [x] casehubio/neocortex#240 — Perspectival affect overlays
