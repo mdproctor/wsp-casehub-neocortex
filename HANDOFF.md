@@ -2,35 +2,41 @@
 
 ## Last Session
 
-Continued cognitive rearchitecture on `issue-253-cognitive-rearchitecture`. Completed #255 (remove memory-space modules) and #246 (API-to-YAML mapping audit). Queue position 18→20 of 25.
+Continued cognitive rearchitecture on `issue-253-cognitive-rearchitecture`. Completed #247 (YAML schema conventions) and #248 (Cognitive profile YAML). Queue position 20→22 of 25.
 
 ### Completed
 
-1. **#255 — Remove memory-space modules** (M): Deleted all 5 memory-space modules (api, CDI, inmem, sqlite, testing — 1081 lines). Refactored PerspectivalResolver to use agentId property filter within the same tenant instead of SpaceMembershipStore lookup. Added OverlayRef.AGENT_ID constant. Removed deps from cognitive-index pom.xml. Updated CLAUDE.md (11 references removed) and cognitive-architecture-roadmap.md (1f and 5g marked REMOVED). Decisions D62-D64.
+1. **#247 — YAML schema conventions** (M): Established comprehensive YAML schema conventions for all cognitive types (D65-D73). Created new `schema-generator` Maven module with 4 classes: `SealedHierarchyModule` (sealed interface → oneOf + const discriminator via victools 4.38.0), `EnumInliningModule` (inline enum values), `ShorthandModule` (scalar-or-object for Confidence/NodeRef/RecurrenceRule), `CognitiveSchemaGenerator` (wires all modules, Draft 2020-12, YAML output). 28 tests. Conventions doc promoted to `docs/specs/2026-09-01-yaml-schema-conventions.md`. Key conventions: camelCase keys (D65), `type` discriminator (D66), FeatureValue inference-first (D67), `@Named` SPI refs (D68), scalar-or-object shorthand (D69).
 
-2. **#246 — API-to-YAML mapping audit** (S): Produced comprehensive audit of 54 config-surface types across 5 modules. 28 direct records, 13 enums, 8 sealed hierarchies (40 variants), 10 reference/SPI types, 3 unmappable. Identified 8 key blockers for #247 (YAML schema design): sealed discriminator convention, nested sealed depth, recursive structures, functional→named-reference pattern, DerivedEdgeRule DSL gap, Confidence shorthand, map-keyed types, platform type imports.
+2. **#248 — Cognitive profile YAML** (M): `CognitiveDefaults` aggregate record in cognitive-index — per-agent YAML config for personality weights, mood baseline, curiosity, temporal focus, vocabulary, and named SPI references. `CognitiveDefaultsRegistry` CDI bean with classpath scan (`cognitive-profiles/*.yaml`) and runtime lookup by agentId. `PersonalityWeightsDeserializer` for MemoryDomain key wrapping. 10 tests. **Moved `CuriosityConfig` from mindmap-intelligence to mindmap-api** to break cyclic dependency — it's a pure record that belongs in the API tier. Decisions D74-D79.
 
-### Key Design Decision
+### Key Design Decisions
 
-**D63 — PerspectivalResolver uses agentId property, not SpaceMembershipStore.** Overlay nodes carry `agentId` as a node property. PerspectivalResolver searches by trait `"overlay"` within the caller-provided tenant, filters by property client-side. Signature changed from `resolve(sharedNodes, agentId, asOf)` to `resolve(sharedNodes, agentId, tenantId)`. No SpaceMembershipStore dependency remains in the codebase.
+**D65 — camelCase for YAML keys.** Platform-consistent with engine (`topK`, `caseType`) and eidos (`agentId`, `tenancyId`).
 
-### User Guidance
+**D66 — `type` as sealed hierarchy discriminator.** Standard JSON Schema / Jackson convention. None of the 8 sealed hierarchies have a semantic `type` property that would collide.
 
-Goal is **parity between Java + DSL (builders) + annotations and YAML** — all front ends should express the same configuration. The audit document maps each type's YAML-friendliness toward this goal.
+**D74 — Separate cognitive profile YAML, agentId join key.** Zero coupling between neocortex and eidos. Composes via shared `agentId`.
+
+**D76 — CognitiveDefaults naming.** Avoids collision with existing `CognitiveProfile` (runtime entity resolver). "Defaults" = baseline parameters that runtime deviates from.
+
+### Architectural Change
+
+**CuriosityConfig moved from mindmap-intelligence to mindmap-api.** mindmap-intelligence already depended on cognitive-index, so cognitive-index couldn't depend on mindmap-intelligence (cycle). CuriosityConfig is a zero-dep pure record with `defaults()` factory — belongs in the API tier. All 174 tests (cognitive-index 110 + mindmap-intelligence 70) pass with no regressions. `import io.casehub.neocortex.mindmap.CuriosityConfig` replaces `import io.casehub.neocortex.mindmap.intelligence.CuriosityConfig`.
 
 ## What's Next
 
 | # | Title | Scale | Complexity | Notes |
 |---|-------|-------|------------|-------|
-| 247 | YAML schema design | M | Med | Next up — conventions doc + SealedHierarchyModule design. Builds on #246 audit's 8 blockers. Consider victools/jsonschema-generator reuse from engine. |
-| 248 | Cognitive profile YAML | M | Med | Agent cognitive config file. Blocked by #247 |
-| 249 | Declarative rule DSL | M | High | YAML trait rules + derived edge rules. Blocked by #247 |
+| 249 | Declarative rule DSL | M | High | Next up — YAML trait rules + derived edge rules. The highest-complexity remaining issue. #247 §11 establishes @Named convention; #249 extends to inline rule expressions. |
 | 250 | YAML-to-Java compiler | L | High | Build-time/startup YAML→CDI loader. Blocked by #248, #249 |
-| 251 | Identity-cognition derivation | M | High | AgentDescriptor→CognitiveDefaults. Blocked by #248 |
+| 251 | Identity-cognition derivation | M | High | AgentDescriptor→CognitiveDefaults. Blocked by #248 (done) |
 
 ## Branch State
 
 - Branch: `issue-253-cognitive-rearchitecture`
-- All tests pass (cognitive-index 100 tests, full build green)
+- All tests pass (cognitive-index 110, mindmap-intelligence 70, schema-generator 28, full build green)
 - No uncommitted changes in project repo
-- Audit document: `specs/issue-253-cognitive-rearchitecture/2026-09-01-api-to-yaml-audit.md`
+- New module: `schema-generator/` (4 classes, 28 tests)
+- New classes in cognitive-index: `CognitiveDefaults`, `CognitiveDefaultsRegistry`, `PersonalityWeightsDeserializer`
+- Specs: `2026-09-01-yaml-schema-conventions-design.md`, `2026-09-01-cognitive-defaults-design.md`
