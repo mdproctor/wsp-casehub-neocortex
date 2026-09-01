@@ -44,7 +44,7 @@ case-type: incident
 
 ## §2 Sealed Hierarchy Discriminator
 
-**Convention:** Use `type` as the discriminator property for all sealed hierarchies (D66).
+**Convention:** Use `type` as the discriminator property for all sealed hierarchies (D66). **Exception:** FeatureValue uses inference-first from YAML value shape (§3), with optional explicit `type` for disambiguation.
 
 ```yaml
 # SimilaritySpec — 6 variants
@@ -617,18 +617,20 @@ public class SealedHierarchyModule implements Module {
                 ArrayNode oneOf = schema.putArray("oneOf");
 
                 for (Class<?> subtype : erasedType.getPermittedSubclasses()) {
-                    ObjectNode subtypeRef = oneOf.addObject();
-                    ObjectNode allOfItem = subtypeRef.putArray("allOf").addObject();
+                    ObjectNode subtypeEntry = oneOf.addObject();
+                    ArrayNode allOfArr = subtypeEntry.putArray("allOf");
 
                     // Discriminator const
-                    ObjectNode props = allOfItem.putObject("properties");
+                    ObjectNode discriminatorObj = allOfArr.addObject();
+                    ObjectNode props = discriminatorObj.putObject("properties");
                     String discriminatorValue = resolveDiscriminator(erasedType, subtype);
                     props.putObject("type").put("const", discriminatorValue);
-                    allOfItem.putArray("required").add("type");
+                    discriminatorObj.putArray("required").add("type");
 
                     // Subtype schema reference
-                    subtypeRef.set("$ref", context.createDefinitionReference(
-                        context.resolve(subtype)));
+                    allOfArr.addObject().set("$ref",
+                        context.createDefinitionReference(
+                            context.resolve(subtype)));
                 }
 
                 return new CustomDefinition(schema);
