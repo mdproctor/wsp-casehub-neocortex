@@ -814,3 +814,108 @@
 **Sources:** OverlayRef.java (existing convention), PerspectivalResolver.java:65-77 (loadOverlays consumer)
 **Exploration:** quick
 **Status:** captured
+
+## D65: camelCase for YAML keys
+
+**Choice:** Use camelCase for all YAML property keys in neocortex cognitive configuration
+**Alternatives:**
+- kebab-case — more conventional for standalone YAML configs (Kubernetes, GitHub Actions). Requires name transformation between Java fields and YAML keys. Creates platform inconsistency.
+- Mixed (camelCase for data, kebab-case for identifiers) — inconsistent key naming convention
+**Rationale:** Platform coherence is the primary constraint. Engine uses camelCase (`topK`, `minSimilarity`, `caseType`), eidos uses camelCase (`agentId`, `tenancyId`, `qualityHint`). Neocortex YAML is consumed alongside engine and eidos YAML in the same applications. Java record field names map directly without transformation.
+**Trade-offs:** Less conventional for YAML-purists who expect kebab-case. Platform consistency outweighs external convention.
+**Sources:** engine/api/src/test/resources/casehub/minimal.yaml, engine/runtime/src/test/resources/casehub/cbr-routing-test.yaml, eidos/eval/src/test/resources/profiles/technical-writer.yaml, eidos/org-runtime/src/test/resources/gastown-org.yaml
+**Exploration:** quick
+**Status:** captured
+
+## D66: `type` as sealed hierarchy discriminator property
+
+**Choice:** Use `type` as the discriminator property name for all 8 sealed hierarchies
+**Alternatives:**
+- `kind` — used in eidos org YAML and Kubernetes. Avoids collision if a type has its own semantic `type` property.
+- Per-hierarchy custom (`fieldType`, `decay`, etc.) — most explicit but no convention to learn
+**Rationale:** Standard JSON Schema / Jackson `@JsonTypeInfo` convention. Already used in the codebase's CBR feature serialization (GE-20260825-ba18b3). Short, universally understood. None of the 8 sealed hierarchies have a semantic `type` property that would collide.
+**Trade-offs:** Reserves `type` as a key name in all discriminated objects — cannot be used for domain semantics.
+**Sources:** GE-20260825-ba18b3 (CBR type discriminator pattern), GE-20260517-66d611 (Jackson mixin @JsonTypeInfo convention), JSON Schema oneOf + const pattern
+**Exploration:** quick
+**Status:** captured
+
+## D67: FeatureValue inference-first with explicit override
+
+**Choice:** YAML parser infers FeatureValue variant from value shape (string → StringVal, number → NumberVal, etc.) using the same logic as `FeatureValue.of(Object)`. When ambiguous (e.g., 2-element number array: RangeVal or NumberListVal?), the CbrFeatureSchema field type resolves it. Users can write explicit form `{ type: range, min: 0.5, max: 1.0 }` for disambiguation.
+**Alternatives:**
+- Always explicit — every FeatureValue requires `{ type: string, value: critical }`. Unambiguous but verbose.
+- Always inferred, no override — can't handle ambiguous cases without schema context
+**Rationale:** Matches `FeatureValue.of(Object)` semantics that already exist at runtime. Keeps the common case terse (`severity: critical`). Schema-resolved ambiguity leverages CbrFeatureSchema's field type declarations.
+**Trade-offs:** Requires schema context for ambiguous cases — FeatureValue YAML outside of a schema context must use explicit form.
+**Sources:** FeatureValue.java (of(Object) inference), CbrFeatureSchema.java (field type declarations), #246 audit §FeatureValue
+**Exploration:** quick
+**Status:** captured
+
+## D68: @Named CDI bean references for SPI/functional interfaces
+
+**Choice:** YAML references functional interfaces and SPIs via plain string matching a `@Named` CDI bean: `planAdapter: myCustomAdapter`. Pre-built defaults use well-known names (`outcomeWeighting: linear`, `reflectionSynthesizer: noop`). Omitted field → `@DefaultBean` activates.
+**Alternatives:**
+- Custom `@SpiRef` annotation — more type-safe but introduces a parallel naming mechanism inconsistent with `@Named` usage elsewhere in casehub
+- Quarkus config reference — adds indirection (YAML → config → CDI)
+**Rationale:** `@Named` is standard CDI, zero new infrastructure. Adding `@Named` to existing `@DefaultBean` implementations is a one-line change per class. Consistent with how engine and other casehub repos reference beans.
+**Trade-offs:** `@Named` is string-based — no compile-time validation of the reference. Mitigated: YAML compiler validates bean existence at startup.
+**Sources:** GE-20260517-66d611 (mixin pattern for keeping api pure), DefaultOutcomeWeightingFunction.java, NoOpPlanAdapter.java, NoOpReflectionSynthesizer.java
+**Exploration:** quick
+**Status:** captured
+
+## D69: Scalar-or-object shorthand convention
+
+**Choice:** Types with a natural single-value shorthand accept either a scalar or the full object form in YAML. Parser checks YAML node type (scalar vs mapping) and dispatches. Applied to: Confidence (`0.9` → UNKNOWN origin, no decay), NodeRef (`overlay:shared-123` → scheme:overlay, id:shared-123), RecurrenceRule (RRULE string → parsed record).
+**Alternatives:**
+- Always object form — simpler parsing, no ambiguity, but verbose for common cases
+**Rationale:** Keeps the common case terse. `confidence: 0.9` vs `confidence: { origin: STATED, value: 0.9, decayReference: "2026-06-01T12:00:00Z" }`. The short form covers 80%+ of usage. Polymorphic deserialization based on YAML node type is a well-understood Jackson pattern.
+**Trade-offs:** Parser must handle two input shapes per type. Documented per type in the conventions doc.
+**Sources:** Confidence.java (of(double) factory), NodeRef.java (scheme/id fields), RecurrenceRule.java (parse/toString for RRULE)
+**Exploration:** quick
+**Status:** captured
+
+## D70: SealedHierarchyModule in neocortex, no shared extraction
+
+**Choice:** New `SealedHierarchyModule` as a victools `Module` in neocortex's own schema-generator module. No shared `casehub-schema-generator` extraction from engine.
+**Alternatives:**
+- Extract shared module now — put SealedHierarchyModule + EnumInliningModule in a shared repo. Prevents duplication but adds cross-repo dependency for 2 reusable classes.
+- Put in engine's generator — wrong dependency direction (neocortex shouldn't depend on engine)
+**Rationale:** Two reusable classes don't justify shared module extraction. EnumInliningModule is 20 lines — duplicating is cheaper than the coordination cost. Extract if a third consumer appears.
+**Trade-offs:** EnumInliningModule duplicated across engine and neocortex. Acceptable: 20 lines of trivial code.
+**Sources:** engine/generator/src/main/java/io/casehub/generator/CaseHubSchemaGenerator.java, engine/generator/src/main/java/io/casehub/generator/module/EnumInliningModule.java, GE-20260824-2eb1d7 (victools module patterns)
+**Exploration:** quick
+**Status:** captured
+
+## D71: Accept 3-level nested sealed types as-is
+
+**Choice:** Accept FeatureField → SimilaritySpec → WarpingConstraint (3-level `type:` discriminator nesting) without flattening. Document the deep case with a complete YAML example.
+**Alternatives:**
+- Flatten with dotted names — `similarity: dtw.sakoeChibaBand.5`. Opaque, hard to validate.
+- Shorthand for common combinations — `similarity: dtw-sakoe(5)`. Convenient for 2-3 cases but explodes if hierarchy grows.
+**Rationale:** 3 levels is the structural ceiling (WarpingConstraint has only primitive fields, FeatureField nesting is constrained to flat types). YAML indentation makes structure clear. The deep case is uncommon (only TimeSeries + DTW + SakoeChibaBand). Flattening would diverge from the Java API.
+**Trade-offs:** Power-user configuration looks complex — but it IS complex. The YAML should reflect this.
+**Sources:** FeatureField.java (9 variants), SimilaritySpec.java (6 variants, nested WarpingConstraint), WarpingConstraint.java (3 variants, primitive fields only)
+**Exploration:** quick
+**Status:** captured
+
+## D72: Mirror Java unlimited recursion for CbrFilter.AllOf
+
+**Choice:** YAML allows unlimited CbrFilter recursion via AllOf, mirroring the Java API. No artificial depth cap.
+**Alternatives:**
+- Cap at depth 2 — simpler schema validation, prevents pathological configs. Creates YAML/Java parity gap.
+**Rationale:** Eliminating parity gaps between Java and YAML is the purpose of this issue. AllOf wrapping ≥2 filters is validated in Java. Depth is self-limiting by usability — nobody writes depth-5 filter trees.
+**Trade-offs:** No schema-level depth validation. Java runtime validation (AllOf constructor rejects <2 filters) catches structural errors.
+**Sources:** CbrFilter.java (AllOf contains List<CbrFilter>), #247 issue scope (YAML parity)
+**Exploration:** quick
+**Status:** captured
+
+## D73: String-to-type conversion for platform types
+
+**Choice:** External types (platform `Path`, `Duration`, `Instant`) use their natural string representation in YAML. Parser calls `Path.of()`, `Duration.parse()`, `Instant.parse()` during deserialization. Document each type's string form in the conventions doc.
+**Alternatives:**
+- Explicit import/alias section — YAML declares `imports: { Path: io.casehub.platform.api.path.Path }`. Over-engineered for ~3 external types.
+**Rationale:** Same pattern as Duration → ISO-8601 and Instant → ISO-8601, which are universally accepted. Path.of(String) already exists. No new concepts needed.
+**Trade-offs:** Parser must know the conversion function for each external type. Bounded — only 3 types currently.
+**Sources:** io.casehub.platform.api.path.Path (of(String) factory), CbrQuery.java (scope field), #246 audit §Platform Types
+**Exploration:** quick
+**Status:** captured
