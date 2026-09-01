@@ -14,13 +14,13 @@ active: casehubio/neocortex#231
 
 ## Queue
 - [ ] casehubio/neocortex#231 — Builder APIs ← active
-  - [ ] Batch 1: mindmap-api
-    - [ ] Task 1: MindMapQuery builders
-    - [ ] Task 2: NodeInput builders
-    - [ ] Task 3: EdgeInput builders
-    - [ ] Task 4: NodeUpdate builders
-  - [ ] Batch 2: memory-api
-    - [ ] Task 5: MemoryInput builders
+  - [x] Batch 1: mindmap-api
+    - [x] Task 1: MindMapQuery builders
+    - [x] Task 2: NodeInput builders
+    - [x] Task 3: EdgeInput builders
+    - [x] Task 4: NodeUpdate builders
+  - [x] Batch 2: memory-api
+    - [x] Task 5: MemoryInput builders
 - [ ] casehubio/neocortex#246 — API-to-YAML audit
 - [ ] casehubio/neocortex#247 — YAML schema design
 - [ ] casehubio/neocortex#248 — Cognitive profile YAML
