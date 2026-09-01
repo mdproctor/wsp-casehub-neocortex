@@ -727,3 +727,50 @@
 **Sources:** shared-memory-design.md (overlay model with notes), MindMapNode.java (confidence + properties fields)
 **Exploration:** quick
 **Status:** captured
+
+## D58: Space parameters dropped from builder APIs
+
+**Choice:** Builder APIs (#231) do NOT add spaceId parameters to query/input types
+**Alternatives:**
+- Add withSpaceId() to MindMapQuery, MemoryInput, CbrQuery — entrenches the space-as-tenant model which is a design mistake
+- Add withSpaces(Set<String>) for multi-space querying — same problem, more complex
+**Rationale:** The memory-space model (space-as-tenant, D44-D50) was identified as a design mistake during #231 brainstorming. Tenant is the hard boundary. Individual vs common memory is a property of the memory (entityId), not a partitioning system. SpaceMembershipStore is authorization that belongs in the platform. Filed #255 for rearchitecture. Adding space params to builders would entrench the wrong abstraction.
+**Trade-offs:** #252 (Memory space YAML) is blocked until #255 resolves the correct model. Deferred from queue.
+**Sources:** #255, memory-space-api design spec, user correction during brainstorming
+**Exploration:** deep-analysis
+**Status:** captured
+
+## D59: Builder pattern — CbrQuery-style of() + withX()
+
+**Choice:** Static `of()` factory with required fields + individual `withX()` methods returning new record instances
+**Alternatives:**
+- Builder inner class (GoF) — mutable intermediate object, doubles API surface, doesn't leverage records
+- Lombok @Builder — adds dependency, doesn't work cleanly with record compact constructors, loses explicit validation
+**Rationale:** Proven pattern already in the codebase (CbrQuery has 13 withX methods). Works naturally with records — compact constructor validation fires on every withX() call. No intermediate mutable state. Dramatic call-site improvement: `MindMapQuery.of(tenant, 100).withText("Alice")` vs 12-arg constructor with 9 nulls.
+**Trade-offs:** Each withX() method is verbose (repeats all constructor args). Mitigated: mechanical to generate, IDE catches mismatches at compile time.
+**Sources:** CbrQuery.java (proven pattern), MindMapQuery.java / NodeInput.java (current pain points)
+**Exploration:** quick
+**Status:** captured
+
+## D60: SubgraphInput excluded from builder scope
+
+**Choice:** SubgraphInput (3 fields: name, type, rootNodeId) does not get builders
+**Alternatives:**
+- Add builders for consistency — minimal benefit, no optional fields, no null args
+**Rationale:** 3 fields, all required, no optionals. Builders add nothing. The positional constructor is already clear.
+**Trade-offs:** Slight inconsistency — 5 of 6 mindmap input types have builders. Acceptable: consistency should not override YAGNI.
+**Sources:** SubgraphInput.java (3 fields, no validation)
+**Exploration:** quick
+**Status:** captured
+
+## D61: NodeUpdate uses withX() only, not accumulating helpers
+
+**Choice:** NodeUpdate gets `withTraitsToAdd(Set)`, `withRefsToRemove(Set)` etc. — same withX() pattern as other types
+**Alternatives:**
+- Accumulating helpers (addTrait, removeTrait) — more ergonomic for single-item mutations but diverges from the established pattern
+- Both (withX for bulk + single-item helpers) — maximum convenience but doubles the API surface
+**Rationale:** Consistency with the other types. Callers build their Sets themselves. The pattern is already established by CbrQuery.withFilter() which takes a single-item convenience method alongside withFilters() for bulk — but NodeUpdate's mutation semantics (add vs remove sets) make single-item helpers less clear about which set they target.
+**Trade-offs:** Single-item mutations are slightly more verbose: `withTraitsToAdd(Set.of("person"))` vs `addTrait("person")`. Acceptable tradeoff for pattern consistency.
+**Sources:** CbrQuery.java (withFilter + withFilters pattern), NodeUpdate.java (add/remove semantics)
+**Exploration:** quick
+**Status:** captured
