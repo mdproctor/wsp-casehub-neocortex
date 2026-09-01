@@ -14,15 +14,8 @@ active: casehubio/neocortex#231
 
 ## Queue
 - [x] casehubio/neocortex#231 — Builder APIs
-- [ ] casehubio/neocortex#255 — Remove memory-space modules ← active
-  - [x] Batch 1: Code refactor
-    - [x] Task 1: OverlayRef AGENT_ID constant
-    - [x] Task 2: PerspectivalResolver refactor
-  - [x] Batch 2: Module deletion
-    - [x] Task 3: Delete memory-space modules and deps
-  - [x] Batch 3: Documentation
-    - [x] Task 4: Update CLAUDE.md and roadmap
-- [ ] casehubio/neocortex#246 — API-to-YAML audit
+- [x] casehubio/neocortex#255 — Remove memory-space modules
+- [ ] casehubio/neocortex#246 — API-to-YAML audit ← active
 - [ ] casehubio/neocortex#247 — YAML schema design
 - [ ] casehubio/neocortex#248 — Cognitive profile YAML
 - [ ] casehubio/neocortex#249 — Declarative rule DSL
