@@ -18,6 +18,10 @@ active: casehubio/neocortex#231
 - [x] casehubio/neocortex#246 — API-to-YAML audit
 - [x] casehubio/neocortex#247 — YAML schema design
 - [ ] casehubio/neocortex#248 — Cognitive profile YAML ← active
+  - [ ] Batch 1: Record+Parser
+    - [ ] Task 1: CognitiveDefaults record + PersonalityWeightsDeserializer + parser tests
+  - [ ] Batch 2: Registry+Integration
+    - [ ] Task 2: CognitiveDefaultsRegistry CDI bean + classpath loading + CLAUDE.md
 - [ ] casehubio/neocortex#249 — Declarative rule DSL
 - [ ] casehubio/neocortex#250 — YAML-to-Java compiler
 - [ ] casehubio/neocortex#251 — Identity-cognition derivation
