@@ -919,3 +919,75 @@
 **Sources:** io.casehub.platform.api.path.Path (of(String) factory), CbrQuery.java (scope field), #246 audit §Platform Types
 **Exploration:** quick
 **Status:** captured
+
+## D74: Cognitive profile — separate YAML file, agentId join key
+
+**Choice:** Cognitive profile is a standalone YAML file (e.g., `cognitive-profiles/alice.yaml`) with an `agentId` field matching the eidos AgentDescriptor. Neocortex parser loads independently; consuming apps wire by agentId. Zero coupling between eidos and neocortex.
+**Alternatives:**
+- Extension section in eidos YAML — pollutes eidos file with neocortex concerns, creates implicit dependency
+- Merged at application level — app-specific schema, not a platform convention
+**Rationale:** Dependency direction: neocortex doesn't depend on eidos, eidos doesn't depend on neocortex. Separate files with a shared key preserve this. Follows eidos's own pattern (one YAML file per agent).
+**Trade-offs:** Two files per agent instead of one. Acceptable — they serve different concerns (identity/capability vs cognitive tuning).
+**Sources:** AgentDescriptor.java (agentId field), eidos eval profiles (separate YAML per agent)
+**Exploration:** quick
+**Status:** captured
+
+## D75: CognitiveDefaults — single aggregate record
+
+**Choice:** `CognitiveDefaults(String agentId, String tenantId, PersonalityWeights personality, MoodBaseline moodBaseline, CuriosityConfig curiosity, TemporalFocusConfig temporalFocus, MindMapVocabulary vocabulary, Map<String, String> services)`. All fields except agentId optional — null sections use Java defaults. `services` maps SPI names to `@Named` bean references (e.g., `reflectionSynthesizer: llm`).
+**Alternatives:**
+- Sectioned YAML, no aggregate — no single "profile" concept; consumers must inject each piece separately
+**Rationale:** The aggregate is the natural API for "what is this agent's cognitive configuration?" CDI producer exposes both the aggregate and individual components. `services` enables per-agent SPI selection via `@Named` lookup.
+**Trade-offs:** Record references types from 4 modules — requires the right module placement (D77).
+**Sources:** PersonalityWeights.java, MoodBaseline.java, CuriosityConfig.java, TemporalFocusConfig.java, MindMapVocabulary.java
+**Exploration:** quick
+**Status:** captured
+
+## D76: Naming — CognitiveDefaults, not CognitiveProfile
+
+**Choice:** `CognitiveDefaults` for the config record. Avoids collision with existing `CognitiveProfile` CDI bean in cognitive-index (runtime entity resolver).
+**Alternatives:**
+- `AgentCognitiveConfig` — longer, config-in-config naming awkward alongside CuriosityConfig
+- `CognitiveDescriptor` — mirrors eidos but "descriptor" means identity/capability there, not tuning
+**Rationale:** "Defaults" captures that these are baseline parameters that runtime behaviour deviates from (mood drifts, confidence decays). Clearly distinct from the runtime `CognitiveProfile` resolver.
+**Trade-offs:** None significant.
+**Sources:** CognitiveProfile.java (cognitive-index — existing runtime resolver)
+**Exploration:** quick
+**Status:** captured
+
+## D77: Module placement — cognitive-index
+
+**Choice:** `CognitiveDefaults`, parser, and `CognitiveDefaultsRegistry` live in cognitive-index. Adds mindmap-intelligence as a new dependency (for CuriosityConfig).
+**Alternatives:**
+- New `cognitive-profile` module — clean isolation but adds a module for 3 classes with identical dependency set
+- cognitive-api — wrong: zero-deps constraint (D26)
+**Rationale:** cognitive-index is the integration tier above individual subsystem modules. Already depends on memory-api and mindmap-api. Adding mindmap-intelligence is directionally correct (integration tier uses subsystem modules). Avoids a new module for 3 classes.
+**Trade-offs:** cognitive-index gains one dependency edge (mindmap-intelligence). Acceptable — right direction.
+**Depends on:** D1 (cognitive-api zero-deps), D16 (cognitive-index module)
+**Sources:** cognitive-index/pom.xml (existing dependencies), mindmap-intelligence/pom.xml
+**Exploration:** quick
+**Status:** captured
+
+## D78: Classpath scan with configurable path
+
+**Choice:** Quarkus config `casehub.cognitive.profiles.path` (default: `cognitive-profiles/`). At startup, scan classpath under that path for `*.yaml` files. Each file → one `CognitiveDefaults`. No files = no beans (subsystems use `defaults()` factories). Jackson `ObjectMapper` + `YAMLFactory` parser.
+**Alternatives:**
+- Single file config property — doesn't scale for multi-agent
+- CDI SPI discovery — over-engineered for file loading
+**Rationale:** Convention-over-configuration. Drop a YAML file, it becomes a bean. Mirrors eidos profile discovery. Configurable path handles non-default deployments.
+**Trade-offs:** Classpath scanning at startup has a small cost. Bounded — cognitive profile count is small (typically 1-10 agents).
+**Sources:** eidos profile loading pattern, AgentDescriptorBootstrap.java (classpath discovery)
+**Exploration:** quick
+**Status:** captured
+
+## D79: CognitiveDefaultsRegistry — runtime lookup by agentId
+
+**Choice:** `@ApplicationScoped CognitiveDefaultsRegistry` loads all profiles at startup. API: `Optional<CognitiveDefaults> forAgent(String agentId)`, `CognitiveDefaults forAgentOrDefaults(String agentId)`. Fallback returns all-null sections (subsystems use defaults). Consumers inject the registry and look up by agentId.
+**Alternatives:**
+- One `@Named` bean per agent — requires compile-time knowledge of agentId
+- `Instance<CognitiveDefaults>` with qualifier — CDI ceremony for a runtime value
+**Rationale:** agentId is a runtime value (from agent context, request headers, eidos descriptor). A lookup method handles this naturally. The registry pattern is simple, explicit, and testable.
+**Trade-offs:** No CDI injection by agent — must go through the registry. This is the correct pattern for runtime-keyed lookup.
+**Sources:** CognitiveProfile.java (similar CDI bean pattern), AgentDescriptor.agentId
+**Exploration:** quick
+**Status:** captured
