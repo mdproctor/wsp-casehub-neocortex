@@ -1,0 +1,2 @@
+{"event":"promote","branch":"issue-253-cognitive-rearchitecture","files":[],"timestamp":"2026-09-02T17:12:13.567880+00:00"}
+{"event":"land","repo":"neocortex","branch":"issue-253-cognitive-rearchitecture","base_branch":"main","landed_sha":"9c5509e4ac4e212e2912cca179d261de6f3a661e","push_target":"upstream","mirrored":true,"stamped":true,"timestamp":"2026-09-02T17:18:00.401983+00:00"}

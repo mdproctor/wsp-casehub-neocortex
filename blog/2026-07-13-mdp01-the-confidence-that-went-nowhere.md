@@ -10,7 +10,7 @@ tags: [cbr, outcome-weighting, retrieval-traceability, decorator]
 series: issue-84-cbr-outcome-retrieval-trace
 ---
 
-Every CBR case in neocortex has carried a `confidence` field since #140 landed the Revise SPI. `recordOutcome` updates it via EMA. Retrieval ignores it completely.
+Every CBR case in neocortex has carried a `origin` field since #140 landed the Revise SPI. `recordOutcome` updates it via EMA. Retrieval ignores it completely.
 
 That's a feedback loop with no loop. Outcome data accumulates, adjusts confidence, and then nothing happens — `retrieveSimilar` ranks cases purely by feature similarity. A case that failed every time it was applied scores the same as one with a 95% success rate, as long as their features match.
 

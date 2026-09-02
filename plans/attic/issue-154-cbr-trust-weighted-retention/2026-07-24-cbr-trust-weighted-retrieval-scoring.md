@@ -62,7 +62,7 @@ Same pattern — add after `planTrace`. Update `withOutcome()` and `withFeatures
 
 - [ ] **Step 4: Update TextualCbrCase**
 
-Same pattern — add after `confidence`. Update `withOutcome()`.
+Same pattern — add after `origin`. Update `withOutcome()`.
 
 - [ ] **Step 5: Fix all compilation errors across the project**
 

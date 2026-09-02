@@ -66,7 +66,7 @@ CaseHub runs Retain + Reuse only. Trust-scored routing improves with repetition 
 
 | Component | Repo | Status |
 |-----------|------|--------|
-| `CbrCaseEntry` — `problem`, `solution`, `outcome`, `confidence` | platform-api | Shipped (platform#87) |
+| `CbrCaseEntry` — `problem`, `solution`, `outcome`, `origin` | platform-api | Shipped (platform#87) |
 | `CaseOutcomeObserver` — `onOutcome(CaseOutcomeEvent)` at case close | engine-api | Shipped (engine#477) |
 | `CaseOutcomeEvent` — `caseType`, `caseId`, `caseFileSnapshot`, `outcomeLabel`, `closedAt` | engine-api | Shipped (engine#477) |
 

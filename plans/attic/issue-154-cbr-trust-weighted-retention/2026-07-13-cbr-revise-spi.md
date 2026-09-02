@@ -10,7 +10,7 @@
 **Issue group:** #140
 
 **Goal:** Add `recordOutcome()` to the CBR SPI so that case outcome observations
-update the stored case's `outcome` and `confidence` fields, closing the CBR
+update the stored case's `outcome` and `origin` fields, closing the CBR
 Revise feedback loop.
 
 **Architecture:** New `CbrOutcome` record in memory-api carries outcome data.

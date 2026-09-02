@@ -171,7 +171,7 @@ Static utility `CbrMemoryDeserializer` in `memory-qdrant`. Inverse of `QdrantCbr
 | `text()` | `problem` |
 | `attributes["solution"]` | `solution` |
 | `attributes["outcome"]` | `outcome` |
-| `attributes["confidence"]` | `confidence` (via `MemoryAttributeKeys.parseConfidence`) |
+| `attributes["confidence"]` | `origin` (via `MemoryAttributeKeys.parseConfidence`) |
 | `attributes["cbr.type"]` | discriminator → FeatureVectorCbrCase / PlanCbrCase / TextualCbrCase |
 | `attributes["cbr.features"]` | `features` (JSON deserialization) |
 | `attributes["cbr.planTrace"]` | `planTrace` (JSON deserialization, PlanCbrCase only) |
