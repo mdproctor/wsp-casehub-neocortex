@@ -20,9 +20,9 @@ active: casehubio/neocortex#231
 - [x] casehubio/neocortex#248 — Cognitive profile YAML
 - [x] casehubio/neocortex#249 — Declarative rule DSL
 - [x] casehubio/neocortex#250 — YAML-to-Java compiler
-- [ ] casehubio/neocortex#251 — Identity-cognition derivation ← active
+- [x] casehubio/neocortex#251 — Identity-cognition derivation
 - [x] casehubio/neocortex#253 — Issue #253
-- [x] casehubio/neocortex#229 — Unified confidence model
+- [x] casehubio/neocortex#229 — Unified confidence model ← active
 - [x] casehubio/neocortex#232 — Naming audit
 - [x] casehubio/neocortex#234 — Temporal taxonomy
 - [x] casehubio/neocortex#235 — Event timestamps
