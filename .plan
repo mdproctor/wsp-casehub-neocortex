@@ -18,14 +18,8 @@ active: casehubio/neocortex#231
 - [x] casehubio/neocortex#246 — API-to-YAML audit
 - [x] casehubio/neocortex#247 — YAML schema design
 - [x] casehubio/neocortex#248 — Cognitive profile YAML
-- [ ] casehubio/neocortex#249 — Declarative rule DSL ← active
-  - [x] Batch 1: ConditionModel
-    - [x] Task 1: RuleCondition sealed interface + DeclarativeTraitRule
-  - [x] Batch 2: ActionModel
-    - [x] Task 2: EdgeDerivation + DeclarativeDerivedEdgeRule with traversal
-  - [ ] Batch 3: Integration
-    - [ ] Task 3: YAML deserializers + DeclarativeRuleRegistry + decorator modification
-- [ ] casehubio/neocortex#250 — YAML-to-Java compiler
+- [x] casehubio/neocortex#249 — Declarative rule DSL
+- [ ] casehubio/neocortex#250 — YAML-to-Java compiler ← active
 - [ ] casehubio/neocortex#251 — Identity-cognition derivation
 - [x] casehubio/neocortex#253 — Issue #253
 - [x] casehubio/neocortex#229 — Unified confidence model
