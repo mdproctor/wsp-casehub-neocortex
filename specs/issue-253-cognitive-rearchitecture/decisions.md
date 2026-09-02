@@ -991,3 +991,62 @@
 **Sources:** CognitiveProfile.java (similar CDI bean pattern), AgentDescriptor.agentId
 **Exploration:** quick
 **Status:** captured
+
+## D80: Complete structural predicate set for trait rule conditions
+
+**Choice:** 11-predicate condition DSL: `hasProperty`, `propertyEquals`, `propertyIn`, `notHasProperty` (property); `hasEdgeType`, `hasEdgeTypes`, `hasAnyEdge` (edge); `inSubgraphType` (subgraph); `anyOf`, `allOf`, `not` (combinators). Boundary: structural predicates on the graph — no numeric comparison, no regex, no temporal queries.
+**Alternatives:**
+- 5 primitives only (strict YAGNI) — covers existing 7 rules but irregular API forces Java for obvious predicates like negation
+**Rationale:** A regular, intuitive predicate set prevents users from dropping to Java for trivial conditions. The cost per predicate is a few lines of implementation. The boundary (structural predicates) is clear and defensible.
+**Trade-offs:** 11 predicates to implement and test instead of 5. Marginal cost for significant usability gain.
+**Sources:** PersonableTraitRule.java, ProjectlikeTraitRule.java, AppointableTraitRule.java (existing patterns), TraitRule.java (interface)
+**Exploration:** quick
+**Status:** captured
+
+## D81: Two-level derived edge actions — direct + traversal
+
+**Choice:** Level 1 (direct): `derive` creates edges with source/target references (`trigger.source`, `trigger.target`) for inverse/flip patterns. Level 2 (traversal): optional `traverse` block walks the graph following a specified edge type from a starting point, with direction and maxDepth — `derive` fires per reached node using `traversal.node` reference. Transitive closure is expressible without imperative store access.
+**Alternatives:**
+- Direct/inverse only — forces Java for transitive patterns that are structurally declarative
+**Rationale:** Traversal is a common structural pattern (descendant chains, organisational hierarchies). The traverse block is declarative — it says WHAT to follow, not HOW to query. The implementation uses MindMapStore.neighbors() internally, filtered by edge type and direction.
+**Trade-offs:** Traversal adds complexity to the rule compiler. The implementation needs graph walking with the decorator's existing depth limit as a safety net.
+**Sources:** DerivedEdgeDecorator.java (recursion depth limit), DerivedEdgeRule.java (derive signature with store access)
+**Exploration:** quick
+**Status:** captured
+
+## D82: Module placement — mindmap-intelligence
+
+**Choice:** Rule DSL compiler, DeclarativeRuleRegistry, and intermediate types live in mindmap-intelligence.
+**Alternatives:**
+- New `mindmap-rules` module — clean isolation but adds a module for the same concern
+- cognitive-index — wrong scope, rules are mindmap-specific
+**Rationale:** mindmap-intelligence is where rules live. Programmatic trait rules are Java classes there today; YAML-compiled rules are the same interfaces produced by a startup loader. One module, one concern.
+**Trade-offs:** mindmap-intelligence grows. Acceptable — it's the natural home.
+**Sources:** PersonableTraitRule.java et al (7 existing TraitRules in mindmap-intelligence)
+**Exploration:** quick
+**Status:** captured
+
+## D83: Global rules + per-agent overrides
+
+**Choice:** Global rules in `rules/*.yaml` on classpath. Per-agent rules in `cognitive-profiles/*.yaml` (traitRules/derivedEdgeRules sections). At startup, merge: agent-specific rules override global rules with the same name (local wins, global suppressed). Agents without profiles get only global rules.
+**Alternatives:**
+- Cognitive profile only — can't express shared rules without duplication
+- Global only — can't express per-agent differences
+**Rationale:** Most rules are shared (inverse-knows, descendant-chain). Some agents need domain-specific classification. Override-by-name is simple and intuitive.
+**Trade-offs:** Two loading paths (global + per-agent) with merge logic. Merge rule is simple: name-based override, no partial merge.
+**Depends on:** D75 (CognitiveDefaults record — gains traitRules/derivedEdgeRules fields)
+**Sources:** CognitiveDefaultsRegistry.java (YAML loading pattern)
+**Exploration:** quick
+**Status:** captured
+
+## D84: DeclarativeRuleRegistry + decorator modification
+
+**Choice:** `@ApplicationScoped DeclarativeRuleRegistry` in mindmap-intelligence loads global rules and merges with per-agent rules from CognitiveDefaultsRegistry. Exposes `List<TraitRule> traitRules(String agentId)` and `List<DerivedEdgeRule> derivedEdgeRules(String agentId)`. DerivedEdgeDecorator gains `Instance<DeclarativeRuleRegistry>` (graceful degradation) alongside existing `Instance<DerivedEdgeRule>`. Iterates both sources.
+**Alternatives:**
+- Quarkus synthetic CDI beans — requires deployment module, heavyweight for startup file load
+**Rationale:** Registry pattern is simple, testable, follows CognitiveDefaultsRegistry. Decorator modification is 3 lines. Pre-release — API change is free.
+**Trade-offs:** DerivedEdgeDecorator constructor changes. Trait matching code also needs modification. Both are pre-release, no backward compat concern.
+**Depends on:** D79 (CognitiveDefaultsRegistry), D82 (module placement)
+**Sources:** DerivedEdgeDecorator.java (Instance<DerivedEdgeRule> injection), CognitiveDefaultsRegistry.java (registry pattern)
+**Exploration:** quick
+**Status:** captured
