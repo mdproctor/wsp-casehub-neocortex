@@ -39,8 +39,8 @@ active: casehubio/neocortex#231
 - [x] casehubio/neocortex#233 — Cross-store retrieval modulation
 - [x] casehubio/neocortex#240 — Perspectival affect overlays
 - [x] casehubio/neocortex#256 — Derive curiosity direction
-- [ ] casehubio/neocortex#257 — Derive prospective focus ← active
-- [ ] casehubio/neocortex#258 — Derive CBR strategy defaults
+- [x] casehubio/neocortex#257 — Derive prospective focus
+- [ ] casehubio/neocortex#258 — Derive CBR strategy defaults ← active
 - [ ] casehubio/neocortex#259 — Derive social cognition config
 - [ ] casehubio/neocortex#260 — Derive graph structure preference
 - [ ] casehubio/neocortex#261 — Derive extraction bias
