@@ -1,1 +1,1 @@
-# Design Journal — issue-253-cognitive-rearchitecture
+# Design Journal — issue-269-agent-scoped-rule-context
