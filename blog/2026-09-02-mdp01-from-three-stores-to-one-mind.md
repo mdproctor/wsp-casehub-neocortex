@@ -112,7 +112,7 @@ The loader reads this file, runs the derivation engine, merges explicit override
 
 ## Where This Goes
 
-The derivation engine maps two of eight designed connection points. The remaining six follow the same pattern — pure functions from descriptor to config — but each touches a different cognitive subsystem:
+The derivation engine maps two of eight designed connection points. The remaining six follow the same pattern — pure functions from descriptor to config — but each touches a different cognitive subsystem. ✅ = implemented, ◻️ = designed, not yet wired:
 
 | Connection | What it derives | From what |
 |---|---|---|
