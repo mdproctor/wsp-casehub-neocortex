@@ -29,7 +29,7 @@
 ### Task 1: CuriosityConfig record + pom dependency updates
 
 **Files:**
-- Create: `mindmap-intelligence/src/main/java/io/casehub/neocortex/mindmap/intelligence/CuriosityConfig.java`
+- Create: `../../mindmap-api/src/main/java/io/casehub/neocortex/mindmap/CuriosityConfig.java`
 - Modify: `mindmap-intelligence/pom.xml` — add memory-api + cognitive-index dependencies
 - Modify: `mindmap-intelligence/src/main/java/io/casehub/neocortex/mindmap/intelligence/CuriositySignalGenerator.java` — replace hardcoded constants with CuriosityConfig
 - Modify: `mindmap-intelligence/src/test/java/io/casehub/neocortex/mindmap/intelligence/CuriositySignalGeneratorTest.java` — update constructor calls

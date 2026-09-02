@@ -536,7 +536,7 @@ Closes #248"
 - `cognitive-index/pom.xml` — existing dependencies
 - `memory-api/src/main/java/io/casehub/neocortex/memory/personality/PersonalityWeights.java` — MemoryDomain map
 - `memory-api/src/main/java/io/casehub/neocortex/memory/mood/MoodBaseline.java` — PAD record
-- `mindmap-intelligence/src/main/java/io/casehub/neocortex/mindmap/intelligence/CuriosityConfig.java` — 10-field config
+- `../../mindmap-api/src/main/java/io/casehub/neocortex/mindmap/CuriosityConfig.java` — 10-field config
 - `cognitive-index/src/main/java/io/casehub/neocortex/cognitive/index/TemporalFocusConfig.java` — 4-field config
 - `mindmap-api/src/main/java/io/casehub/neocortex/mindmap/MindMapVocabulary.java` — edge type list
 - GE-20260602-a4d290 — ObjectMapper requires findAndRegisterModules()
