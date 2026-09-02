@@ -23,14 +23,14 @@ active: casehubio/neocortex#231
 - [x] casehubio/neocortex#251 — Identity-cognition derivation
 - [x] casehubio/neocortex#253 — Issue #253
 - [x] casehubio/neocortex#229 — Unified confidence model
-- [x] casehubio/neocortex#232 — Naming audit ← active
+- [x] casehubio/neocortex#232 — Naming audit
 - [x] casehubio/neocortex#234 — Temporal taxonomy
 - [x] casehubio/neocortex#235 — Event timestamps
 - [x] casehubio/neocortex#236 — Temporal MindMapQuery
 - [x] casehubio/neocortex#237 — Chronological index
 - [x] casehubio/neocortex#238 — PAD on Memory
 - [x] casehubio/neocortex#239 — Affect trajectory log
-- [x] casehubio/neocortex#241 — Prospective event model
+- [x] casehubio/neocortex#241 — Prospective event model ← active
 - [x] casehubio/neocortex#242 — Trajectory-aware curiosity
 - [x] casehubio/neocortex#244 — TemporalFocus utility
 - [x] casehubio/neocortex#243 — Cross-store entity resolution
