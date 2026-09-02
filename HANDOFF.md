@@ -2,48 +2,58 @@
 
 ## Last Session
 
-Continued cognitive rearchitecture on `issue-253-cognitive-rearchitecture`. Completed #247 (YAML schema conventions), #248 (Cognitive profile YAML), and #249 batches 1-2 of 3 (declarative rule DSL — condition + action models). Queue position 20→22 of 25.
+Continued cognitive rearchitecture on `issue-253-cognitive-rearchitecture`. Completed #249 (batch 3), #250, #251. Created 6 new issues (#256–#261) for remaining derivation connection points. Queue position 25→31 (25 done, 6 new).
 
 ### Completed
 
-1. **#247 — YAML schema conventions** (M): New `schema-generator` module with SealedHierarchyModule (sealed → oneOf + const discriminator), EnumInliningModule, ShorthandModule (Confidence/NodeRef/RecurrenceRule), CognitiveSchemaGenerator. 28 tests. Conventions doc promoted to `docs/specs/2026-09-01-yaml-schema-conventions.md`. Decisions D65-D73.
+1. **#249 — Declarative rule DSL** (L, final batch): YAML deserializers (RuleConditionDeserializer, DeclarativeTraitRuleDeserializer, DeclarativeDerivedEdgeRuleDeserializer) in cognitive-index. DeclarativeRuleRegistry (@ApplicationScoped) loads global `rules/*.yaml` + per-agent overrides with name-based merge. DerivedEdgeDecorator CDI constructor gains `Instance<DeclarativeRuleRegistry>`. CognitiveDefaults extended with traitRules + derivedEdgeRules nullable fields. Architecture deviation: deserializers placed in cognitive-index (not mindmap-intelligence per spec) to avoid circular dependency — mindmap-intelligence → mindmap → cognitive-index works, but mindmap → mindmap-intelligence would be circular.
 
-2. **#248 — Cognitive profile YAML** (M): `CognitiveDefaults` aggregate record + `CognitiveDefaultsRegistry` (classpath scan `cognitive-profiles/*.yaml`, runtime lookup by agentId) + `PersonalityWeightsDeserializer` in cognitive-index. 10 tests. Moved `CuriosityConfig` from mindmap-intelligence to mindmap-api to break cyclic dependency. Decisions D74-D79.
+2. **#250 — YAML-to-Java compiler** (L→S actual): Most work already done by #249. CognitiveDefaultsRegistry and DeclarativeRuleRegistry gain @ApplicationScoped + @PostConstruct. TraitApplicationDecorator gains `Instance<DeclarativeRuleRegistry>` (mirrors DerivedEdgeDecorator). CognitiveLoader @ApplicationScoped in mindmap-intelligence — @PostConstruct vocabulary registration from cognitive profiles. `DeclarativeRuleRegistry.of()` public factory for programmatic construction.
 
-3. **#249 — Declarative rule DSL** (L, in progress): Batches 1-2 of 3 complete.
-   - Batch 1: `RuleCondition` sealed interface (11 structural predicates: hasProperty, propertyEquals, propertyIn, notHasProperty, hasEdgeType, hasEdgeTypes, hasAnyEdge, inSubgraphType, anyOf, allOf, not) + `DeclarativeTraitRule` in mindmap-api. 25 tests.
-   - Batch 2: `EdgeDerivation` + `EdgeRef` + `TraversalSpec` + `DeclarativeDerivedEdgeRule` in mindmap-api. Two-level actions: Level 1 (direct inverse/flip), Level 2 (graph traversal with cycle prevention for transitive closure). 9 tests.
-   - **Batch 3 remaining:** YAML deserializers (RuleConditionDeserializer), DeclarativeRuleRegistry CDI bean (global + per-agent merge), DerivedEdgeDecorator modification (`Instance<DeclarativeRuleRegistry>`), CognitiveDefaults extension (traitRules + derivedEdgeRules fields). Touches mindmap-intelligence, mindmap, cognitive-index, CLAUDE.md.
+3. **#251 — Identity-cognition derivation** (M): DescriptorView, DispositionAxes, WeightedTerm records in cognitive-index — zero eidos compile dependency. CognitiveDerivationEngine pure static utility: Jungian disposition profile → PersonalityWeights (8-function weighted average), disposition axes → MoodBaseline (PAD). `deriveAndMerge()` overlays explicit CognitiveDefaults overrides on derived base. CognitiveDefaults gains `descriptor` nullable field for embedded identity-cognition derivation.
 
 ### Key Design Decisions
 
-**D80 — Complete structural predicate set.** 11 predicates, not 5. A regular API prevents users from dropping to Java for trivial conditions like negation.
+**D85 — Deserializers in cognitive-index, not mindmap-intelligence.** The spec placed them in mindmap-intelligence, but CognitiveDefaultsRegistry (in cognitive-index) needs them to parse traitRules/derivedEdgeRules in cognitive profile YAML. mindmap-intelligence → mindmap → cognitive-index prevents reverse dependency.
 
-**D81 — Two-level derived edge actions.** Direct (inverse/flip) + traversal (transitive closure via TraversalSpec). The traverse block is declarative — says WHAT to follow, not HOW to query.
+**D86 — DeclarativeRuleRegistry.of() public factory.** Package-private test constructor wasn't accessible from mindmap module tests. Public static factory `of(traitRules, derivedEdgeRules)` provides programmatic construction without CDI.
 
-**D83 — Global rules + per-agent overrides.** Global rules in `rules/*.yaml`, per-agent in `cognitive-profiles/*.yaml`. Name collision = local wins.
-
-**D84 — DeclarativeRuleRegistry.** CDI bean merges global + per-agent rules. DerivedEdgeDecorator gains `Instance<DeclarativeRuleRegistry>` alongside existing `Instance<DerivedEdgeRule>`.
+**D87 — CognitiveDerivationEngine weighted average.** Disposition profile → PersonalityWeights uses weighted average across all functions in the profile, defaulting to 1.0 (neutral) for domains not mentioned by a function. This ensures blending: Ni at 0.35 + Te at 0.30 → reflection gets Ni's 1.5 weighted by 0.35 and Te's 1.0 weighted by 0.30.
 
 ### Architectural Changes
 
-- **CuriosityConfig moved:** `mindmap-intelligence` → `mindmap-api` (pure record, broke cyclic dep)
-- **New module:** `schema-generator/` (4 classes, 28 tests)
-- **New in mindmap-api:** `RuleCondition`, `DeclarativeTraitRule`, `EdgeDerivation`, `EdgeRef`, `TraversalSpec`, `DeclarativeDerivedEdgeRule`, `TestNode`, `TestEdge`, `StubMindMapStore` (test stubs)
-- **New in cognitive-index:** `CognitiveDefaults`, `CognitiveDefaultsRegistry`, `PersonalityWeightsDeserializer`
+- **New in cognitive-index:** RuleConditionDeserializer, DeclarativeTraitRuleDeserializer, DeclarativeDerivedEdgeRuleDeserializer, RuleFile, DeclarativeRuleRegistry (@ApplicationScoped), DescriptorView, DispositionAxes, WeightedTerm, CognitiveDerivationEngine
+- **New in mindmap-intelligence:** CognitiveLoader (@ApplicationScoped)
+- **Modified:** CognitiveDefaults (+traitRules, +derivedEdgeRules, +descriptor), CognitiveDefaultsRegistry (@ApplicationScoped, +@PostConstruct, +rule deserializers), DerivedEdgeDecorator (+Instance<DeclarativeRuleRegistry>), TraitApplicationDecorator (+Instance<DeclarativeRuleRegistry>)
+- **New dependency edge:** mindmap → cognitive-index (for DeclarativeRuleRegistry injection)
+
+### Issues Created
+
+| # | Title | Scale | Complexity | Notes |
+|---|-------|-------|------------|-------|
+| 256 | Derive curiosity direction | S | Low | disposition axes + goals → CuriosityConfig category weights |
+| 257 | Derive prospective focus | S | Low | goals → TemporalFocusConfig subgraph proximity weights |
+| 258 | Derive CBR strategy defaults | M | Med | ruleFollowing + riskAppetite → CbrQuery defaults |
+| 259 | Derive social cognition config | M | Med | socialOrient + conflictMode → trust/conflict config. Needs design. |
+| 260 | Derive graph structure preference | M | Med | disposition profile → disposition-gated derived edge rules |
+| 261 | Derive extraction bias | L | High | disposition → MindMapExtractor prompt biasing. Needs design — LLM prompt engineering. |
 
 ## What's Next
 
 | # | Title | Scale | Complexity | Notes |
 |---|-------|-------|------------|-------|
-| 249 | Declarative rule DSL | L | High | **Batch 3 remaining** — YAML deserializers + DeclarativeRuleRegistry + DerivedEdgeDecorator mod + CognitiveDefaults extension. Plan: `plans/2026-09-02-declarative-rule-dsl.md`, Task 3. Spec review running at `/Users/mdproctor/reviews/casehub-neocortex/issue-249-rule-dsl-spec-20260902-091218/`. |
-| 250 | YAML-to-Java compiler | L | High | Blocked by #249 |
-| 251 | Identity-cognition derivation | M | High | Blocked by #248 (done) |
+| 256 | Derive curiosity direction | S | Low | Pure config derivation — extend CuriosityConfig + derivation engine |
+| 257 | Derive prospective focus | S | Low | Pure config derivation — extend TemporalFocusConfig + derivation engine |
+| 258 | Derive CBR strategy defaults | M | Med | New CbrStrategyDefaults config record needed |
+| 259 | Derive social cognition config | M | Med | **Needs design** — conflict interpretation → runtime behaviour mapping |
+| 260 | Derive graph structure preference | M | Med | Disposition-gated rule activation via DeclarativeRuleRegistry |
+| 261 | Derive extraction bias | L | High | **Needs design** — LLM prompt engineering, not pure config |
+
+Recommended order: 256, 257 (quick wins) → 258, 260 (mechanical M) → 259 (needs design) → 261 (needs design + LLM integration).
 
 ## Branch State
 
 - Branch: `issue-253-cognitive-rearchitecture`
-- All tests pass (full reactor build green)
+- Full reactor build green (compile). 156 cognitive-index tests pass.
 - No uncommitted changes in project repo
-- Specs: `2026-09-01-yaml-schema-conventions-design.md`, `2026-09-01-cognitive-defaults-design.md`, `2026-09-02-declarative-rule-dsl-design.md`
-- Plans: `2026-09-01-yaml-schema-conventions.md`, `2026-09-01-cognitive-defaults.md`, `2026-09-02-declarative-rule-dsl.md`
+- Blog entry: `blog/2026-09-02-mdp01-from-three-stores-to-one-mind.md` (workspace)
