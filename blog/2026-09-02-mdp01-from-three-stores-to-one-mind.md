@@ -186,25 +186,31 @@ The loader reads this file, runs the derivation engine, merges explicit override
 
 **Perspectival affect.** The same knowledge graph node carrying different emotional colouring per agent, merged at query time via `PerspectivalMerge`. This isn't just configuration — it's a structural claim about how subjective experience relates to shared knowledge.
 
-## Where This Goes
+## All Eight — Wired
 
-The derivation engine maps two of eight designed connection points. The remaining six follow the same pattern — pure functions from descriptor to config — but each touches a different cognitive subsystem. ✅ = implemented, ◻️ = designed, not yet wired:
+The derivation engine now maps all eight connection points. Each is a pure function from descriptor to config — no side effects, no state, 41 unit tests across the full derivation surface.
 
 | Connection | What it derives | From what |
 |---|---|---|
 | ✅ Memory weighting | `PersonalityWeights` domain multipliers | Disposition profile (Ni→reflection, Fe→relationship, etc.) |
 | ✅ Mood baseline | `MoodBaseline` PAD resting point | Disposition axes (riskAppetite→pleasure, autonomy→dominance) |
-| ◻️ Extraction bias | `MindMapExtractor` relationship vs affect sensitivity | Disposition profile (analytical→more edges, empathetic→more affect) |
-| ◻️ Curiosity direction | `CuriositySignalGenerator` category weights | Goals + disposition (autonomy→STRUCTURAL, ruleFollowing→QUALITY) |
-| ◻️ CBR strategy | `CbrQuery` defaults (minSimilarity, temporalDecay, retrievalMode) | ruleFollowing + riskAppetite (Gentner's analogical reasoning dimension) |
-| ◻️ Social cognition | Trust formation rate, conflict interpretation | socialOrient + conflictMode (Bowlby's attachment dimension) |
-| ◻️ Prospective focus | Subgraph proximity weights for future-facing attention | Goals + domain (career→PROJECT amplified, family→PERSON amplified) |
-| ◻️ Graph structure | Derived edge rule activation, connective vs categorical inference | Disposition profile (holistic Ni/Fe→bridges, systematic Te/Si→categories) |
+| ✅ Curiosity direction | `CuriositySignalGenerator` category weights | Goals + disposition (autonomy→STRUCTURAL, ruleFollowing→QUALITY) |
+| ✅ Prospective focus | Subgraph proximity weights in `CuriositySignalGenerator` | Goals (career→PROJECT, family→PERSON, research→RESEARCH_AREA) |
+| ✅ CBR strategy | `CbrStrategyDefaults` (minSimilarity, temporalDecay, retrievalMode) | ruleFollowing + riskAppetite (Gentner's analogical reasoning dimension) |
+| ✅ Social cognition | Trust formation rate, `ConflictInterpretation` enum | socialOrient + conflictMode (Bowlby's attachment dimension) |
+| ✅ Graph structure | `InferenceStyle` (CONNECTIVE/CATEGORICAL/BALANCED) | Disposition profile (holistic Ni/Fe→bridges, systematic Te/Si→categories) |
+| ✅ Extraction bias | `ExtractionBiasDefaults` relationship + affect sensitivity | Disposition profile (analytical→more edges, empathetic→more affect) |
 
-Beyond the derivation chain, three architectural directions:
+Two of those — curiosity direction and prospective focus — are wired end-to-end. `CuriositySignalGenerator` reads the derived category weights and subgraph proximity weights at runtime, scaling signal scores by the agent's disposition. The other four produce config that nothing yet consumes. The types exist, the derivation runs, the config lands in `CognitiveDefaults` — but no runtime code reads `CbrStrategyDefaults` to set query defaults or `SocialCognitionDefaults` to calibrate trust formation. Those are tracked as follow-up work: four issues filed, one per subsystem.
 
-- **Agent-scoped rule context.** The `DerivedEdgeDecorator` currently loads all declarative rules for all agents. Per-agent scoping requires an agent context in the MindMapStore layer — the store needs to know who's calling so it fires only that agent's rules. This is the bridge to identity-cognition derivation point 8.
-- **Hot-reload.** V1 requires restart for config changes. Quarkus's `@ConfigMapping` with file watching could make cognitive profiles reloadable without restart — change an agent's personality weights and see the effect immediately.
+The `CognitiveDefaults` record grew to 15 fields during this work. That's the record holding everything an agent needs for cognitive configuration — personality, mood, curiosity, temporal focus, CBR strategy, social cognition, graph structure, extraction bias, plus vocabulary, services, rules, and the source descriptor. Adding a field used to break every caller. Now it has `empty()` + `withX()` methods following the same pattern as `CbrQuery`, so future additions touch one method, not twelve call sites.
+
+## Where This Goes
+
+Three architectural directions remain:
+
+- **Consumer wiring.** Four derivation outputs produce config that nothing reads yet. Each needs a design decision about how derived defaults flow to runtime consumers — `CbrStrategyDefaults` to query construction, `SocialCognitionDefaults` to trust formation, `GraphStructureDefaults` to rule gating, `ExtractionBiasDefaults` to LLM prompt construction. The derivation side is pure; the consumption side crosses into CDI wiring and prompt engineering.
+- **Hot-reload.** V1 requires restart for config changes. Quarkus's `@ConfigMapping` with file watching could make cognitive profiles reloadable — change an agent's curiosity direction and see the effect without restarting.
 - **Multi-agent perspectival queries.** `PerspectivalMerge` handles one agent's overlay at a time. The next step is comparative queries — "how does Alice's emotional colouring of this entity differ from Bob's?" — which is a social cognition primitive.
 
 The deeper point: cognitive architecture shouldn't be bolted on. It should emerge from identity.
