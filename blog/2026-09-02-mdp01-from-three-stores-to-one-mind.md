@@ -15,7 +15,7 @@ series: issue-253-cognitive-rearchitecture
 
 Neocortex started as three independent subsystems: MindMap (knowledge graph), Memory (experience store), and CBR (case-based reasoning). Each had its own confidence model, its own temporal semantics, its own query surface. They shared a Maven parent and nothing else.
 
-The cognitive rearchitecture changed that. Five days, 25 issues, one question: what would it take for an agent's identity to drive how it remembers, feels, reasons, and is curious?
+The cognitive rearchitecture changed that. Five days, 32 issues, one question: what would it take for an agent's identity to drive how it remembers, feels, reasons, and is curious?
 
 ## The Theory
 
@@ -65,10 +65,10 @@ The layer where stores become cognition:
 
 The declarative layer that ties everything together:
 
-- **CognitiveDefaults** — a single YAML file per agent declares personality weights, mood baseline, curiosity config, temporal focus, vocabulary, and service bindings.
+- **CognitiveDefaults** — a single YAML file per agent declares personality weights, mood baseline, curiosity direction, temporal focus, CBR strategy, social cognition config, graph structure preference, extraction bias, vocabulary, and service bindings. Fifteen fields, but callers use `empty()` + `withX()` methods — the same immutable-record-as-builder pattern as `CbrQuery`. Adding a new derivation output means one `withX()` method; zero callers break.
 - **Declarative rule DSL** — 11 structural predicates (`hasProperty`, `propertyEquals`, `anyOf`, `allOf`, `not`, ...) for trait rules, plus two-level derived edge rules (direct flip + graph traversal). YAML rules compile to the same Java interfaces as programmatic rules. They coexist.
 - **DeclarativeRuleRegistry** — loads global rules from `rules/*.yaml`, merges with per-agent overrides from cognitive profiles. Name collision = local wins.
-- **CognitiveDerivationEngine** — the pure function: `DescriptorView → CognitiveDefaults`. Maps Jungian disposition profile to `PersonalityWeights` (weighted average across 8 cognitive functions) and disposition axes to `MoodBaseline` (riskAppetite→pleasure, socialOrient→arousal, autonomy→dominance). Zero compile-time dependency on eidos.
+- **CognitiveDerivationEngine** — the pure function: `DescriptorView → CognitiveDefaults`. Eight derivation pathways, each a pure map from identity to cognition: disposition profile → personality weights, disposition axes → mood baseline, autonomy/ruleFollowing/socialOrient → curiosity category weights, goals → subgraph proximity weights, ruleFollowing/riskAppetite → CBR retrieval defaults, socialOrient/conflictMode → trust and conflict interpretation, disposition profile → graph inference style, disposition profile → extraction bias. All eight produce config; `deriveAndMerge()` overlays explicit YAML overrides on derived defaults. Zero compile-time dependency on eidos.
 
 ## The Eight Connections
 
@@ -154,31 +154,46 @@ A single YAML file declares identity and cognition together:
 descriptor:
   disposition:
     socialOrient: independent
+    ruleFollowing: moderate
     riskAppetite: calculated
     autonomy: high
+    conflictMode: analytical
   dispositionProfile:
     - { term: ni, weight: 0.35 }
     - { term: te, weight: 0.30 }
+    - { term: fi, weight: 0.20 }
+    - { term: se, weight: 0.15 }
+  goals:
+    - identify strategic patterns
 
-personality:       # derived from descriptor, explicit overrides win
+curiosity:                        # all 8 sections derive from descriptor
+  category-weights:
+    STRUCTURAL: 1.3               # auto: high autonomy → explore broadly
+    QUALITY: 1.0                  # auto: moderate ruleFollowing
+    CENTRALITY: 1.2               # auto: strategic goal boost
+
+cbr:
+  min-similarity: 0.5             # auto: moderate ruleFollowing
+  retrieval-mode: HYBRID          # auto: moderate → balanced approach
+
+social:
+  trust-formation-rate: 0.3       # auto: independent → slower trust
+  conflict-interpretation: NEUTRAL # auto: analytical
+
+personality:                      # explicit overrides win over derived
   reflection: 1.5
 
-traitRules:        # per-agent declarative rules
+traitRules:
   - trait: StrategicThinker
     when:
       hasEdgeTypes: [analyses, evaluates]
-
-vocabulary:
-  edgeTypes:
-    - canonical: analyses
-      aliases: [examines, studies]
 ```
 
-The loader reads this file, runs the derivation engine, merges explicit overrides, registers vocabulary, and produces CDI beans. One file, one agent, full cognitive configuration.
+The loader reads this file, runs the derivation engine to fill all eight cognitive parameters from the descriptor, merges explicit overrides (personality, curiosity, etc.), registers vocabulary, and produces CDI beans. One file, one agent, full cognitive configuration.
 
 ## What's Novel
 
-**Disposition-driven cognition.** I haven't seen another agent framework where personality weights, mood baseline, curiosity thresholds, and retrieval modulation all derive from a single identity descriptor via a research-grounded mapping function. Most systems treat these as independent config knobs.
+**Disposition-driven cognition.** I haven't seen another agent framework where personality weights, mood baseline, curiosity direction, temporal focus, case-based reasoning strategy, trust formation, graph structure preference, and extraction bias all derive from a single identity descriptor via a research-grounded mapping function. Eight cognitive parameters, each backed by a specific finding in differential psychology, each a pure function from identity to config. Most systems treat these as independent config knobs.
 
 **Declarative rules that coexist with programmatic rules.** The 11-predicate condition DSL and two-level derived edge rules compile to the same Java interfaces. A platform ships global rules; individual agents override by name. No runtime penalty for the abstraction — a declarative rule evaluates the same sealed-interface pattern match as a hand-written one.
 
