@@ -70,6 +70,82 @@ The declarative layer that ties everything together:
 - **DeclarativeRuleRegistry** — loads global rules from `rules/*.yaml`, merges with per-agent overrides from cognitive profiles. Name collision = local wins.
 - **CognitiveDerivationEngine** — the pure function: `DescriptorView → CognitiveDefaults`. Maps Jungian disposition profile to `PersonalityWeights` (weighted average across 8 cognitive functions) and disposition axes to `MoodBaseline` (riskAppetite→pleasure, socialOrient→arousal, autonomy→dominance). Zero compile-time dependency on eidos.
 
+## The Eight Connections
+
+The derivation chain has eight connection points — each maps a facet of identity to a cognitive parameter. They aren't arbitrary. Each corresponds to a cognitive function that differential psychology has shown to vary with personality.
+
+### 1. Attention & Encoding
+
+**What it derives:** `MindMapExtractor` prompt biases — relationship sensitivity, affect sensitivity.
+
+**Why it matters:** Broadbent (1958) showed that selective attention determines what enters memory encoding. An analytical agent (Ni/Te-dominant) should extract more structural relationships and patterns from text. An empathetic agent (Fe/Fi-dominant) should extract more affective annotations and emotional context. Without this connection, every agent encodes the same information regardless of who they are.
+
+**Identity source:** Disposition profile weighted functions.
+
+### 2. Memory Weighting ✅
+
+**What it derives:** `PersonalityWeights` — per-domain retrieval multipliers (experience, reflection, relationship, engagement, mood).
+
+**Why it matters:** Chamorro-Premuzic & Furnham (2004) established that personality predicts which cognitive domains dominate. An Ni-dominant agent retrieves reflections and abstract patterns first. An Fe-dominant agent retrieves relationships and social context first. This is the most direct personality→cognition link — it determines what an agent remembers when asked about something.
+
+**Identity source:** Disposition profile → weighted average across 8 Jungian functions, each mapping to specific domain weights.
+
+### 3. Affective Interpretation ✅
+
+**What it derives:** `MoodBaseline` — PAD resting point (pleasure, arousal, dominance).
+
+**Why it matters:** Lazarus (1991) showed that emotional response depends on individual appraisal. The same event — "startup acquired" — triggers opportunity (pleasure=0.7) for a bold agent and threat (pleasure=-0.3) for a conservative one. Without a personality-derived baseline, all agents have the same emotional resting state, which means they appraise events identically. Mehrabian & Russell's (1974) PAD model gives us three independent axes to differentiate.
+
+**Identity source:** Disposition axes — riskAppetite→pleasure, socialOrient→arousal, autonomy→dominance.
+
+### 4. Curiosity Direction
+
+**What it derives:** `CuriositySignalGenerator` category weights — STRUCTURAL, QUALITY, CENTRALITY multipliers.
+
+**Why it matters:** Litman (2005) distinguishes diversive curiosity (broad exploration) from specific curiosity (focused gap-filling), and correlates them with Openness to Experience. An autonomous agent should boost STRUCTURAL signals — explore the unknown. A rule-following agent should boost QUALITY signals — validate what's known. Without this, every agent is curious about the same things.
+
+**Identity source:** Disposition axes (autonomy→STRUCTURAL, ruleFollowing→QUALITY) + goals.
+
+### 5. Social Cognition
+
+**What it derives:** Trust formation rate, conflict interpretation strategy.
+
+**Why it matters:** Bowlby's (1969) attachment theory showed that individual differences in social cognition are rooted in internal working models. A cooperative agent reads negative engagement as a signal to repair. A competitive agent reads it as intelligence about the opponent. Trust formation speed varies too — high socialOrient agents build trust faster, high autonomy agents are slower to trust.
+
+**Identity source:** socialOrient + conflictMode axes → `AgentTrustProvider` parameters.
+
+### 6. Prospective Focus
+
+**What it derives:** Subgraph proximity weights for future-facing attention.
+
+**Why it matters:** Szpunar et al. (2014) showed that prospective thinking is goal-directed, not random simulation. A career-oriented agent should amplify PROJECT subgraph proximity. A family-oriented agent should amplify PERSON subgraph events. Without this, `TemporalFocus` treats all future events equally regardless of what the agent cares about.
+
+**Identity source:** Goals + domain context → subgraph type weights.
+
+### 7. Analogical Strategy
+
+**What it derives:** `CbrQuery` defaults — minSimilarity, temporalDecay, retrievalMode.
+
+**Why it matters:** Gentner & Smith (2012) showed that conservative reasoners prefer literal similarity while creative reasoners exploit structural alignment across distant domains. A rule-following agent should use high minSimilarity (only close precedents matter). A risk-tolerant agent should use lower thresholds, drawing analogies from further afield. This is the personality→reasoning link — how far the agent looks for relevant past cases.
+
+**Identity source:** ruleFollowing + riskAppetite axes.
+
+### 8. Graph Structure Preference
+
+**What it derives:** Disposition-gated derived edge rule activation — connective vs categorical inference.
+
+**Why it matters:** Riding & Rayner (1998) documented the holistic-analytical dimension of information processing. Some agents should build dense, interconnected graphs (holistic thinkers — Ni/Fe), discovering cross-domain bridges. Others should build clean, categorised structures (systematic thinkers — Te/Si), enforcing hierarchy. The same `DerivedEdgeRule` set fires differently depending on who's thinking.
+
+**Identity source:** Disposition profile → which inference rules activate.
+
+### Why These Eight — and Not Others
+
+These eight map to cognitive functions that personality research has shown to vary across individuals: attention, memory retrieval, emotional appraisal, curiosity, social cognition, prospective thinking, analogical reasoning, and knowledge organisation. Each has a body of evidence connecting it to personality traits.
+
+What we didn't include: working memory capacity, processing speed, language fluency. These are more hardware-constrained than personality-driven. They vary across individuals but not predictably from personality traits. An agent's disposition doesn't tell you how many items it can hold in working memory — that's a resource limit, not a cognitive style.
+
+The eight connections also share a structural property: each is a pure function from identity to config. No side effects, no state, no runtime dependencies. This makes them testable, composable, and independently deployable. A connection that required runtime state or cross-connection dependencies would break the derivation model.
+
 ## How They Compose
 
 A single YAML file declares identity and cognition together:
