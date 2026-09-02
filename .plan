@@ -19,6 +19,12 @@ active: casehubio/neocortex#231
 - [x] casehubio/neocortex#247 — YAML schema design
 - [x] casehubio/neocortex#248 — Cognitive profile YAML
 - [ ] casehubio/neocortex#249 — Declarative rule DSL ← active
+  - [ ] Batch 1: ConditionModel
+    - [ ] Task 1: RuleCondition sealed interface + DeclarativeTraitRule
+  - [ ] Batch 2: ActionModel
+    - [ ] Task 2: EdgeDerivation + DeclarativeDerivedEdgeRule with traversal
+  - [ ] Batch 3: Integration
+    - [ ] Task 3: YAML deserializers + DeclarativeRuleRegistry + decorator modification
 - [ ] casehubio/neocortex#250 — YAML-to-Java compiler
 - [ ] casehubio/neocortex#251 — Identity-cognition derivation
 - [x] casehubio/neocortex#253 — Issue #253
