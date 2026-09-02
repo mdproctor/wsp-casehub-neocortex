@@ -2,7 +2,7 @@
 
 ## State
 branch: issue-253-cognitive-rearchitecture
-state: active
+state: transitioning
 project-sha: e32d93897661c8fa2d5f8a1d60263eb943f7022f
 date: 2026-08-29
 issue-repo: casehubio/neocortex
@@ -43,4 +43,4 @@ active: casehubio/neocortex#231
 - [x] casehubio/neocortex#258 — Derive CBR strategy defaults
 - [x] casehubio/neocortex#259 — Derive social cognition config
 - [x] casehubio/neocortex#260 — Derive graph structure preference
-- [ ] casehubio/neocortex#261 — Derive extraction bias ← active
+- [x] casehubio/neocortex#261 — Derive extraction bias
