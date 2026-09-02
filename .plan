@@ -2,7 +2,7 @@
 
 ## State
 branch: issue-253-cognitive-rearchitecture
-state: transitioning
+state: active
 project-sha: e32d93897661c8fa2d5f8a1d60263eb943f7022f
 date: 2026-08-29
 issue-repo: casehubio/neocortex
