@@ -19,7 +19,13 @@ The cognitive rearchitecture changed that. Five days, 25 issues, one question: w
 
 ## The Theory
 
-Differential psychology has known for decades that personality predicts cognitive style. Openness to Experience correlates with abstract encoding and broad curiosity. Conscientiousness correlates with stricter similarity thresholds and validation-focused attention. Extraversion correlates with social memory weighting and fast trust formation.
+The personality-cognition link is one of differential psychology's most replicated findings. Chamorro-Premuzic & Furnham (2004, *Personality and Intellectual Competence*) established that personality traits predict cognitive style across tasks, not just preference. Openness to Experience correlates with abstract encoding and diversive curiosity — Litman (2005, "Curiosity and the pleasures of learning") distinguishes this from specific curiosity (focused gap-filling), and the correlation with Openness is strong. Conscientiousness maps to what Riding & Rayner (1998, *Cognitive Styles and Learning Strategies*) call the analytical end of the holistic-analytical dimension — stricter thresholds, validation-focused attention, categorical organisation.
+
+The emotional layer draws on two foundations. Mehrabian & Russell (1974, *An Approach to Environmental Psychology*) gave us the PAD model — pleasure, arousal, dominance as the three independent dimensions of emotional state. Lazarus (1991, *Emotion and Adaptation*) established appraisal theory: emotional response to events depends on the individual's assessment of relevance and coping capacity. The same event triggers different affect depending on who encounters it.
+
+For memory, Broadbent (1958, *Perception and Communication*) showed that selective attention determines what enters encoding — personality shapes the attentional filter. Bower (1981, "Mood and Memory") demonstrated mood-congruent retrieval: current emotional state biases which memories surface. And Szpunar et al. (2014) showed that future thinking is goal-directed, not random simulation — prospective memory is shaped by current motivations.
+
+For analogical reasoning, Gentner & Smith (2012) showed that conservative reasoners prefer literal similarity while creative reasoners exploit structural alignment across distant domains. This maps directly to CBR retrieval parameters — how far afield should the system look for relevant cases?
 
 The gap in agent systems is that identity and cognition are typically configured independently. An eidos descriptor says the agent is analytical and risk-averse. The memory system uses hardcoded retrieval weights. Nothing connects the two.
 
@@ -106,6 +112,35 @@ The loader reads this file, runs the derivation engine, merges explicit override
 
 ## Where This Goes
 
-The derivation engine currently maps disposition to personality weights and mood baseline. The integration doc maps eight connection points — extraction bias, curiosity direction, CBR strategy, graph structure preference, social cognition, and prospective focus are all designed but not yet wired into the derivation chain. Each is a pure function from descriptor to config, following the same pattern.
+The derivation engine maps two of eight designed connection points. The remaining six follow the same pattern — pure functions from descriptor to config — but each touches a different cognitive subsystem:
+
+| Connection | What it derives | From what |
+|---|---|---|
+| ✅ Memory weighting | `PersonalityWeights` domain multipliers | Disposition profile (Ni→reflection, Fe→relationship, etc.) |
+| ✅ Mood baseline | `MoodBaseline` PAD resting point | Disposition axes (riskAppetite→pleasure, autonomy→dominance) |
+| ◻️ Extraction bias | `MindMapExtractor` relationship vs affect sensitivity | Disposition profile (analytical→more edges, empathetic→more affect) |
+| ◻️ Curiosity direction | `CuriositySignalGenerator` category weights | Goals + disposition (autonomy→STRUCTURAL, ruleFollowing→QUALITY) |
+| ◻️ CBR strategy | `CbrQuery` defaults (minSimilarity, temporalDecay, retrievalMode) | ruleFollowing + riskAppetite (Gentner's analogical reasoning dimension) |
+| ◻️ Social cognition | Trust formation rate, conflict interpretation | socialOrient + conflictMode (Bowlby's attachment dimension) |
+| ◻️ Prospective focus | Subgraph proximity weights for future-facing attention | Goals + domain (career→PROJECT amplified, family→PERSON amplified) |
+| ◻️ Graph structure | Derived edge rule activation, connective vs categorical inference | Disposition profile (holistic Ni/Fe→bridges, systematic Te/Si→categories) |
+
+Beyond the derivation chain, three architectural directions:
+
+- **Agent-scoped rule context.** The `DerivedEdgeDecorator` currently loads all declarative rules for all agents. Per-agent scoping requires an agent context in the MindMapStore layer — the store needs to know who's calling so it fires only that agent's rules. This is the bridge to identity-cognition derivation point 8.
+- **Hot-reload.** V1 requires restart for config changes. Quarkus's `@ConfigMapping` with file watching could make cognitive profiles reloadable without restart — change an agent's personality weights and see the effect immediately.
+- **Multi-agent perspectival queries.** `PerspectivalMerge` handles one agent's overlay at a time. The next step is comparative queries — "how does Alice's emotional colouring of this entity differ from Bob's?" — which is a social cognition primitive.
 
 The deeper point: cognitive architecture shouldn't be bolted on. It should emerge from identity.
+
+## References
+
+- Bower, G. H. (1981). Mood and Memory. *American Psychologist*, 36(2), 129–148.
+- Broadbent, D. E. (1958). *Perception and Communication*. Pergamon Press.
+- Chamorro-Premuzic, T., & Furnham, A. (2004). *Personality and Intellectual Competence*. Lawrence Erlbaum Associates.
+- Gentner, D., & Smith, L. (2012). Analogical Reasoning. In V. S. Ramachandran (Ed.), *Encyclopedia of Human Behavior* (2nd ed.). Elsevier.
+- Lazarus, R. S. (1991). *Emotion and Adaptation*. Oxford University Press.
+- Litman, J. A. (2005). Curiosity and the pleasures of learning. *Cognition and Emotion*, 19(6), 793–814.
+- Mehrabian, A., & Russell, J. A. (1974). *An Approach to Environmental Psychology*. MIT Press.
+- Riding, R., & Rayner, S. (1998). *Cognitive Styles and Learning Strategies*. David Fulton Publishers.
+- Szpunar, K. K., Spreng, R. N., & Schacter, D. L. (2014). A taxonomy of prospection. *Frontiers in Human Neuroscience*, 8, 590.
