@@ -55,3 +55,4 @@
 | [2026-08-03-mdp01-why-your-agent-forgets.md](2026-08-03-mdp01-why-your-agent-forgets.md) | 2026-08-03 | Agent experience stream — typed event hierarchy on CaseMemoryStore, foundation for relationship memory and reflective diary |
 | [2026-08-03-mdp05-the-fix-was-already-there.md](2026-08-03-mdp05-the-fix-was-already-there.md) | 2026-08-03 | Batch ONNX inference bottleneck was a pattern consistency gap, not missing infrastructure |
 | [2026-08-29-mdp01-three-confidences-walk-into-a-bar.md](2026-08-29-mdp01-three-confidences-walk-into-a-bar.md) | 2026-08-29 | Unified Confidence record replaces three incompatible confidence representations across MindMap, Memory, and CBR |
+| [2026-09-02-mdp01-from-three-stores-to-one-mind.md](2026-09-02-mdp01-from-three-stores-to-one-mind.md) | 2026-09-02 | Cognitive rearchitecture capstone — five layers from unified confidence to identity-driven cognition, 25 issues, one derivation chain |
