@@ -22,8 +22,8 @@ active: casehubio/neocortex#231
 - [x] casehubio/neocortex#250 — YAML-to-Java compiler
 - [x] casehubio/neocortex#251 — Identity-cognition derivation
 - [x] casehubio/neocortex#253 — Issue #253
-- [x] casehubio/neocortex#229 — Unified confidence model ← active
-- [x] casehubio/neocortex#232 — Naming audit
+- [x] casehubio/neocortex#229 — Unified confidence model
+- [x] casehubio/neocortex#232 — Naming audit ← active
 - [x] casehubio/neocortex#234 — Temporal taxonomy
 - [x] casehubio/neocortex#235 — Event timestamps
 - [x] casehubio/neocortex#236 — Temporal MindMapQuery
