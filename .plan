@@ -2,7 +2,7 @@
 
 ## State
 branch: issue-277-principal-scoped-visibility
-state: scaffolded
+state: active
 project-sha: 91ee36b80034fc34e870df02c285e8dc917ac864
 date: 2026-09-04
 issue-repo: casehubio/neocortex
