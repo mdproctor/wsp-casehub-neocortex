@@ -54,6 +54,7 @@ Every occurrence of `entityId` in the memory and CBR subsystems becomes `subject
 | `MemoryQuery.entityIds` (List\<String>) | `MemoryQuery.subjects` (List\<Subject>) |
 | `Memory.entityId` (String) | `Memory.subject` (Subject) |
 | `GraphMemoryQuery.entityIds` (List\<String>) | `GraphMemoryQuery.subjects` (List\<Subject>) |
+| `GraphMemoryQuery.entityTypes` (Set\<String>) | `GraphMemoryQuery.subjectTypes` (Set\<String>) |
 | `CaseMemoryStore.eraseEntity(String entityId, String tenantId)` | `CaseMemoryStore.eraseSubject(Subject subject, String tenantId)` |
 | `CaseMemoryStore.eraseEntityAcrossTenants(String entityId, Set\<String> tenantIds)` | `CaseMemoryStore.eraseSubjectAcrossTenants(Subject subject, Set\<String> tenantIds)` |
 | `CaseMemoryStore.eraseById(String memoryId, String entityId, String tenantId)` | `CaseMemoryStore.eraseById(String memoryId, Subject subject, String tenantId)` |
@@ -73,6 +74,8 @@ In persistent stores (SQLite, JPA, Qdrant), Subject is stored as two fields:
 | Qdrant payload | `subjectType` (keyword-indexed) | `subjectId` (keyword-indexed) |
 
 Migration: existing rows have no `subject_type`. The ALTER TABLE migration adds the column with `DEFAULT 'unknown'` to satisfy NOT NULL for existing data. A data migration script backfills meaningful types from domain metadata (e.g., domain=`experience`/`relationship`/`mood`/`engagement` → type=`agent`; domain=`affect` → type=`node`). The `DEFAULT 'unknown'` is a migration artifact for existing rows only — no Java code constructs `Subject.of("unknown", ...)`.
+
+**Reachability:** records with `subject_type = 'unknown'` (or any type) remain fully queryable because queries match on `subject_id` only — `subject_type` is not a query filter (see §2.3). Direct callers that store memories outside the converter paths (e.g., `GardenOutcomeService` with domain=`knowledge`, strategy-learning domain callers) will have their call sites updated to construct explicit Subject types as part of the clean break, and the migration script backfills their existing data accordingly. The exact type mapping for each non-converter domain is determined during implementation when each caller is migrated.
 
 ---
 
@@ -117,7 +120,7 @@ public record MemoryQuery(
 ) { ... }
 ```
 
-`GraphMemoryQuery` gains the same field:
+`GraphMemoryQuery` gains the same field, and `entityTypes` is renamed to `subjectTypes` for consistency with the Subject model:
 
 ```java
 public record GraphMemoryQuery(
@@ -128,11 +131,18 @@ public record GraphMemoryQuery(
     int limit,
     Instant since,
     Instant validAt,
-    Set<String> entityTypes,
+    Set<String> subjectTypes,   // was entityTypes — filters graph results by Subject.type
     MemoryResultType resultType,
     String callerPrincipalId    // NEW — nullable, who is querying
 ) { ... }
 ```
+
+**Subject query matching:** queries match on `Subject.id` only — `Subject.type` is **not** a query filter. The `subjects` list in `MemoryQuery` and `GraphMemoryQuery` is matched against `subject_id` in the store. This means:
+- A query for `Subject.of("agent", "alice")` matches all memories with `subject_id = "alice"`, regardless of their stored `subject_type`
+- Pre-existing data with `subject_type = 'unknown'` remains reachable by querying with the original entity ID
+- Domain already scopes the result set — `Subject.type` would add redundant filtering on top of domain
+- `Subject.type` is valuable as write-side enrichment (forces callers to name the entity kind) and read-side metadata (query results carry the type)
+- `GraphMemoryQuery.subjectTypes` is a separate, opt-in filter that operates on the graph engine's entity categorization, gated by the `ENTITY_TYPE_FILTER` capability
 
 When `callerPrincipalId` is set, the store filters results:
 - Include memories where `principalId` is null (truly shared)
@@ -164,9 +174,9 @@ public record CbrQuery(
 ```java
 if (query.callerPrincipalId() != null) {
     Filter.Builder visibility = Filter.newBuilder();
-    // truly shared — no principalId set
+    // truly shared — no principalId set (or absent on pre-existing data)
     visibility.addShould(Filter.newBuilder()
-        .addMust(ConditionFactory.isNull("principalId")).build());
+        .addMust(ConditionFactory.isEmpty("principalId")).build());
     // caller owns it
     visibility.addShould(Filter.newBuilder()
         .addMust(ConditionFactory.matchKeyword("principalId",
@@ -178,6 +188,8 @@ if (query.callerPrincipalId() != null) {
     builder.addMust(visibility.build());
 }
 ```
+
+**Why `isEmpty` not `isNull`:** Pre-existing CBR cases have no `principalId` field in their Qdrant payload — the field is entirely absent, not null. Qdrant's `isNull` only matches fields that exist with a null value; `isEmpty` matches both absent fields and null values. Using `isNull` would silently exclude all pre-existing CBR data from principal-scoped queries.
 
 ### §2.5 Storage Representation
 
@@ -302,7 +314,7 @@ WHERE (principal_id IS NULL
     OR EXISTS (SELECT 1 FROM json_each(shared_with) WHERE value = :callerPrincipalId))
 ```
 
-For FTS5 queries, the visibility filter applies as a post-filter on the result set (FTS5 doesn't support arbitrary WHERE clauses in the MATCH expression).
+For FTS5 queries, the visibility filter applies as a post-filter on the result set (FTS5 doesn't support arbitrary WHERE clauses in the MATCH expression). **Post-filter truncation applies:** FTS5 returns ranked results up to `limit`, then visibility filtering may reduce the count below `limit`. This is consistent with the REST-backed adapters (§5.5, §5.6) — non-FTS SQLite queries apply visibility in the WHERE clause before LIMIT, so they return the full requested count.
 
 ### §5.3 JpaMemoryStore
 
@@ -321,12 +333,16 @@ Mem0 is a REST-backed adapter. Visibility fields are passed as metadata to the M
 
 The `toMemory()` mapping extracts `principalId` and `sharedWith` from the metadata map to populate the `Memory` record's visibility fields.
 
+**Post-filter truncation:** because Mem0's API does not support arbitrary metadata filtering, visibility is applied as a post-filter. If the backend returns `limit` results and some are filtered out by visibility, the caller receives fewer than `limit` results. This is an inherent limitation of post-filtered visibility on REST-backed adapters. It is acceptable because: (a) semantic search relevance degrades beyond the first few results — returning fewer highly-relevant visible results is better than over-fetching for quantity; (b) the alternative (over-fetch with a multiplier) adds latency and REST API cost with no guaranteed improvement; (c) callers already handle partial results from all query paths.
+
 ### §5.6 GraphitiCaseMemoryStore
 
 Graphiti is a REST-backed adapter implementing `GraphCaseMemoryStore`. Visibility changes apply to both `query()` and `graphQuery()`:
 - `principalId` and `sharedWith` passed as episode/message metadata to Graphiti
 - Query-time: apply visibility predicate as a post-filter on results from both `query()` and `graphQuery()`
 - `factToMemory()` and `episodeToMemory()` extract visibility fields from episode metadata into the `Memory` record
+
+**Post-filter truncation:** same behavior as §5.5 Mem0 — results may be fewer than `limit` after visibility filtering. Same rationale applies.
 
 ### §5.7 Decorator Chain Impact
 
