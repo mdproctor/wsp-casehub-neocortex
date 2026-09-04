@@ -1,1 +1,1 @@
-# Design Journal — issue-253-cognitive-rearchitecture
+# Design Journal — issue-277-principal-scoped-visibility
