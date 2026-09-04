@@ -131,7 +131,7 @@ public record GraphMemoryQuery(
     int limit,
     Instant since,
     Instant validAt,
-    Set<String> subjectTypes,   // was entityTypes — filters graph results by Subject.type
+    Set<String> subjectTypes,   // was entityTypes — graph-engine result type filter
     MemoryResultType resultType,
     String callerPrincipalId    // NEW — nullable, who is querying
 ) { ... }
@@ -240,7 +240,20 @@ public record MemoryInput(
     Double dominance,
     String principalId,         // NEW — owner, nullable
     Set<String> sharedWith      // NEW — additional viewers, empty by default
-) { ... }
+) {
+    public MemoryInput {
+        // ... existing validations ...
+        // Normalize blank principalId to null (truly shared).
+        // Prevents cross-store inconsistency: Qdrant isEmpty matches "",
+        // but SQLite IS NULL and InMemory == null do not.
+        principalId = (principalId != null && principalId.isBlank()) ? null : principalId;
+        // Strip and filter sharedWith: remove nulls and blanks, strip whitespace.
+        sharedWith = sharedWith == null ? Set.of() : sharedWith.stream()
+            .filter(s -> s != null && !s.isBlank())
+            .map(String::strip)
+            .collect(Collectors.toUnmodifiableSet());
+    }
+}
 ```
 
 Factory methods:
