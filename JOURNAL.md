@@ -1,1 +1,1 @@
-# Design Journal — issue-253-cognitive-rearchitecture
+# Design Journal — issue-284-cbr-bulk-supersession
