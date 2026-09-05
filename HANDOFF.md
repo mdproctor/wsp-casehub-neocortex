@@ -2,58 +2,55 @@
 
 ## Last Session
 
-Continued cognitive rearchitecture on `issue-253-cognitive-rearchitecture`. Completed #249 (batch 3), #250, #251. Created 6 new issues (#256–#261) for remaining derivation connection points. Queue position 25→31 (25 done, 6 new).
+Two branches closed, one opened. Closed #269 (principal-scoped rule context — principalId on EdgeInput/NodeInput, per-operation rule resolution in decorators). Also closed 5 epics (#224–228) and 6 derivation issues (#256–261) that were already implemented. Fixed pre-existing `discoverTenants` contract test failure.
+
+Started #277 (principal-scoped memory visibility). Brainstormed the design with the user — extensive discussion about identity (Principal), typed subjects (Subject record), visibility model (private/owned+shared/truly shared), dynamic type system (Thing concept), and alignment with Java/TS terminology. Spec written, reviewed, plan created. Implementation started: Batch 1, Tasks 1-2 complete (Subject record + MemoryInput SPI change). Full reactor compiles with deprecated backward-compat shims.
 
 ### Completed
 
-1. **#249 — Declarative rule DSL** (L, final batch): YAML deserializers (RuleConditionDeserializer, DeclarativeTraitRuleDeserializer, DeclarativeDerivedEdgeRuleDeserializer) in cognitive-index. DeclarativeRuleRegistry (@ApplicationScoped) loads global `rules/*.yaml` + per-agent overrides with name-based merge. DerivedEdgeDecorator CDI constructor gains `Instance<DeclarativeRuleRegistry>`. CognitiveDefaults extended with traitRules + derivedEdgeRules nullable fields. Architecture deviation: deserializers placed in cognitive-index (not mindmap-intelligence per spec) to avoid circular dependency — mindmap-intelligence → mindmap → cognitive-index works, but mindmap → mindmap-intelligence would be circular.
+1. **#269 — Agent-scoped rule context** (M): principalId on EdgeInput/NodeInput, DerivedEdgeDecorator + TraitApplicationDecorator per-operation rule resolution, 3 tests, backward-compat constructors. discoverTenants contract test fix (used unregistered caseType).
 
-2. **#250 — YAML-to-Java compiler** (L→S actual): Most work already done by #249. CognitiveDefaultsRegistry and DeclarativeRuleRegistry gain @ApplicationScoped + @PostConstruct. TraitApplicationDecorator gains `Instance<DeclarativeRuleRegistry>` (mirrors DerivedEdgeDecorator). CognitiveLoader @ApplicationScoped in mindmap-intelligence — @PostConstruct vocabulary registration from cognitive profiles. `DeclarativeRuleRegistry.of()` public factory for programmatic construction.
-
-3. **#251 — Identity-cognition derivation** (M): DescriptorView, DispositionAxes, WeightedTerm records in cognitive-index — zero eidos compile dependency. CognitiveDerivationEngine pure static utility: Jungian disposition profile → PersonalityWeights (8-function weighted average), disposition axes → MoodBaseline (PAD). `deriveAndMerge()` overlays explicit CognitiveDefaults overrides on derived base. CognitiveDefaults gains `descriptor` nullable field for embedded identity-cognition derivation.
+2. **#277 Batch 1 partial** — Subject record (10 tests) + MemoryInput SPI change (subject, principalId, sharedWith fields). Deprecated backward-compat constructor absorbs all existing callers.
 
 ### Key Design Decisions
 
-**D85 — Deserializers in cognitive-index, not mindmap-intelligence.** The spec placed them in mindmap-intelligence, but CognitiveDefaultsRegistry (in cognitive-index) needs them to parse traitRules/derivedEdgeRules in cognitive profile YAML. mindmap-intelligence → mindmap → cognitive-index prevents reverse dependency.
+**D1 — Principal as identity term.** Covers humans + agents. casehubio/platform#271 delivered. Three-layer hierarchy: Principal (stable identity) → Actor (in context) → Participant (in session).
 
-**D86 — DeclarativeRuleRegistry.of() public factory.** Package-private test constructor wasn't accessible from mindmap module tests. Public static factory `of(traitRules, derivedEdgeRules)` provides programmatic construction without CDI.
+**D2 — entityId → Subject(type, id).** Dynamic string type (not enum) — LLM discovers types at runtime. Lowercase normalization prevents phantom type splits. Clean break — no permanent backward-compat shims.
 
-**D87 — CognitiveDerivationEngine weighted average.** Disposition profile → PersonalityWeights uses weighted average across all functions in the profile, defaulting to 1.0 (neutral) for domains not mentioned by a function. This ensures blending: Ni at 0.35 + Te at 0.30 → reflection gets Ni's 1.5 weighted by 0.35 and Te's 1.0 weighted by 0.30.
+**D3 — Thing as universal base concept.** MindMap is already a Thing system (nodes with dynamic properties + trait matching). `isA()` as the universal type check — delegates to `instanceof` for cores, trait lookup for dynamics. Formal design tracked in #278.
 
-### Architectural Changes
-
-- **New in cognitive-index:** RuleConditionDeserializer, DeclarativeTraitRuleDeserializer, DeclarativeDerivedEdgeRuleDeserializer, RuleFile, DeclarativeRuleRegistry (@ApplicationScoped), DescriptorView, DispositionAxes, WeightedTerm, CognitiveDerivationEngine
-- **New in mindmap-intelligence:** CognitiveLoader (@ApplicationScoped)
-- **Modified:** CognitiveDefaults (+traitRules, +derivedEdgeRules, +descriptor), CognitiveDefaultsRegistry (@ApplicationScoped, +@PostConstruct, +rule deserializers), DerivedEdgeDecorator (+Instance<DeclarativeRuleRegistry>), TraitApplicationDecorator (+Instance<DeclarativeRuleRegistry>)
-- **New dependency edge:** mindmap → cognitive-index (for DeclarativeRuleRegistry injection)
+**D4 — Visibility: owner + sharedWith.** Three states: truly shared (null owner), private (owner only), owned+shared (owner + named others). Null = shared for backward compat.
 
 ### Issues Created
 
-| # | Title | Scale | Complexity | Notes |
-|---|-------|-------|------------|-------|
-| 256 | Derive curiosity direction | S | Low | disposition axes + goals → CuriosityConfig category weights |
-| 257 | Derive prospective focus | S | Low | goals → TemporalFocusConfig subgraph proximity weights |
-| 258 | Derive CBR strategy defaults | M | Med | ruleFollowing + riskAppetite → CbrQuery defaults |
-| 259 | Derive social cognition config | M | Med | socialOrient + conflictMode → trust/conflict config. Needs design. |
-| 260 | Derive graph structure preference | M | Med | disposition profile → disposition-gated derived edge rules |
-| 261 | Derive extraction bias | L | High | disposition → MindMapExtractor prompt biasing. Needs design — LLM prompt engineering. |
+| # | Repo | Title | Scale | Notes |
+|---|------|-------|-------|-------|
+| 276 | neocortex | Integrate platform Principal into principalId | S | Mechanical — #271 delivered |
+| 277 | neocortex | Principal-scoped memory visibility | M | **Active branch** |
+| 278 | neocortex | Knowledge representation — Thing, dynamic types | XL | Foundational design exercise |
+| 281 | neocortex | SubgraphType enum → dynamic string | S | Flagged during #277 design |
+| 282 | neocortex | Dynamic property schema for non-core types | M | RDFS domain/range gap |
+| 283 | neocortex | Cross-domain reasoning — correlate work + personal | L | Holistic life reasoning |
+| 271 | platform | Principal identity model | M | **Delivered** |
+| 117 | life | Personal AI companion — check-in + calendar | XL | Product vision |
 
 ## What's Next
 
 | # | Title | Scale | Complexity | Notes |
 |---|-------|-------|------------|-------|
-| 256 | Derive curiosity direction | S | Low | Pure config derivation — extend CuriosityConfig + derivation engine |
-| 257 | Derive prospective focus | S | Low | Pure config derivation — extend TemporalFocusConfig + derivation engine |
-| 258 | Derive CBR strategy defaults | M | Med | New CbrStrategyDefaults config record needed |
-| 259 | Derive social cognition config | M | Med | **Needs design** — conflict interpretation → runtime behaviour mapping |
-| 260 | Derive graph structure preference | M | Med | Disposition-gated rule activation via DeclarativeRuleRegistry |
-| 261 | Derive extraction bias | L | High | **Needs design** — LLM prompt engineering, not pure config |
+| 277 | Principal-scoped memory visibility | M | Med | **Resume here** — Tasks 3-10 remaining. Spec + plan in workspace. |
+| 276 | Integrate platform Principal | S | Low | Mechanical wiring — do after #277 |
+| 278 | Thing model + dynamic types | XL | High | Foundational — needs design brainstorm |
 
-Recommended order: 256, 257 (quick wins) → 258, 260 (mechanical M) → 259 (needs design) → 261 (needs design + LLM integration).
+Resume: `work continue` → pick up at Batch 1 Task 3 (MemoryQuery + Memory + EraseRequest + CaseMemoryStore SPI updates).
 
 ## Branch State
 
-- Branch: `issue-253-cognitive-rearchitecture`
-- Full reactor build green (compile). 156 cognitive-index tests pass.
+- Branch: `issue-277-principal-scoped-visibility`
+- Reactor compiles clean (deprecated backward-compat shims active)
+- Subject record: 10 tests pass
 - No uncommitted changes in project repo
-- Blog entry: `blog/2026-09-02-mdp01-from-three-stores-to-one-mind.md` (workspace)
+- Spec: `specs/issue-277-principal-scoped-visibility/2026-09-04-principal-scoped-visibility-design.md`
+- Plan: `plans/2026-09-04-principal-scoped-visibility.md`
+- Blog entry for #269: `blog/2026-09-03-mdp01-whose-rules-are-these-anyway.md`
