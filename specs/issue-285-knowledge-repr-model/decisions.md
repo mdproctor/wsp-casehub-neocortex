@@ -59,3 +59,16 @@
 **Sources:** SubgraphType.java (6-value enum), SubgraphInput.java, MindMapSubgraph.java, RuleCondition.InSubgraphType (returns false), Subject.java (lowercase normalization convention), issue #281
 **Exploration:** quick
 **Status:** captured
+
+## D6: Type registry — types as MindMap nodes in a type subgraph
+
+**Choice:** Types are first-class data in MindMap. A designated subgraph (type=SubgraphTypes.TYPE_SYSTEM) contains type-definition nodes. `subtype-of` edges form the type hierarchy. Core types carry a `java-class` property linking to their Java interface. Dynamic types are nodes without a `java-class` property. No new SPI — type management is MindMapStore operations on a special subgraph. A TypeResolver utility in a higher module reads the type subgraph and builds the mapping.
+**Alternatives:**
+- Standalone TypeRegistry SPI — separate storage from MindMap. Cleaner separation but duplicates graph structure (nodes, edges, hierarchy) that MindMap already provides. Two storage systems for the same concept.
+- In-code registry only — core types registered programmatically. No runtime type discovery. Blocks the LLM from discovering new types, which is the core requirement.
+**Rationale:** The type system IS knowledge about knowledge — it belongs in the knowledge graph. MindMap already provides nodes, edges, properties, and traversal. Using a special subgraph means type hierarchy queries are just graph traversal — no new query infrastructure. The LLM discovers new types by adding nodes to the type subgraph, which is exactly how it adds any other knowledge.
+**Trade-offs:** Type operations couple to MindMapStore availability. TypeResolver (the consumer utility) needs MindMapStore access. thing-api stays zero-deps — it carries the Thing interface but not the type resolution logic.
+**Depends on:** D5 (dynamic subgraph types — TYPE_SYSTEM is a new constant)
+**Sources:** issue #278 (type subgraph proposal), MindMapStore.nodesIn() (subgraph queries), MindMapStore.neighbors() (hierarchy traversal), CognitiveLoader.java (vocabulary registration pattern)
+**Exploration:** quick
+**Status:** captured
