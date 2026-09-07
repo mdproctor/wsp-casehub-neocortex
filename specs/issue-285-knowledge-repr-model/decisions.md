@@ -85,3 +85,16 @@
 **Sources:** Subject.java (type + id), NodeRef.java (convention-based cross-store reference), issue #278 (Subject becomes a Thing reference)
 **Exploration:** quick
 **Status:** captured
+
+## D8: Dynamic property schema — schema as properties on type nodes
+
+**Choice:** Property schema for dynamic types is stored as properties on type nodes in the type subgraph. Convention: `schema.{fieldName}.type={string|number|boolean|date}`, `schema.{fieldName}.required={true|false}`. No new types in thing-api. A PropertySchema utility in mindmap-intelligence reads these properties and validates Thing properties against the schema. Validation is advisory (warn, not reject) — LLMs may produce novel properties that extend the schema.
+**Alternatives:**
+- PropertySchema record in thing-api — structured type for field definitions. Needs serialization conventions since MindMapNode properties are Map<String, String>. Cleaner API but adds complexity for a property-convention problem.
+- JSON Schema as single property — full JSON Schema power in a `property-schema` property. Heavyweight JSON parsing in a zero-deps context. MindMap properties are strings, not JSON values.
+**Rationale:** Properties on type nodes follow the existing model — no new types, no serialization, no parsing. Schema is metadata about a type stored as more properties using a naming convention. The advisory validation matches the design principle: LLM-discovered types may have novel properties the schema doesn't cover yet. The schema documents expectations and enables reasoning, not enforcement.
+**Trade-offs:** Schema expressiveness is limited to simple types (string/number/boolean/date). No nested objects, no array types. Sufficient for the property model (Map<String, String>). If richer schema is needed later, the convention extends naturally (schema.{field}.items.type, etc.).
+**Depends on:** D6 (types as MindMap nodes — schema lives on type nodes)
+**Sources:** MindMapNode.properties() (string-valued property model), issue #282 (dynamic property schema), CognitiveLoader.java (convention-based metadata registration)
+**Exploration:** quick
+**Status:** captured
