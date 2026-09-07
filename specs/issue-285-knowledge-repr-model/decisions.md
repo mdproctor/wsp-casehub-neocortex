@@ -47,3 +47,15 @@
 **Sources:** TraitProxy.java (JDK Proxy + method-name convention), TraitInvocationHandler.java, PersonableTraitRule.java (store-time evaluation)
 **Exploration:** quick
 **Status:** captured
+
+## D5: SubgraphType enum → dynamic string + constants
+
+**Choice:** Replace SubgraphType enum with String in MindMapSubgraph and SubgraphInput. Current enum values become lowercase string constants in a SubgraphTypes utility class in mindmap-api. Lowercase-normalized (same convention as Subject.type()). RuleCondition.InSubgraphType changes its field from SubgraphType to String and gets a real implementation (currently returns false).
+**Alternatives:**
+- SubgraphType record wrapper — SubgraphType(String name) for type safety. Adds a type for what is just a string label. The enum-to-record migration creates more churn than enum-to-String for callers.
+**Rationale:** LLM discovers new entity types at runtime — a fixed enum prevents this. String with constants follows Subject(type, id) convention. Constants preserve compile-time references for well-known types without restricting new ones. InSubgraphType finally gets a working implementation.
+**Trade-offs:** Callers using SubgraphType.PERSON switch to SubgraphTypes.PERSON — mechanical migration. Loss of exhaustive switch — acceptable since the point is that new types can appear at runtime.
+**Depends on:** D1 (Thing/MindMapNode separation — subgraph types are graph partitioning in mindmap-api, not Thing identity in thing-api)
+**Sources:** SubgraphType.java (6-value enum), SubgraphInput.java, MindMapSubgraph.java, RuleCondition.InSubgraphType (returns false), Subject.java (lowercase normalization convention), issue #281
+**Exploration:** quick
+**Status:** captured
