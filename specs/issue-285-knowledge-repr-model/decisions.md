@@ -72,3 +72,16 @@
 **Sources:** issue #278 (type subgraph proposal), MindMapStore.nodesIn() (subgraph queries), MindMapStore.neighbors() (hierarchy traversal), CognitiveLoader.java (vocabulary registration pattern)
 **Exploration:** quick
 **Status:** captured
+
+## D7: Subject ↔ Thing bridge — convention, not dependency
+
+**Choice:** Subject references Thing by naming convention. Subject.type() == Thing.type() (core or dynamic type name). Subject.id() == Thing.id() (MindMapNode UUID). No code dependency between memory-api and thing-api. Resolution from Subject to Thing happens at the call site via ThingResolver. Subject stays exactly as-is — a lightweight pointer.
+**Alternatives:**
+- Subject depends on thing-api — Subject gains toThing(ThingResolver) or Thing gains toSubject(). Forces a dependency between two tier-0 modules. Couples memory-api to the Thing concept.
+- Shared supertype (ThingRef) — both Subject and Thing implement a reference interface. Over-engineered for an (id, type) pointer convention.
+**Rationale:** Follows the NodeRef pattern — NodeRef(scheme="memory", id=memoryId) is a convention, not a type dependency. Both modules stay independent and zero-deps. The convention is simple and documented: same id, same type. Resolution is the caller's concern, not a type system concern.
+**Trade-offs:** No compile-time enforcement that Subject.type() matches Thing.type(). Convention-based — if either side changes its type naming, the bridge breaks silently. Acceptable for a pre-release platform where both conventions are documented.
+**Depends on:** D2 (thing-api zero-deps), D3 (Thing carries type())
+**Sources:** Subject.java (type + id), NodeRef.java (convention-based cross-store reference), issue #278 (Subject becomes a Thing reference)
+**Exploration:** quick
+**Status:** captured
