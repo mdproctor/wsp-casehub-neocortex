@@ -9,3 +9,16 @@
 **Sources:** MindMapNode.java, TraitProxy.java, issue #278 (Thing model prior art)
 **Exploration:** quick
 **Status:** captured
+
+## D2: Module placement — new thing-api
+
+**Choice:** New `thing-api` module at tier-0 (zero deps, pure Java). Contains Thing interface, Triple, and type-related value types. Consumer-facing module — app developers depend on thing-api, not mindmap-api.
+**Alternatives:**
+- cognitive-api — already the zero-deps cross-cutting home, but Thing is a knowledge representation base type, not a cognitive classification. Overloads cognitive-api's purpose (D26 from #253 defines it as cognitive classifications).
+- mindmap-api — co-locates Thing with MindMapNode, but blurs the consumer/internal boundary. Consumers importing mindmap-api would see both Thing and MindMapNode, defeating the separation.
+**Rationale:** Thing is foundational — the knowledge representation base type that Subject, MindMap, and the type system all reference. It warrants its own module with a clean dependency surface. Follows the same pattern as cognitive-api (zero-deps shared type module) but for a different architectural concern.
+**Trade-offs:** Adds a module to the reactor. Justified — the concern is genuinely distinct from cognitive classification.
+**Depends on:** D1 (Thing ↔ MindMapNode separation)
+**Sources:** cognitive-api/pom.xml (zero-dep pattern), D26 from #253 (cognitive-api acceptance criteria)
+**Exploration:** quick
+**Status:** captured
