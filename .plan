@@ -2,7 +2,7 @@
 
 ## State
 branch: issue-288-cross-type-cbr-query
-state: closing:review
+state: closing:promoted
 project-sha: 936793235c5d9019a8ebb886ec5cf6adc5ff3d6a
 date: 2026-09-07
 issue-repo: casehubio/neocortex
