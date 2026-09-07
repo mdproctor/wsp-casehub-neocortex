@@ -13,3 +13,13 @@ flyway-next-v: none
 
 ## Queue
 - [ ] casehubio/neocortex#288 — Issue #288 ← active
+  - [ ] Batch 1: API Foundation
+    - [ ] Task 1: CaseTypeScope + CbrQuery migration
+    - [ ] Task 2: ScoredCbrCase caseType field
+  - [ ] Batch 2: InMemory + Contract Tests
+    - [ ] Task 3: Fix compilation across all modules
+    - [ ] Task 4: Contract tests + InMemory cross-type impl
+  - [ ] Batch 3: Qdrant Fan-Out
+    - [ ] Task 5: Qdrant multi-collection parallel fan-out
+  - [ ] Batch 4: JPA + Verification
+    - [ ] Task 6: JPA store cross-type + full test suite
