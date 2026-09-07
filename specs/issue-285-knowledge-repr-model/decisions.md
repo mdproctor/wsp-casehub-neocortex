@@ -35,3 +35,15 @@
 **Sources:** MindMapNode.java (property/trait surface), TraitProxy.java (as() pattern), MindMapStore.neighbors() (edge queries)
 **Exploration:** quick
 **Status:** captured
+
+## D4: is()/as() implementation — pre-computed traits, convention-based proxy
+
+**Choice:** `is(String traitName)` checks `traits().contains(traitName)` — traits are pre-computed at store time by TraitRule evaluation in the decorator stack. Thing reads the result. `as(Class<T>)` uses a JDK Proxy in thing-api that maps interface method names to `property(methodName)` calls. Zero external deps — only java.lang.reflect.Proxy and the Thing interface. Thing is a snapshot value, not a live evaluator.
+**Alternatives:**
+- Live rule evaluation — Thing carries a rule evaluator and edges, evaluating is() on demand. Violates zero-deps, makes Thing a live object rather than a value. Rules need edge access which is a graph concern (D3).
+**Rationale:** Follows the Drools pattern: the rule engine computes traits, the fact carries the result. Trait computation happens at the store/decorator layer where edges and rules are available. Thing is a value — lightweight, snapshot-based, no store reference. The method-name-to-property-key convention (birthday() reads property("birthday")) is already proven by TraitProxy and needs no external knowledge.
+**Trade-offs:** Traits reflect state at construction time. If properties change after Thing is constructed, is() may be stale. Correct behavior — consumers should re-resolve from the store for fresh state.
+**Depends on:** D1 (separation), D3 (Thing shape)
+**Sources:** TraitProxy.java (JDK Proxy + method-name convention), TraitInvocationHandler.java, PersonableTraitRule.java (store-time evaluation)
+**Exploration:** quick
+**Status:** captured
