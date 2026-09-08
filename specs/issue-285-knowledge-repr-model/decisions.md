@@ -98,3 +98,16 @@
 **Sources:** MindMapNode.properties() (string-valued property model), issue #282 (dynamic property schema), CognitiveLoader.java (convention-based metadata registration)
 **Exploration:** quick
 **Status:** captured
+
+## D9: ThingResolver in mindmap-intelligence
+
+**Choice:** ThingResolver is an @ApplicationScoped CDI bean in mindmap-intelligence. Depends on thing-api + mindmap-api. resolve(String nodeId, String tenantId) → Optional<Thing>. Fetches node from MindMapStore, reads traits, reads type subgraph to determine type(), constructs a Thing implementation.
+**Alternatives:**
+- New `thing` CDI module — dedicated to Thing resolution. Adds a module for one CDI bean. Unnecessary when mindmap-intelligence already has the right dependencies and purpose.
+- cognitive-index — hosts cross-store resolvers (CognitiveProfile, PerspectivalResolver). But ThingResolver doesn't cross stores — it bridges thing-api and mindmap-api only.
+**Rationale:** mindmap-intelligence is the "smart MindMap layer" — TraitProxy, TraitRules, CuriositySignalGenerator, MindMapExtractor all live here. ThingResolver is the natural companion: it uses TraitRule results and type subgraph data to construct Things from MindMapNodes. No new module needed.
+**Trade-offs:** mindmap-intelligence gains a thing-api dependency. Acceptable — it's a consumer of Thing, not a provider of storage.
+**Depends on:** D1 (separation), D2 (thing-api module), D6 (type subgraph for type() resolution)
+**Sources:** TraitProxy.java (mindmap-intelligence), CognitiveLoader.java (mindmap-intelligence CDI bean), MindMapStore.java (node/subgraph queries)
+**Exploration:** quick
+**Status:** captured
