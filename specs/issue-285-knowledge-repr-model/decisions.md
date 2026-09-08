@@ -8,11 +8,11 @@
 **Trade-offs:** Requires a bridging layer (ThingResolver or similar) to hydrate Things from MindMapNode + edges + type metadata. Extra step compared to using MindMapNode directly.
 **Sources:** MindMapNode.java, TraitProxy.java, issue #278 (Thing model prior art)
 **Exploration:** quick
-**Status:** captured
+**Status:** revised — reframed Thing as a lightweight read-only projection, not a live Drools fact (R1-12). The separation motivation is consumer/internal API boundary, not live interaction.
 
 ## D2: Module placement — new thing-api
 
-**Choice:** New `thing-api` module at tier-0 (zero deps, pure Java). Contains Thing interface, Triple, and type-related value types. Consumer-facing module — app developers depend on thing-api, not mindmap-api.
+**Choice:** New `thing-api` module at tier-0 (zero deps, pure Java). Contains Thing interface and the convention-based proxy for as(). Consumer-facing module — app developers depend on thing-api, not mindmap-api.
 **Alternatives:**
 - cognitive-api — already the zero-deps cross-cutting home, but Thing is a knowledge representation base type, not a cognitive classification. Overloads cognitive-api's purpose (D26 from #253 defines it as cognitive classifications).
 - mindmap-api — co-locates Thing with MindMapNode, but blurs the consumer/internal boundary. Consumers importing mindmap-api would see both Thing and MindMapNode, defeating the separation.
@@ -21,7 +21,7 @@
 **Depends on:** D1 (Thing ↔ MindMapNode separation)
 **Sources:** cognitive-api/pom.xml (zero-dep pattern), D26 from #253 (cognitive-api acceptance criteria)
 **Exploration:** quick
-**Status:** captured
+**Status:** revised — removed Triple from module contents (R1-02). D3 decided against triples on Thing; no Triple type needed.
 
 ## D3: Thing interface shape — minimal: identity + properties + traits + is/as
 
@@ -119,8 +119,60 @@
 - Inferred from subgraph type — Thing.type() derives from the node's subgraph. But subgraphs are partitioning (D5), not typing. A subgraph could contain multiple entity types. Conflates grouping with identity.
 - Inferred from traits — Thing.type() is the "most specific" satisfied trait. Requires type hierarchy ordering to determine specificity. Traits can be multiple (Personable + Organisational) — ambiguous which is the primary type.
 **Rationale:** Explicit is better than inferred. The type is set once at creation — it identifies what the Thing IS, not what interfaces it satisfies. Traits are additional capabilities discovered over time (a Person gains Appointable when events are added). The type/trait distinction mirrors Java's class vs interface: a class has one identity type, but implements many interfaces.
-**Trade-offs:** Requires callers to set the type property at node creation. If omitted, ThingResolver could default to the subgraph type name as a fallback.
+**Trade-offs:** Requires callers to set the type property at node creation. ThingResolver refuses nodes without an explicit type property — returns Optional.empty(). No fallback to subgraph type (that would contradict D5's separation of partitioning from typing). ThingResolver normalizes type to lowercase when reading the property, ensuring Subject.type() convention alignment (R1-08).
 **Depends on:** D3 (Thing carries type()), D6 (type subgraph for validation), D7 (Subject.type() == Thing.type() convention)
-**Sources:** Subject.java (type convention), NodeInput.withProperty() (property setting), issue #278 (ThingInstance instantiated against one core type)
+**Sources:** Subject.java (type convention, lowercase normalization), NodeInput.withProperty() (property setting), issue #278 (ThingInstance instantiated against one core type)
 **Exploration:** quick
+**Status:** revised — removed subgraph type fallback (R1-10, contradicts D5); added lowercase normalization (R1-08); ThingResolver refuses nodes without type (R1-10)
+
+## D11: Trait interfaces — consumer-defined, platform-provided optional
+
+**Choice:** as(Class<T>) works with ANY interface by convention — method names map to property keys. Consumers can define their own domain-specific trait interfaces without depending on platform definitions. The existing trait interfaces (Personable, Projectlike, Organisational, Eventlike) stay in mindmap-intelligence as platform-provided conveniences, not required dependencies. thing-api ships with ZERO pre-defined trait interfaces — it is purely structural.
+**Alternatives:**
+- Move trait interfaces to thing-api — thing-api carries domain knowledge (birthday, role, email). Violates zero-deps purpose.
+- New thing-traits module — more module proliferation for optional convenience types.
+- Consumers must import mindmap-intelligence — defeats the consumer/internal separation.
+**Rationale:** The proxy is generic — it maps method names to property keys regardless of which interface defines them. A consumer who defines `interface Customer { Optional<String> accountId(); }` gets typed access to `property("accountId")` without importing any platform module. Platform traits are optional conveniences for common entity types. This is the most architecturally coherent option (R1-03).
+**Trade-offs:** No shared trait vocabulary across consumers. Each consumer may define overlapping interfaces. Acceptable — the property keys are the shared vocabulary, not the Java interfaces.
+**Depends on:** D4 (convention-based proxy)
+**Sources:** TraitProxy.java (generic method-name convention), Personable.java (platform trait example), R1-03
+**Exploration:** surfaced by review (R1-03)
+**Status:** captured
+
+## D12: Shared PropertyAccessor — single proxy implementation
+
+**Choice:** Define a `PropertyAccessor` functional interface in thing-api: `Optional<String> property(String key)`. Thing extends PropertyAccessor. The JDK Proxy invocation handler in thing-api works on any PropertyAccessor. mindmap-intelligence's TraitInvocationHandler is replaced by having MindMapNode adapt to PropertyAccessor (trivially — it already has `property(String key)`). One proxy implementation, two use sites.
+**Alternatives:**
+- Duplicate proxy — thing-api and mindmap-intelligence each have their own invocation handler doing the same method-name-to-property dispatch with the same type coercion (String, Integer, Long, Double, Optional). Two implementations that must stay in sync.
+**Rationale:** TraitInvocationHandler is 51 lines of non-trivial type coercion logic. Duplicating it creates a maintenance burden — new return types (Boolean, Instant) must be added in both places. A shared PropertyAccessor in thing-api (zero deps) allows one proxy that works everywhere (R1-04).
+**Trade-offs:** mindmap-intelligence gains a dependency on thing-api for the proxy. Its existing TraitProxy.as() calls migrate to the shared implementation. Mechanical change.
+**Depends on:** D2 (thing-api module), D4 (convention-based proxy)
+**Sources:** TraitInvocationHandler.java (51 lines of type coercion), R1-04
+**Exploration:** surfaced by review (R1-04)
+**Status:** captured
+
+## D13: Type subgraph bootstrapping — CognitiveLoader at startup
+
+**Choice:** CognitiveLoader (@PostConstruct in mindmap-intelligence) bootstraps the TYPE_SYSTEM subgraph and core type nodes at startup. Same pattern as existing vocabulary registration. Creates the subgraph if absent, creates core type nodes (person, project, organisation, concept, research-area, general) if absent. Idempotent — safe to run on every startup. Per-tenant: each tenant gets its own type subgraph populated.
+**Alternatives:**
+- Lazy creation on first ThingResolver call — race conditions in concurrent environments. First resolve fails if type subgraph doesn't exist yet.
+- Migration script — one-time setup but doesn't handle new tenants created after deployment.
+**Rationale:** CognitiveLoader already does startup registration (vocabulary). Adding type subgraph bootstrap is natural. @PostConstruct runs once, idempotent, handles all tenants. discoverTenants() (from CaseMemoryStore) provides the tenant list. Instance<MindMapStore> graceful degradation — if no MindMap backend, no bootstrap needed.
+**Trade-offs:** Core types are hardcoded in CognitiveLoader. Adding a new core type requires a code change. Acceptable — core type promotion is a conscious developer act (issue #278).
+**Depends on:** D6 (type subgraph), D5 (TYPE_SYSTEM constant)
+**Sources:** CognitiveLoader.java (existing @PostConstruct registration), MindMapStore.createSubgraph(), R1-06
+**Exploration:** surfaced by review (R1-06)
+**Status:** captured
+
+## D14: Thing is an interface with an implementation record in thing-api
+
+**Choice:** Thing is an interface. A package-private implementation record `ThingRecord(String id, String name, String type, Map<String, String> properties, Set<String> traits)` lives in thing-api. ThingResolver constructs ThingRecord instances via a static factory: `Thing.of(id, name, type, properties, traits)`. Consumers interact with the Thing interface; the implementation is hidden.
+**Alternatives:**
+- Thing as a public record — simple but exposes the constructor, allowing arbitrary construction that bypasses ThingResolver validation (type exists in type subgraph, traits computed by rules).
+- Thing as a class — unnecessary complexity for an immutable value. Records are the right fit.
+**Rationale:** Interface + hidden record follows the established codebase pattern (MindMapNode is an interface with backend-specific implementations). The factory method on Thing provides a clean construction API for ThingResolver without exposing the record (R1-16).
+**Trade-offs:** Factory method in an interface requires a static method referencing the package-private record. Standard Java pattern — `Thing.of()` returns the hidden implementation.
+**Depends on:** D2 (thing-api module), D3 (Thing shape)
+**Sources:** MindMapNode.java (interface pattern), R1-16
+**Exploration:** surfaced by review (R1-16)
 **Status:** captured
