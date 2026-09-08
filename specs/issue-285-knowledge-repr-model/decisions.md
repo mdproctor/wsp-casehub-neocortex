@@ -111,3 +111,16 @@
 **Sources:** TraitProxy.java (mindmap-intelligence), CognitiveLoader.java (mindmap-intelligence CDI bean), MindMapStore.java (node/subgraph queries)
 **Exploration:** quick
 **Status:** captured
+
+## D10: Thing type() — explicit type property on MindMapNode
+
+**Choice:** Each MindMapNode carries a `type` property (e.g., type=person, type=research-topic) set at creation time by the caller or LLM extractor. Thing.type() reads property("type"). The type value must match a type node name in the type subgraph (D6) — ThingResolver validates at hydration time. The type property is the core type the Thing was "instantiated against" (from #278 prior art).
+**Alternatives:**
+- Inferred from subgraph type — Thing.type() derives from the node's subgraph. But subgraphs are partitioning (D5), not typing. A subgraph could contain multiple entity types. Conflates grouping with identity.
+- Inferred from traits — Thing.type() is the "most specific" satisfied trait. Requires type hierarchy ordering to determine specificity. Traits can be multiple (Personable + Organisational) — ambiguous which is the primary type.
+**Rationale:** Explicit is better than inferred. The type is set once at creation — it identifies what the Thing IS, not what interfaces it satisfies. Traits are additional capabilities discovered over time (a Person gains Appointable when events are added). The type/trait distinction mirrors Java's class vs interface: a class has one identity type, but implements many interfaces.
+**Trade-offs:** Requires callers to set the type property at node creation. If omitted, ThingResolver could default to the subgraph type name as a fallback.
+**Depends on:** D3 (Thing carries type()), D6 (type subgraph for validation), D7 (Subject.type() == Thing.type() convention)
+**Sources:** Subject.java (type convention), NodeInput.withProperty() (property setting), issue #278 (ThingInstance instantiated against one core type)
+**Exploration:** quick
+**Status:** captured
