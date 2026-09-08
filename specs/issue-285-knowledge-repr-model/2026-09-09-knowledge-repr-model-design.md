@@ -170,7 +170,12 @@ public final class SubgraphTypes {
 
 Lowercase-normalized (same convention as `Subject.type()`).
 
-`RuleCondition.InSubgraphType` gets a real implementation — it currently returns `false`. The implementation queries the node's subgraph to check the type string.
+`RuleCondition.InSubgraphType` gets a real implementation — it currently returns `false`. Since `RuleCondition.evaluate()` only receives `(MindMapNode node, List<MindMapEdge> edges)` with no store access, the subgraph type must be available without a store lookup. Two options:
+
+1. **Node carries subgraph type as a property** — when a node is added to a subgraph, the store sets a `subgraph-type` property on the node. InSubgraphType reads `node.property("subgraph-type")`. Simple, no API change. The property is set by the store, not by callers.
+2. **MindMapNode gains a `subgraphType()` method** — returns the subgraph's type string. Requires the store to resolve the subgraph type when constructing the node. API change but cleaner than a magic property.
+
+Option 1 is recommended — it avoids an API change and follows the existing property-based convention. The `subgraph-type` property is set by MindMapStore implementations when the node is added or retrieved, not by callers.
 
 **MindMapExtractor impact:** `parseSubgraphType()` no longer catches unknown types and collapses to GENERAL. LLM-provided type strings pass through directly, enabling runtime type discovery. This is a deliberate trust boundary change — the LLM can create subgraphs with arbitrary type names.
 
@@ -219,6 +224,7 @@ Each MindMapNode carries a `type` property set at creation time (e.g., `type=per
 
 - **Mandatory.** ThingResolver returns `Optional.empty()` for nodes without a `type` property.
 - **Lowercase-normalized.** ThingResolver normalizes to lowercase when reading, ensuring alignment with Subject.type() convention.
+- **Reserved key.** `type` is a reserved property key — consumers must not use it for other purposes. This is documented as a platform convention alongside other reserved keys (e.g., `mindmap.derived.*` used by DerivedEdgeDecorator).
 - **Type vs traits.** The `type` property is the primary identity type (what the Thing IS). Traits are additional capabilities discovered over time (interfaces the Thing satisfies). Mirrors Java's class vs interface distinction.
 
 ## 7. Subject ↔ Thing Bridge
