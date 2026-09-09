@@ -318,7 +318,7 @@ Uses `Instance<MindMapStore>` for graceful degradation.
 TypeRegistry uses lazy bootstrapping: the TYPE_SYSTEM subgraph and core type nodes are created on first access for a given tenant, not eagerly at `@PostConstruct`. This avoids the problem of discovering which tenants exist at startup and automatically handles new tenants provisioned after the application starts.
 
 Bootstrap sequence on first TypeRegistry call for a given tenant:
-1. Warm cache: `listSubgraphs(tenantId)`, find TYPE_SYSTEM subgraph by name
+1. Warm cache: `listSubgraphs(tenantId)`, find TYPE_SYSTEM subgraph by type
 2. If found, cache the subgraph ID and type nodes — done
 3. If absent, create the TYPE_SYSTEM subgraph and core type nodes, cache the result
 
