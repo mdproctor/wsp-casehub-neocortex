@@ -134,7 +134,12 @@ Package-private class in thing-api. Maps interface method names to `thing.proper
 | Double / double | Double.parseDouble |
 | Boolean / boolean | Boolean.parseBoolean |
 
-Returns null for missing properties on non-Optional return types. Handles toString (node id + trait class), hashCode (node id hash), equals (same node id + same trait class).
+Missing property behavior depends on return type:
+- `Optional<String>` → `Optional.empty()`
+- Boxed types (String, Integer, Long, Double, Boolean) → `null`
+- Primitive types (int, long, double, boolean) → type default (0, 0L, 0.0, false)
+
+Handles toString (node id + trait class), hashCode (node id hash), equals (same node id + same trait class).
 
 This consolidates the existing TraitInvocationHandler from mindmap-intelligence (51 lines of type coercion logic) into thing-api. Boolean coercion is new — an enhancement over the existing handler.
 
@@ -199,6 +204,10 @@ public final class SubgraphTypes {
 
 Lowercase-normalized (same convention as `Subject.type()`).
 
+### 4.0 Type String Normalization
+
+`SubgraphInput` normalizes the type string in its compact constructor: `type = type.strip().toLowerCase()`. This matches Subject's normalization convention (`type = type.strip().toLowerCase()` in Subject's compact constructor) and prevents case-variant duplicates ("Person" vs "person" vs "PERSON"). `TypeRegistry.registerType()` creates subgraphs via `SubgraphInput`, inheriting the same normalization. The Flyway migration (§4.5) lowercases existing data as part of the enum → string conversion.
+
 ### 4.1 MindMapNode.subgraphType()
 
 New method on MindMapNode:
@@ -215,6 +224,10 @@ This is preferred over a magic `subgraph-type` property because:
 - No consistency burden — value comes from the subgraph, not a copied property
 - The store already resolves subgraph-dependent data during node construction
 
+**Resolution approach by store:**
+- **SqliteMindMapStore**: All node-returning queries (`getNode`, `nodesIn`, `search`, `resolveNode`) JOIN with `mindmap_subgraph` on `subgraph_id`. Cost is negligible — `subgraph_id` is the primary key of `mindmap_subgraph`, so each resolution is a single B-tree index lookup. The `toNode(ResultSet)` method reads the joined `type` column into the new `SqliteNode` field.
+- **InMemoryMindMapStore**: `StoredNode` resolves the subgraph type at construction time from the in-memory `subgraphs` map (`subgraphs.get(subgraphId).type()`). Stored as a field on `StoredNode`.
+
 ### 4.2 InSubgraphType Implementation
 
 ```java
@@ -230,13 +243,25 @@ Currently returns `false` — this gives it a real implementation.
 
 ### 4.3 Thing.type() Derivation
 
-`Thing.type()` returns the same value as `MindMapNode.subgraphType()`. Since Thing is an interface with no default for `type()`, the MindMapNode implementations (InMemoryMindMapNode, SqliteMindMapNode) provide it by returning the resolved subgraph type.
+`Thing.type()` returns the same value as `MindMapNode.subgraphType()`. MindMapNode defines a default method that codifies this invariant:
+
+```java
+default String type() { return subgraphType(); }
+```
+
+This eliminates redundant implementation across `InMemoryMindMapStore.StoredNode`, `SqliteMindMapStore.SqliteNode`, `NoOpMindMapStore`, and any future MindMapNode implementor. The invariant lives in one place — no implementor can accidentally diverge.
 
 After SubgraphType → String, the subgraph type IS the entity type. No separate `type` property needed — no consistency problem between two sources of truth.
 
 ### 4.4 MindMapExtractor Impact
 
-`parseSubgraphType()` passes LLM type strings through directly instead of collapsing unknown types to GENERAL. This enables runtime type discovery — the LLM can create entities with any type.
+Two changes to MindMapExtractor:
+
+1. **Parsing**: `parseSubgraphType()` becomes `normalizeType()` — passes LLM type strings through with `strip().toLowerCase()` normalization instead of collapsing unknown types to GENERAL. Unknown types are registered via TypeRegistry on first encounter.
+
+2. **Prompting**: The `SYSTEM_PROMPT` type constraint (`"type": "PERSON|PROJECT|..."`) becomes dynamic. At extraction time, MindMapExtractor queries TypeRegistry for the tenant's known types and constructs the prompt with the current type list, plus an explicit instruction that the LLM may propose new types not in the list. This closes the gap between enabling dynamic types (parsing) and activating them (prompting).
+
+3. **Casing change**: `ExtractedEntity.subgraphType` will carry lowercase type strings (e.g., "person") instead of the current uppercase enum names ("PERSON") produced by `sgType.name()`. Downstream consumers comparing against hardcoded uppercase strings must be updated.
 
 ### 4.5 SQLite Data Migration
 
@@ -265,7 +290,7 @@ TYPE_SYSTEM subgraph
 - **Dynamic types** are nodes without `java-class` — LLM-discovered types.
 - **Type hierarchy** is formed by `subtype-of` edges — graph traversal.
 
-Edge isolation: `MindMapStore.neighbors()` is node-scoped. Type hierarchy edges are between type nodes in the TYPE_SYSTEM subgraph — they never appear in instance node queries. Querying neighbors of "Alice" returns Alice's domain edges, not type hierarchy edges.
+Edge isolation is by construction, not enforcement: TypeRegistry is the sole writer of edges in the TYPE_SYSTEM subgraph. `MindMapStore.neighbors()` is node-scoped — querying neighbors of "Alice" returns Alice's domain edges, not type hierarchy edges, because type hierarchy edges connect type nodes to other type nodes, never to instance nodes. No validation is added to `MindMapStore.addEdge()` — store-level enforcement would couple the generic graph store to type-system-specific concepts, violating the layering.
 
 ### 5.2 TypeRegistry
 
@@ -286,7 +311,14 @@ Uses `Instance<MindMapStore>` for graceful degradation.
 
 ### 5.3 Bootstrapping
 
-CognitiveLoader delegates to TypeRegistry at `@PostConstruct`. TypeRegistry creates the TYPE_SYSTEM subgraph and core type nodes if absent. Idempotent — safe on every startup. Per-tenant: each tenant gets its own type subgraph.
+TypeRegistry uses lazy bootstrapping: the TYPE_SYSTEM subgraph and core type nodes are created on first access for a given tenant, not eagerly at `@PostConstruct`. This avoids the problem of discovering which tenants exist at startup and automatically handles new tenants provisioned after the application starts.
+
+Bootstrap sequence on first TypeRegistry call for a given tenant:
+1. Warm cache: `listSubgraphs(tenantId)`, find TYPE_SYSTEM subgraph by name
+2. If found, cache the subgraph ID and type nodes — done
+3. If absent, create the TYPE_SYSTEM subgraph and core type nodes, cache the result
+
+Thread safety: `ConcurrentHashMap.computeIfAbsent` on the per-tenant cache ensures at-most-once creation within a JVM instance (same pattern as `MindMapExtractor.findOrCreateSubgraph`). Cross-instance races (multiple JVMs starting against an empty database) are prevented by a unique constraint on `(tenant_id, name)` in `mindmap_subgraph`, added in the Flyway migration.
 
 ## 6. Subject ↔ Thing Bridge
 
@@ -333,14 +365,14 @@ No store-level enforcement. Schema is metadata for consumers, not constraints.
 ### 7.3 Schema Lifecycle
 
 1. **Platform bootstrap** — TypeRegistry sets schema for core types based on Java interface fields.
-2. **LLM discovery** — The LLM extractor adds schema properties to type nodes when it discovers consistent property patterns.
+2. **LLM discovery** — The LLM extractor adds schema properties to type nodes when it discovers consistent property patterns. (Deferred: tracked as a follow-on issue for MindMapExtractor schema integration.)
 3. **Developer promotion** — When creating a Java interface for a dynamic type, the developer updates the schema to match.
 
 ## 8. Promotion Path (Future)
 
 When a dynamic type crystallises (stable schema, frequently queried), a developer creates a Java interface and adds the `java-class` property to the type node. This is a conscious developer act — no automation in this epic.
 
-Future: code generation tooling that reads the type node's schema properties and generates a Java interface. Out of scope for #285.
+Future: code generation tooling that reads the type node's schema properties and generates a Java interface. Out of scope for #285. (Deferred: tracked as a follow-on issue.)
 
 ## 9. Migration Impact
 
@@ -348,8 +380,10 @@ Future: code generation tooling that reads the type node's schema properties and
 
 88 references to `SubgraphType` across the codebase. Migration is mechanical:
 - `SubgraphType.PERSON` → `SubgraphTypes.PERSON`
-- `SubgraphType.valueOf(s)` → direct string use
+- `SubgraphType.valueOf(s)` → direct string use (with `strip().toLowerCase()` normalization)
 - Switch statements → if/else or pattern matching on strings
+
+**cognitive-index impact**: `RuleConditionDeserializer` (line 75) uses `SubgraphType.valueOf(node.get("inSubgraphType").asText())` — must change to direct string use with lowercase normalization. Existing serialized rules contain uppercase enum names ("PERSON"); new rules use lowercase ("person"). The deserializer must normalize with `strip().toLowerCase()` to handle both formats transparently. `DeclarativeTraitRuleDeserializer` delegates to `RuleConditionDeserializer.parseCondition()`, so it is covered transitively.
 
 ### 9.2 SQLite Data Migration
 
@@ -357,17 +391,24 @@ Flyway migration to convert uppercase enum names to lowercase strings in the `mi
 
 ### 9.3 Store Implementations
 
-InMemoryMindMapNode and SqliteMindMapNode gain `subgraphType()` and `type()` methods. The stores resolve the subgraph type when constructing nodes.
+`InMemoryMindMapStore.StoredNode` and `SqliteMindMapStore.SqliteNode` gain a `subgraphType()` method. `type()` is provided by the default method on MindMapNode (§4.3). The stores resolve the subgraph type when constructing nodes — SqliteMindMapStore via JOIN, InMemoryMindMapStore via cache lookup (§4.1).
 
 ### 9.4 TraitProxy
 
 TraitProxy.as() in mindmap-intelligence deprecated, delegates to Thing.as(). TraitInvocationHandler logic consolidated into ThingProxyHandler in thing-api.
 
+### 9.5 ARC42STORIES
+
+ARC42STORIES.MD must be updated during implementation to include:
+- `thing-api` in the layer table (L0 — zero deps, tier-0, shared with Hortora: no)
+- `mindmap-api` layer entry updated to note Thing extension and SubgraphType → String
+- TYPE_SYSTEM subgraph concept documented in the MindMap subsystem section (to be added)
+
 ## 10. Test Strategy
 
 | Module | What's tested |
 |--------|--------------|
-| thing-api | Thing default methods: is() trait checking, as() proxy with type coercion (String, Integer, Long, Double, Boolean, Optional), ThingProxyHandler edge cases |
+| thing-api | Thing default methods: is() trait checking, as() proxy with type coercion (String, Integer, Long, Double, Boolean, Optional), ThingProxyHandler primitive default values for missing properties, ThingProxyHandler edge cases |
 | mindmap-api | SubgraphTypes constants, InSubgraphType real implementation via subgraphType(), MindMapNode extends Thing (compile check) |
 | mindmap-intelligence | TypeRegistry (bootstrap, typeExists, subtypesOf, javaClass, schemaFor, registerType), TraitProxy deprecation delegation |
 | mindmap | CognitiveLoader type subgraph bootstrap (idempotent, per-tenant) |
