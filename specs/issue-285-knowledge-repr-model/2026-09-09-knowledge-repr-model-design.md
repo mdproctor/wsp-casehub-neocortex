@@ -163,6 +163,10 @@ if (thing.is("Customer")) {
 }
 ```
 
+**Trait naming convention:** Trait names are PascalCase, matching the Java interface simple name. All existing platform traits follow this: "Personable", "Projectlike", "Organisational", "Appointable", "Aspirational", "Threatening", "Opportunistic". `Thing.is()` is case-sensitive — `is("Personable")` matches, `is("personable")` does not.
+
+This is intentionally asymmetric with type names (which are lowercase — §4.0). Types are domain concepts ("person", "project"); traits are Java interface identifiers ("Personable", "Projectlike"). The casing reflects the origin: types come from data (SubgraphInput, LLM extraction), traits come from code (TraitRule implementations).
+
 ### 3.4 TraitProxy Migration
 
 The existing `TraitProxy.as()` in mindmap-intelligence delegates to `Thing.as()`:
@@ -318,7 +322,7 @@ Bootstrap sequence on first TypeRegistry call for a given tenant:
 2. If found, cache the subgraph ID and type nodes — done
 3. If absent, create the TYPE_SYSTEM subgraph and core type nodes, cache the result
 
-Thread safety: `ConcurrentHashMap.computeIfAbsent` on the per-tenant cache ensures at-most-once creation within a JVM instance (same pattern as `MindMapExtractor.findOrCreateSubgraph`). Cross-instance races (multiple JVMs starting against an empty database) are prevented by a unique constraint on `(tenant_id, name)` in `mindmap_subgraph`, added in the Flyway migration.
+Thread safety: `ConcurrentHashMap.computeIfAbsent` on the per-tenant cache ensures at-most-once creation within a JVM instance (same pattern as `MindMapExtractor.findOrCreateSubgraph`). Cross-instance races (multiple JVMs starting against an empty database) are prevented by a unique constraint on `(tenant_id, type)` in `mindmap_subgraph`, added in the Flyway migration. On constraint violation (second JVM loses the race), TypeRegistry catches the `IllegalStateException` from `createSubgraph()`, re-queries `listSubgraphs(tenantId)` to find the subgraph the winning instance created, caches it, and continues normally. The constraint is on `type` (not `name`) because the type string ("type-system") is the semantic identity — a subgraph's human-readable name is presentation, not identity.
 
 ## 6. Subject ↔ Thing Bridge
 
@@ -362,17 +366,31 @@ Schema properties use the `schema.{fieldName}.{attribute}` naming convention. Su
 
 No store-level enforcement. Schema is metadata for consumers, not constraints.
 
+`SchemaField` is a record in mindmap-api:
+
+```java
+package io.casehub.neocortex.mindmap;
+
+public record SchemaField(String name, String type, boolean required) {}
+```
+
+Supported `type` values: `"string"`, `"number"`, `"boolean"`, `"date"`. Lives in mindmap-api (not thing-api) because schema is a MindMap-layer concept — it describes type node metadata, not Thing identity. TypeRegistry in mindmap-intelligence uses it as a return type, and mindmap-intelligence already depends on mindmap-api.
+
 ### 7.3 Schema Lifecycle
 
-1. **Platform bootstrap** — TypeRegistry sets schema for core types based on Java interface fields.
-2. **LLM discovery** — The LLM extractor adds schema properties to type nodes when it discovers consistent property patterns. (Deferred: tracked as a follow-on issue for MindMapExtractor schema integration.)
+1. **Platform bootstrap** — TypeRegistry derives schema for core types from their Java trait interfaces via reflection. For each core type with a `java-class` property, TypeRegistry:
+   - Iterates declared methods of the interface (excluding Object methods and default methods)
+   - Maps each method's return type to a schema type using the inverse of the ThingProxyHandler coercion table (§3.2): `String`/`Optional<String>` → `"string"`, `int`/`Integer`/`long`/`Long` → `"number"`, `double`/`Double` → `"number"`, `boolean`/`Boolean` → `"boolean"`
+   - Uses the method name as the schema field name (e.g., `Personable.birthday()` → field "birthday", type "string")
+   - All reflected fields default to `required = false` (trait interfaces use `Optional` return types — presence is a convention, not a constraint)
+2. **LLM discovery** — The LLM extractor adds schema properties to type nodes when it discovers consistent property patterns. (Deferred: #292.)
 3. **Developer promotion** — When creating a Java interface for a dynamic type, the developer updates the schema to match.
 
 ## 8. Promotion Path (Future)
 
 When a dynamic type crystallises (stable schema, frequently queried), a developer creates a Java interface and adds the `java-class` property to the type node. This is a conscious developer act — no automation in this epic.
 
-Future: code generation tooling that reads the type node's schema properties and generates a Java interface. Out of scope for #285. (Deferred: tracked as a follow-on issue.)
+Future: code generation tooling that reads the type node's schema properties and generates a Java interface. Out of scope for #285. (Deferred: #293.)
 
 ## 9. Migration Impact
 
@@ -408,7 +426,7 @@ ARC42STORIES.MD must be updated during implementation to include:
 
 | Module | What's tested |
 |--------|--------------|
-| thing-api | Thing default methods: is() trait checking, as() proxy with type coercion (String, Integer, Long, Double, Boolean, Optional), ThingProxyHandler primitive default values for missing properties, ThingProxyHandler edge cases |
+| thing-api | Thing default methods: is() trait checking, as() proxy with type coercion (String, Integer, Long, Double, Boolean, Optional), ThingProxyHandler primitive default values for missing properties, ThingProxyHandler edge cases, **ArchUnit DependencyConstraintTest** (zero deps: no mindmap, cognitive, platform, Quarkus, Jakarta, Spring) |
 | mindmap-api | SubgraphTypes constants, InSubgraphType real implementation via subgraphType(), MindMapNode extends Thing (compile check) |
 | mindmap-intelligence | TypeRegistry (bootstrap, typeExists, subtypesOf, javaClass, schemaFor, registerType), TraitProxy deprecation delegation |
 | mindmap | CognitiveLoader type subgraph bootstrap (idempotent, per-tenant) |
