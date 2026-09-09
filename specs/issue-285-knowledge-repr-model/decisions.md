@@ -1,14 +1,15 @@
-## D1: Thing ↔ MindMapNode — separate types, consumer vs internal
+## D1: Thing ↔ MindMapNode — base interface hierarchy (content vs cognition)
 
-**Choice:** Thing is a separate type from MindMapNode. Thing is the consumer-facing semantic API; MindMapNode is the internal storage SPI. They do not share a type hierarchy. Thing wraps/references MindMapNode internally but consumers never see MindMapNode when working at the cognitive level.
+**Choice:** Thing is a base interface in thing-api (zero deps). MindMapNode extends Thing, adding cognitive features (confidence, PAD, temporal bounds, provenance, principalId, sharedWith, refs). Every MindMapNode IS a Thing — no wrapping, no bridging. Consumers who want semantic knowledge representation depend on thing-api only. Cognitive system components depend on mindmap-api for the full MindMapNode.
 **Alternatives:**
-- MindMapNode implements Thing — conflates storage SPI with semantic model. Changes to storage interface leak into the consumer API. Couples two fundamentally different concerns.
-- ThingView CDI service (no new type) — no object identity for Thing. Loses the "hold a Thing, interact with it" Drools feel. Just utility functions, not a type system.
-**Rationale:** Storage and semantics are separate concerns with different lifecycles. MindMapNode evolves with storage requirements (new indexes, new backends). Thing evolves with consumer needs (new trait APIs, type system extensions). Keeping them separate means neither constrains the other. The consumer gets a clean, stable API; the platform gets freedom to change storage internals.
-**Trade-offs:** Requires a bridging layer (ThingResolver or similar) to hydrate Things from MindMapNode + edges + type metadata. Extra step compared to using MindMapNode directly.
-**Sources:** MindMapNode.java, TraitProxy.java, issue #278 (Thing model prior art)
-**Exploration:** quick
-**Status:** revised — reframed Thing as a lightweight read-only projection, not a live Drools fact (R1-12). The separation motivation is consumer/internal API boundary, not live interaction.
+- Separate types, no hierarchy (original D1) — wrapping layer, ThingResolver needed, consumer can't pass a MindMapNode where a Thing is expected. Reviewer correctly identified this as unnecessary complexity for three convenience methods.
+- is()/as() as default methods on MindMapNode only (reviewer proposal) — works but couples consumers to mindmap-api which drags in cognitive-api (Confidence) and platform-api (PrincipalId). Consumers wanting just semantic knowledge get the full cognitive dependency tree.
+- ThingView CDI service (no new type) — no object identity for Thing.
+**Rationale:** Thing represents semantic knowledge representation — entities with identity, type, properties, and traits. MindMapNode extends this with cognitive features the agent's reasoning system needs. All MindMapNodes are Things (even simple content nodes — they just have type "note" or "general"). The hierarchy gives consumers a clean, zero-deps dependency surface while preserving MindMapNode's full richness for the cognitive system. No bridging needed — a MindMapNode IS a Thing.
+**Trade-offs:** mindmap-api gains a thing-api dependency (zero deps, trivial). Thing.type() is abstract — MindMapNode implementations resolve it from the subgraph type.
+**Sources:** MindMapNode.java, TraitProxy.java, issue #278 (Thing model prior art), spec review R1-02 (MindMapNode is already a clean domain interface)
+**Exploration:** deep-analysis (revised through spec review)
+**Status:** revised — from separate-types-no-hierarchy to base-interface-hierarchy after spec review and user clarification. Thing is semantic knowledge representation; MindMapNode is cognitive augmentation.
 
 ## D2: Module placement — new thing-api
 
@@ -99,31 +100,30 @@
 **Exploration:** quick
 **Status:** captured
 
-## D9: ThingResolver in mindmap-intelligence
+## D9: No ThingResolver needed — MindMapNode IS a Thing
 
-**Choice:** ThingResolver is an @ApplicationScoped CDI bean in mindmap-intelligence. Depends on thing-api + mindmap-api. resolve(String nodeId, String tenantId) → Optional<Thing>. Fetches node from MindMapStore, reads traits, reads type subgraph to determine type(), constructs a Thing implementation.
+**Choice:** No ThingResolver. Since MindMapNode extends Thing, any MindMapNode returned by MindMapStore is already a Thing. Consumers use MindMapStore directly and narrow to the Thing interface. TypeRegistry in mindmap-intelligence provides type metadata queries (subtypes, java-class mapping, schema).
 **Alternatives:**
-- New `thing` CDI module — dedicated to Thing resolution. Adds a module for one CDI bean. Unnecessary when mindmap-intelligence already has the right dependencies and purpose.
-- cognitive-index — hosts cross-store resolvers (CognitiveProfile, PerspectivalResolver). But ThingResolver doesn't cross stores — it bridges thing-api and mindmap-api only.
-**Rationale:** mindmap-intelligence is the "smart MindMap layer" — TraitProxy, TraitRules, CuriositySignalGenerator, MindMapExtractor all live here. ThingResolver is the natural companion: it uses TraitRule results and type subgraph data to construct Things from MindMapNodes. No new module needed.
-**Trade-offs:** mindmap-intelligence gains a thing-api dependency. Acceptable — it's a consumer of Thing, not a provider of storage.
-**Depends on:** D1 (separation), D2 (thing-api module), D6 (type subgraph for type() resolution)
-**Sources:** TraitProxy.java (mindmap-intelligence), CognitiveLoader.java (mindmap-intelligence CDI bean), MindMapStore.java (node/subgraph queries)
+- ThingResolver CDI bean (original D9) — unnecessary when MindMapNode IS a Thing. No bridging layer needed.
+**Rationale:** The base-interface hierarchy (D1 revised) eliminates the need for a resolver. MindMapStore.getNode() returns MindMapNode which IS a Thing. Consumer code: `Thing thing = store.getNode(id, tenant);` — the widening cast is implicit.
+**Trade-offs:** Consumers still need MindMapStore access to retrieve Things. This is the correct trade-off — the store is the entry point for all graph operations.
+**Depends on:** D1 (base-interface hierarchy)
+**Sources:** D1 revision, spec review R1-02
 **Exploration:** quick
-**Status:** captured
+**Status:** revised — ThingResolver dropped, replaced by direct MindMapStore access with Thing interface narrowing
 
-## D10: Thing type() — explicit type property on MindMapNode
+## D10: Thing.type() — derived from subgraph type
 
-**Choice:** Each MindMapNode carries a `type` property (e.g., type=person, type=research-topic) set at creation time by the caller or LLM extractor. Thing.type() reads property("type"). The type value must match a type node name in the type subgraph (D6) — ThingResolver validates at hydration time. The type property is the core type the Thing was "instantiated against" (from #278 prior art).
+**Choice:** Thing.type() returns the subgraph type of the node. After SubgraphType → String (D5), the subgraph type IS the entity type. No separate `type` property needed — no consistency problem between two sources of truth. MindMapNode gains a `subgraphType()` method that returns the subgraph's type string, resolved by the store at construction time. Thing.type() delegates to this via MindMapNode's implementation.
 **Alternatives:**
-- Inferred from subgraph type — Thing.type() derives from the node's subgraph. But subgraphs are partitioning (D5), not typing. A subgraph could contain multiple entity types. Conflates grouping with identity.
-- Inferred from traits — Thing.type() is the "most specific" satisfied trait. Requires type hierarchy ordering to determine specificity. Traits can be multiple (Personable + Organisational) — ambiguous which is the primary type.
-**Rationale:** Explicit is better than inferred. The type is set once at creation — it identifies what the Thing IS, not what interfaces it satisfies. Traits are additional capabilities discovered over time (a Person gains Appointable when events are added). The type/trait distinction mirrors Java's class vs interface: a class has one identity type, but implements many interfaces.
-**Trade-offs:** Requires callers to set the type property at node creation. ThingResolver refuses nodes without an explicit type property — returns Optional.empty(). No fallback to subgraph type (that would contradict D5's separation of partitioning from typing). ThingResolver normalizes type to lowercase when reading the property, ensuring Subject.type() convention alignment (R1-08).
-**Depends on:** D3 (Thing carries type()), D6 (type subgraph for validation), D7 (Subject.type() == Thing.type() convention)
-**Sources:** Subject.java (type convention, lowercase normalization), NodeInput.withProperty() (property setting), issue #278 (ThingInstance instantiated against one core type)
+- Explicit `type` property on nodes (original D10) — creates a consistency problem when type property disagrees with subgraph type. Requires ThingResolver validation. Adds a reserved property key. Spec review R1-05 correctly identified this as duplication.
+- Inferred from traits — ambiguous when multiple traits satisfied.
+**Rationale:** After D5, subgraphs have dynamic string types. The subgraph type IS what the entity is — a node in a "person" subgraph IS a person. A node in a "note" subgraph IS a note. No separate property needed, no consistency burden, no reserved key. subgraphType() on MindMapNode is type-safe, discoverable, and cannot be overwritten by callers.
+**Trade-offs:** An entity's type is determined by its subgraph membership. Changing an entity's type means moving it to a different subgraph. This is a feature, not a bug — type identity is a structural commitment, not a mutable property.
+**Depends on:** D5 (dynamic subgraph types), D1 (Thing as base interface — type() is on Thing, subgraphType() on MindMapNode)
+**Sources:** spec review R1-05, R1-06, MindMapStore.createSubgraph(), MindMapExtractor.findOrCreateSubgraph()
 **Exploration:** quick
-**Status:** revised — removed subgraph type fallback (R1-10, contradicts D5); added lowercase normalization (R1-08); ThingResolver refuses nodes without type (R1-10)
+**Status:** revised — type derived from subgraph (spec review R1-05), subgraphType() accessor replaces magic property (spec review R1-06)
 
 ## D11: Trait interfaces — consumer-defined, platform-provided optional
 
@@ -139,17 +139,18 @@
 **Exploration:** surfaced by review (R1-03)
 **Status:** captured
 
-## D12: Shared PropertyAccessor — single proxy implementation
+## D12: Single proxy in thing-api — no PropertyAccessor needed
 
-**Choice:** Define a `PropertyAccessor` functional interface in thing-api: `Optional<String> property(String key)`. Thing extends PropertyAccessor. The JDK Proxy invocation handler in thing-api works on any PropertyAccessor. mindmap-intelligence's TraitInvocationHandler is replaced by having MindMapNode adapt to PropertyAccessor (trivially — it already has `property(String key)`). One proxy implementation, two use sites.
+**Choice:** The JDK Proxy invocation handler lives in thing-api and operates on Thing.property(). Since MindMapNode extends Thing, it inherits property(). One proxy implementation serves both. No PropertyAccessor abstraction needed — Thing itself IS the property accessor. TraitInvocationHandler in mindmap-intelligence is replaced by delegating to Thing.as() (which MindMapNode inherits).
 **Alternatives:**
-- Duplicate proxy — thing-api and mindmap-intelligence each have their own invocation handler doing the same method-name-to-property dispatch with the same type coercion (String, Integer, Long, Double, Optional). Two implementations that must stay in sync.
-**Rationale:** TraitInvocationHandler is 51 lines of non-trivial type coercion logic. Duplicating it creates a maintenance burden — new return types (Boolean, Instant) must be added in both places. A shared PropertyAccessor in thing-api (zero deps) allows one proxy that works everywhere (R1-04).
-**Trade-offs:** mindmap-intelligence gains a dependency on thing-api for the proxy. Its existing TraitProxy.as() calls migrate to the shared implementation. Mechanical change.
-**Depends on:** D2 (thing-api module), D4 (convention-based proxy)
-**Sources:** TraitInvocationHandler.java (51 lines of type coercion), R1-04
+- PropertyAccessor functional interface (original D12) — unnecessary indirection now that MindMapNode extends Thing. Thing already has property().
+- Duplicate proxy in thing-api and mindmap-intelligence — maintenance burden for type coercion logic.
+**Rationale:** The base-interface hierarchy (D1 revised) makes PropertyAccessor redundant. The proxy in thing-api operates on Thing.property(). MindMapNode inherits as() from Thing, which calls the proxy. One implementation, one interface, zero extra abstractions.
+**Trade-offs:** mindmap-intelligence's TraitProxy.as() becomes a deprecated delegate to Thing.as().
+**Depends on:** D1 (MindMapNode extends Thing), D4 (convention-based proxy)
+**Sources:** TraitInvocationHandler.java, spec review R1-04
 **Exploration:** surfaced by review (R1-04)
-**Status:** captured
+**Status:** revised — PropertyAccessor dropped, Thing itself is the property contract
 
 ## D13: Type subgraph bootstrapping — CognitiveLoader at startup
 
@@ -164,15 +165,15 @@
 **Exploration:** surfaced by review (R1-06)
 **Status:** captured
 
-## D14: Thing is an interface with an implementation record in thing-api
+## D14: Thing is an interface — MindMapNode implementations provide the concrete type
 
-**Choice:** Thing is an interface. A package-private implementation record `ThingRecord(String id, String name, String type, Map<String, String> properties, Set<String> traits)` lives in thing-api. ThingResolver constructs ThingRecord instances via a static factory: `Thing.of(id, name, type, properties, traits)`. Consumers interact with the Thing interface; the implementation is hidden.
+**Choice:** Thing is an interface in thing-api. No implementation record in thing-api — the implementations are the existing MindMapNode implementations (InMemoryMindMapNode, SqliteMindMapNode) which implement MindMapNode which extends Thing. Thing carries default methods for is() and as(); abstract methods for id(), name(), type(), property(), properties(), traits().
 **Alternatives:**
-- Thing as a public record — simple but exposes the constructor, allowing arbitrary construction that bypasses ThingResolver validation (type exists in type subgraph, traits computed by rules).
-- Thing as a class — unnecessary complexity for an immutable value. Records are the right fit.
-**Rationale:** Interface + hidden record follows the established codebase pattern (MindMapNode is an interface with backend-specific implementations). The factory method on Thing provides a clean construction API for ThingResolver without exposing the record (R1-16).
-**Trade-offs:** Factory method in an interface requires a static method referencing the package-private record. Standard Java pattern — `Thing.of()` returns the hidden implementation.
-**Depends on:** D2 (thing-api module), D3 (Thing shape)
-**Sources:** MindMapNode.java (interface pattern), R1-16
+- ThingRecord in thing-api (original D14) — unnecessary now that MindMapNode extends Thing. The MindMapNode implementations ARE the Thing implementations.
+- Thing as a class — doesn't work since MindMapNode is an interface and needs to extend Thing.
+**Rationale:** The base-interface hierarchy (D1 revised) means Thing is purely an interface. Its implementations are the MindMapNode backend implementations. No separate Thing implementation needed.
+**Trade-offs:** thing-api has no standalone Thing implementation — you can't create a Thing without a MindMapNode. If a standalone Thing is ever needed (e.g., for testing without MindMap), a simple record can be added to thing-api later.
+**Depends on:** D1 (MindMapNode extends Thing), D2 (thing-api module)
+**Sources:** InMemoryMindMapNode (mindmap-inmem), SqliteMindMapNode (mindmap-sqlite), R1-16
 **Exploration:** surfaced by review (R1-16)
-**Status:** captured
+**Status:** revised — no ThingRecord needed, MindMapNode implementations are the Thing implementations
