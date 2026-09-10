@@ -9,3 +9,15 @@
 **Sources:** DraftHouse Facet.java, NotesPipeline.java, NotesPipelineObserver.java, VaultWriter.java, MindMapExtractor.java, issue #296
 **Exploration:** quick
 **Status:** captured
+
+## D2: ConsolidationScheduler trigger — @Scheduled periodic, non-persistent
+
+**Choice:** `@Scheduled` Quarkus timer runs consolidation at a configurable interval (e.g. every 5 minutes). No persistent job state — the scheduler is stateless. On restart, it simply scans the current graph state. Matches the cognitive science "sleep consolidation" metaphor: periodic background reorganization of accumulated knowledge.
+**Alternatives:**
+- CDI event-driven after extraction — more responsive but harder to reason about timing, back-pressure, and overlapping runs
+- Manual/API trigger only — full control but no automatic background processing, undermines the three-speed model
+**Rationale:** The knowledge graph itself is persisted (MindMapStore → SQLite/Qdrant). The scheduler just decides what to do on each pass. If the JVM restarts, it re-derives its work from graph state — no lost job queue. Simple, predictable, debuggable.
+**Trade-offs:** Not immediately responsive to new data — consolidation waits for the next scheduled tick. Acceptable for background-tier work where latency is minutes, not milliseconds.
+**Sources:** CbrReconciliationService (existing @Scheduled pattern in neocortex), RetentionScheduler (rag-tracking, same pattern), issue #297
+**Exploration:** quick
+**Status:** captured
