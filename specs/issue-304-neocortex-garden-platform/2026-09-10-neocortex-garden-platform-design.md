@@ -124,7 +124,7 @@ public record FederationQuery(
 
 Federation operates at the REST/HTTP service-to-service level, NOT the CaseRetriever pipeline level. Federated results do NOT pass through the local decorator chain (CRAG, expansion, reranking, tracking) — each instance processes its own results independently. Merging happens after both local and remote results are fully processed.
 
-`FederationTarget` carries the remote instance URL, ID, and relationship (upstream/peer). `FederatedResult` carries the result content, score, and source instance ID.
+`FederationTarget` carries the remote instance URL, ID, and relationship (upstream/peer). `FederatedResult` carries the result content, `adjustedScore` (already scored by the remote instance's own pipeline), source instance ID, and optional `metadata` (for audit/debugging, NOT for local re-scoring). Each instance runs its own scoring pipeline — the local instance does not re-score remote results. `AdaptiveFilter.filter()` operates on the merged set using each result's `adjustedScore`.
 
 Engine's `ChainWalker` stays as the first `FederationStrategy` implementation: sequential upstream walk with relevance-threshold short-circuit + parallel peer fan-out (only when insufficient) + tiered merge + dedup.
 
@@ -152,10 +152,12 @@ PostRetrievalScorer implementations. Pure Java, zero external deps beyond rag-ap
 
 | Class | What it does |
 |---|---|
-| `TemporalDecayScorer` | Exponential half-life decay by metadata tier. Configurable tier→halflife mapping. |
-| `VersionScorer` | Version-distance decay. Major version miss penalizes more than minor. Configurable format. |
+| `TemporalDecayScorer` | Exponential half-life decay by metadata tier. Constructor takes metadata key names (`dateKey`, `tierKey`) and tier→halflife mapping — no hardcoded garden field names. |
+| `VersionScorer` | Version-distance decay. Constructor takes metadata key name (`versionKey`), version format, and `Config(decayFactor, floor, defaultTopicWeight)`. Major version miss penalizes more than minor. |
 | `AdaptiveSearchWrapper` | Wraps CaseRetriever with overfetch, score floor, gap trim, and minimum results. Not a decorator — a utility that consumers call explicitly. Single-source only (no federation). |
-| `AdaptiveFilter` | Static utility for the filtering step alone (floor → gap-trim → min-results). Reusable by consumers that retrieve and score results through other means, e.g., after federation merge. |
+
+
+`AdaptiveFilter` is a pure static utility in **rag-api** (not rag-scoring) alongside `AdaptiveSearchConfig` and `RetrievalAnalyzer`. Its only deps are rag-api types — placing it in rag-scoring would force unnecessary coupling for consumers that only need filtering (e.g., after federation merge).
 
 Adaptive search is a separate concern from scoring. Scoring computes per-chunk adjustments; adaptive search applies cross-result thresholds (gap trim, score floor) that require seeing ALL results at once — this cannot be a CaseRetriever @Decorator because decorators intercept individual query/response flows while adaptive search needs the full scored result set to compute gaps and enforce minimums.
 
@@ -195,7 +197,7 @@ New SPIs listed in 2.1. New records:
 
 - `AdaptiveSearchConfig` — score floor, gap threshold, min results, overfetch multiplier
 - `ProvenanceRecord` — lineage record
-- `ProvenanceStats` — per-document retrieval counts
+- `ProvenanceStats` — action-lineage aggregates (total records, unique documents, unique actions, top-referenced, unreferenced count)
 - `FederationTarget` — remote instance identity
 - `FederatedResult` — result with source attribution
 - `ScoringContext` — per-query scoring context (`versionProfile` map for version distance scoring; `EMPTY` constant for queries without version context)
@@ -309,7 +311,8 @@ Issue #304 Phase 3 (Feedback pipeline) lists four items:
 ```
 rag-api (SPIs: CaseRetriever, RetrievalTracker, MetadataExtractor,
          PostRetrievalScorer, ProvenanceTracker, FederationStrategy,
-         DocumentQueryAugmenter, AdaptiveSearchConfig, ...)
+         DocumentQueryAugmenter, AdaptiveSearchConfig, AdaptiveFilter,
+         ScoringContext, FederationQuery, FederatedResult, ...)
     ↑
     ├── rag-scoring (TemporalDecayScorer, VersionScorer, AdaptiveSearchWrapper)
     ├── rag-query-augmentation (AgentQueryAugmenter, QueryAugmentingMetadataExtractor)
