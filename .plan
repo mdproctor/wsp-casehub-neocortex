@@ -13,20 +13,20 @@ flyway-next-v: none
 
 ## Queue
 - [ ] casehubio/neocortex#295 — Issue #295 ← active
-  - [ ] Batch 1: Foundation
-    - [ ] Task 1: IdleTracker + MindMapStoreIdleTracker
-    - [ ] Task 2: RetrievalAccessTracker + AccessSnapshot
-    - [ ] Task 3: ConsolidationPhase SPI + Scheduler + AccessFrequencyPhase
-  - [ ] Batch 2: ConversationBridge
-    - [ ] Task 4: TextSegment + SegmentationResult + ConversationBridge
-    - [ ] Task 5: ExtractionRequested + ExtractionRequestedObserver
-  - [ ] Batch 3: MergeDetection
-    - [ ] Task 6: MergeCandidate + MergeDetectionPhase L1
-    - [ ] Task 7: MergeDetectionPhase L2 embedding
-  - [ ] Batch 4: CommunitySummaries
-    - [ ] Task 8: MindMapAnalyzer.kCores
-    - [ ] Task 9: CommunitySummaryPhase
-    - [ ] Task 10: CuriosityRefreshPhase
+  - [x] Batch 1: Foundation
+    - [x] Task 1: IdleTracker + MindMapStoreIdleTracker
+    - [x] Task 2: RetrievalAccessTracker + AccessSnapshot
+    - [x] Task 3: ConsolidationPhase SPI + Scheduler + AccessFrequencyPhase
+  - [x] Batch 2: ConversationBridge
+    - [x] Task 4: TextSegment + SegmentationResult + ConversationBridge
+    - [x] Task 5: ExtractionRequested + ExtractionRequestedObserver
+  - [x] Batch 3: MergeDetection
+    - [x] Task 6: MergeCandidate + MergeDetectionPhase L1
+    - [x] Task 7: MergeDetectionPhase L2 embedding
+  - [x] Batch 4: CommunitySummaries
+    - [x] Task 8: MindMapAnalyzer.kCores
+    - [x] Task 9: CommunitySummaryPhase
+    - [x] Task 10: CuriosityRefreshPhase
 - [ ] casehubio/neocortex#301 — docs consumer guide Thing model
 - [ ] casehubio/neocortex#302 — docs contributor guide Thing/MindMapNode
 - [ ] casehubio/neocortex#303 — docs capability-to-example matrix
