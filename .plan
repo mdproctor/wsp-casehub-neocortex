@@ -13,22 +13,27 @@ flyway-next-v: unknown
 
 ## Queue
 - [ ] casehubio/neocortex#304 — Extract hortora/engine capabilities into neocortex ← active
-  - [ ] Batch 1: Scoring Foundation
-    - [ ] Task 1: PostRetrievalScorer SPI + types
-    - [ ] Task 2: TemporalDecayScorer + VersionScorer
-    - [ ] Task 3: AdaptiveSearchWrapper
-  - [ ] Batch 2: Platform SPIs
-    - [ ] Task 4: ProvenanceTracker SPI
-    - [ ] Task 5: FederationStrategy SPI
-    - [ ] Task 6: DocumentQueryAugmenter SPI
-  - [ ] Batch 3: Query Augmentation
-    - [ ] Task 7: rag-query-augmentation module
-  - [ ] Batch 4: Collection Compat
-    - [ ] Task 8: CollectionCompatibility utility
-  - [ ] Batch 5: CBR Rename
-    - [ ] Task 9: Rename CBR types via IntelliJ
-    - [ ] Task 10: CbrOutcome.retrievalId + docs
+  - [x] Batch 1: Scoring Foundation
+    - [x] Task 1: PostRetrievalScorer SPI + types
+    - [x] Task 2: TemporalDecayScorer + VersionScorer
+    - [x] Task 3: AdaptiveSearchWrapper
+  - [x] Batch 2: Platform SPIs
+    - [x] Task 4: ProvenanceTracker SPI
+    - [x] Task 5: FederationStrategy SPI
+    - [x] Task 6: DocumentQueryAugmenter SPI
+  - [x] Batch 3: Query Augmentation
+    - [x] Task 7: rag-query-augmentation module
+  - [x] Batch 4: Collection Compat
+    - [x] Task 8: CollectionCompatibility utility
+  - [x] Batch 5: CBR Rename
+    - [x] Task 9: Rename CBR types via IntelliJ
+    - [x] Task 10: CbrOutcome.retrievalId + docs
   - [ ] Batch 6: Engine Integration
     - [ ] Task 11: Engine uses rag-scoring
     - [ ] Task 12: Engine implements SPIs
     - [ ] Task 13: Engine CBR rename + verification
+
+## Deferred
+- [ ] Engine uses rag-scoring (M / Med) [Hortora/engine] — Cross-repo: needs neocortex pushed first. Engine deletes TemporalDecayScorer/VersionScorer, uses platform rag-scoring.
+- [ ] Engine implements SPIs (M / Med) [Hortora/engine] — Cross-repo: ProvenanceStore implements ProvenanceTracker, ChainWalker implements FederationStrategy. Needs neocortex pushed.
+- [ ] Engine CBR rename + verification (S / Low) [Hortora/engine] — Cross-repo: update engine imports to ResolvedCase/ResolutionGuide/ResolutionStep. Verify MCP tools. Needs neocortex pushed.
