@@ -13,3 +13,22 @@ flyway-next-v: unknown
 
 ## Queue
 - [ ] casehubio/neocortex#304 — Extract hortora/engine capabilities into neocortex ← active
+  - [ ] Batch 1: Scoring Foundation
+    - [ ] Task 1: PostRetrievalScorer SPI + types
+    - [ ] Task 2: TemporalDecayScorer + VersionScorer
+    - [ ] Task 3: AdaptiveSearchWrapper
+  - [ ] Batch 2: Platform SPIs
+    - [ ] Task 4: ProvenanceTracker SPI
+    - [ ] Task 5: FederationStrategy SPI
+    - [ ] Task 6: DocumentQueryAugmenter SPI
+  - [ ] Batch 3: Query Augmentation
+    - [ ] Task 7: rag-query-augmentation module
+  - [ ] Batch 4: Collection Compat
+    - [ ] Task 8: CollectionCompatibility utility
+  - [ ] Batch 5: CBR Rename
+    - [ ] Task 9: Rename CBR types via IntelliJ
+    - [ ] Task 10: CbrOutcome.retrievalId + docs
+  - [ ] Batch 6: Engine Integration
+    - [ ] Task 11: Engine uses rag-scoring
+    - [ ] Task 12: Engine implements SPIs
+    - [ ] Task 13: Engine CBR rename + verification
