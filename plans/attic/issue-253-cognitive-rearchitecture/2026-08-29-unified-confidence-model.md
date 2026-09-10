@@ -970,7 +970,7 @@ Refs #229"
 - Modify: `memory-api/src/main/java/io/casehub/neocortex/memory/cbr/CbrCase.java`
 - Modify: `memory-api/src/main/java/io/casehub/neocortex/memory/cbr/TextualCbrCase.java`
 - Modify: `memory-api/src/main/java/io/casehub/neocortex/memory/cbr/FeatureVectorCbrCase.java`
-- Modify: `memory-api/src/main/java/io/casehub/neocortex/memory/cbr/PlanCbrCase.java`
+- Modify: `../../../../memory-api/src/main/java/io/casehub/neocortex/memory/cbr/ResolvedCase.java/PlanCbrCase.java`
 - Modify: `memory-api/src/main/java/io/casehub/neocortex/memory/cbr/CbrOutcome.java`
 - Modify: `memory-api/src/main/java/io/casehub/neocortex/memory/cbr/CbrRetrievalTrace.java`
 - Modify: `memory-cbr-inmem/src/main/java/io/casehub/neocortex/memory/cbr/inmem/InMemoryCbrCaseMemoryStore.java`

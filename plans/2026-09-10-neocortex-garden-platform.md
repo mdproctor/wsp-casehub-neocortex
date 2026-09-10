@@ -495,7 +495,7 @@ Clean break — all consumers update in the same commit. IntelliJ refactor renam
 
 - [ ] **Step 1: Rename PlanCbrCase → ResolvedCase**
 
-Use `ide_refactor_rename` on `memory-api/src/main/java/io/casehub/neocortex/memory/cbr/PlanCbrCase.java`. Verify all 106 references updated.
+Use `ide_refactor_rename` on `../../memory-api/src/main/java/io/casehub/neocortex/memory/cbr/ResolvedCase.java/PlanCbrCase.java`. Verify all 106 references updated.
 
 - [ ] **Step 2: Rename TextualCbrCase → ResolutionGuide**
 
@@ -705,7 +705,7 @@ Refs casehubio/neocortex#304
 - `rag-api/src/main/java/io/casehub/neocortex/rag/CaseRetriever.java` — existing retrieval SPI
 - `rag-api/src/main/java/io/casehub/neocortex/rag/RetrievalTracker.java` — existing tracking SPI
 - `rag-api/src/main/java/io/casehub/neocortex/rag/MetadataExtractor.java` — existing extraction SPI
-- `memory-api/src/main/java/io/casehub/neocortex/memory/cbr/PlanCbrCase.java` (106 refs) — CBR rename source
+- `../../memory-api/src/main/java/io/casehub/neocortex/memory/cbr/ResolvedCase.java/PlanCbrCase.java` (106 refs) — CBR rename source
 - `memory-api/src/main/java/io/casehub/neocortex/memory/cbr/TextualCbrCase.java` (104 refs) — CBR rename source
 - `memory-api/src/main/java/io/casehub/neocortex/memory/cbr/PlanTrace.java` (95 refs) — CBR rename source
 - `rag-crossencoder/pom.xml` — module template
