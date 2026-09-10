@@ -30,8 +30,8 @@ Memory consolidation during sleep: raw experiences are reorganized into structur
 
 | Speed | When | What happens | Owner |
 |-------|------|-------------|-------|
-| **Real-time** | During conversation | DraftHouse NotesPipeline cleans raw text → ConversationBridge → MindMapExtractor creates nodes + edges | DraftHouse (thin adapter) + neocortex (bridge + extractor) |
-| **Near-time** | On every addNode/addEdge | DerivedEdgeDecorator fires forward-chaining rules, TraitRules evaluate traits | neocortex (already built, decorator stack) |
+| **Real-time** | During conversation | DraftHouse NotesPipeline cleans raw text → ConversationBridge segments into topical chunks (rule-based, no LLM), creates initial "general" Things via MindMapStore, fires `ExtractionRequested` CDI event | DraftHouse (thin adapter) + neocortex (bridge) |
+| **Near-time** | On `ExtractionRequested` event + on every addNode/addEdge | MindMapExtractor enriches initial nodes via LLM extraction (async, triggered by CDI event). DerivedEdgeDecorator fires forward-chaining rules, TraitRules evaluate traits on every mutation. | neocortex (extractor + decorator stack) |
 | **Background** | Idle periods (≥1 min no writes) | ConsolidationScheduler runs 4 phases: access-frequency, merge detection, community summaries, curiosity refresh | neocortex (mindmap-intelligence) |
 
 ### 2.2 Module Layout
@@ -41,22 +41,28 @@ All new components live in `mindmap-intelligence`, which already owns MindMapExt
 ```
 mindmap-intelligence/
   src/main/java/io/casehub/neocortex/mindmap/intelligence/
-    ConversationBridge.java            — SPI: cleaned text → extraction result
+    ConversationBridge.java            — fast rule-based segmentation, creates initial nodes
+    SegmentationResult.java            — result record (createdNodeIds, segmentCount)
+    TextSegment.java                   — record (title, body, topic)
+    ExtractionRequested.java           — CDI event record for async LLM enrichment
+    ExtractionRequestedObserver.java   — @ObservesAsync, invokes MindMapExtractor
     consolidation/
       ConsolidationScheduler.java      — @Scheduled, idle guard, tryLock, phase orchestration
       ConsolidationPhase.java          — SPI: single phase contract
-      AccessFrequencyPhase.java        — flush write-behind counters, decay unaccessed
+      AccessFrequencyPhase.java        — flush write-behind counters (no decay — read-time projection)
       MergeDetectionPhase.java         — Jaro-Winkler + optional embedding
       CommunitySummaryPhase.java       — k-core clustering + LLM summary
       CuriosityRefreshPhase.java       — delegates to CuriositySignalGenerator
-      RetrievalAccessTracker.java      — in-memory ConcurrentHashMap, recordAccess(), flush()
+      RetrievalAccessTracker.java      — in-memory ConcurrentHashMap, recordAccess(), swapAndReset()
+      AccessSnapshot.java              — record (counts, lastAccessTimes)
       IdleTracker.java                 — @ApplicationScoped, volatile lastWrite timestamp
       MergeCandidate.java              — scored candidate record
       KCore.java                       — cluster record (nodeIds + density)
   
 mindmap/
   src/main/java/io/casehub/neocortex/mindmap/runtime/
-    MindMapStoreIdleTracker.java       — @Decorator, writes to IdleTracker on store mutations
+    MindMapStoreIdleTracker.java       — @Decorator extending AbstractForwardingMindMapStore,
+                                         writes to IdleTracker on store mutations
 ```
 
 ### 2.3 Dependency Direction
@@ -76,7 +82,13 @@ mindmap-intelligence (ConversationBridge)
 
 ## 3. ConversationBridge (#296)
 
-### 3.1 SPI
+### 3.1 Design — Fast Segmentation + Async Enrichment
+
+ConversationBridge is a **fast, rule-based segmentation layer** — no LLM. It segments cleaned text into topical chunks, creates initial "general" Things in MindMapStore, records access for all touched nodes, and fires a CDI event to trigger MindMapExtractor asynchronously for enrichment.
+
+This separation is the core of the three-speed model: the user sees initial nodes immediately (real-time), while LLM enrichment happens asynchronously (near-time).
+
+### 3.2 SPI
 
 ```java
 package io.casehub.neocortex.mindmap.intelligence;
@@ -84,33 +96,97 @@ package io.casehub.neocortex.mindmap.intelligence;
 @ApplicationScoped
 public class ConversationBridge {
 
-    private final MindMapExtractor extractor;
+    private final MindMapStore store;
     private final RetrievalAccessTracker accessTracker;
+    private final Event<ExtractionRequested> extractionEvent;
 
     @Inject
-    public ConversationBridge(MindMapExtractor extractor,
-                              Instance<RetrievalAccessTracker> accessTracker) {
-        this.extractor = extractor;
+    public ConversationBridge(MindMapStore store,
+                              Instance<RetrievalAccessTracker> accessTracker,
+                              Event<ExtractionRequested> extractionEvent) {
+        this.store = store;
         this.accessTracker = accessTracker.isResolvable()
                              ? accessTracker.get() : null;
+        this.extractionEvent = extractionEvent;
     }
 
-    public ExtractionResult process(String cleanedText, String tenantId) {
-        return process(cleanedText, tenantId, List.of());
-    }
-
-    public ExtractionResult process(String cleanedText, String tenantId,
-                                     List<String> recentEntityNames) {
-        var result = extractor.extract(cleanedText, tenantId, recentEntityNames);
-        if (accessTracker != null) {
-            result.createdNodeIds().forEach(accessTracker::recordAccess);
+    public SegmentationResult process(String cleanedText, String tenantId,
+                                       List<String> recentEntityNames) {
+        if (cleanedText == null || cleanedText.isBlank()) {
+            return SegmentationResult.EMPTY;
         }
-        return result;
+
+        // 1. Segment text into topical chunks (rule-based, no LLM)
+        List<TextSegment> segments = segment(cleanedText);
+
+        // 2. Create initial "general" nodes for each segment
+        List<String> createdNodeIds = new ArrayList<>();
+        for (TextSegment seg : segments) {
+            String subgraphId = store.findOrCreateSubgraph(
+                SubgraphTypes.GENERAL, tenantId);
+            String nodeId = store.addNode(
+                NodeInput.builder()
+                    .name(seg.title())
+                    .subgraphId(subgraphId)
+                    .property("body", seg.body())
+                    .property("topic", seg.topic())
+                    .build(),
+                tenantId);
+            createdNodeIds.add(nodeId);
+        }
+
+        // 3. Record access for all created nodes
+        if (accessTracker != null) {
+            createdNodeIds.forEach(accessTracker::recordAccess);
+        }
+
+        // 4. Fire async event for near-time LLM enrichment
+        extractionEvent.fireAsync(
+            new ExtractionRequested(cleanedText, tenantId, recentEntityNames));
+
+        return new SegmentationResult(createdNodeIds, segments.size());
     }
 }
 ```
 
-### 3.2 DraftHouse Integration
+### 3.3 Text Segmentation
+
+`segment()` is a fast, rule-based method: split on paragraph boundaries, detect topic shifts via keyword overlap between consecutive paragraphs, and generate a title from the first sentence or dominant noun phrase. No LLM call. Complexity: O(N) in text length.
+
+### 3.4 ExtractionRequested Event + Async Observer
+
+```java
+public record ExtractionRequested(
+    String cleanedText,
+    String tenantId,
+    List<String> recentEntityNames
+) {}
+```
+
+An `@ObservesAsync ExtractionRequested` observer in mindmap-intelligence invokes `MindMapExtractor.extract()` — this runs on a worker thread, not the caller's thread. The extractor enriches the initially-created nodes with LLM-extracted entities, relationships, and contradictions.
+
+```java
+@ApplicationScoped
+public class ExtractionRequestedObserver {
+
+    private final MindMapExtractor extractor;
+    private final RetrievalAccessTracker accessTracker;
+
+    void onExtractionRequested(@ObservesAsync ExtractionRequested event) {
+        var result = extractor.extract(
+            event.cleanedText(), event.tenantId(), event.recentEntityNames());
+        if (accessTracker != null) {
+            result.entities().stream()
+                .map(ExtractedEntity::nodeId)
+                .forEach(accessTracker::recordAccess);
+        }
+    }
+}
+```
+
+Access tracking records ALL entities from extraction (both created and referenced) — any entity that surfaces during extraction is a retrieval signal.
+
+### 3.5 DraftHouse Integration
 
 DraftHouse provides a thin `KnowledgeFacet` adapter:
 
@@ -130,9 +206,10 @@ public class KnowledgeFacet implements Facet {
 
 The `NotesPipelineObserver` chains: `TranscriptReady` → `NotesPipeline.process()` → `ConversationBridge.process()` → graph mutations. The KnowledgeFacet is classpath-activated — DraftHouse without neocortex on the classpath continues to work normally with notes only.
 
-### 3.3 What ConversationBridge Does NOT Do
+### 3.6 What ConversationBridge Does NOT Do
 
 - **Cleanup.** That's DraftHouse NotesPipeline's job. The bridge accepts already-cleaned text.
+- **LLM extraction.** That's MindMapExtractor's job, triggered asynchronously via `ExtractionRequested` CDI event. The bridge does rule-based segmentation only.
 - **Near-time enrichment.** DerivedEdgeDecorator and TraitRules fire automatically when nodes/edges are added. The bridge doesn't need to trigger them.
 - **Background consolidation.** The scheduler runs independently on a timer.
 
@@ -149,18 +226,39 @@ public class ConsolidationScheduler {
     private final List<ConsolidationPhase> phases;
     private final IdleTracker idleTracker;
     private final CaseMemoryStore memoryStore;
+    private final CuriositySignalGenerator curiosityGenerator;
     private final ReentrantLock lock = new ReentrantLock();
+
+    @Inject
+    ConsolidationScheduler(Instance<ConsolidationPhase> phases,
+                           IdleTracker idleTracker,
+                           CaseMemoryStore memoryStore,
+                           Instance<CuriositySignalGenerator> curiosityGenerator) {
+        this.phases = phases.stream()
+            .sorted(Comparator.comparingInt(p ->
+                Optional.ofNullable(p.getClass().getAnnotation(Priority.class))
+                        .map(Priority::value).orElse(Integer.MAX_VALUE)))
+            .toList();
+        this.idleTracker = idleTracker;
+        this.memoryStore = memoryStore;
+        this.curiosityGenerator = curiosityGenerator.isResolvable()
+            ? curiosityGenerator.get() : null;
+    }
 
     @Scheduled(every = "${casehub.consolidation.interval:5m}")
     void tick() {
-        if (!lock.tryLock()) return;          // previous pass still running
+        if (!lock.tryLock()) return;
         try {
             if (!idleTracker.isIdle(Duration.ofMinutes(1))) return;
+            if (!memoryStore.capabilities()
+                    .contains(MemoryCapability.DISCOVER_TENANTS)) {
+                return;
+            }
 
-            for (String tenantId : memoryStore.discoverTenants()) {
+            for (String tenantId : memoryStore.discoverTenants(null, null)) {
                 for (ConsolidationPhase phase : phases) {
                     try {
-                        phase.run(tenantId);
+                        phase.run(tenantId, subgraphPriority(tenantId));
                     } catch (Exception e) {
                         LOG.log(WARNING, "Phase " + phase.name()
                                 + " failed for tenant " + tenantId, e);
@@ -171,19 +269,34 @@ public class ConsolidationScheduler {
             lock.unlock();
         }
     }
+
+    private List<String> subgraphPriority(String tenantId) {
+        if (curiosityGenerator == null) return List.of();
+        return curiosityGenerator.computeSignals(tenantId, Set.of()).stream()
+            .map(CuriositySignal::subgraphId)
+            .filter(Objects::nonNull)
+            .distinct()
+            .toList();
+    }
 }
 ```
+
+The scheduler follows the `MemoryRetentionScheduler` pattern: check `capabilities().contains(DISCOVER_TENANTS)` before calling `discoverTenants(null, null)`. Both null → all tenants. The `@Scheduled` context has no `CurrentPrincipal`, which is the same privilege model as existing retention schedulers.
+
+CuriositySignalGenerator provides subgraph priority ordering — phases that iterate subgraphs process the highest-signal subgraphs first, so the per-pass cap (max-per-pass) focuses effort where it matters most.
 
 ### 4.2 ConsolidationPhase SPI
 
 ```java
 public interface ConsolidationPhase {
     String name();
-    void run(String tenantId);
+    void run(String tenantId, List<String> subgraphPriority);
 }
 ```
 
-Phases are injected as `Instance<ConsolidationPhase>` and ordered by `@Priority`. Each phase is independently testable and can be disabled via `@IfBuildProperty`.
+Phases are injected as `Instance<ConsolidationPhase>`, sorted by `@Priority` annotation value at construction time into a `List<ConsolidationPhase>` (the scheduler's runtime field). This sorting is done explicitly in the constructor (portable CDI) rather than relying on Quarkus ArC's implicit priority ordering. Each phase is independently testable and can be disabled via `@IfBuildProperty`.
+
+The `subgraphPriority` parameter provides a curiosity-signal-ordered list of subgraph IDs. Phases that iterate subgraphs should process subgraphs in this order, then process any remaining subgraphs not in the list. This ensures the per-pass cap (max-per-pass) focuses effort on the highest-priority regions.
 
 ### 4.3 IdleTracker and MindMapStoreIdleTracker
 
@@ -209,36 +322,44 @@ package io.casehub.neocortex.mindmap.runtime;
 
 @Decorator
 @Priority(30)
-public class MindMapStoreIdleTracker implements MindMapStore {
+public class MindMapStoreIdleTracker extends AbstractForwardingMindMapStore {
 
-    @Inject @Delegate @Any MindMapStore delegate;
-    @Inject IdleTracker idleTracker;
+    private final IdleTracker idleTracker;
+
+    @Inject
+    public MindMapStoreIdleTracker(@Delegate @Any MindMapStore delegate,
+                                    IdleTracker idleTracker) {
+        super(delegate);
+        this.idleTracker = idleTracker;
+    }
 
     @Override
     public String addNode(NodeInput input, String tenantId) {
         idleTracker.recordWrite();
-        return delegate.addNode(input, tenantId);
+        return delegate().addNode(input, tenantId);
     }
 
     @Override
     public void updateNode(String nodeId, NodeUpdate update, String tenantId) {
         idleTracker.recordWrite();
-        delegate.updateNode(nodeId, update, tenantId);
+        delegate().updateNode(nodeId, update, tenantId);
     }
 
     @Override
     public String addEdge(EdgeInput input, String tenantId) {
         idleTracker.recordWrite();
-        return delegate.addEdge(input, tenantId);
+        return delegate().addEdge(input, tenantId);
     }
 
     // All other write methods (removeEdge, mergeNodes, supersede, reinstate,
     // eraseNode, eraseSubgraph, eraseEntity, eraseEntityAcrossTenants,
-    // createSubgraph, updateSubgraph, addAlias, removeAlias) delegate
-    // with idleTracker.recordWrite().
-    // Read methods delegate without recording.
+    // createSubgraph, updateSubgraph, addAlias, removeAlias) override
+    // with idleTracker.recordWrite() before delegation.
+    // Read methods inherit from AbstractForwardingMindMapStore (no override).
 }
 ```
+
+This follows the established MindMapStore decorator pattern: CDI `@Decorator` + `@Priority` + `extends AbstractForwardingMindMapStore`, exactly as `TraitApplicationDecorator` (`@Priority(70)`) and `AffectTrajectoryDecorator` (`@Priority(65)`) do.
 
 ### 4.4 Phase Ordering
 
@@ -247,11 +368,20 @@ public class MindMapStoreIdleTracker implements MindMapStore {
 | 10 | AccessFrequencyPhase | Flush write-behind counters to node properties, decay unaccessed node counters |
 | 20 | MergeDetectionPhase | Jaro-Winkler name similarity + neighbor overlap → candidate list → optional embedding confirmation → auto-merge or flag |
 | 30 | CommunitySummaryPhase | k-core decomposition → cluster identification → LLM summary generation for new/changed clusters |
-| 40 | CuriosityRefreshPhase | Delegates to existing CuriositySignalGenerator.computeSignals() |
+| 40 | CuriosityRefreshPhase | Delegates to CuriositySignalGenerator.computeSignals(tenantId, Set.of()). Empty recentEntityIds is intentional — background signals should not be biased toward any conversation context. Topical distance dampening is skipped (applyTopicalDistanceDampening returns early for empty set). |
 
-## 5. Access-Frequency Tracking (#298)
+## 5. Access-Frequency Tracking — Bjorks' Dual-Strength Model (#298)
 
-### 5.1 RetrievalAccessTracker
+### 5.1 Cognitive Model
+
+Bjorks' New Theory of Disuse distinguishes two independent memory dimensions:
+
+- **Storage strength** — how deeply encoded a memory is. Reinforced by repeated encounters. Never decays. A node accessed 100 times has high storage strength even after months of disuse.
+- **Retrieval strength** — how easily retrievable a memory is right now. Decays exponentially over time since last access. Reset to 1.0 on each access. A heavily-used node that hasn't been accessed recently has low retrieval strength but high storage strength — making it easy to reactivate on the next access.
+
+This is the key insight the single-counter approach misses: a well-established memory (high storage strength) with low current retrieval strength is fundamentally different from a barely-known memory (low storage strength) with low retrieval strength.
+
+### 5.2 RetrievalAccessTracker
 
 ```java
 package io.casehub.neocortex.mindmap.intelligence.consolidation;
@@ -259,52 +389,88 @@ package io.casehub.neocortex.mindmap.intelligence.consolidation;
 @ApplicationScoped
 public class RetrievalAccessTracker {
 
-    private final ConcurrentHashMap<String, AtomicLong> counts = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, Instant> lastAccess = new ConcurrentHashMap<>();
+    private volatile ConcurrentHashMap<String, AtomicLong> counts =
+        new ConcurrentHashMap<>();
+    private volatile ConcurrentHashMap<String, Instant> lastAccess =
+        new ConcurrentHashMap<>();
 
     public void recordAccess(String nodeId) {
         counts.computeIfAbsent(nodeId, k -> new AtomicLong()).incrementAndGet();
         lastAccess.put(nodeId, Instant.now());
     }
 
-    public Map<String, Long> flushAndReset() {
+    public AccessSnapshot swapAndReset() {
+        var oldCounts = counts;
+        var oldLastAccess = lastAccess;
+        counts = new ConcurrentHashMap<>();
+        lastAccess = new ConcurrentHashMap<>();
+
         var snapshot = new HashMap<String, Long>();
-        var iterator = counts.entrySet().iterator();
-        while (iterator.hasNext()) {
-            var entry = iterator.next();
-            snapshot.put(entry.getKey(), entry.getValue().getAndSet(0));
-            iterator.remove();
-        }
-        lastAccess.clear();
-        return snapshot;
+        oldCounts.forEach((nodeId, counter) ->
+            snapshot.put(nodeId, counter.get()));
+
+        return new AccessSnapshot(snapshot,
+            Map.copyOf(oldLastAccess));
     }
 }
 ```
 
-### 5.2 Tracking Boundary
+`swapAndReset()` atomically swaps the map references, eliminating the iterate-and-remove race condition. Any `recordAccess()` calls that arrive during the swap write to the NEW maps and are captured on the next flush cycle.
+
+### 5.3 Tracking Boundary
 
 `recordAccess()` is called explicitly at user-facing retrieval boundaries:
 
 - `CognitiveProfile.resolve()` — when an entity profile is built for a query
 - `TemporalFocus.rankedAttention()` — when attention items are computed
-- `ConversationBridge.process()` — for nodes referenced/created during extraction
+- `ConversationBridge.process()` — for nodes created during segmentation
+- `ExtractionRequestedObserver` — for all entities (created and referenced) from LLM extraction
 - Any future search/retrieval API that surfaces nodes to a user
 
 NOT called by: MindMapExtractor internal traversals, CuriositySignalGenerator scans, consolidation scheduler phases, MindMapStore decorators.
 
-### 5.3 AccessFrequencyPhase
+### 5.4 AccessFrequencyPhase
 
 On each pass:
-1. Call `accessTracker.flushAndReset()` to get accumulated counts
-2. For each node with counts > 0: read current `accessCount` property, add flush value, write updated `accessCount` and `lastAccessed` via `NodeUpdate`
-3. Decay pass: iterate via `store.listSubgraphs(tenantId)` → `store.nodesIn(subgraphId, tenantId)` per subgraph. For each node with an `accessCount` property where `lastAccessed` is older than a configurable threshold (default 30 days), halve `accessCount` (exponential decay on disuse)
+1. Call `accessTracker.swapAndReset()` to get accumulated snapshot
+2. For each node with counts > 0: read current `storageStrength` property, add flush value, write updated `storageStrength` and `lastAccessed` via `NodeUpdate`
+3. No decay pass needed — retrieval strength is a read-time projection (§5.6)
 
-### 5.4 Properties
+### 5.5 Properties
 
 | Property | Type | Semantics |
 |----------|------|-----------|
-| `accessCount` | String (integer) | Cumulative retrieval count, decayed over time |
-| `lastAccessed` | String (ISO instant) | Last user-facing retrieval timestamp |
+| `storageStrength` | String (integer) | Cumulative access count — never decays. Reinforced by each retrieval event. |
+| `lastAccessed` | String (ISO instant) | Last user-facing retrieval timestamp. Used for read-time retrieval strength computation. |
+
+### 5.6 Read-Time Retrieval Strength
+
+Retrieval strength is computed at read time, not stored. Follows the `ConfidenceDecayDecorator` pattern — the stored value (`lastAccessed`) is the decay reference; the decayed value is projected on read.
+
+```java
+static double retrievalStrength(Instant lastAccessed, double halfLifeDays) {
+    if (lastAccessed == null) return 0.0;
+    double hoursSince = Duration.between(lastAccessed, Instant.now()).toHours();
+    if (hoursSince <= 0) return 1.0;
+    double halfLifeHours = halfLifeDays * 24.0;
+    return Math.pow(2.0, -hoursSince / halfLifeHours);
+}
+```
+
+### 5.7 Composite Retrieval Scoring
+
+Per Park et al. "Generative Agents" and issue #298:
+
+```
+score = confidence × retrievalStrength × relevance
+```
+
+Where:
+- `confidence` — existing ConfidenceDecayDecorator-projected value
+- `retrievalStrength` — read-time projection from `lastAccessed` (§5.6)
+- `relevance` — query-specific: name match, embedding similarity, or graph distance
+
+This scoring formula is applied wherever nodes are ranked for retrieval — integrated into `MindMapQuery`-based search and `CognitiveProfile.resolve()`.
 
 ## 6. Community Summaries (#299)
 
@@ -345,6 +511,7 @@ On each pass:
    - Properties: `coreHash`, `memberHash`, `memberCount`, `generatedAt`
    - Edges: `summarizes` edge to each member node
    - Type: same subgraph type as members
+   - TypeRegistry: "Summary" registered as a dynamic type in the TYPE_SYSTEM subgraph (per #285 D6) with property schema: `coreHash` (string, required), `memberHash` (string, required), `memberCount` (number, required), `generatedAt` (date, required). Registration happens at `CommunitySummaryPhase` initialization via `CognitiveLoader`'s bootstrap pattern. Depends on #285 TypeRegistry infrastructure.
 
 ### 6.3 LLM Summary Generation
 
@@ -367,14 +534,14 @@ Uses the existing `Instance<AgentProvider>` pattern from MindMapExtractor for LL
 
 **Layer 1 — Structural (pure Java, always active):**
 
-For each subgraph, compare all node pairs within the subgraph:
+For each subgraph, compare all node pairs within the subgraph (excluding nodes with the `Summary` trait):
 - Jaro-Winkler similarity on `node.name()` — threshold ≥ 0.85
 - Jaccard coefficient on neighbor node IDs — overlap ≥ 0.3
 - Combined score: `0.6 * nameSimilarity + 0.4 * neighborOverlap`
 
 The 0.85 Jaro-Winkler threshold is a pre-filter on the name component alone; the combined score (0.6 * name + 0.4 * neighbors) operates on a different scale and can be lower than 0.85 even when the name passes.
 
-Optimization: sort nodes alphabetically, only compare pairs with shared prefix or shared neighbors (avoids O(N²) for large subgraphs).
+Complexity: O(N²) per subgraph where N is the node count. For agent-scale graphs (the MindMap SPI design assumption — per-agent, per-tenant subgraphs with low hundreds of nodes), this is acceptable and the constant factor is small (two string comparisons + set intersection per pair). If subgraph sizes grow beyond this assumption, an inverted index on shared neighbors or locality-sensitive hashing can be layered on as an optimization — but it is not needed for v1.
 
 **Limitation:** Completely dissimilar names ("CEO" vs "Chief Executive Officer") are missed by Layer 1 unless they share neighbors. Layer 2 only confirms Layer 1 candidates — it does not independently scan for semantic duplicates. This is acceptable for v1.
 
@@ -410,21 +577,23 @@ Auto-merge uses `mergeNodes(keepNodeId, removeNodeId, tenantId)` — the existin
 ### 7.4 MergeDetectionPhase
 
 On each pass:
-1. For each subgraph in the tenant, run Layer 1 detection
-2. Filter to candidates above threshold
-3. Run Layer 2 on uncertain candidates (if EmbeddingModel available)
-4. Auto-merge high-confidence candidates
-5. Flag medium-confidence candidates as node properties
-6. Cap at `casehub.consolidation.merges.max-per-pass` (default 10) auto-merges per pass
+1. For each subgraph in the tenant (ordered by `subgraphPriority`), load nodes and **exclude nodes with the `Summary` trait** — Summary nodes are structural aggregates, not factual entities, and should never be merge candidates (their name similarity and neighbor overlap would produce false positives)
+2. Run Layer 1 detection on remaining nodes
+3. Filter to candidates above threshold
+4. Run Layer 2 on uncertain candidates (if EmbeddingModel available)
+5. Auto-merge high-confidence candidates
+6. Flag medium-confidence candidates as node properties
+7. Cap at `casehub.consolidation.merges.max-per-pass` (default 10) auto-merges per pass
 
 ## 8. Test Strategy
 
 | Component | What's tested |
 |-----------|--------------|
-| ConversationBridge | Integration: cleaned text → MindMapExtractor → nodes created in store; access tracker called for created nodes |
-| ConsolidationScheduler | Unit: idle guard skips when not idle; tryLock prevents overlapping runs; tenant enumeration; phase ordering; error isolation (one phase fails, rest still run) |
-| RetrievalAccessTracker | Unit: recordAccess increments, flushAndReset returns snapshot and clears, concurrent access safety |
-| AccessFrequencyPhase | Unit: flush writes properties, decay halves old counters, no-op when nothing to flush |
+| ConversationBridge | Unit: cleaned text → rule-based segmentation → nodes created in store; access tracker called for created nodes; ExtractionRequested CDI event fired |
+| ExtractionRequestedObserver | Integration: event → MindMapExtractor → nodes enriched; access tracker called for all entities |
+| ConsolidationScheduler | Unit: idle guard skips when not idle; tryLock prevents overlapping runs; capability check; tenant enumeration; phase ordering; error isolation (one phase fails, rest still run); curiosity-driven subgraph priority |
+| RetrievalAccessTracker | Unit: recordAccess increments, swapAndReset returns snapshot and clears atomically, concurrent access safety (no lost increments during swap) |
+| AccessFrequencyPhase | Unit: flush writes storageStrength + lastAccessed properties, no-op when nothing to flush, no decay pass |
 | MergeDetectionPhase | Unit: Jaro-Winkler scoring, neighbor overlap Jaccard, combined score thresholds, auto-merge above 0.9, flagging in [0.7, 0.9), Layer 2 confirmation/rejection |
 | CommunitySummaryPhase | Unit: k-core identification, hash-based invalidation skips unchanged clusters, LLM called only for new/changed, cost cap respected |
 | CuriosityRefreshPhase | Unit: delegates to CuriositySignalGenerator |
@@ -439,7 +608,7 @@ All tests use `InMemoryMindMapStore` and `InMemoryMemoryStore`. No SQLite, no Do
 |----------|---------|-------------|
 | `casehub.consolidation.interval` | `5m` | Scheduler tick interval |
 | `casehub.consolidation.idle-threshold` | `1m` | Minimum idle time before running |
-| `casehub.consolidation.access.decay-after-days` | `30` | Days without access before counter halving |
+| `casehub.consolidation.access.retrieval-half-life-days` | `30` | Half-life for read-time retrieval strength decay (§5.6) |
 | `casehub.consolidation.merge.name-threshold` | `0.85` | Jaro-Winkler minimum for Layer 1 |
 | `casehub.consolidation.merge.neighbor-threshold` | `0.3` | Jaccard minimum for neighbor overlap |
 | `casehub.consolidation.merge.auto-merge-threshold` | `0.9` | Combined score for automatic merge |
@@ -452,11 +621,18 @@ All tests use `InMemoryMindMapStore` and `InMemoryMemoryStore`. No SQLite, no Do
 
 | Issue | Component | Scope |
 |-------|-----------|-------|
-| #296 | ConversationBridge + DraftHouse KnowledgeFacet | Real-time: cleaned text → graph |
+| #296 | ConversationBridge + ExtractionRequestedObserver + DraftHouse KnowledgeFacet | Real-time: segmentation → graph; Near-time: async LLM enrichment |
 | #297 | ConsolidationScheduler + ConsolidationPhase SPI + MindMapStoreIdleTracker | Background: orchestration |
-| #298 | RetrievalAccessTracker + AccessFrequencyPhase | Background: access tracking |
-| #299 | MindMapAnalyzer.kCores + CommunitySummaryPhase | Background: summaries |
+| #298 | RetrievalAccessTracker + AccessFrequencyPhase + read-time retrieval strength | Background: Bjorks dual-strength model |
+| #299 | MindMapAnalyzer.kCores + CommunitySummaryPhase + TypeRegistry registration | Background: summaries |
 | #300 | MergeDetectionPhase + MergeCandidate | Background: deduplication |
+
+### 10.1 Deferred Items
+
+| Item | Reason | Tracked As |
+|------|--------|------------|
+| Schema discovery ConsolidationPhase | Depends on #285 TypeRegistry infrastructure | To be filed as a child of #295 |
+| DraftHouse integration issue | Cross-project coordination for KnowledgeFacet + NotesPipelineObserver | To be filed in DraftHouse repo |
 
 ## References
 
