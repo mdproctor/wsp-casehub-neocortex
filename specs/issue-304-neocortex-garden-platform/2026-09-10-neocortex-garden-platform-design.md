@@ -55,7 +55,21 @@ public interface PostRetrievalScorer {
 }
 ```
 
-`ScoringContext` carries the scoring parameters (BOM/profile for version scoring, current time for temporal decay). Scorers compose by multiplication — a chunk's final score is `baseScore * scorer1.adjust() * scorer2.adjust()`.
+`ScoringContext` carries per-query contextual data — information that varies by query and isn't available from the chunk or query alone:
+
+```java
+public record ScoringContext(
+    Map<String, String> versionProfile
+) {
+    public static final ScoringContext EMPTY = new ScoringContext(Map.of());
+}
+```
+
+`versionProfile` maps technology keys to their reference versions (e.g., `{"quarkus": "3.21", "java": "21"}`). Engine's `SearchProfileStore` (BOM snapshots) produces these.
+
+Scorer *configuration* (decay factors, floors, topic weights) is constructor-injected, not carried per-query. `TemporalDecayScorer` reads `submittedDate`/`decayTier` from chunk metadata and uses system time — it ignores `ScoringContext`. `VersionScorer` reads `verifiedOn` from chunk metadata, reference versions from `context.versionProfile()`, query text from `query`, and its `Config(decayFactor, floor, defaultTopicWeight)` from constructor injection.
+
+Scorers compose by multiplication — a chunk's final score is `baseScore * scorer1.adjust() * scorer2.adjust()`.
 
 #### ProvenanceTracker
 
@@ -78,31 +92,41 @@ Parameters are deliberately generic. Hortora maps: `retrievalContext` → issueR
 
 `ProvenanceRecord` is a record with `id`, `retrievalContext`, `actionId`, `actionType`, `documentId`, `recordedBy`, `timestamp`.
 
-`ProvenanceStats` carries per-document retrieval counts for unretrieved-document detection.
+`ProvenanceStats` carries action-lineage aggregate statistics: total provenance records, unique documents referenced, unique actions, top-referenced documents, unreferenced count. This is distinct from `RetrievalAnalyzer.documentStats()` which tracks retrieval-level statistics (retrieval counts, scores, feedback distributions). ProvenanceStats answers "which documents have influenced downstream actions" — a lineage question. RetrievalAnalyzer answers "which documents are being retrieved" — a search quality question.
 
 #### FederationStrategy
 
-Topology discovery, remote query, and result merge for multi-instance retrieval.
+Multi-instance retrieval strategy. A single method encapsulates the full orchestration — topology discovery, remote querying, sufficiency checks, and result merging — because the orchestration IS the strategy. Different strategies differ in HOW they orchestrate (sequential vs parallel, short-circuit thresholds, tiered merge), not just which targets they query.
 
 ```java
 package io.casehub.neocortex.rag;
 
 public interface FederationStrategy {
-    List<FederationTarget> discoverTargets(String localId);
-    List<FederatedResult> query(FederationTarget target, String queryText,
-                                int maxResults, Set<String> visited);
-    List<FederatedResult> merge(List<FederatedResult> local,
-                                 List<List<FederatedResult>> remote);
+    List<FederatedResult> federate(FederationQuery query, List<FederatedResult> localResults);
 }
 ```
+
+`FederationQuery` carries the query context:
+
+```java
+public record FederationQuery(
+    String localId,
+    String queryText,
+    int maxResults,
+    Set<String> visited,
+    Map<String, List<String>> filterContext
+) {}
+```
+
+- `visited` enables loop detection — each query carries the set of instance IDs already visited in the chain
+- `filterContext` carries application-specific filter parameters (domains, type, tags for garden search) that the implementation passes through to remote instances
+- `localResults` are the caller's already-processed local results, enabling the strategy to make sufficiency decisions
 
 Federation operates at the REST/HTTP service-to-service level, NOT the CaseRetriever pipeline level. Federated results do NOT pass through the local decorator chain (CRAG, expansion, reranking, tracking) — each instance processes its own results independently. Merging happens after both local and remote results are fully processed.
 
 `FederationTarget` carries the remote instance URL, ID, and relationship (upstream/peer). `FederatedResult` carries the result content, score, and source instance ID.
 
-`visited` parameter enables loop detection — each query carries the set of instance IDs already visited in the chain.
-
-Engine's `ChainWalker` stays as the first `FederationStrategy` implementation: sequential upstream walk + parallel peer fan-out + tiered merge + dedup + relevance-threshold short-circuit.
+Engine's `ChainWalker` stays as the first `FederationStrategy` implementation: sequential upstream walk with relevance-threshold short-circuit + parallel peer fan-out (only when insufficient) + tiered merge + dedup.
 
 #### DocumentQueryAugmenter
 
@@ -130,9 +154,14 @@ PostRetrievalScorer implementations. Pure Java, zero external deps beyond rag-ap
 |---|---|
 | `TemporalDecayScorer` | Exponential half-life decay by metadata tier. Configurable tier→halflife mapping. |
 | `VersionScorer` | Version-distance decay. Major version miss penalizes more than minor. Configurable format. |
-| `AdaptiveSearchWrapper` | Wraps CaseRetriever with overfetch, score floor, gap trim, and minimum results. Not a decorator — a utility that consumers call explicitly. |
+| `AdaptiveSearchWrapper` | Wraps CaseRetriever with overfetch, score floor, gap trim, and minimum results. Not a decorator — a utility that consumers call explicitly. Single-source only (no federation). |
+| `AdaptiveFilter` | Static utility for the filtering step alone (floor → gap-trim → min-results). Reusable by consumers that retrieve and score results through other means, e.g., after federation merge. |
 
-Adaptive search is a separate concern from scoring. Scoring computes per-chunk adjustments; adaptive search applies cross-result thresholds (gap trim, score floor) that require seeing ALL results at once — this cannot be a CaseRetriever @Decorator because decorators intercept individual query/response flows while adaptive search needs the full scored result set to compute gaps and enforce minimums. `AdaptiveSearchWrapper` takes a `CaseRetriever`, a `List<PostRetrievalScorer>`, and an `AdaptiveSearchConfig`, then executes: retrieve (with overfetch) → score → floor → gap-trim → min-results guarantee.
+Adaptive search is a separate concern from scoring. Scoring computes per-chunk adjustments; adaptive search applies cross-result thresholds (gap trim, score floor) that require seeing ALL results at once — this cannot be a CaseRetriever @Decorator because decorators intercept individual query/response flows while adaptive search needs the full scored result set to compute gaps and enforce minimums.
+
+`AdaptiveSearchWrapper` is for **single-source** adaptive retrieval. It takes a `CaseRetriever`, a `List<PostRetrievalScorer>`, and an `AdaptiveSearchConfig`, then executes: retrieve (with overfetch) → score → floor → gap-trim → min-results guarantee. It does NOT handle federation — when federation is needed, the caller orchestrates federation externally and applies scoring + adaptive filtering to the merged result set.
+
+The adaptive filtering step (floor → gap-trim → min-results) is also exposed as a standalone static utility (`AdaptiveFilter.filter(scored, requestedLimit, config)`) for consumers that retrieve and score results through other means (e.g., after federation merge).
 
 `AdaptiveSearchConfig` record in rag-api:
 
@@ -169,7 +198,8 @@ New SPIs listed in 2.1. New records:
 - `ProvenanceStats` — per-document retrieval counts
 - `FederationTarget` — remote instance identity
 - `FederatedResult` — result with source attribution
-- `ScoringContext` — scoring parameters (time, BOM, custom)
+- `ScoringContext` — per-query scoring context (`versionProfile` map for version distance scoring; `EMPTY` constant for queries without version context)
+- `FederationQuery` — federation query context (localId, queryText, maxResults, visited set, filterContext)
 
 #### rag
 
@@ -192,9 +222,13 @@ Engine keeps its deployment-specific wiring: `GardenConfig` injection, `CorpusRe
 |---|---|---|
 | `PlanCbrCase` | `ResolvedCase` | Historical execution trace with agent routing data |
 | `TextualCbrCase` | `ResolutionGuide` | Prose resolution guidance (problem→solution pairs) |
-| `PlanItem` | `ResolutionStep` | A dispatched work unit within a trace |
+| `PlanTrace` | `ResolutionStep` | Per-step execution record within a trace |
 
 Unified under the `Resolution` concept. A case store holds `ResolvedCase` entries (what happened) and `ResolutionGuide` entries (what to do). Both are retrievable, rankable, and feedbackable.
+
+**`FeatureVectorCbrCase` is intentionally excluded.** It's a structural variant — its name describes its representation format (feature vectors), not a domain concept. `PlanCbrCase` and `TextualCbrCase` are renamed because their "Plan"/"Textual" names are misleading about their domain purpose (historical resolution traces and resolution guidance respectively). `FeatureVectorCbrCase` accurately describes what it is — a case defined by numerical feature vectors — and has no misleading domain implication to fix.
+
+**CBR_TYPE discriminator constants remain unchanged.** `ResolvedCase.CBR_TYPE` stays `"plan"` and `ResolutionGuide.CBR_TYPE` stays `"textual"`. These discriminators describe the storage format (execution-trace vs prose), not the domain concept name. Keeping them avoids data migration across Qdrant point payloads and JPA `CbrCaseEntity.caseType` columns. Existing persisted data remains readable without migration.
 
 `CbrOutcome` gains an optional `retrievalId` field for correlation when lineage from retrieval to outcome is needed. This connects the execution outcome axis back to the retrieval that surfaced the case, without conflating the two feedback axes.
 
@@ -221,7 +255,7 @@ Bottom-up: foundations before consumers. Each phase includes both sides — what
 ### Phase 1 — Foundation SPIs
 
 **Neocortex:**
-- Add to rag-api: `PostRetrievalScorer`, `ScoringContext`, `ProvenanceTracker`, `ProvenanceRecord`, `ProvenanceStats`, `FederationStrategy`, `FederationTarget`, `FederatedResult`, `DocumentQueryAugmenter`, `AdaptiveSearchConfig`
+- Add to rag-api: `PostRetrievalScorer`, `ScoringContext`, `ProvenanceTracker`, `ProvenanceRecord`, `ProvenanceStats`, `FederationStrategy`, `FederationQuery`, `FederationTarget`, `FederatedResult`, `DocumentQueryAugmenter`, `AdaptiveSearchConfig`
 - Create rag-scoring: `TemporalDecayScorer`, `VersionScorer`
 - Create rag-query-augmentation: `AgentQueryAugmenter`, `QueryAugmentingMetadataExtractor`
 
@@ -235,7 +269,7 @@ Bottom-up: foundations before consumers. Each phase includes both sides — what
 ### Phase 2 — Search Infrastructure
 
 **Neocortex:**
-- Add to rag-scoring: `AdaptiveSearchWrapper`
+- Add to rag-scoring: `AdaptiveSearchWrapper`, `AdaptiveFilter`
 - Add to rag: `CollectionCompatibility`, `MigrationAction`
 
 **Engine:**
@@ -245,13 +279,22 @@ Bottom-up: foundations before consumers. Each phase includes both sides — what
 ### Phase 3 — CBR Rename
 
 **Neocortex:**
-- memory-api: `PlanCbrCase` → `ResolvedCase`, `TextualCbrCase` → `ResolutionGuide`, `PlanItem` → `ResolutionStep`
+- memory-api: `PlanCbrCase` → `ResolvedCase`, `TextualCbrCase` → `ResolutionGuide`, `PlanTrace` → `ResolutionStep`
 - Add optional `retrievalId` to `CbrOutcome`
 - Update all consumers across neocortex modules
 
 **Engine:**
 - Update all consumers of renamed types
 - Update `GardenOutcomeService` to use new names
+
+### Issue #304 Phase 3 Requirements Coverage
+
+Issue #304 Phase 3 (Feedback pipeline) lists four items:
+
+1. **Provenance tracking** — Addressed: `ProvenanceTracker` SPI in §2.1.
+2. **Feedback context** — Deferred: this is an extension of `RetrievalTracker.feedback()` to carry additional context (what issue/project triggered the feedback). It's an enhancement to an existing SPI, not part of the extraction. Tracked as casehubio/neocortex#305.
+3. **Staleness reports** — Already covered by existing platform: `RetrievalAnalyzer.qualitySignals()` produces `QualitySignal.STALE` for documents not retrieved within the staleness threshold, and `DocumentStats.lastRetrieved()` provides per-document freshness data. Version-specific content staleness (e.g., document verified against an old library version) would be a future capability building on `VersionScorer` — not in scope for this extraction.
+4. **Two-axis feedback model** — Addressed: §5.
 
 ### Phase 4 — Engine Thinning
 
@@ -298,7 +341,7 @@ Engine#90 identifies two feedback axes. The extraction preserves them as separat
 - Location: rag-api / rag-tracking
 
 **Axis 2 — Execution outcome:** "When we followed this guidance, did it work?"
-- SPI: `CbrCaseMemoryStore.recordOutcome(caseId, CbrOutcome)`
+- SPI: `CbrCaseMemoryStore.recordOutcome(caseId, tenantId, CbrOutcome)`
 - Scope: scores the CONTENT, not the search
 - Timing: much later, after execution
 - Location: memory-api / memory backends
@@ -312,9 +355,9 @@ Both feed back into future retrievals but through different paths: retrieval rel
 
 Engine must continue working during incremental extraction. Strategy:
 
-1. **New neocortex SPIs are @DefaultBean no-ops.** Engine doesn't break if it doesn't implement them immediately.
+1. **New neocortex SPIs are @DefaultBean no-ops.** Engine doesn't break if it doesn't implement them immediately. `PostRetrievalScorer` returns 1.0 (no adjustment), `FederationStrategy` returns empty (no federation), `DocumentQueryAugmenter` returns empty (no augmentation). `ProvenanceTracker` no-op logs a warning on `record()` calls as a safety net — in practice no data loss window exists because engine already has `ProvenanceStore` and will implement the SPI before the extraction deploys.
 2. **Engine implements SPIs incrementally.** Each phase: add neocortex dep → implement SPI → delete extracted code → verify.
-3. **CBR rename uses deprecation bridge.** Old names become `@Deprecated` type aliases pointing to new names. Consumers migrate at their own pace. Remove aliases after one release cycle.
+3. **CBR rename is a clean break.** Java records are implicitly final and cannot be aliased. All consumers update simultaneously in the same commit. This is a mechanical migration — the platform has no end users, so breaking changes cost nothing externally.
 
 ### Testing
 
@@ -328,7 +371,7 @@ Each phase includes:
 | Module | What's tested |
 |---|---|
 | rag-api | SPI contracts (default methods, record validation) |
-| rag-scoring | TemporalDecayScorer (half-life math, tier mapping), VersionScorer (version distance, major/minor), AdaptiveSearchWrapper (floor, gap, min results, overfetch) |
+| rag-scoring | TemporalDecayScorer (half-life math, tier mapping), VersionScorer (version distance, major/minor, topic weight, ScoringContext.versionProfile), AdaptiveSearchWrapper (floor, gap, min results, overfetch), AdaptiveFilter (standalone filtering) |
 | rag-query-augmentation | AgentQueryAugmenter (prompt construction, empty/null handling), QueryAugmentingMetadataExtractor (decorator composition) |
 | rag | CollectionCompatibility (dimension mismatch, sparse check, ColBERT check) |
 | memory-api | CBR rename compilation, CbrOutcome.retrievalId round-trip |
