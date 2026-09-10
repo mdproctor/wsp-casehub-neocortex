@@ -23,6 +23,19 @@
 **Exploration:** quick
 **Status:** captured
 
+## D6: Consolidation phases — ordered five-phase pipeline
+
+**Choice:** Each idle-pass runs five phases in order: (1) confidence decay — full sweep via ConfidenceDecayDecorator (already exists), (2) access-frequency decay — reduce counters on unaccessed nodes, (3) merge detection — find and merge duplicates (D5), (4) community detection + summary generation (D4), (5) curiosity signal refresh via CuriositySignalGenerator (already exists). Phases run sequentially within a pass. Each phase is a `ConsolidationPhase` interface for testability.
+**Alternatives:**
+- Parallel phases — some phases could run concurrently, but the ordering has dependencies (merge before community detection avoids summarizing duplicates)
+- Selective phases per pass — only run phases that have work (skip community detection if no clusters changed). Optimization for later.
+**Rationale:** Order matters: decay first (reduces noise), merge second (removes duplicates before summarization), community detection third (operates on clean graph), curiosity last (scores reflect consolidated state). Sequential is simple and correct. Phase interface enables individual testing and selective disabling.
+**Trade-offs:** Full sequential pass may be slow on large graphs. Acceptable for v1 — each phase can be bounded (process at most N nodes per pass) and optimized later.
+**Depends on:** D2 (scheduler trigger), D3 (access-frequency), D4 (community), D5 (merge)
+**Sources:** ConfidenceDecayDecorator.java, CuriositySignalGenerator.java, issue #297
+**Exploration:** quick
+**Status:** captured
+
 ## D3: Access-frequency tracking — node properties, decorator-intercepted
 
 **Choice:** Store `accessCount` (integer) and `lastAccessed` (ISO instant) as properties on MindMapNode via `NodeUpdate`. A `@Decorator` on MindMapStore intercepts `getNode()`, `search()`, and `neighbors()` to increment counters on accessed nodes. The consolidation scheduler reads these properties to strengthen high-access nodes and let low-access ones decay.
