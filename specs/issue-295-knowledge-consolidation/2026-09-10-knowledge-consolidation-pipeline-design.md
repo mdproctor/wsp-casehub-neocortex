@@ -401,7 +401,7 @@ This follows the established MindMapStore decorator pattern: CDI `@Decorator` + 
 
 | Priority | Phase | What it does |
 |----------|-------|-------------|
-| 10 | AccessFrequencyPhase | Flush write-behind counters to node properties, decay unaccessed node counters |
+| 10 | AccessFrequencyPhase | Flush write-behind counters to `storageStrength` and `lastAccessed` node properties (no decay — retrieval strength is a read-time projection, §5.6) |
 | 20 | MergeDetectionPhase | Jaro-Winkler name similarity + neighbor overlap → candidate list → optional embedding confirmation → auto-merge or flag |
 | 30 | CommunitySummaryPhase | k-core decomposition → cluster identification → LLM summary generation for new/changed clusters |
 | 40 | CuriosityRefreshPhase | Delegates to CuriositySignalGenerator.computeSignals(tenantId, Set.of()). Empty recentEntityIds is intentional — background signals should not be biased toward any conversation context. Topical distance dampening is skipped (applyTopicalDistanceDampening returns early for empty set). |
@@ -547,14 +547,15 @@ Algorithm complexity: O(V + E) — linear in graph size. The `k` parameter contr
 
 On each pass:
 1. For each subgraph in the tenant, run `kCores(store, subgraphId, tenantId, k)`
-2. Filter cores by minimum size (default 4 nodes)
-3. For each core, compute `memberHash` = hash of (sorted member node IDs + their `updatedAt` timestamps)
-4. Check if a Summary node already exists for this core (search by `coreHash` property matching)
+2. **Cleanup stale summaries:** Query existing Summary-trait nodes in the subgraph. For each Summary node, check whether its `coreHash` matches any current k-core's hash. If no match → the community has dissolved → erase via `store.eraseNode(summaryNodeId, tenantId)` (cascade-deletes `summarizes` edges). Complexity: O(S × C) where S = existing summaries, C = current cores — negligible at agent-scale.
+3. Filter cores by minimum size (default 4 nodes)
+4. For each core, compute `memberHash` = hash of (sorted member node IDs + their `updatedAt` timestamps)
+5. Check if a Summary node already exists for this core (search by `coreHash` property matching)
    - If exists and `memberHash` unchanged → skip (no LLM call)
    - If exists but `memberHash` changed → regenerate summary, update node
    - If not exists → create new summary node
-5. Cap at `casehub.consolidation.summaries.max-per-pass` (default 5) new/regenerated summaries per pass
-6. Summary nodes:
+6. Cap at `casehub.consolidation.summaries.max-per-pass` (default 5) new/regenerated summaries per pass
+7. Summary nodes:
    - Trait: `Summary` (distinguishes from factual nodes)
    - Properties: `coreHash`, `memberHash`, `memberCount`, `generatedAt`
    - Edges: `summarizes` edge to each member node
@@ -643,7 +644,7 @@ On each pass:
 | RetrievalAccessTracker | Unit: recordAccess increments, swapAndReset returns snapshot and clears atomically, concurrent access safety (no lost increments during swap) |
 | AccessFrequencyPhase | Unit: flush writes storageStrength + lastAccessed properties, no-op when nothing to flush, no decay pass |
 | MergeDetectionPhase | Unit: Jaro-Winkler scoring, neighbor overlap Jaccard, combined score thresholds, auto-merge above 0.9, flagging in [0.7, 0.9), Layer 2 confirmation/rejection |
-| CommunitySummaryPhase | Unit: k-core identification, hash-based invalidation skips unchanged clusters, LLM called only for new/changed, cost cap respected |
+| CommunitySummaryPhase | Unit: k-core identification, hash-based invalidation skips unchanged clusters, LLM called only for new/changed, cost cap respected, stale summaries erased when k-core dissolves |
 | CuriosityRefreshPhase | Unit: delegates to CuriositySignalGenerator |
 | MindMapStoreIdleTracker | Unit: write operations update lastWrite, read operations do not, isIdle threshold check |
 | MindMapAnalyzer.kCores | Unit: k-core decomposition on test graphs, empty graph, single component, multiple components |
