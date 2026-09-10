@@ -55,12 +55,12 @@ mindmap-intelligence/
       CuriosityRefreshPhase.java       — delegates to CuriositySignalGenerator
       RetrievalAccessTracker.java      — in-memory ConcurrentHashMap, recordAccess(), swapAndReset()
       AccessSnapshot.java              — record (counts, lastAccessTimes)
-      IdleTracker.java                 — @ApplicationScoped, volatile lastWrite timestamp
       MergeCandidate.java              — scored candidate record
       KCore.java                       — cluster record (nodeIds + density)
   
 mindmap/
   src/main/java/io/casehub/neocortex/mindmap/runtime/
+    IdleTracker.java                   — @ApplicationScoped, volatile lastWrite timestamp
     MindMapStoreIdleTracker.java       — @Decorator extending AbstractForwardingMindMapStore,
                                          writes to IdleTracker on store mutations
 ```
@@ -70,15 +70,16 @@ mindmap/
 ```
 mindmap-intelligence (new: ConversationBridge, ConsolidationScheduler, phases)
     ↓ depends on
-mindmap-api (MindMapStore SPI, MindMapNode, MindMapQuery)
-mindmap (MindMapStoreIdleTracker decorator — new)
+mindmap (new: IdleTracker, MindMapStoreIdleTracker decorator)
     ↓ depends on
-mindmap-api
+mindmap-api (MindMapStore SPI, MindMapNode, MindMapQuery)
 
 DraftHouse KnowledgeFacet (thin adapter, application tier)
     ↓ depends on
 mindmap-intelligence (ConversationBridge)
 ```
+
+IdleTracker lives in `mindmap` (not `mindmap-intelligence`) to avoid a circular Maven dependency: `mindmap-intelligence → mindmap` already exists; placing IdleTracker in `mindmap-intelligence` would require `mindmap → mindmap-intelligence` for the decorator to inject it.
 
 ## 3. ConversationBridge (#296)
 
@@ -111,7 +112,8 @@ public class ConversationBridge {
     }
 
     public SegmentationResult process(String cleanedText, String tenantId,
-                                       List<String> recentEntityNames) {
+                                       List<String> recentEntityNames,
+                                       PrincipalId principalId) {
         if (cleanedText == null || cleanedText.isBlank()) {
             return SegmentationResult.EMPTY;
         }
@@ -119,35 +121,49 @@ public class ConversationBridge {
         // 1. Segment text into topical chunks (rule-based, no LLM)
         List<TextSegment> segments = segment(cleanedText);
 
-        // 2. Create initial "general" nodes for each segment
+        // 2. Find or create the GENERAL subgraph
+        String subgraphId = store.listSubgraphs(tenantId).stream()
+            .filter(sg -> sg.type() == SubgraphType.GENERAL)
+            .map(MindMapSubgraph::id)
+            .findFirst()
+            .orElseGet(() -> store.createSubgraph(
+                new SubgraphInput("GENERAL", SubgraphType.GENERAL, null),
+                tenantId));
+
+        // 3. Create initial "general" nodes for each segment
         List<String> createdNodeIds = new ArrayList<>();
         for (TextSegment seg : segments) {
-            String subgraphId = store.findOrCreateSubgraph(
-                SubgraphTypes.GENERAL, tenantId);
             String nodeId = store.addNode(
-                NodeInput.builder()
-                    .name(seg.title())
-                    .subgraphId(subgraphId)
-                    .property("body", seg.body())
-                    .property("topic", seg.topic())
-                    .build(),
+                NodeInput.of(seg.title(), subgraphId)
+                    .withConfidence(MindMapConfidenceDefaults.forOrigin(
+                        ConfidenceOrigin.STATED, Instant.now()))
+                    .withProvenance("conversation-bridge")
+                    .withPrincipalId(principalId)
+                    .withProperties(Map.of(
+                        "body", seg.body(),
+                        "topic", seg.topic())),
                 tenantId);
             createdNodeIds.add(nodeId);
         }
 
-        // 3. Record access for all created nodes
+        // 4. Record access for all created nodes
         if (accessTracker != null) {
             createdNodeIds.forEach(accessTracker::recordAccess);
         }
 
-        // 4. Fire async event for near-time LLM enrichment
+        // 5. Fire async event for near-time LLM enrichment
         extractionEvent.fireAsync(
-            new ExtractionRequested(cleanedText, tenantId, recentEntityNames));
+            new ExtractionRequested(cleanedText, tenantId,
+                recentEntityNames, createdNodeIds));
 
         return new SegmentationResult(createdNodeIds, segments.size());
     }
 }
 ```
+
+Subgraph lookup uses `store.listSubgraphs()` + `store.createSubgraph()` (the existing MindMapStore SPI). `findOrCreateSubgraph` is a private helper in MindMapExtractor — promoting it to a default method on MindMapStore is a follow-up concern, not part of this spec.
+
+Node creation uses `NodeInput.of(name, subgraphId)` with `with*()` chaining — the actual NodeInput API. Segment nodes are assigned `ConfidenceOrigin.STATED` (confidence 1.0 — the user literally said the words), provenance `"conversation-bridge"`, and the caller's `PrincipalId`.
 
 ### 3.3 Text Segmentation
 
@@ -159,32 +175,52 @@ public class ConversationBridge {
 public record ExtractionRequested(
     String cleanedText,
     String tenantId,
-    List<String> recentEntityNames
+    List<String> recentEntityNames,
+    List<String> segmentNodeIds
 ) {}
 ```
 
-An `@ObservesAsync ExtractionRequested` observer in mindmap-intelligence invokes `MindMapExtractor.extract()` — this runs on a worker thread, not the caller's thread. The extractor enriches the initially-created nodes with LLM-extracted entities, relationships, and contradictions.
+The `segmentNodeIds` field carries the IDs of segment nodes created by ConversationBridge. After extraction, the observer supersedes these segments with the extracted entities — segment nodes served as fast placeholders; entity nodes are the canonical knowledge representation.
+
+An `@ObservesAsync ExtractionRequested` observer in mindmap-intelligence invokes `MindMapExtractor.extract()` — this runs on a worker thread, not the caller's thread. The extractor creates typed entity nodes from LLM extraction.
 
 ```java
 @ApplicationScoped
 public class ExtractionRequestedObserver {
 
     private final MindMapExtractor extractor;
+    private final MindMapStore store;
     private final RetrievalAccessTracker accessTracker;
 
     void onExtractionRequested(@ObservesAsync ExtractionRequested event) {
         var result = extractor.extract(
             event.cleanedText(), event.tenantId(), event.recentEntityNames());
+
+        // Record access for all entities (created and referenced)
         if (accessTracker != null) {
             result.entities().stream()
                 .map(ExtractedEntity::nodeId)
                 .forEach(accessTracker::recordAccess);
         }
+
+        // Supersede segment nodes — extraction entities replace fast placeholders
+        List<String> createdEntityIds = result.entities().stream()
+            .filter(ExtractedEntity::created)
+            .map(ExtractedEntity::nodeId)
+            .toList();
+        if (!createdEntityIds.isEmpty()) {
+            for (String segmentId : event.segmentNodeIds()) {
+                store.supersede(segmentId, createdEntityIds.getFirst(),
+                    "llm-extraction", event.tenantId());
+            }
+        }
+        // If extraction yields no new entities, segment nodes persist
+        // as the best available representation.
     }
 }
 ```
 
-Access tracking records ALL entities from extraction (both created and referenced) — any entity that surfaces during extraction is a retrieval signal.
+**Segment → entity lifecycle:** ConversationBridge creates segment nodes immediately (user sees fast feedback). When MindMapExtractor completes asynchronously, the observer supersedes segment nodes via `store.supersede()`. Superseded nodes are logically replaced — they don't appear in normal queries but remain traceable via `getSupersessionStatus()`. If extraction fails or produces no entities, segment nodes persist as the best available representation. This uses the existing supersession SPI — no new mechanisms required.
 
 ### 3.5 DraftHouse Integration
 
@@ -273,7 +309,7 @@ public class ConsolidationScheduler {
     private List<String> subgraphPriority(String tenantId) {
         if (curiosityGenerator == null) return List.of();
         return curiosityGenerator.computeSignals(tenantId, Set.of()).stream()
-            .map(CuriositySignal::subgraphId)
+            .map(CuriositySignal::targetSubgraphId)
             .filter(Objects::nonNull)
             .distinct()
             .toList();
@@ -303,7 +339,7 @@ The `subgraphPriority` parameter provides a curiosity-signal-ordered list of sub
 The idle guard is split into two beans: `IdleTracker` (shared state) and `MindMapStoreIdleTracker` (decorator that writes to it). The decorator cannot be injected directly by its own type — CDI decorators wrap the delegate. The scheduler injects `IdleTracker`; the decorator injects `IdleTracker` and updates it on writes.
 
 ```java
-package io.casehub.neocortex.mindmap.intelligence.consolidation;
+package io.casehub.neocortex.mindmap.runtime;
 
 @ApplicationScoped
 public class IdleTracker {
@@ -379,7 +415,7 @@ Bjorks' New Theory of Disuse distinguishes two independent memory dimensions:
 - **Storage strength** — how deeply encoded a memory is. Reinforced by repeated encounters. Never decays. A node accessed 100 times has high storage strength even after months of disuse.
 - **Retrieval strength** — how easily retrievable a memory is right now. Decays exponentially over time since last access. Reset to 1.0 on each access. A heavily-used node that hasn't been accessed recently has low retrieval strength but high storage strength — making it easy to reactivate on the next access.
 
-This is the key insight the single-counter approach misses: a well-established memory (high storage strength) with low current retrieval strength is fundamentally different from a barely-known memory (low storage strength) with low retrieval strength.
+The two strengths interact: storage strength modulates retrieval decay rate. Higher storage strength → slower retrieval decay → easier reactivation. This captures the "desirable difficulty" effect: a well-established memory (high storage strength) with low current retrieval strength is fundamentally different from a barely-known memory (low storage strength) with low retrieval strength.
 
 ### 5.2 RetrievalAccessTracker
 
@@ -445,17 +481,29 @@ On each pass:
 
 ### 5.6 Read-Time Retrieval Strength
 
-Retrieval strength is computed at read time, not stored. Follows the `ConfidenceDecayDecorator` pattern — the stored value (`lastAccessed`) is the decay reference; the decayed value is projected on read.
+Retrieval strength is computed at read time, not stored. Follows the `ConfidenceDecayDecorator` pattern — the stored values (`lastAccessed`, `storageStrength`) are the inputs; the decayed value is projected on read. Storage strength modulates the effective half-life via logarithmic scaling:
 
 ```java
-static double retrievalStrength(Instant lastAccessed, double halfLifeDays) {
+static double retrievalStrength(Instant lastAccessed, int storageStrength,
+                                 double baseHalfLifeDays) {
     if (lastAccessed == null) return 0.0;
     double hoursSince = Duration.between(lastAccessed, Instant.now()).toHours();
     if (hoursSince <= 0) return 1.0;
-    double halfLifeHours = halfLifeDays * 24.0;
-    return Math.pow(2.0, -hoursSince / halfLifeHours);
+    double effectiveHalfLifeHours = baseHalfLifeDays * 24.0
+        * (1 + Math.log1p(storageStrength));
+    return Math.pow(2.0, -hoursSince / effectiveHalfLifeHours);
 }
 ```
+
+The `Math.log1p(storageStrength)` term ensures diminishing returns — a node accessed 100 times has an effective half-life ~5.6× the base (not 100×). Example effective half-lives with a 30-day base:
+
+| storageStrength | Effective half-life |
+|-----------------|-------------------|
+| 1 | ~51 days |
+| 10 | ~102 days |
+| 100 | ~169 days |
+
+This is the core Bjorks interaction: heavily-accessed nodes retain retrieval strength much longer, making them easy to reactivate even after extended disuse.
 
 ### 5.7 Composite Retrieval Scoring
 
@@ -589,8 +637,8 @@ On each pass:
 
 | Component | What's tested |
 |-----------|--------------|
-| ConversationBridge | Unit: cleaned text → rule-based segmentation → nodes created in store; access tracker called for created nodes; ExtractionRequested CDI event fired |
-| ExtractionRequestedObserver | Integration: event → MindMapExtractor → nodes enriched; access tracker called for all entities |
+| ConversationBridge | Unit: cleaned text → rule-based segmentation → nodes created in store with STATED confidence and "conversation-bridge" provenance; access tracker called for created nodes; ExtractionRequested CDI event fired with segmentNodeIds; principalId propagated to NodeInput |
+| ExtractionRequestedObserver | Integration: event → MindMapExtractor → entities extracted; access tracker called for all entities; segment nodes superseded by first created entity; segments persist if extraction yields no entities |
 | ConsolidationScheduler | Unit: idle guard skips when not idle; tryLock prevents overlapping runs; capability check; tenant enumeration; phase ordering; error isolation (one phase fails, rest still run); curiosity-driven subgraph priority |
 | RetrievalAccessTracker | Unit: recordAccess increments, swapAndReset returns snapshot and clears atomically, concurrent access safety (no lost increments during swap) |
 | AccessFrequencyPhase | Unit: flush writes storageStrength + lastAccessed properties, no-op when nothing to flush, no decay pass |
@@ -633,6 +681,7 @@ All tests use `InMemoryMindMapStore` and `InMemoryMemoryStore`. No SQLite, no Do
 |------|--------|------------|
 | Schema discovery ConsolidationPhase | Depends on #285 TypeRegistry infrastructure | To be filed as a child of #295 |
 | DraftHouse integration issue | Cross-project coordination for KnowledgeFacet + NotesPipelineObserver | To be filed in DraftHouse repo |
+| Promote `findOrCreateSubgraph` to MindMapStore default method | Duplicated as private helper in MindMapExtractor; ConversationBridge needs same operation | To be filed against mindmap-api |
 
 ## References
 
