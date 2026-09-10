@@ -35,3 +35,30 @@
 **Sources:** ConfidenceDecayDecorator.java (decorator pattern), MindMapNode.properties() (string-valued properties), issue #298
 **Exploration:** quick
 **Status:** captured
+
+## D4: Community summaries — connected-component + edge density clustering
+
+**Choice:** Identify clusters via simple graph partitioning: find densely-connected subsets within a subgraph using edge density thresholds. MindMapAnalyzer already computes degree centrality, betweenness centrality, and subgraph density — extend it with cluster detection. Creates a summary node for each cluster with edges to cluster members. The summary node's name and properties are LLM-generated from the member nodes' content.
+**Alternatives:**
+- Label propagation — iterative algorithm, more sophisticated but more complex to implement and tune for a first version
+- Embedding-based clustering (k-means/DBSCAN) — catches semantic similarity but adds EmbeddingModel dependency and misses structural relationships
+**Rationale:** Graph structure is the natural clustering signal for a knowledge graph. Densely-connected nodes share relationships — that's what makes them a community. MindMapAnalyzer already has the building blocks. LLM generates the summary content, graph structure identifies WHAT to summarize.
+**Trade-offs:** Misses semantically related nodes that lack direct edges. Acceptable for v1 — embedding-based clustering can be layered on later.
+**Depends on:** D2 (consolidation scheduler runs this as a background phase)
+**Sources:** MindMapAnalyzer.java (betweennessCentrality, subgraphDensity, degreeCentrality), MindMapStore.neighbors(), issue #299
+**Exploration:** quick
+**Status:** captured
+
+## D5: Merge detection — two-layer: string heuristic + embedding confirmation
+
+**Choice:** Two-layer merge candidate detection. Layer 1 (cheap): fuzzy string matching on node names (Levenshtein/Jaro-Winkler, pure Java) combined with shared neighbor overlap. Layer 2 (semantic): embed node name + properties via EmbeddingModel, find cosine-similar pairs. Layer 1 catches obvious duplicates ("Mark Proctor" vs "M. Proctor" with same project edges). Layer 2 catches semantic duplicates ("CEO" vs "Chief Executive Officer"). Both layers produce scored candidates for human review or auto-merge above a confidence threshold.
+**Alternatives:**
+- String similarity only — misses semantic duplicates
+- Embedding only — expensive to run on every node pair, unnecessary for obvious name matches
+- Graph structure only — misses duplicates with different neighborhoods
+**Rationale:** The two-layer approach uses the cheap heuristic as a fast filter, then embedding similarity for harder cases. The string layer is pure Java (no deps), the embedding layer reuses the existing optional `Instance<EmbeddingModel>` pattern from memory-qdrant. Both layers are independently useful — the system degrades gracefully when no EmbeddingModel is available (layer 1 only).
+**Trade-offs:** Embedding layer is optional (Instance<EmbeddingModel> graceful degradation). Without it, only string-based detection works. Two-layer adds implementation complexity but covers significantly more ground.
+**Depends on:** D2 (consolidation scheduler runs this as a background phase)
+**Sources:** EditDistanceSimilarity (memory-api, existing Levenshtein), EmbeddingTextSimilarity (memory-cbr-embedding, existing pattern), MindMapStore.mergeNodes() (merge operation), issue #300
+**Exploration:** quick
+**Status:** captured
