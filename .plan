@@ -2,7 +2,7 @@
 
 ## State
 branch: issue-301-docs-consumer-guide-thing
-state: scaffolded
+state: transitioning
 project-sha: c848804af1888c269a204e5df977f404513fae05
 date: 2026-09-11
 issue-repo: casehubio/neocortex
@@ -12,4 +12,4 @@ design-section-hashes: 4d2cc5ab:## §1 Introduction and Goals|4f6b26ef:## §2 Co
 flyway-next-v: none
 
 ## Queue
-- [ ] casehubio/neocortex#301 — Issue #301 ← active
+- [x] casehubio/neocortex#301 — Issue #301
