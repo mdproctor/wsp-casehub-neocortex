@@ -50,12 +50,13 @@ mindmap-intelligence/
       CommunitySummaryPhase.java       — k-core clustering + LLM summary
       CuriosityRefreshPhase.java       — delegates to CuriositySignalGenerator
       RetrievalAccessTracker.java      — in-memory ConcurrentHashMap, recordAccess(), flush()
+      IdleTracker.java                 — @ApplicationScoped, volatile lastWrite timestamp
       MergeCandidate.java              — scored candidate record
       KCore.java                       — cluster record (nodeIds + density)
   
 mindmap/
   src/main/java/io/casehub/neocortex/mindmap/runtime/
-    MindMapStoreIdleTracker.java       — @Decorator, records last write timestamp
+    MindMapStoreIdleTracker.java       — @Decorator, writes to IdleTracker on store mutations
 ```
 
 ### 2.3 Dependency Direction
@@ -146,7 +147,7 @@ package io.casehub.neocortex.mindmap.intelligence.consolidation;
 public class ConsolidationScheduler {
 
     private final List<ConsolidationPhase> phases;
-    private final MindMapStoreIdleTracker idleTracker;
+    private final IdleTracker idleTracker;
     private final CaseMemoryStore memoryStore;
     private final ReentrantLock lock = new ReentrantLock();
 
@@ -184,7 +185,24 @@ public interface ConsolidationPhase {
 
 Phases are injected as `Instance<ConsolidationPhase>` and ordered by `@Priority`. Each phase is independently testable and can be disabled via `@IfBuildProperty`.
 
-### 4.3 MindMapStoreIdleTracker
+### 4.3 IdleTracker and MindMapStoreIdleTracker
+
+The idle guard is split into two beans: `IdleTracker` (shared state) and `MindMapStoreIdleTracker` (decorator that writes to it). The decorator cannot be injected directly by its own type — CDI decorators wrap the delegate. The scheduler injects `IdleTracker`; the decorator injects `IdleTracker` and updates it on writes.
+
+```java
+package io.casehub.neocortex.mindmap.intelligence.consolidation;
+
+@ApplicationScoped
+public class IdleTracker {
+    private volatile Instant lastWrite = Instant.EPOCH;
+
+    public void recordWrite() { lastWrite = Instant.now(); }
+
+    public boolean isIdle(Duration threshold) {
+        return Duration.between(lastWrite, Instant.now()).compareTo(threshold) > 0;
+    }
+}
+```
 
 ```java
 package io.casehub.neocortex.mindmap.runtime;
@@ -194,34 +212,31 @@ package io.casehub.neocortex.mindmap.runtime;
 public class MindMapStoreIdleTracker implements MindMapStore {
 
     @Inject @Delegate @Any MindMapStore delegate;
+    @Inject IdleTracker idleTracker;
 
-    private volatile Instant lastWrite = Instant.EPOCH;
-
-    public boolean isIdle(Duration threshold) {
-        return Duration.between(lastWrite, Instant.now()).compareTo(threshold) > 0;
-    }
-
-    // Intercept all write operations
     @Override
     public String addNode(NodeInput input, String tenantId) {
-        lastWrite = Instant.now();
+        idleTracker.recordWrite();
         return delegate.addNode(input, tenantId);
     }
 
     @Override
     public void updateNode(String nodeId, NodeUpdate update, String tenantId) {
-        lastWrite = Instant.now();
+        idleTracker.recordWrite();
         delegate.updateNode(nodeId, update, tenantId);
     }
 
     @Override
     public String addEdge(EdgeInput input, String tenantId) {
-        lastWrite = Instant.now();
+        idleTracker.recordWrite();
         return delegate.addEdge(input, tenantId);
     }
 
-    // ... all other write methods delegate with lastWrite update
-    // Read methods delegate without updating lastWrite
+    // All other write methods (removeEdge, mergeNodes, supersede, reinstate,
+    // eraseNode, eraseSubgraph, eraseEntity, eraseEntityAcrossTenants,
+    // createSubgraph, updateSubgraph, addAlias, removeAlias) delegate
+    // with idleTracker.recordWrite().
+    // Read methods delegate without recording.
 }
 ```
 
@@ -282,7 +297,7 @@ NOT called by: MindMapExtractor internal traversals, CuriositySignalGenerator sc
 On each pass:
 1. Call `accessTracker.flushAndReset()` to get accumulated counts
 2. For each node with counts > 0: read current `accessCount` property, add flush value, write updated `accessCount` and `lastAccessed` via `NodeUpdate`
-3. For nodes NOT in the flush map: if `lastAccessed` is older than a configurable threshold (default 30 days), halve `accessCount` (exponential decay on disuse)
+3. Decay pass: iterate via `store.listSubgraphs(tenantId)` → `store.nodesIn(subgraphId, tenantId)` per subgraph. For each node with an `accessCount` property where `lastAccessed` is older than a configurable threshold (default 30 days), halve `accessCount` (exponential decay on disuse)
 
 ### 5.4 Properties
 
@@ -311,6 +326,8 @@ public static List<KCore> kCores(MindMapStore store, String subgraphId,
 ```
 
 Algorithm complexity: O(V + E) — linear in graph size. The `k` parameter controls minimum connectivity (default 3: each node in a core must have at least 3 neighbors within the core).
+
+**Limitation:** k-core decomposition misses loosely-connected communities where no single node has k neighbors within the cluster. These require embedding-based or label-propagation approaches, which can be layered on later.
 
 ### 6.2 CommunitySummaryPhase
 
@@ -355,7 +372,11 @@ For each subgraph, compare all node pairs within the subgraph:
 - Jaccard coefficient on neighbor node IDs — overlap ≥ 0.3
 - Combined score: `0.6 * nameSimilarity + 0.4 * neighborOverlap`
 
+The 0.85 Jaro-Winkler threshold is a pre-filter on the name component alone; the combined score (0.6 * name + 0.4 * neighbors) operates on a different scale and can be lower than 0.85 even when the name passes.
+
 Optimization: sort nodes alphabetically, only compare pairs with shared prefix or shared neighbors (avoids O(N²) for large subgraphs).
+
+**Limitation:** Completely dissimilar names ("CEO" vs "Chief Executive Officer") are missed by Layer 1 unless they share neighbors. Layer 2 only confirms Layer 1 candidates — it does not independently scan for semantic duplicates. This is acceptable for v1.
 
 **Layer 2 — Semantic (optional, when EmbeddingModel available):**
 
