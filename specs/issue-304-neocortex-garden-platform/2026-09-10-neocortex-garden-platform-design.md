@@ -132,7 +132,7 @@ PostRetrievalScorer implementations. Pure Java, zero external deps beyond rag-ap
 | `VersionScorer` | Version-distance decay. Major version miss penalizes more than minor. Configurable format. |
 | `AdaptiveSearchWrapper` | Wraps CaseRetriever with overfetch, score floor, gap trim, and minimum results. Not a decorator — a utility that consumers call explicitly. |
 
-Adaptive search is a separate concern from scoring. Scoring computes per-chunk adjustments; adaptive search applies thresholds and trimming to the result set. `AdaptiveSearchWrapper` takes a `CaseRetriever`, a `List<PostRetrievalScorer>`, and an `AdaptiveSearchConfig`, then executes: retrieve (with overfetch) → score → floor → gap-trim → min-results guarantee.
+Adaptive search is a separate concern from scoring. Scoring computes per-chunk adjustments; adaptive search applies cross-result thresholds (gap trim, score floor) that require seeing ALL results at once — this cannot be a CaseRetriever @Decorator because decorators intercept individual query/response flows while adaptive search needs the full scored result set to compute gaps and enforce minimums. `AdaptiveSearchWrapper` takes a `CaseRetriever`, a `List<PostRetrievalScorer>`, and an `AdaptiveSearchConfig`, then executes: retrieve (with overfetch) → score → floor → gap-trim → min-results guarantee.
 
 `AdaptiveSearchConfig` record in rag-api:
 
