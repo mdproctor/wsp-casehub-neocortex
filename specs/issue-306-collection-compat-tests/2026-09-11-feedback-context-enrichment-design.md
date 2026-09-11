@@ -114,7 +114,7 @@ CREATE INDEX idx_feedback_issue ON retrieval_feedback(issue_repo, issue_number);
 
 **SqliteRetrievalTracker changes:**
 
-- `feedback()`: INSERT/REPLACE now includes `issue_repo`, `issue_number`, `attributes` (JSON serialized via Jackson or manual `Map.toString()` → use Jackson `ObjectMapper` since it's already a dependency via Quarkus).
+- `feedback()`: INSERT/REPLACE now includes `issue_repo`, `issue_number`, `attributes` (JSON serialized via Jackson `ObjectMapper` — add `quarkus-jackson` dependency to `rag-tracking`, matching the pattern in `memory-sqlite`).
 - `findFeedback()`: reads back the three new columns, reconstructs `FeedbackContext` (null if all three columns are null, otherwise builds the record).
 
 ### In-memory (rag-testing)
