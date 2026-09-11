@@ -14,7 +14,10 @@ flyway-next-v: none
 ## Queue
 - [x] casehubio/neocortex#306 — Issue #306
 - [ ] casehubio/neocortex#305 — Feedback context — enrich RetrievalTracker.feedback() with issue/project correlation ← active
-  - [ ] Batch 1: API+SPI
-    - [ ] Task 1: FeedbackContext types and SPI evolution
-  - [ ] Batch 2: SQLite
-    - [ ] Task 2: SqliteRetrievalTracker context persistence
+  - [x] Batch 1: API+SPI
+    - [x] Task 1: FeedbackContext types and SPI evolution
+  - [x] Batch 2: SQLite
+    - [x] Task 2: SqliteRetrievalTracker context persistence
+
+## Deferred
+- [ ] casehubio/neocortex#318: RetrievalAnalyzer context-aware slicing (S / Med) [] — Deferred until a consumer needs grouped analytics by issue/project/agent
