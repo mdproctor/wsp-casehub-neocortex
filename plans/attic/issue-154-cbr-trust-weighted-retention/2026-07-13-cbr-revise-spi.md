@@ -42,7 +42,7 @@ casehub-desiredstate-api (CloudEvent types)
 - Create: `memory-api/src/main/java/io/casehub/neocortex/memory/cbr/CbrOutcome.java`
 - Modify: `memory-api/src/main/java/io/casehub/neocortex/memory/cbr/CbrCase.java`
 - Modify: `memory-api/src/main/java/io/casehub/neocortex/memory/cbr/FeatureVectorCbrCase.java`
-- Modify: `memory-api/src/main/java/io/casehub/neocortex/memory/cbr/PlanCbrCase.java`
+- Modify: `../../../../memory-api/src/main/java/io/casehub/neocortex/memory/cbr/ResolvedCase.java/PlanCbrCase.java`
 - Modify: `memory-api/src/main/java/io/casehub/neocortex/memory/cbr/TextualCbrCase.java`
 - Test: `memory-api/src/test/java/io/casehub/neocortex/memory/cbr/CbrOutcomeTest.java`
 
