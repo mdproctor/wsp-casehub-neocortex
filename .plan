@@ -1,8 +1,8 @@
 # Work Plan — casehub-neocortex
 
 ## State
-branch: casehub-neocortex
-state: active
+branch: main
+state: idle
 issue-repo: casehubio/neocortex
 covers: casehubio/neocortex#306
 Current: casehubio/neocortex#306 — CollectionCompatibility unit tests
