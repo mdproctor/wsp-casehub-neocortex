@@ -128,6 +128,7 @@ public record PerspectivalComparison(
     String entityId,
     String entityName,
     Map<PrincipalId, AffectSnapshot> perspectives,
+    Set<PrincipalId> unassessedAgents,   // agents with null PAD — excluded from distances and differences
     PadDistanceMatrix distances,
     Map<PadDimension, PairwiseDifferences> dimensionDifferences,
     TrajectoryAlignment trajectoryAlignment,
@@ -151,8 +152,7 @@ PAD values are sourced from the merged perspectival node (`EntityKnowledge.node(
 
 ```java
 public record PadDistanceMatrix(
-    Map<AgentPair, Double> distances,
-    Set<PrincipalId> unassessedAgents   // agents with null PAD — excluded from pairwise distances
+    Map<AgentPair, Double> distances
 ) {
     public OptionalDouble distance(PrincipalId a, PrincipalId b);
     public double maxDistance();
@@ -164,7 +164,7 @@ public record AgentPair(PrincipalId a, PrincipalId b) {
 }
 ```
 
-Agents with null PAD (no overlay, no shared node PAD) are excluded from pairwise distance computation and listed in `unassessedAgents`. This avoids conflating "no opinion" with "neutral" (0.0) — a null-as-0.0 default would produce false divergence when one agent simply hasn't assessed the entity. Callers who want null-as-neutral can compute it from AffectSnapshot directly.
+**Null PAD handling:** PAD assessment is atomic — an agent is "assessed" if all three PAD dimensions (pleasure, arousal, dominance) are non-null after overlay merge, "unassessed" if any dimension is null. Unassessed agents are listed in `PerspectivalComparison.unassessedAgents` and excluded from both distance AND difference computations. `SocialComparison.compare()` pre-filters to assessed agents before computing any pairwise metrics. This avoids conflating "no opinion" with "neutral" (0.0). Callers who want null-as-neutral can compute it from AffectSnapshot directly.
 
 **PairwiseDifferences** — per-dimension signed differences:
 
@@ -172,11 +172,13 @@ Agents with null PAD (no overlay, no shared node PAD) are excluded from pairwise
 public record PairwiseDifferences(
     Map<AgentPair, Double> differences   // signed: a - b
 ) {
-    public double difference(PrincipalId a, PrincipalId b);
+    public OptionalDouble difference(PrincipalId a, PrincipalId b);
 }
 
 public enum PadDimension { PLEASURE, AROUSAL, DOMINANCE }
 ```
+
+`PairwiseDifferences.difference()` returns `OptionalDouble` — consistent with `PadDistanceMatrix.distance()`. Pairs involving unassessed agents are excluded.
 
 **TrajectoryAlignment** — slope vector similarity:
 
@@ -258,9 +260,8 @@ public record DomainActivationResult(
 public record DomainSignal(
     String subgraphId,
     AffectTrajectory trajectory,    // aggregate trajectory for entities in this subgraph
-    int entityCount,                // entities included in signal
-    int totalEntityCount,           // total entities in subgraph (before limit)
-    boolean truncated,              // true if entityCount < totalEntityCount
+    int entityCount,                // entities included in signal (≤ entityLimit)
+    boolean truncated,              // true if subgraph has more entities than entityLimit
     int memoryCount,
     int bucketCount                 // number of time buckets with data
 ) {}
@@ -271,10 +272,15 @@ public record DomainPair(String subgraphIdA, String subgraphIdB) {
 
 public record DomainCorrelation(
     double dtwSimilarity,           // DTW similarity score [0, 1]
-    List<AlignmentPair> alignment,  // temporal correspondence path
+    List<DtwAlignment> alignment,   // temporal correspondence path
     int samplePairs,
     CorrelationStrength strength
 ) {}
+
+public record DtwAlignment(int indexA, int indexB) {}
+// Defined alongside Dtw utility in cognitive-index. Domain-neutral
+// naming — no CBR "query"/"case" semantics. AlignmentPair in
+// memory-api remains unchanged for CBR use.
 
 public enum CorrelationStrength {
     STRONG,     // dtwSimilarity >= 0.7  (provisional — see calibration note)
@@ -292,9 +298,9 @@ public enum CorrelationStrength {
 
 **Resolution flow:**
 
-1. For each subgraphId: query `MindMapStore.search(MindMapQuery.of(tenantId, query.entityLimit()).withSubgraphId(subgraphId))` for member entities. Track `totalEntityCount` vs returned count for truncation detection.
+1. For each subgraphId: query `MindMapStore.search(MindMapQuery.of(tenantId, query.entityLimit() + 1).withSubgraphId(subgraphId))` for member entities. If `returned.size() > entityLimit`, set `truncated = true` and use only the first `entityLimit` entities. `MindMapStore.search()` returns `List<MindMapNode>` with no count metadata, so the +1 probe is the only way to detect truncation without a separate count API.
 2. For each entity: collect memory-linkable IDs via shared `collectEntityIds()` utility. Query `CaseMemoryStore.query(MemoryQuery.forSubjects(..., AffectEvents.DOMAIN, tenantId).withCallerPrincipalId(principal).withSince(from).withUntil(to))` for affect memories in the time window. The `withUntil()` method is a prerequisite addition to MemoryQuery (see Change 9).
-3. Aggregate per-domain: time-bucketed mean PAD values (configurable `bucketDuration`)
+3. Aggregate per-domain: time-bucketed mean PAD values (configurable `bucketDuration`). **Empty buckets (time periods with no affect memories) are skipped** — the time series contains only buckets with data. DTW handles unequal-length series natively (that's its purpose). Zero-fill would inject false "neutral" signals; forward-fill would assume stationarity without basis. `DomainSignal.bucketCount` reports how many buckets actually have data, letting callers assess sparsity relative to the time window. Sparse domains (few buckets relative to the window) produce low-confidence correlations — callers can threshold on `bucketCount` or use CorrelationStrength.
 4. Compute per-domain `AffectTrajectory` via `AffectTrajectoryAnalyzer.analyze()`
 5. Compute pairwise DTW similarity using the full 3D PAD time series (Euclidean distance across pleasure, arousal, dominance at each time point). This captures cross-dimension correlations that pleasure-only DTW would miss — e.g., work arousal (stress) correlating with family dominance (feeling controlled).
 6. Return `Optional.empty()` if any domain has zero entities or zero memories
@@ -327,7 +333,11 @@ public MemoryQuery withUntil(Instant until) {
 }
 ```
 
-**AffectTrajectory gains `arousalSlope`** — least-squares slope of arousal over time, computed alongside `pleasureSlope` and `dominanceSlope` in `AffectTrajectoryAnalyzer.analyze()`. The existing `arousalVolatility` (standard deviation) is retained — both are useful metrics (slope captures direction, volatility captures variability). This is a backward-compatible addition: existing code that destructures AffectTrajectory will see a new field but existing positional access remains valid since Java records support named access.
+**AffectTrajectory gains `arousalSlope`** — least-squares slope of arousal over time, computed alongside `pleasureSlope` and `dominanceSlope` in `AffectTrajectoryAnalyzer.analyze()`. The existing `arousalVolatility` (standard deviation) is retained — both are useful metrics (slope captures direction, volatility captures variability). **This is a breaking change:** inserting `arousalSlope` between `arousalVolatility` and `dominanceSlope` shifts positional constructor arguments. All existing `new AffectTrajectory(...)` call sites must be updated:
+- `AffectTrajectoryAnalyzer.java` lines 26, 29, 61 (3 production sites)
+- `EntityKnowledgeTest.java` line 63, `TemporalFocusTest.java` lines 68, 87, 104 (4 test sites)
+
+The migration is mechanical — add the new `arousalSlope` argument at position 3.
 
 ```java
 public record AffectTrajectory(
