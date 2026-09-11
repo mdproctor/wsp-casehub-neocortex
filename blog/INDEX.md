@@ -57,3 +57,4 @@
 | [2026-08-29-mdp01-three-confidences-walk-into-a-bar.md](2026-08-29-mdp01-three-confidences-walk-into-a-bar.md) | 2026-08-29 | Unified Confidence record replaces three incompatible confidence representations across MindMap, Memory, and CBR |
 | [2026-09-02-mdp01-from-three-stores-to-one-mind.md](2026-09-02-mdp01-from-three-stores-to-one-mind.md) | 2026-09-02 | Cognitive rearchitecture capstone — five layers from unified confidence to identity-driven cognition, 25 issues, one derivation chain |
 | [2026-09-11-mdp01-the-extraction-that-wasnt-a-rewrite.md](2026-09-11-mdp01-the-extraction-that-wasnt-a-rewrite.md) | 2026-09-11 | SPI-first extraction of RAG capabilities from engine to neocortex — federation as routing not decoration, CBR rename, two new modules |
+| [2026-09-11-mdp02-context-on-the-wire.md](2026-09-11-mdp02-context-on-the-wire.md) | 2026-09-11 | FeedbackContext SPI enrichment — typed fields + attributes map, default method bridge, V2 SQLite migration |
