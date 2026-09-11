@@ -81,6 +81,8 @@ When `query.asSeenBy()` is non-null, the resolution pipeline changes order:
 
 When `asSeenBy` is null, the pipeline is unchanged from today (steps 2 and 4's principal scoping are skipped).
 
+**Cleanup:** Remove dead `CbrCaseMemoryStore` injection from CognitiveProfile. The `cbrStore` field (line 42) is unused — zero production references within cognitive-index. The import and constructor parameter are removed. TemporalIndex retains its own `CbrCaseMemoryStore` injection (separate concern, out of scope).
+
 ### Change 4: CognitiveProfile gains compare()
 
 ```java
@@ -91,16 +93,18 @@ public Map<PrincipalId, EntityKnowledge> compare(
 Batch comparison of N agents' perspectives on the same entity. The query's own `asSeenBy` is ignored — each agent's perspective is resolved independently. Internally:
 
 1. Resolve the shared node once
-2. Load all overlay nodes for the tenant once (single `MindMapStore.search()` with trait="overlay")
+2. Load all overlay nodes for the tenant once via PerspectivalResolver's package-private `loadAllOverlays(tenantId)` method (single `MindMapStore.search()` with trait="overlay")
 3. Partition overlays by `agentId` property — O(N) filter, not N separate scans
-4. For each agent: merge overlay → collect entity IDs from merged node → query principal-scoped memories → compute trajectory
+4. For each agent: merge overlay via `PerspectivalMerge.merge()` → collect entity IDs from merged node → query principal-scoped memories → compute trajectory
 5. Return `Map<PrincipalId, EntityKnowledge>` with each entry's `perceiver` set
 
-The key optimization: overlay loading happens once. The per-agent work (merge + memory query + trajectory) is lightweight.
+The key optimization: overlay loading happens once via `loadAllOverlays()`. The per-agent work (merge + memory query + trajectory) is lightweight. CognitiveProfile.compare() never reimplements overlay loading — all overlay logic stays in PerspectivalResolver.
 
 ### Change 5: PerspectivalResolver becomes package-private
 
 PerspectivalResolver's overlay-loading logic is correct and stays as-is. Its visibility changes from `public @ApplicationScoped` to package-private. CognitiveProfile calls it internally. This reverses #253 D55 — confirmed zero external production callers (only tests and documentation reference it).
+
+**New package-private method:** `loadAllOverlays(String tenantId)` returns `List<MindMapNode>` — all overlay nodes for the tenant, unfiltered by principal. This is the same `MindMapStore.search(MindMapQuery.of(tenantId, 1000).withTraits(Set.of("overlay")))` query the existing `loadOverlays(tenantId, principal)` already performs. The existing method now delegates to `loadAllOverlays()` and filters by principal in Java, eliminating logic duplication. CognitiveProfile.compare() calls `loadAllOverlays()` directly and partitions by agentId.
 
 PerspectivalMerge remains public — it's a pure static utility used by tests and edge-case callers who need raw merge control.
 
@@ -141,13 +145,16 @@ public record AffectSnapshot(
 ) {}
 ```
 
+PAD values are sourced from the merged perspectival node (`EntityKnowledge.node().pleasure()`, `.arousal()`, `.dominance()`). These are the agent's stored affect assessment of the entity — the canonical perspectival view after overlay merge. Not a temporal observation, not the trajectory endpoint, not the latest memory's PAD. When an agent has no overlay and the shared node has no PAD, all three values are null.
+
 **PadDistanceMatrix** — pairwise Euclidean distances in PAD space:
 
 ```java
 public record PadDistanceMatrix(
-    Map<AgentPair, Double> distances
+    Map<AgentPair, Double> distances,
+    Set<PrincipalId> unassessedAgents   // agents with null PAD — excluded from pairwise distances
 ) {
-    public double distance(PrincipalId a, PrincipalId b);
+    public OptionalDouble distance(PrincipalId a, PrincipalId b);
     public double maxDistance();
     public double meanDistance();
 }
@@ -156,6 +163,8 @@ public record AgentPair(PrincipalId a, PrincipalId b) {
     // Canonical ordering: a.value() < b.value() lexicographically
 }
 ```
+
+Agents with null PAD (no overlay, no shared node PAD) are excluded from pairwise distance computation and listed in `unassessedAgents`. This avoids conflating "no opinion" with "neutral" (0.0) — a null-as-0.0 default would produce false divergence when one agent simply hasn't assessed the entity. Callers who want null-as-neutral can compute it from AffectSnapshot directly.
 
 **PairwiseDifferences** — per-dimension signed differences:
 
@@ -185,7 +194,7 @@ public enum TrendAgreement {
 }
 ```
 
-Slope vector similarity uses `[pleasureSlope, dominanceSlope]` from AffectTrajectory. Cosine similarity captures both direction and rate agreement in a single metric.
+Slope vector similarity uses `[pleasureSlope, arousalSlope, dominanceSlope]` from AffectTrajectory — a 3D cosine similarity capturing direction and rate agreement across all PAD dimensions. This requires adding `arousalSlope` to AffectTrajectory (see Change 9). Arousal trend (both agents becoming more activated, or both calming) is a meaningful alignment signal that the previous 2D formulation missed.
 
 ### Change 7: DomainActivation — CDI bean for #283
 
@@ -204,6 +213,8 @@ public class DomainActivation {
 }
 ```
 
+**D3 composition note:** D3's trade-offs section directed DomainActivation to compose `CognitiveProfile.resolve()` for entity resolution. This directive is retracted. DomainActivation's aggregate pattern is fundamentally different from per-entity resolve(): it needs all entities in a subgraph (which CognitiveProfile doesn't expose), only affect memories in a time window (not all domains), and aggregate time-bucketed signals (not per-entity EntityKnowledge). Composing resolve() per-entity would waste I/O (fetching edges, all domains, per-entity trajectory) for data DomainActivation discards. The shared code between the two paths is `collectEntityIds(MindMapNode)` — extracted to a package-private utility in CognitiveProfile for reuse. DomainActivation does NOT need perspectival overlay merging: its signals come from principal-scoped affect memories (via `withCallerPrincipalId()`), not from entity-level PAD values. Refs come from the shared node (PerspectivalMerge preserves shared node refs), so overlay merge doesn't affect entity ID collection.
+
 **DomainActivationQuery**:
 
 ```java
@@ -213,7 +224,8 @@ public record DomainActivationQuery(
     String tenantId,
     Instant from,                // time window start
     Instant to,                  // time window end
-    Duration bucketDuration      // aggregation bucket size; default 24h
+    Duration bucketDuration,     // aggregation bucket size; default 24h
+    int entityLimit              // max entities per subgraph; default 1000
 ) {
     public DomainActivationQuery {
         Objects.requireNonNull(principal, "principal required");
@@ -221,6 +233,7 @@ public record DomainActivationQuery(
         if (subgraphIds == null || subgraphIds.size() < 2)
             throw new IllegalArgumentException("at least 2 subgraphIds required");
         if (bucketDuration == null) bucketDuration = Duration.ofHours(24);
+        if (entityLimit < 1) entityLimit = 1000;
     }
 
     public static DomainActivationQuery between(
@@ -245,7 +258,9 @@ public record DomainActivationResult(
 public record DomainSignal(
     String subgraphId,
     AffectTrajectory trajectory,    // aggregate trajectory for entities in this subgraph
-    int entityCount,
+    int entityCount,                // entities included in signal
+    int totalEntityCount,           // total entities in subgraph (before limit)
+    boolean truncated,              // true if entityCount < totalEntityCount
     int memoryCount,
     int bucketCount                 // number of time buckets with data
 ) {}
@@ -262,27 +277,29 @@ public record DomainCorrelation(
 ) {}
 
 public enum CorrelationStrength {
-    STRONG,     // dtwSimilarity >= 0.7
+    STRONG,     // dtwSimilarity >= 0.7  (provisional — see calibration note)
     MODERATE,   // >= 0.4
     WEAK,       // >= 0.2
     NONE        // < 0.2
 }
+// Thresholds are provisional. DTW similarity score distributions depend
+// on input characteristics (autocorrelation, dimensionality, value range).
+// PAD time series have high autocorrelation (emotional states persist),
+// which may shift the baseline upward. Calibrate during implementation
+// against representative PAD time series data — e.g., random-pair
+// baseline to establish the score distribution floor.
 ```
 
 **Resolution flow:**
 
-1. For each subgraphId: query `MindMapStore.search(MindMapQuery.of(tenantId, 1000).withSubgraphId(subgraphId))` for member entities
-2. For each entity: query `CaseMemoryStore.query(MemoryQuery.forSubjects(..., AffectEvents.DOMAIN, tenantId).withCallerPrincipalId(principal))` for affect memories in the time window
+1. For each subgraphId: query `MindMapStore.search(MindMapQuery.of(tenantId, query.entityLimit()).withSubgraphId(subgraphId))` for member entities. Track `totalEntityCount` vs returned count for truncation detection.
+2. For each entity: collect memory-linkable IDs via shared `collectEntityIds()` utility. Query `CaseMemoryStore.query(MemoryQuery.forSubjects(..., AffectEvents.DOMAIN, tenantId).withCallerPrincipalId(principal).withSince(from).withUntil(to))` for affect memories in the time window. The `withUntil()` method is a prerequisite addition to MemoryQuery (see Change 9).
 3. Aggregate per-domain: time-bucketed mean PAD values (configurable `bucketDuration`)
 4. Compute per-domain `AffectTrajectory` via `AffectTrajectoryAnalyzer.analyze()`
-5. Compute pairwise DTW similarity using the pleasure dimension time series. Reuse or extract DTW algorithm from existing `DtwSimilarity` in memory-api
+5. Compute pairwise DTW similarity using the full 3D PAD time series (Euclidean distance across pleasure, arousal, dominance at each time point). This captures cross-dimension correlations that pleasure-only DTW would miss — e.g., work arousal (stress) correlating with family dominance (feeling controlled).
 6. Return `Optional.empty()` if any domain has zero entities or zero memories
 
-**DTW usage:** The existing `DtwSimilarity` operates on CBR-specific `FeatureValue`/`FeatureField` types. For cross-domain correlation, either:
-- Extract the core DTW algorithm into a general-purpose utility in `cognitive-api` or `fusion-api`
-- Adapt the input format to match DtwSimilarity's expectations
-
-Decision deferred to implementation — both approaches work, and the algorithm is identical. The DTW constraints (Sakoe-Chiba band, Itakura parallelogram) and alignment path extraction from the existing implementation are reused either way.
+**DTW implementation:** Implement a lightweight `Dtw` utility class in cognitive-index operating on `double[][]` time series (each row is a time point, columns are PAD dimensions). The core DTW algorithm (distance matrix computation + backtrace, ~40 lines) is independent of CBR types. `DtwSimilarity` in memory-api remains unchanged — the algorithms are identical but the type interfaces are incompatible (`FeatureValue`/`FeatureField` vs raw doubles), and coupling them would require either a dependency from memory-api to cognitive-api (wrong direction) or a new shared module (overkill for 40 lines of algorithm). The `Dtw` utility reuses the same DTW structure: configurable warping constraints, early abandonment, alignment path extraction, and `1.0 / (1.0 + normalized)` scoring.
 
 ### Change 8: Principal-scoped memory queries (D6)
 
@@ -297,32 +314,81 @@ MemoryQuery.forSubjects(entityIds, domain, tenantId)
 
 The memory infrastructure already supports this — `MemoryInput.principalId` and `MemoryQuery.withCallerPrincipalId()` exist but are currently unwired. `AffectEvents.toMemoryInput()` passes null for principalId. Callers storing agent-specific affect assessments must set `MemoryInput.withPrincipalId()` — existing memories with null principalId remain queryable by all agents (backward compatible).
 
+### Change 9: Prerequisite changes in memory-api and cognitive-index
+
+**MemoryQuery gains `Instant until`** — time-range upper bound for DomainActivation's time-window queries. Symmetric with existing `since` field. All store implementations (InMemory, SQLite, JPA) already implement `since` filtering with the same pattern (`AND created_at >= ?`); adding `until` (`AND created_at <= ?`) is mechanical across all stores.
+
+```java
+// In MemoryQuery record:
+Instant until    // NEW — upper time bound (nullable, null = unbounded)
+
+public MemoryQuery withUntil(Instant until) {
+    return new MemoryQuery(subjects, domain, tenantId, caseId, question, limit, since, until, order, callerPrincipalId);
+}
+```
+
+**AffectTrajectory gains `arousalSlope`** — least-squares slope of arousal over time, computed alongside `pleasureSlope` and `dominanceSlope` in `AffectTrajectoryAnalyzer.analyze()`. The existing `arousalVolatility` (standard deviation) is retained — both are useful metrics (slope captures direction, volatility captures variability). This is a backward-compatible addition: existing code that destructures AffectTrajectory will see a new field but existing positional access remains valid since Java records support named access.
+
+```java
+public record AffectTrajectory(
+    double pleasureSlope,
+    double arousalVolatility,
+    double arousalSlope,       // NEW — least-squares slope of arousal over time
+    double dominanceSlope,
+    TrendDirection trend,
+    double rateOfChange,
+    int sampleCount
+) {}
+```
+
+## Scope Notes
+
+DomainActivation addresses the core cross-domain affect correlation scope of #283. The following aspects of #283 remain out of scope for this spec:
+
+- **MoodEvents correlation:** MoodEvents are agent-global mood snapshots — they are not domain-scoped and cannot be attributed to a specific subgraph without capture pipeline changes (tagging mood with domain context).
+- **ExperienceEvents correlation:** ExperienceEvents are discrete outcomes (achievements, setbacks), not continuous affect signals. DTW operates on continuous time series; correlating discrete events requires different techniques (event co-occurrence analysis, Granger causality on event-triggered windows).
+
+These are tracked as separate issues for future #283 work.
+
 ## Module Impact
 
-All changes in `cognitive-index`. No new modules.
+Primary changes in `cognitive-index`. Prerequisite change in `memory-api`.
+
+**memory-api:**
+
+| File | Change |
+|------|--------|
+| MemoryQuery.java | + `Instant until` field, + `withUntil()` wither |
+
+**cognitive-index:**
 
 | File | Change |
 |------|--------|
 | CognitiveProfileQuery.java | + `asSeenBy` field, + `withAsSeenBy()` |
 | EntityKnowledge.java | + `perceiver` field |
-| CognitiveProfile.java | + perspective in resolve(), + compare() method, + PerspectivalResolver composition |
-| PerspectivalResolver.java | Visibility: public → package-private |
+| CognitiveProfile.java | + perspective in resolve(), + compare() method, + PerspectivalResolver composition, - `CbrCaseMemoryStore` injection |
+| PerspectivalResolver.java | Visibility: public → package-private, + `loadAllOverlays()` package-private method |
+| AffectTrajectory.java | + `arousalSlope` field |
+| AffectTrajectoryAnalyzer.java | + arousal slope computation in analyze() |
 | SocialComparison.java | NEW — static utility |
 | PerspectivalComparison.java | NEW — result record |
 | AffectSnapshot.java | NEW — per-agent perspective record |
-| PadDistanceMatrix.java | NEW — distance matrix with AgentPair |
+| PadDistanceMatrix.java | NEW — distance matrix with AgentPair, unassessedAgents |
 | PairwiseDifferences.java | NEW — signed per-dimension differences |
-| TrajectoryAlignment.java | NEW — slope vector cosine similarity |
+| TrajectoryAlignment.java | NEW — slope vector cosine similarity (3D) |
 | PadDimension.java | NEW — enum (PLEASURE, AROUSAL, DOMINANCE) |
 | TrendAgreement.java | NEW — enum (ALIGNED, DIVERGENT, MIXED, INSUFFICIENT) |
 | AgentPair.java | NEW — canonical pair record |
+| Dtw.java | NEW — lightweight DTW utility for double[] time series |
 | DomainActivation.java | NEW — CDI bean |
-| DomainActivationQuery.java | NEW — query record |
+| DomainActivationQuery.java | NEW — query record (with entityLimit) |
 | DomainActivationResult.java | NEW — result record |
-| DomainSignal.java | NEW — per-subgraph signal |
+| DomainSignal.java | NEW — per-subgraph signal (with truncation tracking) |
 | DomainPair.java | NEW — canonical pair record |
 | DomainCorrelation.java | NEW — DTW correlation result |
-| CorrelationStrength.java | NEW — enum |
+| CorrelationStrength.java | NEW — enum (thresholds provisional) |
+
+**memory store implementations** (InMemory, SQLite, JPA): add `until` filtering — symmetric with existing `since` filtering.
 
 ## Test Plan
 
@@ -343,19 +409,19 @@ All changes in `cognitive-index`. No new modules.
 10. PAD distance matrix — three agents, all pairwise distances computed
 11. Pairwise signed differences — pleasure dimension, two agents
 12. Pairwise signed differences — all three PAD dimensions
-13. Trajectory alignment — both IMPROVING → ALIGNED, cosine ≈ 1.0
-14. Trajectory alignment — one IMPROVING, one WORSENING → DIVERGENT, cosine ≈ -1.0
+13. Trajectory alignment — both IMPROVING → ALIGNED, cosine ≈ 1.0 (3D slope vector)
+14. Trajectory alignment — one IMPROVING, one WORSENING → DIVERGENT, cosine ≈ -1.0 (3D slope vector)
 15. Trajectory alignment — one STABLE, one WORSENING → MIXED
 16. Trajectory alignment — insufficient data (< 2 samples) → INSUFFICIENT
 17. Single agent comparison → trivial result (distance 0, no pairwise differences)
-18. Null PAD values treated as 0.0 in distance computation
+18. Null PAD agents excluded from distance computation, listed in unassessedAgents
 
 ### DomainActivation (12 tests)
 
-19. Two subgraphs with correlated pleasure trajectories → STRONG DTW similarity
+19. Two subgraphs with correlated 3D PAD trajectories → STRONG DTW similarity
 20. Two subgraphs with uncorrelated signals → WEAK/NONE
 21. Principal scoping — only this agent's affect memories used
-22. Time window filtering — memories outside window excluded
+22. Time window filtering — memories outside window excluded (via MemoryQuery.withUntil)
 23. Time bucketing — 24h buckets aggregate correctly
 24. Custom bucket duration (e.g., 1h) produces finer-grained signal
 25. Empty subgraph (no entities) → Optional.empty()
@@ -364,6 +430,13 @@ All changes in `cognitive-index`. No new modules.
 28. Graceful degradation — CaseMemoryStore unavailable → Optional.empty()
 29. Three subgraphs — all pairwise correlations computed
 30. Minimum sample count enforcement — too few buckets → NONE strength
+31. Subgraph exceeding entityLimit — DomainSignal.truncated is true, totalEntityCount > entityCount
+32. Custom entityLimit on DomainActivationQuery is respected
+
+### AffectTrajectory arousalSlope (2 tests)
+
+33. analyze() computes arousalSlope alongside pleasureSlope and dominanceSlope
+34. arousalSlope positive for increasing arousal series, negative for decreasing
 
 ## Decisions
 
