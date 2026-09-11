@@ -12,8 +12,9 @@ design-section-hashes: 4d2cc5ab:## §1 Introduction and Goals|4f6b26ef:## §2 Co
 flyway-next-v: none
 
 ## Queue
-- [ ] casehubio/neocortex#306 — Issue #306 ← active
-- [ ] casehubio/neocortex#305 — Feedback context — enrich RetrievalTracker.feedback() with issue/project correlation
-
-## Deferred
-- [ ] Hortora/engine#58: Shadow comparison harness — RAG vs grep on ad-hoc garden searches (M / Med) [] — Evaluation infrastructure, requires engine slot [Hortora/engine]
+- [x] casehubio/neocortex#306 — Issue #306
+- [ ] casehubio/neocortex#305 — Feedback context — enrich RetrievalTracker.feedback() with issue/project correlation ← active
+  - [ ] Batch 1: API+SPI
+    - [ ] Task 1: FeedbackContext types and SPI evolution
+  - [ ] Batch 2: SQLite
+    - [ ] Task 2: SqliteRetrievalTracker context persistence
