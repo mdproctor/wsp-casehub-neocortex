@@ -25,3 +25,16 @@
 **Exploration:** quick
 **Depends on:** D1 (FeedbackContext type)
 **Status:** captured
+
+## D3: RetrievalFeedback and findFeedback() evolution
+
+**Choice:** Carry context on RetrievalFeedback, no findFeedback() signature change — callers post-filter
+**Alternatives:**
+- Carry + filtered query overload — adds findFeedback(corpus, since, until, FeedbackFilter) for server-side filtering. Premature — no caller needs SQL-level filtering yet.
+- Carry + RetrievalAnalyzer slicing — adds context-aware analysis overloads. Also premature — YAGNI until a consumer needs grouped analytics.
+**Rationale:** Matches existing RetrievalAnalyzer pattern: load all feedback in window, post-filter in Java (already done for retrievalId join — GE-20260719-59b809). Adding SQL-level filtering is a future enhancement when data volume warrants it.
+**Trade-offs:** Post-filtering loads all feedback regardless of context. Acceptable at current scale — feedback volume is low. If it grows, add the SQL overload as a separate issue.
+**Sources:** RetrievalAnalyzer.documentStats() (existing post-filter pattern), GE-20260719-59b809 (timestamp semantics)
+**Exploration:** quick
+**Depends on:** D1 (FeedbackContext type)
+**Status:** captured
