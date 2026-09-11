@@ -38,3 +38,15 @@
 **Exploration:** quick
 **Depends on:** D1 (FeedbackContext type)
 **Status:** captured
+
+## D4: SQLite storage strategy for context
+
+**Choice:** JSON TEXT column for attributes, dedicated indexed columns for typed fields. V2 Flyway migration adds issue_repo (TEXT), issue_number (INTEGER), attributes (TEXT/JSON) columns to retrieval_feedback. Composite index on (issue_repo, issue_number).
+**Alternatives:**
+- Separate key-value table — normalized but adds JOINs and complexity for a rarely-queried dimension
+**Rationale:** Simple, matches how Qdrant stores payload. SQLite has json_extract() for ad-hoc queries if needed. Typed fields get indexed columns for efficient WHERE filtering; attributes map goes to JSON for the long tail.
+**Trade-offs:** JSON column is not indexable by individual keys. Acceptable — attributes are for the long tail, not primary query dimensions.
+**Sources:** SqliteRetrievalTracker V1 schema (rag-tracking), Qdrant payload storage pattern
+**Exploration:** quick
+**Depends on:** D1 (FeedbackContext type)
+**Status:** captured
