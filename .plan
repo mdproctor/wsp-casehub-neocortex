@@ -1,0 +1,17 @@
+# Work Plan — casehub-neocortex
+
+## State
+branch: casehub-neocortex
+state: active
+issue-repo: casehubio/neocortex
+covers: casehubio/neocortex#306
+Current: casehubio/neocortex#306 — CollectionCompatibility unit tests
+date: 2026-09-11
+
+## Queue
+- [ ] casehubio/neocortex#306 — CollectionCompatibility unit tests ← active
+
+## Deferred
+- [ ] Engine uses rag-scoring (M / Med) [Hortora/engine] — Delete TemporalDecayScorer/VersionScorer from engine, use platform rag-scoring module
+- [ ] Engine implements ProvenanceTracker + FederationStrategy SPIs (M / Med) [Hortora/engine] — ProvenanceStore implements ProvenanceTracker, ChainWalker implements FederationStrategy
+- [ ] Engine CBR rename + MCP verification (S / Low) [Hortora/engine] — Update engine imports to ResolvedCase/ResolutionGuide/ResolutionStep, verify MCP tools
