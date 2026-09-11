@@ -2,7 +2,7 @@
 
 ## State
 branch: issue-304-neocortex-garden-platform
-state: active
+state: closing:promoted
 project-sha: 8f5a6adf112345d213258b408855a32fe1663437
 date: 2026-09-10
 issue-repo: casehubio/neocortex
@@ -11,27 +11,9 @@ design-repo: project
 design-section-hashes: 
 flyway-next-v: unknown
 
+evidence-era: true
 ## Queue
-- [ ] casehubio/neocortex#304 — Extract hortora/engine capabilities into neocortex ← active
-  - [x] Batch 1: Scoring Foundation
-    - [x] Task 1: PostRetrievalScorer SPI + types
-    - [x] Task 2: TemporalDecayScorer + VersionScorer
-    - [x] Task 3: AdaptiveSearchWrapper
-  - [x] Batch 2: Platform SPIs
-    - [x] Task 4: ProvenanceTracker SPI
-    - [x] Task 5: FederationStrategy SPI
-    - [x] Task 6: DocumentQueryAugmenter SPI
-  - [x] Batch 3: Query Augmentation
-    - [x] Task 7: rag-query-augmentation module
-  - [x] Batch 4: Collection Compat
-    - [x] Task 8: CollectionCompatibility utility
-  - [x] Batch 5: CBR Rename
-    - [x] Task 9: Rename CBR types via IntelliJ
-    - [x] Task 10: CbrOutcome.retrievalId + docs
-  - [ ] Batch 6: Engine Integration
-    - [ ] Task 11: Engine uses rag-scoring
-    - [ ] Task 12: Engine implements SPIs
-    - [ ] Task 13: Engine CBR rename + verification
+- [x] casehubio/neocortex#304 — Extract hortora/engine capabilities into neocortex
 
 ## Deferred
 - [ ] Engine uses rag-scoring (M / Med) [Hortora/engine] — Cross-repo: needs neocortex pushed first. Engine deletes TemporalDecayScorer/VersionScorer, uses platform rag-scoring.
