@@ -53,3 +53,15 @@
 **Exploration:** quick
 **Depends on:** D3 (domain signal model)
 **Status:** captured
+
+## D5: Privacy enforcement model for cross-domain reasoning
+
+**Choice:** Method signature enforcement — DomainActivation.correlate() takes exactly one PrincipalId. Cross-principal analysis is not expressible through the API.
+**Alternatives:**
+- Runtime validation — accept broader query, validate at runtime that all data belongs to same principal. More flexible but adds a failure mode the compiler can't catch.
+**Rationale:** Cross-domain reasoning is self-reflection across your own life domains — never comparing your data with someone else's. Making cross-principal analysis unrepresentable in the API is stronger than checking at runtime. Matches PerspectivalResolver's existing pattern (single PrincipalId parameter).
+**Trade-offs:** If a future use case needs cross-principal domain correlation (e.g., "compare Alice's work stress with Bob's work stress"), it would need a separate API. Acceptable: that's a different operation (social comparison, not cross-domain self-reflection).
+**Sources:** PerspectivalResolver.java (single-principal pattern), issue #283 scope ("only crosses domains for the SAME principal")
+**Exploration:** quick
+**Depends on:** D1 (DomainActivation as CDI bean)
+**Status:** captured
