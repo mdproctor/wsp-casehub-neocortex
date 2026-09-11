@@ -2,15 +2,36 @@
 
 ## Last Session
 
-Closed #301 (docs: consumer guide — Thing model). Added Knowledge Model and Cognitive Index module tables plus key abstraction sections to `docs/guides/consumer-guide.md` — Thing interface, is()/as() pattern, custom trait interfaces, SubgraphTypes, TypeRegistry, MindMapNode cognitive fields, Subject bridge, and knowledge lifecycle continuum. Single commit, clean work-end.
+Closed #304 branch (knowledge garden platform extraction) via work-end. Created `.plan` with 14 items for next session.
 
-## Immediate Next Step
+**What landed on main (11 commits after squash):**
+- 4 new SPIs in rag-api: `PostRetrievalScorer`, `ProvenanceTracker`, `FederationStrategy`, `DocumentQueryAugmenter`
+- 2 new modules: `rag-scoring` (TemporalDecayScorer, VersionScorer, AdaptiveSearchWrapper), `rag-query-augmentation` (AgentQueryAugmenter, QueryAugmentingMetadataExtractor)
+- `CollectionCompatibility` utility in rag module (generic migration checks)
+- CBR rename: PlanCbrCase → ResolvedCase, TextualCbrCase → ResolutionGuide, PlanTrace → ResolutionStep
+- `CbrOutcome.retrievalId` for retrieval-to-outcome correlation
+- Code review fix: stale error message in ResolvedCase after rename
 
-Start #302 (docs: contributor guide — Thing/MindMapNode) or #303 (docs: capability-to-example matrix). These are the remaining doc issues from the #295 consolidation pipeline work.
+**Filed this session:** casehubio/neocortex#306 (CollectionCompatibility unit tests)
+
+**Diary entry:** `blog/2026-09-11-mdp01-the-extraction-that-wasnt-a-rewrite.md`
+
+## What's Next
+
+`.plan` has 14 items — 2 in queue, 12 deferred Hortora/engine tasks. Start with `work` to pick up casehubio/neocortex#306.
+
+| # | Title | Scale | Complexity |
+|---|-------|-------|------------|
+| casehubio/neocortex#306 | CollectionCompatibility unit tests | XS | Low |
+| casehubio/neocortex#305 | Feedback context enrichment | M | Med |
+
+Deferred (Hortora/engine — requires engine slot):
+- Hortora/engine#90 parent epic + 3 sub-tasks (rag-scoring, SPIs, CBR rename)
+- Hortora/engine#89, #88, #86, #84, #82, #72, #61, #58
 
 ## References
 
-- Landed commit: `46d1b36` on main
-- Consumer guide: `docs/guides/consumer-guide.md`
-- Predecessor spec: `docs/specs/issue-285-knowledge-repr-model/2026-09-09-knowledge-repr-model-design.md`
-- Example walkthrough: `examples/example-knowledge-model/README.md`
+- Spec: `wksp/specs/issue-304-neocortex-garden-platform/2026-09-10-neocortex-garden-platform-design.md`
+- Decisions: `wksp/specs/issue-304-neocortex-garden-platform/decisions.md` (12 decisions)
+- Cross-ref: Hortora/engine#90
+- Garden: GE-20260911-42a250 (IntelliJ rename gotcha)

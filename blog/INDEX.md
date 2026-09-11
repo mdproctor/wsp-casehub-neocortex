@@ -56,3 +56,4 @@
 | [2026-08-03-mdp05-the-fix-was-already-there.md](2026-08-03-mdp05-the-fix-was-already-there.md) | 2026-08-03 | Batch ONNX inference bottleneck was a pattern consistency gap, not missing infrastructure |
 | [2026-08-29-mdp01-three-confidences-walk-into-a-bar.md](2026-08-29-mdp01-three-confidences-walk-into-a-bar.md) | 2026-08-29 | Unified Confidence record replaces three incompatible confidence representations across MindMap, Memory, and CBR |
 | [2026-09-02-mdp01-from-three-stores-to-one-mind.md](2026-09-02-mdp01-from-three-stores-to-one-mind.md) | 2026-09-02 | Cognitive rearchitecture capstone — five layers from unified confidence to identity-driven cognition, 25 issues, one derivation chain |
+| [2026-09-11-mdp01-the-extraction-that-wasnt-a-rewrite.md](2026-09-11-mdp01-the-extraction-that-wasnt-a-rewrite.md) | 2026-09-11 | SPI-first extraction of RAG capabilities from engine to neocortex — federation as routing not decoration, CBR rename, two new modules |
