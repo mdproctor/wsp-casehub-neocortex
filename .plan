@@ -1,0 +1,24 @@
+# Work Plan — issue-316-contributor-guide-complete
+
+## State
+branch: issue-316-contributor-guide-complete
+state: scaffolded
+project-sha: 64121700a72bd9cbc080775e1125cfca4c17da7d
+date: 2026-09-11
+issue-repo: casehubio/neocortex
+covers: 308,309,310,307,311,312,313,314,315
+design-repo: project
+design-section-hashes: 4d2cc5ab:## §1 Introduction and Goals|4f6b26ef:## §2 Constraints|39b76cb9:## §3 Context and Scope|74aa736f:## §4 Solution Strategy|9ca8de62:## §5 Building Block View|f1938c56:## §6 Runtime View|65807a21:## §7 Deployment View|a03d508f:## §8 Crosscutting Concepts|b2e1b57c:## §9 Journeys and Chapters|598f3a04:## §10 Architectural Decisions|1f604475:## §11 Quality Requirements|af5f260f:## §12 Risks and Technical Debt|42d51385:## §13 Glossary
+flyway-next-v: none
+
+## Queue
+- [ ] casehubio/neocortex#316 — Issue #316 ← active
+- [ ] casehubio/neocortex#308 — Cognitive Index internals
+- [ ] casehubio/neocortex#309 — MindMap decorators + graph ops
+- [ ] casehubio/neocortex#310 — MindMap intelligence
+- [ ] casehubio/neocortex#307 — Consolidation pipeline
+- [ ] casehubio/neocortex#311 — Agent memory event streams
+- [ ] casehubio/neocortex#312 — Inference + Fusion gaps
+- [ ] casehubio/neocortex#313 — RAG + Cognitive API gaps
+- [ ] casehubio/neocortex#314 — Corpus internals
+- [ ] casehubio/neocortex#315 — Schema generator + CBR gaps
