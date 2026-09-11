@@ -2,7 +2,7 @@
 
 ## State
 branch: issue-319-adaptive-filter-generic
-state: scaffolded
+state: active
 project-sha: 0b7808d945142aaa1508fbd18ab57ffcec7fb5e8
 date: 2026-09-11
 issue-repo: casehubio/neocortex
