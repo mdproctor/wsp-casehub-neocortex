@@ -13,10 +13,10 @@ flyway-next-v: none
 
 ## Queue
 - [ ] casehubio/neocortex#317 — Issue #317 ← active
-  - [ ] Batch 1: Filter+SPI
-    - [ ] Task 1: FeedbackFilter and filtered findFeedback
-  - [ ] Batch 2: SQLite
-    - [ ] Task 2: SqliteRetrievalTracker SQL filtering
-  - [ ] Batch 3: Analyzer
-    - [ ] Task 3: RetrievalAnalyzer filtered overloads
+  - [x] Batch 1: Filter+SPI
+    - [x] Task 1: FeedbackFilter and filtered findFeedback
+  - [x] Batch 2: SQLite
+    - [x] Task 2: SqliteRetrievalTracker SQL filtering
+  - [x] Batch 3: Analyzer
+    - [x] Task 3: RetrievalAnalyzer filtered overloads
 - [ ] casehubio/neocortex#318 — RetrievalAnalyzer context-aware slicing
