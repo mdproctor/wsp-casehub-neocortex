@@ -1,0 +1,4 @@
+{"ts": "2026-09-11T00:00:29.810542+00:00", "mode": "wrap", "action": "user_input", "step": "epic_hygiene", "steps_executed": [], "error": ""}
+{"ts": "2026-09-11T00:00:39.727258+00:00", "mode": "wrap", "action": "wrap_sweep_config", "step": "", "steps_executed": [], "error": ""}
+{"ts": "2026-09-11T00:00:45.346304+00:00", "mode": "wrap", "action": "user_input", "step": "arc42_scan_wrap", "steps_executed": [], "error": ""}
+{"ts": "2026-09-11T00:00:50.121454+00:00", "mode": "wrap", "action": "user_input", "step": "handoff_write", "steps_executed": [], "error": ""}
