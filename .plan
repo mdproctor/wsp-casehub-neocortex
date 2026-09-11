@@ -13,3 +13,6 @@ flyway-next-v: none
 
 ## Queue
 - [ ] casehubio/neocortex#319 — Issue #319 ← active
+  - [ ] Batch 1: Generic filter
+    - [ ] Task 1: AdaptiveFilterOptions + generic filter + tests
+    - [ ] Task 2: Update AdaptiveSearchWrapper call site
