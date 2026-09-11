@@ -12,3 +12,16 @@
 **Sources:** MemoryInput (memory-api), ExperienceEvent (memory-api), ExperienceAttributeKeys, CbrQuery (memory-api), GardenMcpTools (caller with issueRepo/issueNumber)
 **Exploration:** quick
 **Status:** captured
+
+## D2: SPI backward compatibility strategy
+
+**Choice:** Default method bridge — add feedback(id, docId, outcome, context) as new primary; old 3-param signature becomes a default method delegating with null context
+**Alternatives:**
+- Replace in place — clean break but forces all callers to pass null explicitly
+- Both abstract — doubles implementation surface for no benefit
+**Rationale:** Zero breakage for existing implementors and callers. Default method bridge is the standard Java SPI evolution pattern. Implementors override only the 4-param method; old callers continue to work unchanged.
+**Trade-offs:** Leaves a bridge method that slightly increases API surface. Acceptable — it's a standard Java pattern.
+**Sources:** RetrievalTracker SPI (rag-api), SqliteRetrievalTracker, InMemoryRetrievalTracker
+**Exploration:** quick
+**Depends on:** D1 (FeedbackContext type)
+**Status:** captured
