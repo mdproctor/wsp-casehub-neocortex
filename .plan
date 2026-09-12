@@ -2,7 +2,7 @@
 
 ## State
 branch: issue-331-small-fixes
-state: scaffolded
+state: active
 project-sha: 66f1776b379a7c2a9446e740c81164b8d1dc382f
 date: 2026-09-12
 issue-repo: casehubio/neocortex
@@ -13,7 +13,7 @@ flyway-next-v: none
 
 ## Queue
 - [ ] casehubio/neocortex#331 — Issue #331 ← active
-  - [ ] Batch 1: Batch 1
-    - [ ] Task 1: Fix betweennessCentrality NPE #331
-    - [ ] Task 2: Add consolidateNow trigger #323
-    - [ ] Task 3: Add MindMapQuery.withType #294
+  - [x] Batch 1: Batch 1
+    - [x] Task 1: Fix betweennessCentrality NPE #331
+    - [x] Task 2: Add consolidateNow trigger #323
+    - [x] Task 3: Add MindMapQuery.withType #294
