@@ -2,7 +2,7 @@
 
 ## State
 branch: issue-287-social-cognition
-state: transitioning
+state: active
 project-sha: c8c2a706a575fc65e79739ce8d9815104bfb120e
 date: 2026-09-11
 issue-repo: casehubio/neocortex
@@ -10,8 +10,15 @@ covers: 287,271,283
 design-repo: project
 design-section-hashes: 4d2cc5ab:## §1 Introduction and Goals|4f6b26ef:## §2 Constraints|39b76cb9:## §3 Context and Scope|74aa736f:## §4 Solution Strategy|9ca8de62:## §5 Building Block View|f1938c56:## §6 Runtime View|65807a21:## §7 Deployment View|a03d508f:## §8 Crosscutting Concepts|b2e1b57c:## §9 Journeys and Chapters|598f3a04:## §10 Architectural Decisions|1f604475:## §11 Quality Requirements|af5f260f:## §12 Risks and Technical Debt|42d51385:## §13 Glossary
 flyway-next-v: none
+evidence-era: true
 
 ## Queue
 - [x] casehubio/neocortex#287 — Issue #287
 - [x] casehubio/neocortex#271 — multi-agent perspectival queries
 - [x] casehubio/neocortex#283 — cross-domain reasoning
+- [ ] casehubio/neocortex#325 — Example modules epic
+- [ ] casehubio/neocortex#326 — example-cognitive-index
+- [ ] casehubio/neocortex#327 — example-agent-memory
+- [ ] casehubio/neocortex#328 — example-cbr-advanced
+- [ ] casehubio/neocortex#329 — example-rag-analytics
+- [ ] casehubio/neocortex#330 — example-mindmap-intelligence
