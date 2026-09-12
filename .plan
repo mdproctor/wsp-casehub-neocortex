@@ -2,7 +2,7 @@
 
 ## State
 branch: issue-287-social-cognition
-state: active
+state: closing:promoted
 project-sha: c8c2a706a575fc65e79739ce8d9815104bfb120e
 date: 2026-09-11
 issue-repo: casehubio/neocortex
