@@ -13,14 +13,7 @@ flyway-next-v: none
 
 ## Queue
 - [ ] casehubio/neocortex#287 — Issue #287 ← active
-  - [x] Batch 1: Perspective Integration
-    - [x] Task 1: Query and result record changes
-    - [x] Task 2: Internalize PerspectivalResolver
-    - [x] Task 3: CognitiveProfile perspective-aware resolve
-  - [ ] Batch 2: Multi-Agent Comparison
-    - [ ] Task 4: CognitiveProfile batched compare
-    - [ ] Task 5: SocialComparison static utility
-  - [ ] Batch 3: Cross-Domain Reasoning
-    - [ ] Task 6: DomainActivation CDI bean with DTW
+  - [x] Batch 1: Batch 3
+    - [x] Task 1: Task 6: DomainActivation CDI bean with DTW
 - [ ] casehubio/neocortex#271 — multi-agent perspectival queries
 - [ ] casehubio/neocortex#283 — cross-domain reasoning
