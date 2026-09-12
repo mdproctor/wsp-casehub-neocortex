@@ -2,7 +2,7 @@
 
 ## State
 branch: issue-287-social-cognition
-state: scaffolded
+state: active
 project-sha: c8c2a706a575fc65e79739ce8d9815104bfb120e
 date: 2026-09-11
 issue-repo: casehubio/neocortex
@@ -13,10 +13,10 @@ flyway-next-v: none
 
 ## Queue
 - [ ] casehubio/neocortex#287 — Issue #287 ← active
-  - [ ] Batch 1: Perspective Integration
-    - [ ] Task 1: Query and result record changes
-    - [ ] Task 2: Internalize PerspectivalResolver
-    - [ ] Task 3: CognitiveProfile perspective-aware resolve
+  - [x] Batch 1: Perspective Integration
+    - [x] Task 1: Query and result record changes
+    - [x] Task 2: Internalize PerspectivalResolver
+    - [x] Task 3: CognitiveProfile perspective-aware resolve
   - [ ] Batch 2: Multi-Agent Comparison
     - [ ] Task 4: CognitiveProfile batched compare
     - [ ] Task 5: SocialComparison static utility
