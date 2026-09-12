@@ -13,3 +13,7 @@ flyway-next-v: none
 
 ## Queue
 - [ ] casehubio/neocortex#331 — Issue #331 ← active
+  - [ ] Batch 1: Batch 1
+    - [ ] Task 1: Fix betweennessCentrality NPE #331
+    - [ ] Task 2: Add consolidateNow trigger #323
+    - [ ] Task 3: Add MindMapQuery.withType #294
