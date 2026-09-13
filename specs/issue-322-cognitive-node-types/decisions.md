@@ -9,3 +9,15 @@
 **Sources:** TypeRegistry.java, TraitRule.java, MindMapExtractor.java, ThreateningTraitRule.java, RuleCondition.java, DeclarativeRuleRegistry.java
 **Exploration:** deep-analysis
 **Status:** captured
+
+## D2: Subgraph placement — stay in CONCEPT
+
+**Choice:** Cognitive nodes live in the existing CONCEPT subgraph
+**Alternatives:**
+- New COGNITIVE subgraph type — separates propositional attitudes from abstract concepts. Adds a constant to SubgraphTypes + TypeRegistry bootstrap for a philosophy-of-mind distinction with no practical benefit at v1.
+**Rationale:** Concepts and cognitive representations are closely related. Consolidation targets by trait, not subgraph. Trait-filtered analysis is the right path for cognitive-specific trajectories if needed later.
+**Trade-offs:** CONCEPT subgraph becomes a mix of abstract ideas and mental representations. If the distinction matters for downstream consumers, they filter by trait.
+**Sources:** SubgraphTypes.java, TypeRegistry.java (createCoreTypesIfAbsent)
+**Exploration:** quick
+**Depends on:** D1 (compositional traits — subgraph is structural, traits handle classification)
+**Status:** captured
