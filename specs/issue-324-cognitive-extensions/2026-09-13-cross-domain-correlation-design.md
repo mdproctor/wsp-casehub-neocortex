@@ -101,7 +101,7 @@ public record DomainCorrelation(
 ```
 
 - `pValue` from permutation test. `Double.NaN` when not computed (existing subgraph-to-subgraph correlations, or when insufficient data for permutation test).
-- `CorrelationStrength.fromSimilarity()` gains a significance guard: `STRONG`/`MODERATE` require p < 0.05, else downgraded to `WEAK`.
+- `CorrelationStrength.fromSimilarity(double s, double pValue)` new overload with significance guard: `STRONG`/`MODERATE` require p < 0.05, else downgraded to `WEAK`. Existing single-arg `fromSimilarity(double s)` is unchanged (backward compatible).
 
 ### 4. New Value Types
 
@@ -232,7 +232,8 @@ The `correlate()` method is extended, not replaced. After computing existing sub
 
 ## Trade-offs
 
-- **D1:** `activeContextIds` on `MoodState` is a capture pipeline change. Existing callers pass `null` (backward compatible), but new callers at the engine level need to populate it for domain-partitioned correlation to work. Without it, mood correlates agent-globally with all subgraphs.
+- **D1:** `activeContextIds` on `MoodState` is a capture pipeline change. Adding the field to the record constructor breaks 39 existing call sites across neocortex (tests, examples) and blocks (MoodOrchestrator, DriveComposer) — all mechanical migration, passing `null`. New callers at the engine level need to populate it for domain-partitioned correlation to work. Without it, mood correlates agent-globally with all subgraphs.
+- **DomainCorrelation:** Adding `pValue` field breaks 2 existing constructor call sites in `DomainActivation.correlate()` — pass `Double.NaN` for existing subgraph-to-subgraph correlations.
 - **D2:** Event-triggered windows require sufficient affect data around each event. If affect observations are sparse (e.g., > 24h gaps), many events will be skipped. Window size is configurable.
 - **D3:** Two DTW implementations remain (`PadDtw` and `DtwSimilarity`). Intentional — same algorithm, incompatible type interfaces. ~60 lines of duplication avoids coupling cognitive-index to CBR types.
 - **D7:** Per-dimension Δ(affect) produces three values per event instead of one. Consumers choose or combine dimensions.
