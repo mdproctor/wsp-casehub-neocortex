@@ -40,3 +40,16 @@
 **Exploration:** quick
 **Depends on:** D1 (trait interfaces are the compositional axis)
 **Status:** captured
+
+## D4: Trait rule delivery — programmatic + declarative (layered)
+
+**Choice:** Both programmatic Java rules AND declarative YAML rules
+**Alternatives:**
+- Programmatic only — no per-agent customization, no secondary compositional inference without Java code changes
+- Declarative YAML only — no compile-time guarantee that baseline rules exist, inconsistent with every existing trait rule in the codebase (all are programmatic @ApplicationScoped)
+**Rationale:** The two mechanisms serve different purposes in the existing layered architecture. Programmatic rules (6 @ApplicationScoped classes) provide the non-negotiable baseline: `cognitiveKind=X → X-like trait`. Declarative YAML rules (in `rules/cognitive-traits.yaml`) provide secondary compositional inference (e.g., has `timeframe` → also Predictive) and per-agent customization via cognitive profiles. No conflict risk — trait assignment is idempotent (traits are a Set).
+**Trade-offs:** More artifacts (6 Java classes + YAML file) than either approach alone. Acceptable because each layer has a distinct purpose.
+**Sources:** PersonableTraitRule.java, ThreateningTraitRule.java, DeclarativeRuleRegistry.java, DeclarativeTraitRule.java, RuleCondition.java, alice.yaml (cognitive profile with per-agent traitRules)
+**Exploration:** quick
+**Depends on:** D1 (trait rules are the classification mechanism), D3 (properties determine what rules match on)
+**Status:** captured
