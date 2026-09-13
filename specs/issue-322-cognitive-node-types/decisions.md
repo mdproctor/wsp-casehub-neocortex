@@ -62,18 +62,41 @@ Trait naming follows established conventions:
 **Depends on:** D1 (trait rules are the classification mechanism), D3 (properties determine what rules match on)
 **Status:** revised (R1-05: reviewer demonstrated that baseline rules are trivially simple PropertyEquals checks and that the declarative infrastructure already handles this pattern)
 
-## D5: TypeRegistry registration in CognitiveLoader
+## D5: TypeRegistry registration — COGNITIVE parent type in CognitiveLoader
 
-**Choice:** Register cognitive types as subtypes of `concept` in CognitiveLoader's @PostConstruct, alongside existing vocabulary registration
+**Choice:** Register a COGNITIVE parent type as a subtype of GENERAL, then register individual cognitive types (belief, intention, prediction, judgment, fear, desire) as subtypes of COGNITIVE. All registration in CognitiveLoader's @PostConstruct:
+```
+registerType("cognitive", "general", tenantId)   // COGNITIVE as sibling of CONCEPT
+registerType("belief", "cognitive", tenantId)     // cognitive types under COGNITIVE
+registerType("intention", "cognitive", tenantId)
+...
+```
+Resulting type hierarchy:
+```
+GENERAL
+├── PERSON
+├── PROJECT
+├── ORGANISATION
+├── CONCEPT
+├── RESEARCH_AREA
+└── COGNITIVE
+    ├── belief
+    ├── intention
+    ├── prediction
+    ├── judgment
+    ├── fear
+    └── desire
+```
 **Alternatives:**
-- TypeRegistry.createCoreTypesIfAbsent() — makes cognitive types look foundational when they're domain intelligence. Tighter coupling.
+- Register cognitive types as subtypes of `concept` (original D5) — semantically contradicts D2. D2 establishes that cognitive content is fundamentally different from conceptual content (separate subgraph). But `subtypesOf("concept")` would return cognitive types, answering "what kinds of concepts exist?" with beliefs and fears. The RESEARCH_AREA precedent (sibling of CONCEPT, not subtype, despite research areas being arguable concept specializations) confirms: structural categories that warrant their own subgraph should be siblings in the type hierarchy, not children.
+- Add COGNITIVE to `createCoreTypesIfAbsent()` in TypeRegistry — makes the COGNITIVE category foundational. Appropriate IF cognitive types are considered as structurally fundamental as PERSON or CONCEPT. Currently: cognitive types are domain intelligence bootstrapped by CognitiveLoader, not core infrastructure — keep registration in CognitiveLoader.
 - New CognitiveTypeBootstrap bean — single responsibility but a new class for 10 lines of registerType() calls.
-**Rationale:** CognitiveLoader already owns cognitive bootstrap lifecycle. Instance<MindMapStore> graceful degradation already wired. Adding registerType() calls next to registerVocabulary() is natural and keeps all cognitive bootstrap in one place. Note: TypeRegistry type hierarchy placement (cognitive types as subtypes of concept) is independent of entity node subgraph placement (D2). The type hierarchy describes classification taxonomy; subgraph placement describes where entity nodes live in the graph. These are orthogonal concerns — D5 is correct regardless of whether D2 uses CONCEPT or COGNITIVE subgraph.
-**Trade-offs:** CognitiveLoader gains a second responsibility (type registration + vocabulary registration). Acceptable — both are cognitive bootstrap concerns.
-**Sources:** CognitiveLoader.java, TypeRegistry.java (registerType method)
-**Exploration:** quick → revised after review
-**Depends on:** D1 (types registered as metadata)
-**Status:** revised (R1-08: reviewer correctly identified that TypeRegistry placement is orthogonal to entity subgraph placement; dependency on D2 was overstated and removed)
+**Rationale:** The type hierarchy should encode classification semantics consistent with the subgraph model. `subtypesOf("concept")` should return concept specializations; `subtypesOf("cognitive")` should return cognitive types. D2's subgraph separation (COGNITIVE ≠ CONCEPT) must be reflected in the type hierarchy — otherwise downstream consumers that query `subtypesOf()` to understand type relationships will get semantically incorrect answers. CognitiveLoader already owns cognitive bootstrap lifecycle (vocabulary registration, graceful degradation via Instance<MindMapStore>). Adding the COGNITIVE parent type registration alongside individual type registrations keeps all cognitive bootstrap in one place.
+**Trade-offs:** CognitiveLoader gains a second responsibility (type registration + vocabulary registration). Acceptable — both are cognitive bootstrap concerns. COGNITIVE as a type has no java-class association at v1 (a shared CognitiveLike super-interface was rejected in D3 as a god interface).
+**Sources:** CognitiveLoader.java, TypeRegistry.java (registerType, createCoreTypesIfAbsent, subtypesOf)
+**Exploration:** quick → revised twice after review
+**Depends on:** D1 (types registered as metadata), D2 (COGNITIVE subgraph — type hierarchy must be consistent)
+**Status:** revised (R1-08: removed overstated D2 dependency; R2-01: cognitive types registered under COGNITIVE parent instead of concept, aligning type hierarchy with subgraph model)
 
 ## D6: MindMapExtractor prompt — expand type list with separated routing
 
