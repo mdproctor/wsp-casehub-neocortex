@@ -21,3 +21,22 @@
 **Exploration:** quick
 **Depends on:** D1 (compositional traits — subgraph is structural, traits handle classification)
 **Status:** captured
+
+## D3: Trait interface properties — minimal infrastructure-level schemas
+
+**Choice:** Six trait interfaces with 2 properties each, all `Optional<String>`:
+- Belieflike: subject, revised
+- Intentional: goal, viable
+- Predictive: timeframe, validated
+- Evaluative: target, stance
+- Fearful: threat, severity
+- Desirous: aspiration, fulfilled
+**Alternatives:**
+- Richer schemas with 4-6 properties per type — more expressive but crosses into application-level concerns. Consumers can always add custom properties without schema changes.
+- Single shared CognitiveLike interface with all fields — god interface anti-pattern, loses per-type schema derivation.
+**Rationale:** Follows the established pattern (Personable: 4 fields, Eventlike: 4 fields, Organisational: 3 fields). Properties must be meaningful at the infrastructure level (consolidation lifecycle), extractable by LLM, and not application-specific. Boolean-like fields are strings because the property store is Map<String, String>.
+**Trade-offs:** Intentionally thin — applications needing richer schemas add custom properties to nodes directly, outside the trait interface.
+**Sources:** Personable.java, Eventlike.java, Projectlike.java, Organisational.java
+**Exploration:** quick
+**Depends on:** D1 (trait interfaces are the compositional axis)
+**Status:** captured
