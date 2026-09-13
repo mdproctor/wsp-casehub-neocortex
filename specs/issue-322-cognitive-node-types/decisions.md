@@ -53,3 +53,16 @@
 **Exploration:** quick
 **Depends on:** D1 (trait rules are the classification mechanism), D3 (properties determine what rules match on)
 **Status:** captured
+
+## D5: TypeRegistry registration in CognitiveLoader
+
+**Choice:** Register cognitive types as subtypes of `concept` in CognitiveLoader's @PostConstruct, alongside existing vocabulary registration
+**Alternatives:**
+- TypeRegistry.createCoreTypesIfAbsent() — makes cognitive types look foundational when they're domain intelligence. Tighter coupling.
+- New CognitiveTypeBootstrap bean — single responsibility but a new class for 10 lines of registerType() calls.
+**Rationale:** CognitiveLoader already owns cognitive bootstrap lifecycle. Instance<MindMapStore> graceful degradation already wired. Adding registerType() calls next to registerVocabulary() is natural and keeps all cognitive bootstrap in one place.
+**Trade-offs:** CognitiveLoader gains a second responsibility (type registration + vocabulary registration). Acceptable — both are cognitive bootstrap concerns.
+**Sources:** CognitiveLoader.java, TypeRegistry.java (registerType method)
+**Exploration:** quick
+**Depends on:** D1 (types registered as metadata), D2 (subtypes of concept)
+**Status:** captured
