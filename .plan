@@ -2,7 +2,7 @@
 
 ## State
 branch: issue-324-cognitive-extensions
-state: scaffolded
+state: active
 project-sha: 8a8bbd8ccb18547a0ad3287104e6db606c142e58
 date: 2026-09-12
 issue-repo: casehubio/neocortex
@@ -13,10 +13,11 @@ flyway-next-v: none
 
 ## Queue
 - [ ] casehubio/neocortex#324 — Issue #324 ← active
-  - [ ] Batch 1: Batch 1
-    - [ ] Task 1: MoodEvents + ExperienceEvents cross-domain correlation #324
-  - [ ] Batch 2: Batch 2
-    - [ ] Task 2: Cognitive node type classification #322
-  - [ ] Batch 3: Batch 3
-    - [ ] Task 3: Merge detection for duplicate entities #300
-    - [ ] Task 4: Access-frequency tracking retrieval strengthening #298
+  - [ ] Batch 1: MoodState Pipeline
+    - [ ] Task 1: MoodState activeContextIds + MoodEvents + MoodDecay migration
+  - [ ] Batch 2: Algorithm Utilities
+    - [ ] Task 2: PadDtw warping + significance + DomainCorrelation changes
+    - [ ] Task 3: EventTriggeredAnalyzer + value types
+  - [ ] Batch 3: Integration
+    - [ ] Task 4: DomainActivationQuery/Result + mood correlation
+    - [ ] Task 5: Experience correlation + full verification
