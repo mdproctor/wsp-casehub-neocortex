@@ -13,11 +13,11 @@ flyway-next-v: none
 
 ## Queue
 - [ ] casehubio/neocortex#324 — Issue #324 ← active
-  - [ ] Batch 1: MoodState Pipeline
-    - [ ] Task 1: MoodState activeContextIds + MoodEvents + MoodDecay migration
-  - [ ] Batch 2: Algorithm Utilities
-    - [ ] Task 2: PadDtw warping + significance + DomainCorrelation changes
-    - [ ] Task 3: EventTriggeredAnalyzer + value types
-  - [ ] Batch 3: Integration
-    - [ ] Task 4: DomainActivationQuery/Result + mood correlation
-    - [ ] Task 5: Experience correlation + full verification
+  - [x] Batch 1: MoodState Pipeline
+    - [x] Task 1: MoodState activeContextIds + MoodEvents + MoodDecay migration
+  - [x] Batch 2: Algorithm Utilities
+    - [x] Task 2: PadDtw warping + significance + DomainCorrelation changes
+    - [x] Task 3: EventTriggeredAnalyzer + value types
+  - [x] Batch 3: Integration
+    - [x] Task 4: DomainActivationQuery/Result + mood correlation
+    - [x] Task 5: Experience correlation + full verification
