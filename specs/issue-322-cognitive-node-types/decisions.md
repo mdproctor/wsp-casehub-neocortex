@@ -66,3 +66,15 @@
 **Exploration:** quick
 **Depends on:** D1 (types registered as metadata), D2 (subtypes of concept)
 **Status:** captured
+
+## D6: MindMapExtractor prompt — expand type list with cognitive-to-concept mapping
+
+**Choice:** Add BELIEF|INTENTION|PREDICTION|JUDGMENT|FEAR|DESIRE to the extraction type list. Extractor maps cognitive types to CONCEPT subgraph and sets `cognitiveKind` property from the extracted type.
+**Alternatives:**
+- Separate `cognitiveKind` field in extraction schema — doubles classification burden on the LLM, risks inconsistency between type and cognitiveKind fields. More invasive change to ExtractionJsonParser.
+**Rationale:** LLM naturally classifies by primary category in a single step. normalizeType() gets a small lookup (cognitive types → concept for subgraph routing) and applyExtraction() sets `cognitiveKind` from the original extracted type before normalization. One classification step, clean mapping.
+**Trade-offs:** normalizeType() gains routing logic beyond simple lowercasing. Acceptable — it's a small static set.
+**Sources:** MindMapExtractor.java (SYSTEM_PROMPT, normalizeType, applyExtraction), ExtractionJsonParser.java
+**Exploration:** quick
+**Depends on:** D1 (cognitiveKind property is the discriminator), D2 (route to CONCEPT subgraph)
+**Status:** captured
