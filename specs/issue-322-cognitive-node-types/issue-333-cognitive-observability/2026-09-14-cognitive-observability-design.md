@@ -22,7 +22,7 @@ The system builds on existing foundations:
 
 | Module | Purpose | Dependencies |
 |--------|---------|-------------|
-| `cognitive-observability` | Domain logic, GraphQL resolvers (@McpDomain), mutation types, serialization | cognitive-index, mindmap-api, memory-api, platform-api |
+| `cognitive-observability` | Domain logic, GraphQL resolvers (@McpDomain), mutation types, serialization | cognitive-index, cognitive-api, mindmap-api, mindmap-runtime, memory-api, platform-api |
 | `cognitive-observability-sqlite` | SQLite SnapshotStore implementation | cognitive-observability, HikariCP, Flyway |
 | `cognitive-observability-testing` | SnapshotStoreContractTest abstract base, InMemorySnapshotStore | cognitive-observability |
 
@@ -37,6 +37,10 @@ The system builds on existing foundations:
 (in cognitive-observability, classpath-activated) captures all mutations
 automatically (D1). `MutationContext` lives in mindmap-api so both the
 decorator and callers can reference it without circular dependencies.
+
+**Module dependency rationale:**
+- `cognitive-api` — `Confidence` record used in GraphMutation.NodeAdded
+- `mindmap-runtime` — `MindMapAnalyzer` (9 static analysis methods) used by `cognition_health`
 
 ## Layer 1: Live View
 
@@ -80,14 +84,25 @@ public EntityKnowledge entity(
     @Name("tenantId") String tenantId,
     @Name("entityName") @Nullable String entityName,
     @Name("nodeId") @Nullable String nodeId,
+    @Name("subgraphId") @Nullable String subgraphId,
     @Name("includeMemories") @DefaultValue("true") boolean includeMemories,
     @Name("memoryLimit") @DefaultValue("10") int memoryLimit
 ) { ... }
 ```
 
 Implementation: delegates to `CognitiveProfile.resolve()` with
-`CognitiveProfileQuery`. Returns `EntityKnowledge` directly — it already
-contains node, edges, memories, affect trajectory, unresolved refs.
+`CognitiveProfileQuery`. When `entityName` is provided with a `subgraphId`,
+uses `CognitiveProfileQuery.byName(entityName, subgraphId, tenantId)` for
+precise resolution; without `subgraphId`, uses
+`CognitiveProfileQuery.byName(entityName, tenantId)` which resolves across
+all subgraphs (both InMemoryMindMapStore and SqliteMindMapStore support
+cross-subgraph resolution via null subgraphId).
+
+Returns `EntityKnowledge` directly — it already contains node, edges,
+memories, affect trajectory, unresolved refs. When the entity is not found
+(`CognitiveProfile.resolve()` returns `Optional.empty()`), returns a
+structured "not found" result with entityName/nodeId echoed back and null
+fields, rather than throwing an error.
 
 ### cognition_health
 
@@ -135,13 +150,18 @@ public sealed interface GraphMutation {
     Instant timestamp();
     String source();  // e.g. "consolidation:MergeDetectionPhase", "conversation-bridge", "extraction", "manual"
 
+    // --- Node mutations ---
+
     record NodeAdded(String nodeId, String name, String subgraphId,
                      Confidence confidence, Instant timestamp, String source) implements GraphMutation {}
 
-    record NodeRemoved(String nodeId, Instant timestamp, String source) implements GraphMutation {}
-
-    record NodeUpdated(String nodeId, Map<String, FieldChange> changes,
+    record NodeUpdated(String nodeId, String subgraphId, Map<String, FieldChange> changes,
                        Instant timestamp, String source) implements GraphMutation {}
+
+    record NodeErased(String nodeId, String subgraphId, int edgesCascaded,
+                      Instant timestamp, String source) implements GraphMutation {}
+
+    // --- Edge mutations ---
 
     record EdgeAdded(String edgeId, String sourceNodeId, String targetNodeId,
                      String edgeType, Confidence confidence,
@@ -150,17 +170,46 @@ public sealed interface GraphMutation {
     record EdgeRemoved(String edgeId, String sourceNodeId, String targetNodeId,
                        String edgeType, Instant timestamp, String source) implements GraphMutation {}
 
-    record NodesMerged(String survivorId, Set<String> absorbedIds,
+    // --- Merge / supersession ---
+
+    record NodesMerged(String survivorId, String absorbedId,
                        List<MergeConflict> conflictsResolved,
                        Instant timestamp, String source) implements GraphMutation {}
 
     record NodeSuperseded(String supersededId, String supersedingId,
                           String reason, Instant timestamp, String source) implements GraphMutation {}
+
+    record NodeReinstated(String nodeId, Instant timestamp, String source) implements GraphMutation {}
+
+    // --- Alias mutations ---
+
+    record AliasAdded(String nodeId, String alias,
+                      Instant timestamp, String source) implements GraphMutation {}
+
+    record AliasRemoved(String nodeId, String alias,
+                        Instant timestamp, String source) implements GraphMutation {}
+
+    // --- Subgraph mutations ---
+
+    record SubgraphCreated(String subgraphId, String name, String type,
+                           Instant timestamp, String source) implements GraphMutation {}
+
+    record SubgraphErased(String subgraphId, int nodesErased,
+                          Instant timestamp, String source) implements GraphMutation {}
+
+    // --- Bulk erasure ---
+
+    record EntityErased(String entityName, int nodesAffected,
+                        Instant timestamp, String source) implements GraphMutation {}
 }
 ```
 
 **FieldChange** record: `(String field, Object oldValue, Object newValue)` — captures
 before/after for updated fields (confidence, PAD dimensions, properties, traits).
+
+**NodesMerged** uses singular `absorbedId` matching the `MindMapStore.mergeNodes(keepNodeId, removeNodeId, tenantId)` API which merges exactly one pair. `conflictsResolved` comes from `MergeResult.propertyConflicts()`.
+
+**Intentionally excluded:** `eraseEntityAcrossTenants` — this cross-tenant operation calls `eraseEntity` per tenant internally, so each tenant-scoped erasure is captured individually via `EntityErased`. `updateSubgraph` changes only the root node pointer, which is not a graph topology change — it's metadata on the subgraph container.
 
 ### MutationContext (mindmap-api)
 
@@ -180,40 +229,179 @@ public final class MutationContext {
 
 ### MutationTrackingDecorator (D8)
 
-`@Decorator @Priority(20)` on `MindMapStore` in the `cognitive-observability`
-module. Classpath-activated — when cognitive-observability is on the classpath,
-the decorator is active; when absent, no tracking. Same pattern as
-`memory-cbr-crossencoder`'s reranking decorator.
+Two-class split following the established codebase convention (same pattern
+as AffectTrajectoryDecorator + AffectTrajectoryCdiDecorator,
+TraitApplicationDecorator + TraitApplicationCdiDecorator):
 
-Low priority — runs after all domain decorators (DerivedEdge @80,
-AffectTrajectory @65, ConfidenceDecay, Vocabulary).
+**Runtime class** — `MutationTrackingDecorator extends AbstractForwardingMindMapStore`
+in `cognitive-observability`. Framework-neutral, unit-testable without CDI.
+
+**CDI wiring class** — `MutationTrackingCdiDecorator extends MutationTrackingDecorator`
+with `@Decorator @Priority(20)` in `cognitive-observability`. Classpath-activated —
+when cognitive-observability is on the classpath, the decorator is active; when
+absent, no tracking.
+
+`@Priority(20)` — runs closest to the bean, after all domain decorators.
+Active CDI decorators in the chain: TraitApplication `@Priority(70)`,
+AffectTrajectory `@Priority(65)`. (ConfidenceDecay and VocabularyNormalization
+are runtime-only decorators with no CDI variants. DerivedEdgeCdiDecorator
+lacks `@Decorator` annotation and is not currently active in the CDI chain.)
 
 ```java
-@Decorator
-@Priority(20)
-public class MutationTrackingDecorator implements MindMapStore {
+// Runtime class — cognitive-observability module
+public class MutationTrackingDecorator extends AbstractForwardingMindMapStore {
 
-    @Inject @Delegate MindMapStore delegate;
-    @Inject Event<GraphMutationRecorded> mutationEvent;
-    @Inject Instance<SnapshotStore> snapshotStore;
+    private final SnapshotStore snapshotStore;  // nullable
+    private final Consumer<GraphMutationRecorded> eventSink;
+
+    public MutationTrackingDecorator(MindMapStore delegate,
+                                      SnapshotStore snapshotStore,
+                                      Consumer<GraphMutationRecorded> eventSink) {
+        super(delegate);
+        this.snapshotStore = snapshotStore;
+        this.eventSink = eventSink;
+    }
 
     @Override
-    public MindMapNode addNode(NodeInput input, String tenantId) {
-        MindMapNode result = delegate.addNode(input, tenantId);
+    public String addNode(NodeInput input, String tenantId) {
+        String nodeId = delegate().addNode(input, tenantId);
         persistMutation(new GraphMutation.NodeAdded(
-            result.id(), result.name(), input.subgraphId(),
-            result.confidence(), Instant.now(), MutationContext.get()), tenantId);
+            nodeId, input.name(), input.subgraphId(),
+            input.confidence(), Instant.now(), MutationContext.get()), tenantId);
+        return nodeId;
+    }
+
+    @Override
+    public void updateNode(String nodeId, NodeUpdate update, String tenantId) {
+        // Pre-read to capture old values for FieldChange (same pattern as AffectTrajectoryDecorator)
+        MindMapNode before = delegate().getNode(nodeId, tenantId);
+        delegate().updateNode(nodeId, update, tenantId);
+        Map<String, FieldChange> changes = FieldChange.diff(before, update);
+        if (!changes.isEmpty()) {
+            String subgraphId = before != null ? before.subgraphId() : null;
+            persistMutation(new GraphMutation.NodeUpdated(
+                nodeId, subgraphId, changes, Instant.now(), MutationContext.get()), tenantId);
+        }
+    }
+
+    @Override
+    public String addEdge(EdgeInput input, String tenantId) {
+        String edgeId = delegate().addEdge(input, tenantId);
+        persistMutation(new GraphMutation.EdgeAdded(
+            edgeId, input.sourceNodeId(), input.targetNodeId(),
+            input.edgeType(), input.confidence(),
+            Instant.now(), MutationContext.get()), tenantId);
+        return edgeId;
+    }
+
+    @Override
+    public void removeEdge(String edgeId, String tenantId) {
+        MindMapEdge edge = delegate().getEdge(edgeId, tenantId);
+        delegate().removeEdge(edgeId, tenantId);
+        if (edge != null) {
+            persistMutation(new GraphMutation.EdgeRemoved(
+                edgeId, edge.sourceNodeId(), edge.targetNodeId(),
+                edge.edgeType(), Instant.now(), MutationContext.get()), tenantId);
+        }
+    }
+
+    @Override
+    public int eraseNode(String nodeId, String tenantId) {
+        MindMapNode node = delegate().getNode(nodeId, tenantId);
+        int affected = delegate().eraseNode(nodeId, tenantId);
+        String subgraphId = node != null ? node.subgraphId() : null;
+        persistMutation(new GraphMutation.NodeErased(
+            nodeId, subgraphId, affected - 1,  // affected includes the node itself
+            Instant.now(), MutationContext.get()), tenantId);
+        return affected;
+    }
+
+    @Override
+    public MergeResult mergeNodes(String keepNodeId, String removeNodeId, String tenantId) {
+        MergeResult result = delegate().mergeNodes(keepNodeId, removeNodeId, tenantId);
+        persistMutation(new GraphMutation.NodesMerged(
+            result.survivingNodeId(), removeNodeId,
+            result.propertyConflicts(),
+            Instant.now(), MutationContext.get()), tenantId);
         return result;
     }
 
-    // Similar interception for updateNode, removeNode, addEdge, removeEdge, mergeNodes, supersede
+    @Override
+    public void supersede(String targetId, String supersedingId, String reason, String tenantId) {
+        delegate().supersede(targetId, supersedingId, reason, tenantId);
+        persistMutation(new GraphMutation.NodeSuperseded(
+            targetId, supersedingId, reason,
+            Instant.now(), MutationContext.get()), tenantId);
+    }
+
+    @Override
+    public void reinstate(String targetId, String tenantId) {
+        delegate().reinstate(targetId, tenantId);
+        persistMutation(new GraphMutation.NodeReinstated(
+            targetId, Instant.now(), MutationContext.get()), tenantId);
+    }
+
+    @Override
+    public void addAlias(String nodeId, String alias, String tenantId) {
+        delegate().addAlias(nodeId, alias, tenantId);
+        persistMutation(new GraphMutation.AliasAdded(
+            nodeId, alias, Instant.now(), MutationContext.get()), tenantId);
+    }
+
+    @Override
+    public void removeAlias(String nodeId, String alias, String tenantId) {
+        delegate().removeAlias(nodeId, alias, tenantId);
+        persistMutation(new GraphMutation.AliasRemoved(
+            nodeId, alias, Instant.now(), MutationContext.get()), tenantId);
+    }
+
+    @Override
+    public String createSubgraph(SubgraphInput input, String tenantId) {
+        String subgraphId = delegate().createSubgraph(input, tenantId);
+        persistMutation(new GraphMutation.SubgraphCreated(
+            subgraphId, input.name(), input.type(),
+            Instant.now(), MutationContext.get()), tenantId);
+        return subgraphId;
+    }
+
+    @Override
+    public int eraseSubgraph(String subgraphId, String tenantId) {
+        int affected = delegate().eraseSubgraph(subgraphId, tenantId);
+        persistMutation(new GraphMutation.SubgraphErased(
+            subgraphId, affected, Instant.now(), MutationContext.get()), tenantId);
+        return affected;
+    }
+
+    @Override
+    public int eraseEntity(String entityName, String tenantId) {
+        int affected = delegate().eraseEntity(entityName, tenantId);
+        persistMutation(new GraphMutation.EntityErased(
+            entityName, affected, Instant.now(), MutationContext.get()), tenantId);
+        return affected;
+    }
 
     private void persistMutation(GraphMutation mutation, String tenantId) {
-        // Persist immediately via SnapshotStore (if available)
-        snapshotStore.stream().findFirst().ifPresent(store ->
-            store.storeMutation(tenantId, mutation));
-        // Fire CDI event
-        mutationEvent.fire(new GraphMutationRecorded(tenantId, mutation));
+        if (snapshotStore != null) {
+            snapshotStore.storeMutation(tenantId, mutation);
+        }
+        eventSink.accept(new GraphMutationRecorded(tenantId, mutation));
+    }
+}
+```
+
+```java
+// CDI wiring class — cognitive-observability module
+@Decorator
+@Priority(20)
+public class MutationTrackingCdiDecorator extends MutationTrackingDecorator {
+
+    @Inject
+    public MutationTrackingCdiDecorator(@Delegate @Any MindMapStore delegate,
+                                         Instance<SnapshotStore> snapshotStore,
+                                         Event<GraphMutationRecorded> event) {
+        super(delegate,
+              snapshotStore.isResolvable() ? snapshotStore.get() : null,
+              event::fire);
     }
 }
 ```
@@ -221,37 +409,87 @@ public class MutationTrackingDecorator implements MindMapStore {
 No explicit flush needed. Each mutation is persisted immediately. No buffer,
 no caller coupling. The decorator is self-contained.
 
+**Subgraph attribution strategy:** `addNode` and `createSubgraph` get subgraphId
+from the input. `updateNode` and `eraseNode` get subgraphId from the pre-read
+(no extra cost — the pre-read is already needed for FieldChange or cascade count).
+Operations without a natural pre-read (`removeEdge`, `addEdge`) get subgraphId
+from the edge's source/target nodes only when a pre-read is already happening;
+otherwise subgraph_id is null in the mutations table and queries handle it
+accordingly.
+
 **CDI event:** `GraphMutationRecorded(String tenantId, GraphMutation mutation, Instant timestamp)`
 
 ### MutationContext integration
 
-CallerS set `MutationContext` via the shared ThreadLocal in mindmap-api.
-No import of the decorator needed.
+Callers set `MutationContext` via the shared ThreadLocal in mindmap-api.
+No import of the decorator needed. Each entry point that calls MindMapStore
+is responsible for setting its own context — no thread propagation needed.
+
+**Thread safety constraint:** `MutationContext` uses `ThreadLocal`, which is
+correct for the current architecture where all MindMapStore operations execute
+synchronously on the calling thread. ConsolidationScheduler uses a
+single-threaded `ScheduledExecutorService`, and ConversationBridge processes
+synchronously on the request thread. If future work dispatches MindMapStore
+calls to virtual threads or async executors, each async entry point must set
+its own MutationContext (as ExtractionRequestedObserver already does — see below).
 
 ConsolidationScheduler changes (in mindmap-intelligence):
 
 ```java
-// In tick(), before each phase:
+// In tick() — MutationContext wraps inside the tenant loop, around each phase:
+for (String tenantId : memoryStore.discoverTenants(null, null)) {
+    List<String> priority = subgraphPriority(tenantId);
+    for (ConsolidationPhase phase : phases) {
+        MutationContext.set("consolidation:" + phase.name());
+        try {
+            phase.run(tenantId, priority);
+        } catch (Exception e) {
+            LOG.log(Level.WARNING, "Phase " + phase.name()
+                + " failed for tenant " + tenantId, e);
+        } finally {
+            MutationContext.clear();
+        }
+    }
+}
+// Note: AccessFrequencyPhase.beginTick() runs BEFORE the tenant loop — no MutationContext needed there
+
+// In consolidateNow(tenantId) — same wrapping:
 for (ConsolidationPhase phase : phases) {
     MutationContext.set("consolidation:" + phase.name());
     try {
         phase.run(tenantId, priority);
-    } finally {
-        MutationContext.clear();
-    }
+    } catch (Exception e) { ... }
+    finally { MutationContext.clear(); }
 }
-// Fire completion event for keyframe triggering
-consolidationCompletedEvent.fire(new ConsolidationCompleted(tenantId, phaseResults, duration));
+
+// After all tenants processed in tick(), or after single tenant in consolidateNow():
+consolidationCompletedEvent.fire(new ConsolidationCompleted(tenantId, completedPhaseNames, duration));
 ```
 
 ConversationBridge changes (in mindmap-intelligence):
 
 ```java
-public List<MindMapNode> process(String text, String tenantId, ...) {
+public SegmentationResult process(String cleanedText, String tenantId,
+                                   List<String> recentEntityNames,
+                                   Object principalId) {
     MutationContext.set("conversation-bridge");
     try {
         // ... existing processing ...
-        return nodes;
+        return new SegmentationResult(createdNodeIds, segments.size());
+    } finally {
+        MutationContext.clear();
+    }
+}
+```
+
+ExtractionRequestedObserver changes (in mindmap-intelligence):
+
+```java
+// @ObservesAsync runs on a different thread — sets its own MutationContext
+public void onExtractionRequested(@ObservesAsync ExtractionRequested event) {
+    MutationContext.set("extraction");
+    try {
+        // ... existing extraction + supersede logic ...
     } finally {
         MutationContext.clear();
     }
@@ -269,7 +507,9 @@ observes `ConsolidationCompleted` CDI event. After each consolidation run:
 
 `ConsolidationCompleted` CDI event added to mindmap-intelligence:
 ```java
-public record ConsolidationCompleted(String tenantId, Duration duration) {}
+public record ConsolidationCompleted(String tenantId,
+                                      List<String> completedPhases,
+                                      Duration duration) {}
 ```
 
 ### GraphSnapshot model (D4)
@@ -313,13 +553,23 @@ referenced node belongs to the queried subgraph.
 
 ```java
 public interface SnapshotStore {
+    // --- Mutation storage ---
     void storeMutation(String tenantId, GraphMutation mutation);
-    void storeKeyframe(GraphSnapshot keyframe);
     List<GraphMutation> findMutations(String tenantId, String subgraphId, Instant from, Instant to);
     List<GraphMutation> findMutationsForEntity(String tenantId, String nodeId, Instant from, Instant to);
+
+    // --- Keyframe storage ---
+    void storeKeyframe(GraphSnapshot keyframe);
     GraphSnapshot reconstruct(String tenantId, String subgraphId, Instant pointInTime);
     Optional<GraphSnapshot> latestKeyframe(String tenantId, String subgraphId);
     long mutationCountSinceKeyframe(String tenantId, String subgraphId);
+
+    // --- Consolidation audit log ---
+    void storeAuditEntry(ConsolidationAuditEntry entry);
+    List<ConsolidationAuditEntry> findAuditEntries(String tenantId, Instant from, Instant to);
+    Optional<Instant> lastConsolidationTime(String tenantId);
+
+    // --- Lifecycle ---
     void purge(SnapshotRetentionPolicy policy);
     long count(String tenantId);
 }
@@ -327,7 +577,13 @@ public interface SnapshotStore {
 
 **SnapshotRetentionPolicy:** `record SnapshotRetentionPolicy(Duration maxAge, String tenantId)`
 Default: 90 days, configurable via `casehub.mindmap.snapshots.retention.days`.
-Purge scheduled every 24h (ScheduledExecutorService daemon thread).
+
+**Purge scheduling:** Purge runs as an observer on `ConsolidationCompleted` inside
+`SnapshotCaptureService`. On each consolidation completion, the service checks if
+24 hours have elapsed since the last purge (tracked via a volatile `lastPurgeTime`
+field). This avoids a separate `ScheduledExecutorService` and reuses the
+consolidation scheduler's existing lifecycle. The purge itself is synchronous and
+lightweight (single SQL DELETE with timestamp predicate).
 
 **Keyframe promotion (D7):** After storing a delta, check delta count since
 last keyframe. If >= `casehub.mindmap.snapshots.keyframe-interval` (default 10),
@@ -369,6 +625,17 @@ CREATE TABLE keyframes (
 
 CREATE INDEX idx_keyframes_tenant_subgraph_time
     ON keyframes(tenant_id, subgraph_id, captured_at);
+
+CREATE TABLE audit_entries (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL,
+    started_at TEXT NOT NULL,
+    completed_at TEXT NOT NULL,
+    data TEXT NOT NULL           -- JSON blob of ConsolidationAuditEntry
+);
+
+CREATE INDEX idx_audit_tenant_time
+    ON audit_entries(tenant_id, completed_at);
 ```
 
 WAL mode, HikariCP connection pool, Flyway migrations. Same patterns as
@@ -400,13 +667,15 @@ public GraphDiffResult diff(
 ```
 
 **GraphDiffResult:**
-- mutations: filtered List<GraphMutation> from SnapshotStore.findDeltas()
-- summary: aggregate counts (nodesAdded, nodesRemoved, nodesUpdated, edgesAdded, edgesRemoved, merges, supersessions)
+- mutations: filtered `List<GraphMutation>` from `SnapshotStore.findMutations()`
+- summary: aggregate counts (nodesAdded, nodesErased, nodesUpdated, edgesAdded, edgesRemoved, merges, supersessions, reinstated)
 - timeRange: actual from/to after resolution
 
-If `from` is null, defaults to last consolidation run. If `subgraphId` is null,
-returns deltas across all subgraphs. `source` filter matches mutation source tags
-(e.g., "consolidation:*", "conversation-bridge").
+If `from` is null, defaults to the last consolidation completion timestamp
+(retrieved via `SnapshotStore.lastConsolidationTime(tenantId)`). If no
+consolidation has run, defaults to 24 hours ago. If `subgraphId` is null,
+returns mutations across all subgraphs. `source` filter matches mutation source
+tags (e.g., "consolidation:*", "conversation-bridge").
 
 ### cognition_trace
 
@@ -419,6 +688,7 @@ public EntityTrace trace(
     @Name("tenantId") String tenantId,
     @Name("entityName") @Nullable String entityName,
     @Name("nodeId") @Nullable String nodeId,
+    @Name("subgraphId") @Nullable String subgraphId,
     @Name("from") @Nullable String from,
     @Name("to") @Nullable String to
 ) { ... }
@@ -432,13 +702,13 @@ public EntityTrace trace(
 
 **TraceEvent:** wraps a GraphMutation with additional context:
 - mutation: the GraphMutation record
-- type: enum (CREATED, UPDATED, MERGED_INTO, MERGED_FROM, SUPERSEDED, SUPERSEDED_BY, DELETED)
+- type: enum (CREATED, UPDATED, MERGED_INTO, MERGED_FROM, SUPERSEDED, SUPERSEDED_BY, REINSTATED, ERASED, ALIAS_ADDED, ALIAS_REMOVED)
 - relatedEntities: node IDs of other entities involved (merge partner, superseding node, etc.)
 
-Implementation: queries SnapshotStore.findDeltas() for the time range, filters
-mutations that reference the target entity's node ID (including as absorbedId
-in merges, or supersededId in supersessions). Resolves entity by name via
-MindMapStore if nodeId not provided.
+Implementation: queries `SnapshotStore.findMutationsForEntity(tenantId, nodeId, from, to)`
+directly — the SPI already provides entity-scoped queries, so no post-filtering needed.
+Resolves entity by name via MindMapStore if nodeId not provided (using `subgraphId`
+if supplied for precise resolution).
 
 ### Consolidation audit log
 
@@ -461,8 +731,10 @@ public record PhaseAuditEntry(
 ) {}
 ```
 
-Stored via SnapshotStore alongside graph snapshots. Queryable by `cognition_diff`
-to correlate mutations with consolidation phases.
+Stored via `SnapshotStore.storeAuditEntry()`, queryable via
+`SnapshotStore.findAuditEntries(tenantId, from, to)`. Used by `cognition_diff`
+to correlate mutations with consolidation phases, and by
+`SnapshotStore.lastConsolidationTime()` for cognition_diff's default `from`.
 
 ## Configuration
 
@@ -488,9 +760,9 @@ Three child issues:
 
 ### Child 2: Layer 2 — Snapshot + Delta Infrastructure (L / Med)
 - MutationContext ThreadLocal holder in mindmap-api
-- GraphMutation sealed hierarchy + FieldChange in cognitive-observability
-- MutationTrackingDecorator on MindMapStore in cognitive-observability (classpath-activated)
-- MutationContext integration (ConsolidationScheduler, ConversationBridge, ExtractionRequestedObserver)
+- GraphMutation sealed hierarchy (14 mutation types) + FieldChange in cognitive-observability
+- MutationTrackingDecorator + MutationTrackingCdiDecorator on MindMapStore in cognitive-observability (classpath-activated)
+- MutationContext integration (ConsolidationScheduler tick() + consolidateNow(), ConversationBridge, ExtractionRequestedObserver)
 - ConsolidationCompleted CDI event in mindmap-intelligence
 - GraphSnapshot, NodeSnapshot, EdgeSnapshot types
 - SnapshotStore SPI + SnapshotRetentionPolicy
@@ -511,11 +783,12 @@ Three child issues:
 - k-core community detection includes synthetic Summary-trait nodes — filter them in cognition_health (GE-20260910-2a660e)
 - Synthetic container nodes cause false integrity mismatches — exclude from orphan detection (GE-20260805-aa8a88)
 - Never write to graph during tick loop — all observability tools are read-only (GE-20260912-be7c74)
-- MutationTrackingDecorator @Priority(20) — must run AFTER all domain decorators so it captures the final mutation, not intermediate states
+- MutationTrackingCdiDecorator @Priority(20) — lowest priority = runs closest to the bean, after TraitApplication(@70) and AffectTrajectory(@65), so it captures the final mutation
+- MutationContext uses ThreadLocal — correct for current synchronous architecture; async entry points (ExtractionRequestedObserver) must set their own context
 
 ## References
 
-- MindMapAnalyzer — `mindmap-runtime/src/main/java/.../MindMapAnalyzer.java`
+- MindMapAnalyzer — `mindmap-runtime/src/main/java/.../runtime/MindMapAnalyzer.java`
 - CognitiveProfile — `cognitive-index/src/main/java/.../CognitiveProfile.java`
 - ConsolidationScheduler — `mindmap-intelligence/src/main/java/.../consolidation/ConsolidationScheduler.java`
 - ConsolidationPhase SPI — `mindmap-intelligence/src/main/java/.../consolidation/ConsolidationPhase.java`
