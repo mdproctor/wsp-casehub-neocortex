@@ -13,24 +13,4 @@ flyway-next-v: none
 
 ## Queue
 - [x] casehubio/neocortex#322 — Issue #322
-- [ ] casehubio/neocortex#333 — epic: cognitive observability ← active
-  - [x] Batch 1: Layer1-LiveView
-    - [x] Task 1: CognitionInspectResult type
-    - [x] Task 2: CognitionInspectService
-    - [x] Task 3: GraphHealthReport + CognitionHealthService
-    - [x] Task 4: GraphSerializer
-    - [x] Task 5: GraphQL resolvers
-    - [x] Task 6: Build verification
-  - [x] Batch 2: Layer2-Infrastructure
-    - [x] Task 7: MutationContext
-    - [x] Task 8: GraphMutation sealed hierarchy
-    - [x] Task 9: SnapshotStore SPI + types
-    - [x] Task 10: MutationTrackingDecorator
-    - [x] Task 11: CDI decorator + ConsolidationCompleted
-    - [x] Task 12: InMemorySnapshotStore + contract test
-    - [x] Task 13: SQLite SnapshotStore
-    - [x] Task 14: SnapshotCaptureService
-  - [x] Batch 3: Layer3-Temporal
-    - [x] Task 15: CognitionDiffService
-    - [x] Task 16: CognitionTraceService
-    - [x] Task 17: GraphQL resolvers + build verification
+- [x] casehubio/neocortex#333 — epic: cognitive observability
