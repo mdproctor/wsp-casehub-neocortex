@@ -12,12 +12,25 @@ design-section-hashes: 4d2cc5ab:## §1 Introduction and Goals|4f6b26ef:## §2 Co
 flyway-next-v: none
 
 ## Queue
-- [ ] casehubio/neocortex#322 — Issue #322 ← active
-  - [x] Batch 1: Foundation
-    - [x] Task 1: COGNITIVE constant + 6 trait interfaces
-    - [x] Task 2: Declarative YAML rules + compositionality tests
-  - [x] Batch 2: Type Hierarchy
-    - [x] Task 3: CognitiveLoader type registration + schema
-  - [x] Batch 3: Extractor
-    - [x] Task 4: MindMapExtractor prompt + routing + cognitiveKind
-- [ ] casehubio/neocortex#333 — epic: cognitive observability
+- [x] casehubio/neocortex#322 — Issue #322
+- [ ] casehubio/neocortex#333 — epic: cognitive observability ← active
+  - [ ] Batch 1: Layer1-LiveView
+    - [ ] Task 1: CognitionInspectResult type
+    - [ ] Task 2: CognitionInspectService
+    - [ ] Task 3: GraphHealthReport + CognitionHealthService
+    - [ ] Task 4: GraphSerializer
+    - [ ] Task 5: GraphQL resolvers
+    - [ ] Task 6: Build verification
+  - [ ] Batch 2: Layer2-Infrastructure
+    - [ ] Task 7: MutationContext
+    - [ ] Task 8: GraphMutation sealed hierarchy
+    - [ ] Task 9: SnapshotStore SPI + types
+    - [ ] Task 10: MutationTrackingDecorator
+    - [ ] Task 11: CDI decorator + ConsolidationCompleted
+    - [ ] Task 12: InMemorySnapshotStore + contract test
+    - [ ] Task 13: SQLite SnapshotStore
+    - [ ] Task 14: SnapshotCaptureService
+  - [ ] Batch 3: Layer3-Temporal
+    - [ ] Task 15: CognitionDiffService
+    - [ ] Task 16: CognitionTraceService
+    - [ ] Task 17: GraphQL resolvers + build verification
