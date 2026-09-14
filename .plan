@@ -2,7 +2,7 @@
 
 ## State
 branch: issue-335-cognitive-schema-flywheel
-state: active
+state: closing:promoted
 project-sha: 83ad681cc4152069bb63bd3ad697b653f8f50e47
 date: 2026-09-14
 issue-repo: casehubio/neocortex
@@ -11,6 +11,7 @@ design-repo: project
 design-section-hashes: 
 flyway-next-v: none
 
+evidence-era: true
 ## Queue
 - [ ] casehubio/neocortex#335 — Issue #335 ← active
   - [x] Batch 1: SchemaField+Provenance
