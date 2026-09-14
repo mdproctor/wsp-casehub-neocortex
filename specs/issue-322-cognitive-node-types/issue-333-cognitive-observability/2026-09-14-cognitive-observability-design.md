@@ -22,7 +22,7 @@ The system builds on existing foundations:
 
 | Module | Purpose | Dependencies |
 |--------|---------|-------------|
-| `cognitive-observability` | Domain logic, GraphQL resolvers (@McpDomain), mutation types, serialization | cognitive-index, cognitive-api, mindmap-api, mindmap-runtime, memory-api, platform-api |
+| `cognitive-observability` | Domain logic, GraphQL resolvers (@McpDomain), mutation types, serialization | cognitive-index, cognitive-api, mindmap-api, mindmap-core, memory-api, platform-api |
 | `cognitive-observability-sqlite` | SQLite SnapshotStore implementation | cognitive-observability, HikariCP, Flyway |
 | `cognitive-observability-testing` | SnapshotStoreContractTest abstract base, InMemorySnapshotStore | cognitive-observability |
 
@@ -40,7 +40,7 @@ decorator and callers can reference it without circular dependencies.
 
 **Module dependency rationale:**
 - `cognitive-api` — `Confidence` record used in GraphMutation.NodeAdded
-- `mindmap-runtime` — `MindMapAnalyzer` (9 static analysis methods) used by `cognition_health`
+- `mindmap-core` — `MindMapAnalyzer` (9 static analysis methods) used by `cognition_health`
 
 ## Layer 1: Live View
 
@@ -130,6 +130,18 @@ public GraphHealthReport health(
 
 Implementation: wraps MindMapAnalyzer static methods. No persistence dependency.
 
+**Null subgraphId behavior:** When `subgraphId` is null, iterates over
+`store.listSubgraphs(tenantId)` and runs each analyzer method per subgraph.
+Results are aggregated into a single `GraphHealthReport`:
+- orphanNodes, contradictions, staleNodes: concatenated across subgraphs
+- density: list of `SparseSubgraph` results (one per subgraph — already per-subgraph)
+- kCores: concatenated, each tagged with subgraphId
+- lowConfidenceRatio: per-subgraph `LowConfidenceCluster` results collected (not averaged)
+- unvalidatedEdgeRatio: per-subgraph `UnvalidatedEdgeRatio` results collected
+
+Per-subgraph results are returned as lists — no lossy aggregation (averaging, summing)
+that would obscure subgraph-level detail.
+
 ### Graph serialization
 
 Static utility `GraphSerializer` in cognitive-observability:
@@ -158,7 +170,7 @@ public sealed interface GraphMutation {
     record NodeUpdated(String nodeId, String subgraphId, Map<String, FieldChange> changes,
                        Instant timestamp, String source) implements GraphMutation {}
 
-    record NodeErased(String nodeId, String subgraphId, int edgesCascaded,
+    record NodeErased(String nodeId, String subgraphId, int cascadedCount,
                       Instant timestamp, String source) implements GraphMutation {}
 
     // --- Edge mutations ---
@@ -205,11 +217,32 @@ public sealed interface GraphMutation {
 ```
 
 **FieldChange** record: `(String field, Object oldValue, Object newValue)` — captures
-before/after for updated fields (confidence, PAD dimensions, properties, traits).
+before/after for updated fields. Since the decorator pre-reads the node before
+delegating `updateNode`, full before/after snapshots are available at zero extra cost.
+
+`FieldChange.diff(MindMapNode before, NodeUpdate update)` behavior per field type:
+
+| NodeUpdate field | FieldChange produced |
+|-----------------|---------------------|
+| `name` | `("name", before.name(), update.name())` |
+| `confidence` | `("confidence", before.confidence(), update.confidence())` |
+| `pleasure/arousal/dominance` | `("pleasure", before.pleasure(), update.pleasure())` etc. |
+| `validFrom/validUntil` | `("validFrom", before.validFrom(), update.validFrom())` etc. |
+| `traitsToAdd/traitsToRemove` | `("traits", before.traits(), computedNewTraits)` where `computedNewTraits = (before.traits() ∪ traitsToAdd) \ traitsToRemove` |
+| `refsToAdd/refsToRemove` | `("refs", before.refs(), computedNewRefs)` where `computedNewRefs = (before.refs() ∪ refsToAdd) \ refsToRemove` |
+| `propertiesToSet/propertiesToRemove` | `("properties", before.properties(), computedNewProps)` where `computedNewProps = (before.properties() ∪ propertiesToSet) \ propertiesToRemove` |
+
+A FieldChange entry is only produced when the NodeUpdate field is non-null (for scalars)
+or non-empty (for collection deltas). Trait/ref/property changes are captured as full
+before/after snapshots rather than delta operations — this is consistent with the scalar
+pattern and provides complete context for mutation replay without requiring the consumer
+to understand delta semantics.
 
 **NodesMerged** uses singular `absorbedId` matching the `MindMapStore.mergeNodes(keepNodeId, removeNodeId, tenantId)` API which merges exactly one pair. `conflictsResolved` comes from `MergeResult.propertyConflicts()`.
 
-**Intentionally excluded:** `eraseEntityAcrossTenants` — this cross-tenant operation calls `eraseEntity` per tenant internally, so each tenant-scoped erasure is captured individually via `EntityErased`. `updateSubgraph` changes only the root node pointer, which is not a graph topology change — it's metadata on the subgraph container.
+**`eraseEntityAcrossTenants` handling:** The decorator overrides this method to iterate tenants itself, calling `this.eraseEntity()` per tenant. This is necessary because concrete store implementations call `this.eraseEntity()` internally, which bypasses the decorator chain entirely — no `EntityErased` mutations would be captured. The same `this`-bypass pattern exists in `eraseSubgraph` (calls `this.eraseNode()`) and `eraseEntity` (calls `this.eraseNode()`), but those are acceptable because the decorator captures the aggregate mutation (`SubgraphErased`, `EntityErased`) at the top level.
+
+**Intentionally excluded from the sealed hierarchy:** `updateSubgraph` changes only the root node pointer, which is not a graph topology change — it's metadata on the subgraph container.
 
 ### MutationContext (mindmap-api)
 
@@ -311,9 +344,21 @@ public class MutationTrackingDecorator extends AbstractForwardingMindMapStore {
         int affected = delegate().eraseNode(nodeId, tenantId);
         String subgraphId = node != null ? node.subgraphId() : null;
         persistMutation(new GraphMutation.NodeErased(
-            nodeId, subgraphId, affected - 1,  // affected includes the node itself
+            nodeId, subgraphId, affected - 1,  // cascadedCount = edges + aliases deleted
             Instant.now(), MutationContext.get()), tenantId);
         return affected;
+    }
+
+    @Override
+    public int eraseEntityAcrossTenants(String entityName, Set<String> tenantIds) {
+        // Override required: concrete stores call this.eraseEntity() internally,
+        // which bypasses the decorator chain. Iterating here routes each call
+        // through this decorator's eraseEntity() override, capturing mutations.
+        int count = 0;
+        for (String tid : tenantIds) {
+            count += this.eraseEntity(entityName, tid);
+        }
+        return count;
     }
 
     @Override
@@ -436,13 +481,16 @@ its own MutationContext (as ExtractionRequestedObserver already does — see bel
 ConsolidationScheduler changes (in mindmap-intelligence):
 
 ```java
-// In tick() — MutationContext wraps inside the tenant loop, around each phase:
+// In tick() — event fires per tenant, inside the tenant loop:
 for (String tenantId : memoryStore.discoverTenants(null, null)) {
     List<String> priority = subgraphPriority(tenantId);
+    Instant tenantStart = Instant.now();
+    List<String> completedPhases = new ArrayList<>();
     for (ConsolidationPhase phase : phases) {
         MutationContext.set("consolidation:" + phase.name());
         try {
             phase.run(tenantId, priority);
+            completedPhases.add(phase.name());         // only successful phases
         } catch (Exception e) {
             LOG.log(Level.WARNING, "Phase " + phase.name()
                 + " failed for tenant " + tenantId, e);
@@ -450,21 +498,30 @@ for (String tenantId : memoryStore.discoverTenants(null, null)) {
             MutationContext.clear();
         }
     }
+    consolidationCompletedEvent.fire(new ConsolidationCompleted(
+        tenantId, completedPhases, Duration.between(tenantStart, Instant.now())));
 }
 // Note: AccessFrequencyPhase.beginTick() runs BEFORE the tenant loop — no MutationContext needed there
 
-// In consolidateNow(tenantId) — same wrapping:
+// In consolidateNow(tenantId) — same pattern:
+Instant start = Instant.now();
+List<String> completedPhases = new ArrayList<>();
 for (ConsolidationPhase phase : phases) {
     MutationContext.set("consolidation:" + phase.name());
     try {
         phase.run(tenantId, priority);
+        completedPhases.add(phase.name());
     } catch (Exception e) { ... }
     finally { MutationContext.clear(); }
 }
-
-// After all tenants processed in tick(), or after single tenant in consolidateNow():
-consolidationCompletedEvent.fire(new ConsolidationCompleted(tenantId, completedPhaseNames, duration));
+consolidationCompletedEvent.fire(new ConsolidationCompleted(
+    tenantId, completedPhases, Duration.between(start, Instant.now())));
 ```
+
+**`completedPhases` semantics:** Only phases that complete without exception are included.
+A phase that throws is logged but excluded — the `PhaseAuditEntry` in the
+`ConsolidationAuditEntry` (built by `SnapshotCaptureService` from the event + mutation
+counts) records failed phases with `success=false` and `errorMessage`.
 
 ConversationBridge changes (in mindmap-intelligence):
 
@@ -641,6 +698,18 @@ CREATE INDEX idx_audit_tenant_time
 WAL mode, HikariCP connection pool, Flyway migrations. Same patterns as
 SqliteMindMapStore and SqliteCbrRetrievalTracker.
 
+**GraphMutation JSON serialization:** The `mutation_type` column serves as the
+discriminator for Jackson deserialization. On write, `mutation_type` is set to
+the simple class name of the GraphMutation variant (e.g., `"NodeAdded"`,
+`"NodesMerged"`). On read, the `mutation_type` value determines which record
+class to deserialize the `data` JSON blob into. This is implemented via a
+Jackson `@JsonTypeInfo(use = Id.NAME, property = "type")` +
+`@JsonSubTypes(...)` on the `GraphMutation` sealed interface, with the `type`
+field written into the JSON blob. The `mutation_type` column is a denormalized
+copy for SQL filtering without JSON parsing.
+`SnapshotStoreContractTest` includes a round-trip test for each of the 14
+mutation types to enforce serialization consistency across implementations.
+
 ### In-memory implementation (testing)
 
 `cognitive-observability-testing` module. `InMemorySnapshotStore @Alternative @Priority(2)`.
@@ -788,7 +857,7 @@ Three child issues:
 
 ## References
 
-- MindMapAnalyzer — `mindmap-runtime/src/main/java/.../runtime/MindMapAnalyzer.java`
+- MindMapAnalyzer — `mindmap-core/src/main/java/.../runtime/MindMapAnalyzer.java`
 - CognitiveProfile — `cognitive-index/src/main/java/.../CognitiveProfile.java`
 - ConsolidationScheduler — `mindmap-intelligence/src/main/java/.../consolidation/ConsolidationScheduler.java`
 - ConsolidationPhase SPI — `mindmap-intelligence/src/main/java/.../consolidation/ConsolidationPhase.java`
