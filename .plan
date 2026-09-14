@@ -2,7 +2,7 @@
 
 ## State
 branch: issue-322-cognitive-node-types
-state: closing:review
+state: closing:promoted
 project-sha: 4a97e992082efaef95f5e5f220c15d06305b6bdc
 date: 2026-09-14
 issue-repo: casehubio/neocortex
