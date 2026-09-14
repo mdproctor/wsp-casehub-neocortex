@@ -257,23 +257,19 @@ Registration uses the existing `registerType(name, parent, tenantId)` API. The j
 
 ### CognitiveLoader Tenant Discovery
 
-CognitiveLoader needs a tenant ID for type registration. Two approaches:
-1. Register types lazily when TypeRegistry.ensureBootstrapped() runs for a tenant (add cognitive types to the bootstrap sequence)
-2. Use `CaseMemoryStore.discoverTenants()` in @PostConstruct to iterate known tenants
+CognitiveLoader needs a tenant ID for type registration. TypeRegistry already handles lazy per-tenant bootstrap via `ensureBootstrapped(tenantId)` — called on every TypeRegistry method. CognitiveLoader injects TypeRegistry and calls `registerType()` per tenant.
 
-Option 1 is simpler and avoids a dependency on CaseMemoryStore. Add cognitive type registration to TypeRegistry's bootstrap (called from CognitiveLoader, not hardcoded in TypeRegistry):
+For @PostConstruct registration, CognitiveLoader uses `CaseMemoryStore.discoverTenants()` (already available via `Instance<CaseMemoryStore>` with graceful degradation). For tenants discovered after startup, `registerType()` is idempotent — calling it for an already-registered type is a no-op (`if (bt.resolveTypeNode(normalized) != null) return`).
 
 ```java
-// CognitiveLoader calls this for each tenant bootstrapped by TypeRegistry
-public void registerCognitiveTypes(TypeRegistry registry, String tenantId) {
-    registry.registerType("cognitive", null, tenantId); // sibling of concept under general
+// In CognitiveLoader.init(), after vocabulary registration:
+for (String tenantId : discoverTenants()) {
+    registry.registerType("cognitive", null, tenantId);
     for (var entry : COGNITIVE_JAVA_CLASSES.entrySet()) {
         registry.registerType(entry.getKey(), "cognitive", tenantId);
     }
 }
 ```
-
-The exact integration mechanism (TypeRegistry callback, CognitiveLoader post-bootstrap hook) is an implementation detail.
 
 ## Consolidation Strategy (D7)
 
