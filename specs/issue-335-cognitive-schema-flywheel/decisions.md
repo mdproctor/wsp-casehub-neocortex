@@ -56,7 +56,7 @@ Thing.as() bridges both — works with hand-written interfaces, generated interf
 
 **Choice:** Append known type schemas to the MindMapExtractor extraction prompt as structured profile data (not behavioral directives), with selective injection — only include schemas for types whose entities appear in the graph context for this conversation turn. Include an explicit instruction: "Extract all observed properties, including those not listed in known schemas."
 
-**Feedback loop mitigation:** Schema-guided extraction creates a positive feedback loop (R1-01): the LLM preferentially extracts properties it's told about, reinforcing their frequency. Mitigation: the discovery phase tracks property provenance — `schema.{field}.source` as `java`, `discovered`, or `both`. Properties discovered ONLY through guided extraction (never via open-ended extraction before schemas existed) are flagged as potentially reinforced. The CBR auto-tuning follow-on (D3) should factor this provenance into threshold adjustment.
+**Feedback loop mitigation:** Schema-guided extraction creates a positive feedback loop (R1-01): the LLM preferentially extracts properties it's told about, reinforcing their frequency. Mitigation: the discovery phase tracks property provenance — `schema.{field}.source` as `java` or `discovered`. Properties discovered ONLY through guided extraction (never via open-ended extraction before schemas existed) are flagged as potentially reinforced. The CBR auto-tuning follow-on (D3) should factor this provenance into threshold adjustment.
 
 **Alternatives:**
 - Per-entity JSON schema constraint — tighter but suppresses novel property discovery

@@ -87,7 +87,7 @@ Backward-compatible — existing 3-arg constructor delegates. Stored on type nod
       - Read existing schema from type node (`TypeRegistry.schemaFor()`)
       - **Skip if `schema.{field}.source = java`** — Java-derived schema is immutable by discovery (D6)
       - Infer `type` from observed values: all parseable as numbers → `number`, all true/false → `boolean`, else `string`
-      - Infer `collection` from delimiter patterns (comma-separated values)
+      - Infer `collection`: if ≥60% of non-null values for a field contain commas AND have ≥2 comma-separated segments, mark as collection
       - Infer `enumValues` when ≤10 distinct values across all entities
       - Set `required = true` if frequency ≥ `required-threshold`
       - Write `schema.{field}.*` properties to the type node via `store.updateNode()`
@@ -152,7 +152,7 @@ Extract all observed properties, including those not listed in known schemas.
 
 ### Selective Injection (D5)
 
-Only types whose entities appear in the graph context for this conversation turn get their schemas injected. A mature system with 50+ types doesn't bloat the prompt — only the 2-3 relevant types are included. This is driven by the entities already found in `retrieveContext()`, which searches by candidate terms from the conversation text.
+Only types whose entities already exist in the graph AND appear in the context for this conversation turn get their schemas injected. Specifically, schemas are collected from types of nodes returned by `retrieveContext()` — which searches existing graph nodes by candidate terms from the conversation text. New types being mentioned for the first time will not have schemas injected (they haven't been extracted yet). This is correct behavior: schema guidance only applies to types the system has already learned about. A mature system with 50+ types doesn't bloat the prompt — only the 2-3 relevant types are included.
 
 ### Code Changes
 
