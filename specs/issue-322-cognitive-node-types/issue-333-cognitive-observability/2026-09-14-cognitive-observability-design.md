@@ -57,7 +57,7 @@ Aggregate stats for the cognitive graph. Answers: "What do I know right now?"
 public class CognitionInspectResolver {
 
     @Query
-    @PlatformQuery("Aggregate stats: node/edge counts per subgraph, confidence distribution, trait summary, recent activity")
+    @PlatformQuery("Aggregate stats: node/edge counts per subgraph, confidence distribution, trait summary")
     public CognitionInspectResult inspect(
         @Name("tenantId") String tenantId,
         @Name("subgraphId") @Nullable String subgraphId  // null = all subgraphs
@@ -68,8 +68,11 @@ public class CognitionInspectResolver {
 **CognitionInspectResult:**
 - Per-subgraph: node count, edge count, avg confidence, trait distribution
 - Confidence histogram (buckets: 0-0.2, 0.2-0.4, 0.4-0.6, 0.6-0.8, 0.8-1.0)
-- Recent activity: last N mutations (from decorator buffer, if available)
 - Subgraph list with types
+
+Note: "recent activity" is intentionally omitted — that's the domain of
+`cognition_diff` (Layer 3). `cognition_inspect` reports current state only,
+keeping it a pure Layer 1 tool with no persistence dependency.
 
 Implementation: direct MindMapStore queries. No persistence dependency.
 
@@ -484,44 +487,47 @@ ConsolidationScheduler changes (in mindmap-intelligence):
 // In tick() — event fires per tenant, inside the tenant loop:
 for (String tenantId : memoryStore.discoverTenants(null, null)) {
     List<String> priority = subgraphPriority(tenantId);
-    Instant tenantStart = Instant.now();
-    List<String> completedPhases = new ArrayList<>();
+    List<PhaseResult> phaseResults = new ArrayList<>();
     for (ConsolidationPhase phase : phases) {
+        Instant phaseStart = Instant.now();
         MutationContext.set("consolidation:" + phase.name());
         try {
             phase.run(tenantId, priority);
-            completedPhases.add(phase.name());         // only successful phases
+            phaseResults.add(new PhaseResult(
+                phase.name(), phaseStart, Instant.now(), true, null));
         } catch (Exception e) {
+            phaseResults.add(new PhaseResult(
+                phase.name(), phaseStart, Instant.now(), false, e.getMessage()));
             LOG.log(Level.WARNING, "Phase " + phase.name()
                 + " failed for tenant " + tenantId, e);
         } finally {
             MutationContext.clear();
         }
     }
-    consolidationCompletedEvent.fire(new ConsolidationCompleted(
-        tenantId, completedPhases, Duration.between(tenantStart, Instant.now())));
+    consolidationCompletedEvent.fire(new ConsolidationCompleted(tenantId, phaseResults));
 }
 // Note: AccessFrequencyPhase.beginTick() runs BEFORE the tenant loop — no MutationContext needed there
 
 // In consolidateNow(tenantId) — same pattern:
-Instant start = Instant.now();
-List<String> completedPhases = new ArrayList<>();
+List<PhaseResult> phaseResults = new ArrayList<>();
 for (ConsolidationPhase phase : phases) {
+    Instant phaseStart = Instant.now();
     MutationContext.set("consolidation:" + phase.name());
     try {
         phase.run(tenantId, priority);
-        completedPhases.add(phase.name());
-    } catch (Exception e) { ... }
-    finally { MutationContext.clear(); }
+        phaseResults.add(new PhaseResult(phase.name(), phaseStart, Instant.now(), true, null));
+    } catch (Exception e) {
+        phaseResults.add(new PhaseResult(phase.name(), phaseStart, Instant.now(), false, e.getMessage()));
+    } finally { MutationContext.clear(); }
 }
-consolidationCompletedEvent.fire(new ConsolidationCompleted(
-    tenantId, completedPhases, Duration.between(start, Instant.now())));
+consolidationCompletedEvent.fire(new ConsolidationCompleted(tenantId, phaseResults));
 ```
 
-**`completedPhases` semantics:** Only phases that complete without exception are included.
-A phase that throws is logged but excluded — the `PhaseAuditEntry` in the
-`ConsolidationAuditEntry` (built by `SnapshotCaptureService` from the event + mutation
-counts) records failed phases with `success=false` and `errorMessage`.
+**PhaseResult semantics:** Every phase produces a `PhaseResult` regardless of
+success or failure — both are recorded. `SnapshotCaptureService` maps each
+`PhaseResult` to a `PhaseAuditEntry`, enriching with `mutationCount` by querying
+`SnapshotStore.findMutations(tenantId, null, pr.startedAt(), pr.completedAt())`
+filtered by source tag `"consolidation:" + phaseName`.
 
 ConversationBridge changes (in mindmap-intelligence):
 
@@ -565,9 +571,17 @@ observes `ConsolidationCompleted` CDI event. After each consolidation run:
 `ConsolidationCompleted` CDI event added to mindmap-intelligence:
 ```java
 public record ConsolidationCompleted(String tenantId,
-                                      List<String> completedPhases,
-                                      Duration duration) {}
+                                      List<PhaseResult> phaseResults) {}
+
+public record PhaseResult(String phaseName, Instant startedAt, Instant completedAt,
+                           boolean success, String errorMessage) {}
 ```
+
+`PhaseResult` carries per-phase timing and success/failure status so that
+`SnapshotCaptureService` can construct `ConsolidationAuditEntry` without
+access to the `ConsolidationPhase` registry (which is in `mindmap-intelligence`,
+not `cognitive-observability`). Total duration is derivable from
+`phaseResults.first().startedAt()` to `phaseResults.last().completedAt()`.
 
 ### GraphSnapshot model (D4)
 
@@ -659,7 +673,6 @@ CREATE TABLE mutations (
     id TEXT PRIMARY KEY,
     tenant_id TEXT NOT NULL,
     subgraph_id TEXT,           -- nullable for cross-subgraph mutations
-    node_id TEXT,               -- primary node affected (for entity queries)
     source TEXT NOT NULL,       -- e.g. "consolidation:MergeDetectionPhase"
     mutation_type TEXT NOT NULL, -- e.g. "NodeAdded", "NodesMerged"
     timestamp TEXT NOT NULL,
@@ -669,8 +682,17 @@ CREATE TABLE mutations (
 CREATE INDEX idx_mutations_tenant_subgraph_time
     ON mutations(tenant_id, subgraph_id, timestamp);
 
-CREATE INDEX idx_mutations_node_time
-    ON mutations(tenant_id, node_id, timestamp);
+-- Junction table: maps each mutation to ALL affected node IDs.
+-- Multi-node mutations (merges, supersessions, edges) produce multiple rows.
+CREATE TABLE mutation_nodes (
+    mutation_id TEXT NOT NULL REFERENCES mutations(id) ON DELETE CASCADE,
+    node_id TEXT NOT NULL,
+    tenant_id TEXT NOT NULL,
+    PRIMARY KEY (mutation_id, node_id)
+);
+
+CREATE INDEX idx_mutation_nodes_lookup
+    ON mutation_nodes(tenant_id, node_id);
 
 CREATE TABLE keyframes (
     id TEXT PRIMARY KEY,
@@ -697,6 +719,30 @@ CREATE INDEX idx_audit_tenant_time
 
 WAL mode, HikariCP connection pool, Flyway migrations. Same patterns as
 SqliteMindMapStore and SqliteCbrRetrievalTracker.
+
+**Entity indexing via junction table:** `storeMutation` extracts all affected
+node IDs from each mutation type and inserts rows into `mutation_nodes`:
+
+| Mutation type | Node IDs indexed |
+|--------------|-----------------|
+| `NodeAdded`, `NodeUpdated`, `NodeErased`, `NodeReinstated` | `nodeId` |
+| `AliasAdded`, `AliasRemoved` | `nodeId` |
+| `EdgeAdded`, `EdgeRemoved` | `sourceNodeId`, `targetNodeId` |
+| `NodesMerged` | `survivorId`, `absorbedId` |
+| `NodeSuperseded` | `supersededId`, `supersedingId` |
+| `SubgraphCreated`, `SubgraphErased`, `EntityErased` | none (no specific node) |
+
+`findMutationsForEntity(tenantId, nodeId, from, to)` queries via JOIN:
+```sql
+SELECT m.* FROM mutations m
+JOIN mutation_nodes mn ON m.id = mn.mutation_id
+WHERE mn.tenant_id = ? AND mn.node_id = ? AND m.timestamp BETWEEN ? AND ?
+ORDER BY m.timestamp
+```
+
+This ensures `cognition_trace` returns complete audit trails — e.g., querying
+the absorbed node in a merge returns the `NodesMerged` mutation with TraceEvent
+type `MERGED_INTO`, and querying the survivor returns it with type `MERGED_FROM`.
 
 **GraphMutation JSON serialization:** The `mutation_type` column serves as the
 discriminator for Jackson deserialization. On write, `mutation_type` is set to
@@ -781,7 +827,9 @@ if supplied for precise resolution).
 
 ### Consolidation audit log
 
-ConsolidationScheduler emits structured audit entries after each run:
+`SnapshotCaptureService` constructs audit entries from `ConsolidationCompleted`
+events (the scheduler itself is in `mindmap-intelligence` and cannot reference
+`ConsolidationAuditEntry` from `cognitive-observability`):
 
 ```java
 public record ConsolidationAuditEntry(
