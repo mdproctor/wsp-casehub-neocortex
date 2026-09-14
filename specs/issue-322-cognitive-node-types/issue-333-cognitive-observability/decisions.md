@@ -1,16 +1,16 @@
 # Decisions — #333 Cognitive Observability
 
-## D1: ConsolidationPhase SPI return type
+## D1: ConsolidationPhase SPI — no return type change
 
-**Choice:** Change `ConsolidationPhase.run()` return type from `void` to `List<GraphMutation>`
+**Choice:** Keep `ConsolidationPhase.run()` returning `void`. The MindMapStore mutation-tracking decorator (D8) captures all mutations automatically — phases don't need to manually report what they changed.
 **Alternatives:**
-- Side-channel MutationCollector — avoids SPI break but adds indirection and implicit state
-- CDI events only — decoupled but harder to correlate with consolidation boundaries
-**Rationale:** Clean, explicit contract. Each phase declares exactly what it changed. Callers (ConsolidationScheduler) get structured delta data without ambient state. All 4 existing phases updated — the SPI is internal to neocortex, so the break is contained.
-**Trade-offs:** All 4 existing ConsolidationPhase implementations must be updated. Phases that don't mutate the graph return empty list.
-**Sources:** ConsolidationPhase.java (mindmap-intelligence), ConsolidationScheduler.java, ExperienceEvent sealed hierarchy (memory-api) as pattern precedent
+- Change return type to `List<GraphMutation>` — redundant with decorator capture, error-prone (phases must manually mirror what the store already recorded), creates circular dependency (D5/R1-05)
+- Side-channel MutationCollector — same redundancy problem
+**Rationale:** All 4 consolidation phases operate through `MindMapStore` (addNode, updateNode, mergeNodes, eraseNode). The decorator intercepts every call. ConsolidationScheduler sets the mutation context (phase name) before each `phase.run()` so the decorator tags mutations by source. No SPI break needed.
+**Trade-offs:** Phases cannot report "semantic intent" beyond what the store operations imply. If a phase needs to annotate why it made a change (not just what changed), that information is lost. Acceptable — the phase name in the mutation tag provides sufficient context.
+**Sources:** ConsolidationPhase.java, ConsolidationScheduler.java, decision review R1-03
 **Exploration:** quick
-**Status:** captured
+**Status:** revised (was: change return type; reviewer R1-03 identified redundancy with decorator)
 
 ## D2: Module placement
 
@@ -46,17 +46,17 @@
 **Exploration:** quick
 **Status:** captured
 
-## D5: Snapshot storage — SPI with SQLite implementation
+## D5: Snapshot storage — SPI with SQLite implementation + retention policy
 
-**Choice:** SnapshotStore SPI in the observability module API, SQLite implementation in a separate `cognitive-observability-sqlite` module
+**Choice:** SnapshotStore SPI in the observability module API, SQLite implementation in a separate `cognitive-observability-sqlite` module. Time-based retention policy: configurable via `casehub.mindmap.snapshots.retention.days` (default 90), scheduled purge every 24h (consistent with CbrRetrievalTracker pattern).
 **Alternatives:**
 - In-memory ring buffer — no persistence across restarts, session-scoped only
 - Append to existing mindmap SQLite DB — couples observability lifecycle to graph storage
-**Rationale:** Follows the established pattern: MindMapStore/mindmap-sqlite, CaseMemoryStore/memory-sqlite, CbrRetrievalTracker/memory-cbr-tracking. SPI enables in-memory alternative for tests. SQLite with WAL + HikariCP + Flyway.
-**Trade-offs:** Another SQLite database file. SPI abstraction adds indirection for a single known implementation.
-**Sources:** SqliteMindMapStore, SqliteMemoryStore, SqliteCbrRetrievalTracker patterns
+**Rationale:** Follows the established pattern: MindMapStore/mindmap-sqlite, CaseMemoryStore/memory-sqlite, CbrRetrievalTracker/memory-cbr-tracking. SPI enables in-memory alternative for tests. SQLite with WAL + HikariCP + Flyway. Retention prevents unbounded growth.
+**Trade-offs:** Another SQLite database file. SPI abstraction adds indirection for a single known implementation. Retention purge deletes old keyframe chains — reconstruction is only possible within the retention window.
+**Sources:** SqliteMindMapStore, SqliteMemoryStore, SqliteCbrRetrievalTracker retention pattern, decision review R1-10
 **Exploration:** quick
-**Status:** captured
+**Status:** revised (added retention policy per reviewer R1-10)
 
 ## D6: Graph serialization — static utility
 
@@ -69,30 +69,31 @@
 **Exploration:** quick
 **Status:** captured
 
-## D7: Snapshot capture trigger — consolidation boundary
+## D7: Snapshot capture trigger — natural boundaries
 
-**Choice:** Capture delta snapshot after each consolidation run completes. Promote to keyframe every N deltas (configurable, default 10).
+**Choice:** Flush delta snapshots at all natural mutation boundaries: end of consolidation run, end of conversation turn (ConversationBridge.process()), end of extraction (ExtractionRequestedObserver). Promote to keyframe every N deltas (configurable via `casehub.mindmap.snapshots.keyframe-interval`, default 10).
 **Alternatives:**
+- Consolidation boundary only — misses intermediate conversation/extraction mutations between consolidation runs
 - Time-based interval — may snapshot unchanged state or miss rapid changes
-- Mutation-count threshold — adaptive but decoupled from consolidation boundaries
-**Rationale:** ConsolidationScheduler already orchestrates phases sequentially. After all phases finish, their returned List<GraphMutation> are aggregated into a delta snapshot. Natural alignment with the primary source of graph change. Keyframe promotion is count-based with configurable interval.
-**Trade-offs:** Non-consolidation mutations (conversation, extraction) are captured by the decorator but don't trigger snapshots. Snapshot granularity is tied to consolidation frequency.
-**Sources:** ConsolidationScheduler.tick(), epic keyframe-interval config (casehub.mindmap.snapshots.keyframe-interval)
+- Mutation-count threshold — adaptive but decoupled from semantic boundaries
+**Rationale:** The decorator (D8) buffers mutations. Each mutation source sets context and signals "batch complete" when its work unit finishes. The decorator flushes accumulated mutations as a delta to the SnapshotStore. `cognition_diff` queries deltas by time range, giving full mutation timeline. Keyframes are periodic full-state captures for reconstruction efficiency.
+**Trade-offs:** More deltas stored than consolidation-only approach. Manual MindMapStore calls (not through a known source) produce individual deltas unless explicitly batched.
+**Sources:** ConsolidationScheduler.tick(), ConversationBridge.process(), ExtractionRequestedObserver, decision review R1-06
 **Exploration:** quick
-**Status:** captured
+**Status:** revised (was: consolidation boundary only; reviewer R1-06 identified observation gaps)
 
-## D8: Mutation tracking — capture all, tag by source
+## D8: Mutation tracking — capture all, tag by source, fire CDI events
 
-**Choice:** MindMapStore decorator captures every mutation and tags it with source context (consolidation phase name, conversation-bridge, extraction, manual). Thread-local or context object set by callers.
+**Choice:** MindMapStore decorator captures every mutation and tags it with source context (consolidation phase name, conversation-bridge, extraction, manual). Thread-local context set by callers. Fires `GraphMutationRecorded` CDI event after flushing each delta batch — enables cross-module reactivity consistent with existing event patterns (AffectRecorded, CbrCasesErased, etc.).
 **Alternatives:**
 - Consolidation only — misses conversation/extraction mutations, partial observability
 - Two decorators — clean separation but two interception points for the same concern
-**Rationale:** Maximum observability. cognition_diff can filter by source. ConsolidationScheduler sets context before running phases; ConversationBridge and ExtractionRequestedObserver set their own context. Unknown sources get a "manual" tag.
-**Trade-offs:** Thread-local context coupling. All mutation paths must set context or accept default "manual" tag. Slight overhead on every MindMapStore write.
-**Sources:** AffectTrajectoryDecorator pattern, DerivedEdgeDecorator thread-local precedent
-**Depends on:** D1 (ConsolidationPhase return type), D3 (GraphMutation model)
+**Rationale:** Maximum observability. cognition_diff can filter by source. ConsolidationScheduler sets context before running phases; ConversationBridge and ExtractionRequestedObserver set their own context. Unknown sources get a "manual" tag. CDI events enable other modules to react to graph changes without coupling to the decorator. ThreadLocal is appropriate because MindMapStore is a synchronous SPI — all current callers (ConsolidationScheduler, ConversationBridge, ExtractionRequestedObserver) operate on worker threads, not reactive chains.
+**Trade-offs:** Thread-local context coupling. All mutation paths must set context or accept default "manual" tag. Slight overhead on every MindMapStore write. If reactive callers are added to MindMapStore in future, ThreadLocal must be upgraded to Mutiny Context propagation.
+**Sources:** AffectTrajectoryDecorator pattern, DerivedEdgeDecorator thread-local precedent, decision review R1-07 (ThreadLocal assessment), R1-09 (CDI events)
+**Depends on:** D3 (GraphMutation model)
 **Exploration:** quick
-**Status:** captured
+**Status:** revised (removed D1 dependency per R1-04; added CDI events per R1-09)
 
 ## D9: Epic decomposition — by layer
 
