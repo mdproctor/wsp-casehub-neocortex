@@ -30,7 +30,7 @@ flyway-next-v: none
     - [x] Task 12: InMemorySnapshotStore + contract test
     - [x] Task 13: SQLite SnapshotStore
     - [x] Task 14: SnapshotCaptureService
-  - [ ] Batch 3: Layer3-Temporal
-    - [ ] Task 15: CognitionDiffService
-    - [ ] Task 16: CognitionTraceService
-    - [ ] Task 17: GraphQL resolvers + build verification
+  - [x] Batch 3: Layer3-Temporal
+    - [x] Task 15: CognitionDiffService
+    - [x] Task 16: CognitionTraceService
+    - [x] Task 17: GraphQL resolvers + build verification
