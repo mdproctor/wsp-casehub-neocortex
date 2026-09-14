@@ -30,11 +30,13 @@ The system builds on existing foundations:
 
 | Module | Change |
 |--------|--------|
-| `mindmap` | New `MutationTrackingDecorator` (@Decorator on MindMapStore) |
-| `mindmap-intelligence` | ConsolidationScheduler sets `MutationContext` before each phase |
+| `mindmap-api` | New `MutationContext` ThreadLocal holder (source tagging for mutations) |
+| `mindmap-intelligence` | ConsolidationScheduler sets `MutationContext` before each phase, fires `ConsolidationCompleted` CDI event |
 
-`ConsolidationPhase.run()` remains `void` — no SPI change. The decorator captures
-all mutations automatically (D1).
+`ConsolidationPhase.run()` remains `void` — no SPI change. The decorator
+(in cognitive-observability, classpath-activated) captures all mutations
+automatically (D1). `MutationContext` lives in mindmap-api so both the
+decorator and callers can reference it without circular dependencies.
 
 ## Layer 1: Live View
 
@@ -160,9 +162,29 @@ public sealed interface GraphMutation {
 **FieldChange** record: `(String field, Object oldValue, Object newValue)` — captures
 before/after for updated fields (confidence, PAD dimensions, properties, traits).
 
+### MutationContext (mindmap-api)
+
+ThreadLocal holder for mutation source tagging. Lives in mindmap-api so both
+the decorator (cognitive-observability) and callers (mindmap-intelligence) can
+reference it without circular dependencies.
+
+```java
+public final class MutationContext {
+    private static final ThreadLocal<String> SOURCE = ThreadLocal.withInitial(() -> "manual");
+
+    public static void set(String source) { SOURCE.set(source); }
+    public static String get() { return SOURCE.get(); }
+    public static void clear() { SOURCE.remove(); }
+}
+```
+
 ### MutationTrackingDecorator (D8)
 
-`@Decorator @Priority(20)` on `MindMapStore` in the `mindmap` module.
+`@Decorator @Priority(20)` on `MindMapStore` in the `cognitive-observability`
+module. Classpath-activated — when cognitive-observability is on the classpath,
+the decorator is active; when absent, no tracking. Same pattern as
+`memory-cbr-crossencoder`'s reranking decorator.
+
 Low priority — runs after all domain decorators (DerivedEdge @80,
 AffectTrajectory @65, ConfidenceDecay, Vocabulary).
 
@@ -175,74 +197,79 @@ public class MutationTrackingDecorator implements MindMapStore {
     @Inject Event<GraphMutationRecorded> mutationEvent;
     @Inject Instance<SnapshotStore> snapshotStore;
 
-    // ThreadLocal set by callers (ConsolidationScheduler, ConversationBridge, etc.)
-    private static final ThreadLocal<String> MUTATION_SOURCE = ThreadLocal.withInitial(() -> "manual");
-
-    public static void setSource(String source) { MUTATION_SOURCE.set(source); }
-    public static void clearSource() { MUTATION_SOURCE.remove(); }
-
-    // Per-thread mutation buffer — flushed at batch boundary
-    private static final ThreadLocal<List<GraphMutation>> BUFFER = ThreadLocal.withInitial(ArrayList::new);
-
     @Override
     public MindMapNode addNode(NodeInput input, String tenantId) {
         MindMapNode result = delegate.addNode(input, tenantId);
-        BUFFER.get().add(new GraphMutation.NodeAdded(
+        persistMutation(new GraphMutation.NodeAdded(
             result.id(), result.name(), input.subgraphId(),
-            result.confidence(), Instant.now(), MUTATION_SOURCE.get()));
+            result.confidence(), Instant.now(), MutationContext.get()), tenantId);
         return result;
     }
 
     // Similar interception for updateNode, removeNode, addEdge, removeEdge, mergeNodes, supersede
 
-    public static void flush(String tenantId, String subgraphId) {
-        List<GraphMutation> mutations = new ArrayList<>(BUFFER.get());
-        BUFFER.get().clear();
-        if (!mutations.isEmpty()) {
-            // Persist delta via SnapshotStore (if available)
-            // Fire CDI event
-        }
+    private void persistMutation(GraphMutation mutation, String tenantId) {
+        // Persist immediately via SnapshotStore (if available)
+        snapshotStore.stream().findFirst().ifPresent(store ->
+            store.storeMutation(tenantId, mutation));
+        // Fire CDI event
+        mutationEvent.fire(new GraphMutationRecorded(tenantId, mutation));
     }
 }
 ```
 
-**Flush callers:**
-- `ConsolidationScheduler` — after all phases complete for a tenant
-- `ConversationBridge` — at end of `process()`
-- `ExtractionRequestedObserver` — at end of extraction
+No explicit flush needed. Each mutation is persisted immediately. No buffer,
+no caller coupling. The decorator is self-contained.
 
-**CDI event:** `GraphMutationRecorded(String tenantId, String subgraphId, List<GraphMutation> mutations, Instant timestamp)`
+**CDI event:** `GraphMutationRecorded(String tenantId, GraphMutation mutation, Instant timestamp)`
 
 ### MutationContext integration
+
+CallerS set `MutationContext` via the shared ThreadLocal in mindmap-api.
+No import of the decorator needed.
 
 ConsolidationScheduler changes (in mindmap-intelligence):
 
 ```java
 // In tick(), before each phase:
 for (ConsolidationPhase phase : phases) {
-    MutationTrackingDecorator.setSource("consolidation:" + phase.name());
+    MutationContext.set("consolidation:" + phase.name());
     try {
         phase.run(tenantId, priority);
     } finally {
-        MutationTrackingDecorator.clearSource();
+        MutationContext.clear();
     }
 }
-MutationTrackingDecorator.flush(tenantId, null);  // null = all subgraphs
+// Fire completion event for keyframe triggering
+consolidationCompletedEvent.fire(new ConsolidationCompleted(tenantId, phaseResults, duration));
 ```
 
 ConversationBridge changes (in mindmap-intelligence):
 
 ```java
 public List<MindMapNode> process(String text, String tenantId, ...) {
-    MutationTrackingDecorator.setSource("conversation-bridge");
+    MutationContext.set("conversation-bridge");
     try {
         // ... existing processing ...
         return nodes;
     } finally {
-        MutationTrackingDecorator.flush(tenantId, "general");
-        MutationTrackingDecorator.clearSource();
+        MutationContext.clear();
     }
 }
+```
+
+### Keyframe capture
+
+`SnapshotCaptureService` (`@ApplicationScoped` in cognitive-observability)
+observes `ConsolidationCompleted` CDI event. After each consolidation run:
+1. Count mutations since last keyframe for each affected subgraph
+2. If count >= keyframe interval, capture a keyframe by reading current
+   subgraph state from MindMapStore
+3. Handle retention purge on the same schedule
+
+`ConsolidationCompleted` CDI event added to mindmap-intelligence:
+```java
+public record ConsolidationCompleted(String tenantId, Duration duration) {}
 ```
 
 ### GraphSnapshot model (D4)
@@ -286,11 +313,13 @@ referenced node belongs to the queried subgraph.
 
 ```java
 public interface SnapshotStore {
+    void storeMutation(String tenantId, GraphMutation mutation);
     void storeKeyframe(GraphSnapshot keyframe);
-    void storeDelta(GraphSnapshot delta);
+    List<GraphMutation> findMutations(String tenantId, String subgraphId, Instant from, Instant to);
+    List<GraphMutation> findMutationsForEntity(String tenantId, String nodeId, Instant from, Instant to);
     GraphSnapshot reconstruct(String tenantId, String subgraphId, Instant pointInTime);
-    List<GraphSnapshot> findDeltas(String tenantId, String subgraphId, Instant from, Instant to);
     Optional<GraphSnapshot> latestKeyframe(String tenantId, String subgraphId);
+    long mutationCountSinceKeyframe(String tenantId, String subgraphId);
     void purge(SnapshotRetentionPolicy policy);
     long count(String tenantId);
 }
@@ -313,22 +342,33 @@ between keyframe and pointInTime. Apply mutations sequentially to keyframe state
 
 ```sql
 -- V1__create_snapshot_tables.sql
-CREATE TABLE snapshots (
+CREATE TABLE mutations (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL,
+    subgraph_id TEXT,           -- nullable for cross-subgraph mutations
+    node_id TEXT,               -- primary node affected (for entity queries)
+    source TEXT NOT NULL,       -- e.g. "consolidation:MergeDetectionPhase"
+    mutation_type TEXT NOT NULL, -- e.g. "NodeAdded", "NodesMerged"
+    timestamp TEXT NOT NULL,
+    data TEXT NOT NULL           -- JSON blob of the full GraphMutation record
+);
+
+CREATE INDEX idx_mutations_tenant_subgraph_time
+    ON mutations(tenant_id, subgraph_id, timestamp);
+
+CREATE INDEX idx_mutations_node_time
+    ON mutations(tenant_id, node_id, timestamp);
+
+CREATE TABLE keyframes (
     id TEXT PRIMARY KEY,
     tenant_id TEXT NOT NULL,
     subgraph_id TEXT NOT NULL,
     captured_at TEXT NOT NULL,
-    type TEXT NOT NULL,  -- KEYFRAME or DELTA
-    parent_keyframe_id TEXT,
-    data TEXT NOT NULL,  -- JSON blob (nodes+edges for keyframe, mutations for delta)
-    FOREIGN KEY (parent_keyframe_id) REFERENCES snapshots(id)
+    data TEXT NOT NULL           -- JSON blob of NodeSnapshot[] + EdgeSnapshot[]
 );
 
-CREATE INDEX idx_snapshots_tenant_subgraph_time
-    ON snapshots(tenant_id, subgraph_id, captured_at);
-
-CREATE INDEX idx_snapshots_type
-    ON snapshots(type);
+CREATE INDEX idx_keyframes_tenant_subgraph_time
+    ON keyframes(tenant_id, subgraph_id, captured_at);
 ```
 
 WAL mode, HikariCP connection pool, Flyway migrations. Same patterns as
@@ -447,11 +487,14 @@ Three child issues:
 - No snapshot dependency
 
 ### Child 2: Layer 2 — Snapshot + Delta Infrastructure (L / Med)
-- GraphMutation sealed hierarchy + FieldChange
-- MutationTrackingDecorator on MindMapStore
+- MutationContext ThreadLocal holder in mindmap-api
+- GraphMutation sealed hierarchy + FieldChange in cognitive-observability
+- MutationTrackingDecorator on MindMapStore in cognitive-observability (classpath-activated)
 - MutationContext integration (ConsolidationScheduler, ConversationBridge, ExtractionRequestedObserver)
+- ConsolidationCompleted CDI event in mindmap-intelligence
 - GraphSnapshot, NodeSnapshot, EdgeSnapshot types
 - SnapshotStore SPI + SnapshotRetentionPolicy
+- SnapshotCaptureService (keyframe triggering via ConsolidationCompleted observation)
 - SQLite SnapshotStore implementation + Flyway migrations
 - InMemorySnapshotStore + SnapshotStoreContractTest
 - GraphMutationRecorded CDI event
