@@ -249,30 +249,7 @@ List<String> enumValues = enumStr != null
 schema.put(fieldName, new SchemaField(fieldName, value, required, collection, description, enumValues));
 ```
 
-Also update the Java fallback path to use the extended constructor:
-
-```java
-if (schema.isEmpty()) {
-    return javaClass(typeName, tenantId)
-        .map(TypeRegistry::deriveSchemaFromInterface)
-        .orElse(Map.of());
-}
-```
-
-Merge Java-derived schema with property-based schema (Java takes precedence):
-
-```java
-Map<String, SchemaField> javaSchema = javaClass(typeName, tenantId)
-    .map(TypeRegistry::deriveSchemaFromInterface)
-    .orElse(Map.of());
-Map<String, SchemaField> merged = new LinkedHashMap<>(schema);
-javaSchema.forEach(merged::putIfAbsent);
-return merged;
-```
-
-Wait — actually the logic should be: read properties first, then merge Java-derived fields. Java fields should NOT overwrite discovered fields that have richer metadata (description, enumValues). But if both exist for the same field name, Java's type wins. The simplest approach: properties-based schema is the primary result; Java-derived schema fills gaps only. This is already what the existing code does (Java fallback only when `schema.isEmpty()`). With provenance tracking (source=java written at registration), the property-based path handles Java-derived fields too. So the merge is: read all `schema.*` properties (both java and discovered fields are there), fall back to `deriveSchemaFromInterface` ONLY when no `schema.*` properties exist at all.
-
-Keep the existing fallback logic unchanged — it already works correctly because `registerType` now writes `schema.*.source=java` alongside `schema.*.type`.
+The existing fallback logic is unchanged — `registerType` now writes `schema.*.source=java` alongside `schema.*.type`, so Java-derived fields are already in the property-based path. The `deriveSchemaFromInterface` fallback only fires when no `schema.*` properties exist at all (pre-existing types registered without a Java class).
 
 - [ ] **Step 5: Run tests to verify they pass**
 
