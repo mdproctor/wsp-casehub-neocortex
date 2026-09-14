@@ -14,22 +14,22 @@ flyway-next-v: none
 ## Queue
 - [x] casehubio/neocortex#322 — Issue #322
 - [ ] casehubio/neocortex#333 — epic: cognitive observability ← active
-  - [ ] Batch 1: Layer1-LiveView
-    - [ ] Task 1: CognitionInspectResult type
-    - [ ] Task 2: CognitionInspectService
-    - [ ] Task 3: GraphHealthReport + CognitionHealthService
-    - [ ] Task 4: GraphSerializer
-    - [ ] Task 5: GraphQL resolvers
-    - [ ] Task 6: Build verification
-  - [ ] Batch 2: Layer2-Infrastructure
-    - [ ] Task 7: MutationContext
-    - [ ] Task 8: GraphMutation sealed hierarchy
-    - [ ] Task 9: SnapshotStore SPI + types
-    - [ ] Task 10: MutationTrackingDecorator
-    - [ ] Task 11: CDI decorator + ConsolidationCompleted
-    - [ ] Task 12: InMemorySnapshotStore + contract test
-    - [ ] Task 13: SQLite SnapshotStore
-    - [ ] Task 14: SnapshotCaptureService
+  - [x] Batch 1: Layer1-LiveView
+    - [x] Task 1: CognitionInspectResult type
+    - [x] Task 2: CognitionInspectService
+    - [x] Task 3: GraphHealthReport + CognitionHealthService
+    - [x] Task 4: GraphSerializer
+    - [x] Task 5: GraphQL resolvers
+    - [x] Task 6: Build verification
+  - [x] Batch 2: Layer2-Infrastructure
+    - [x] Task 7: MutationContext
+    - [x] Task 8: GraphMutation sealed hierarchy
+    - [x] Task 9: SnapshotStore SPI + types
+    - [x] Task 10: MutationTrackingDecorator
+    - [x] Task 11: CDI decorator + ConsolidationCompleted
+    - [x] Task 12: InMemorySnapshotStore + contract test
+    - [x] Task 13: SQLite SnapshotStore
+    - [x] Task 14: SnapshotCaptureService
   - [ ] Batch 3: Layer3-Temporal
     - [ ] Task 15: CognitionDiffService
     - [ ] Task 16: CognitionTraceService
