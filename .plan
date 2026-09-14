@@ -13,17 +13,17 @@ flyway-next-v: none
 
 ## Queue
 - [ ] casehubio/neocortex#335 — Issue #335 ← active
-  - [ ] Batch 1: SchemaField+Provenance
-    - [ ] Task 1: Extend SchemaField record
-    - [ ] Task 2: TypeRegistry provenance tracking
-  - [ ] Batch 2: Schema Discovery
-    - [ ] Task 3: SchemaDiscoveryPhase
-  - [ ] Batch 3: Adaptive Extraction
-    - [ ] Task 4: Schema-guided prompt injection
-  - [ ] Batch 4: Dev-Time Promotion
-    - [ ] Task 5: TraitInterfaceGenerator CLI
-  - [ ] Batch 5: Verification
-    - [ ] Task 6: Full build + CLAUDE.md
+  - [x] Batch 1: SchemaField+Provenance
+    - [x] Task 1: Extend SchemaField record
+    - [x] Task 2: TypeRegistry provenance tracking
+  - [x] Batch 2: Schema Discovery
+    - [x] Task 3: SchemaDiscoveryPhase
+  - [x] Batch 3: Adaptive Extraction
+    - [x] Task 4: Schema-guided prompt injection
+  - [x] Batch 4: Dev-Time Promotion
+    - [x] Task 5: TraitInterfaceGenerator CLI
+  - [x] Batch 5: Verification
+    - [x] Task 6: Full build + CLAUDE.md
 - [ ] casehubio/neocortex#292 — LLM-driven-schema-discovery
 - [ ] casehubio/neocortex#293 — Code-generation-from-schema
 - [ ] casehubio/neocortex#334 — Adaptive-extraction
