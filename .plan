@@ -13,3 +13,6 @@ flyway-next-v: none
 
 ## Queue
 - [ ] casehubio/neocortex#335 — Issue #335 ← active
+- [ ] casehubio/neocortex#292 — LLM-driven-schema-discovery
+- [ ] casehubio/neocortex#293 — Code-generation-from-schema
+- [ ] casehubio/neocortex#334 — Adaptive-extraction
