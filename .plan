@@ -13,11 +13,11 @@ flyway-next-v: none
 
 ## Queue
 - [ ] casehubio/neocortex#322 — Issue #322 ← active
-  - [ ] Batch 1: Foundation
-    - [ ] Task 1: COGNITIVE constant + 6 trait interfaces
-    - [ ] Task 2: Declarative YAML rules + compositionality tests
-  - [ ] Batch 2: Type Hierarchy
-    - [ ] Task 3: CognitiveLoader type registration + schema
-  - [ ] Batch 3: Extractor
-    - [ ] Task 4: MindMapExtractor prompt + routing + cognitiveKind
+  - [x] Batch 1: Foundation
+    - [x] Task 1: COGNITIVE constant + 6 trait interfaces
+    - [x] Task 2: Declarative YAML rules + compositionality tests
+  - [x] Batch 2: Type Hierarchy
+    - [x] Task 3: CognitiveLoader type registration + schema
+  - [x] Batch 3: Extractor
+    - [x] Task 4: MindMapExtractor prompt + routing + cognitiveKind
 - [ ] casehubio/neocortex#333 — epic: cognitive observability
