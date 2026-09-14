@@ -59,3 +59,4 @@
 | [2026-09-11-mdp01-the-extraction-that-wasnt-a-rewrite.md](2026-09-11-mdp01-the-extraction-that-wasnt-a-rewrite.md) | 2026-09-11 | SPI-first extraction of RAG capabilities from engine to neocortex — federation as routing not decoration, CBR rename, two new modules |
 | [2026-09-11-mdp02-context-on-the-wire.md](2026-09-11-mdp02-context-on-the-wire.md) | 2026-09-11 | FeedbackContext SPI enrichment — typed fields + attributes map, default method bridge, V2 SQLite migration |
 | [2026-09-13-mdp01-the-ecological-inference-trap.md](2026-09-13-mdp01-the-ecological-inference-trap.md) | 2026-09-13 | Ecological inference in agent-global mood correlation; event-triggered windows for discrete events; circular shift surrogates for DTW significance |
+| [2026-09-14-mdp01-cognitive-schema-flywheel.md](2026-09-14-mdp01-cognitive-schema-flywheel.md) | 2026-09-14 | Schema flywheel: discovery, guided extraction, and dev-time promotion for the cognitive type system |
