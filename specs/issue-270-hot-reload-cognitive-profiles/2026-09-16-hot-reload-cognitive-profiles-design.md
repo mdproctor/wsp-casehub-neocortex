@@ -105,7 +105,7 @@ When neither property is set, behaviour is unchanged from V1 — classpath-only 
 3. If any file fails to parse: log error with filename and cause, keep previous state, return
 4. Merge filesystem results with cached classpath baseline
 5. Atomic volatile swap on the target registry
-6. If both directories are watched and the profiles directory changed, also re-read rules (rules reference profiles via per-agent overrides)
+6. If both directories are watched and the profiles directory changed, also re-read and reload global rules (the `DeclarativeRuleRegistry.allTraitRules()` / `allDerivedEdgeRules()` methods iterate all profiles — the volatile swap makes per-agent rules consistent, but global rules may reference profile-defined vocabulary that changed). Rules directory changes do NOT trigger a profile reload — rules don't affect profile data.
 7. Fire `CognitiveProfilesReloaded` CDI event
 
 **Merge rule:** filesystem wins on conflict. Classpath profiles/rules are the baseline. Filesystem adds new entries and overrides existing ones by key (`agentId` for profiles, rule name for rules).
