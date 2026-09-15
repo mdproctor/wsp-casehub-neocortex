@@ -13,3 +13,7 @@ flyway-next-v: none
 
 ## Queue
 - [ ] casehubio/neocortex#337 — Issue #337 ← active
+  - [ ] Batch 1: parse-apply-decomposition
+    - [ ] Task 1: Make parsed types public and add parse/apply
+  - [ ] Batch 2: principalid-confidence
+    - [ ] Task 2: Fix ConversationBridge signature and wire principalId/confidence
