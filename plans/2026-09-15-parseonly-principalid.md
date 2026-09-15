@@ -370,7 +370,41 @@ public void onExtractionRequested(@ObservesAsync ExtractionRequested event) {
 
 The rest of the method body remains unchanged.
 
-- [ ] **Step 6: Update existing ConversationBridgeTest calls to new 5-arg signature**
+- [ ] **Step 6: Update ExtractionRequestedObserverTest for parse/apply**
+
+The existing `stubExtractor` overrides `extract()`, but the observer now calls `parse()` + `apply()`. Replace the stub and update ExtractionRequested constructor calls (now 5-arg with principalId):
+
+Replace `stubExtractor` method:
+```java
+private MindMapExtractor stubExtractor(ExtractionResult result) {
+    return new MindMapExtractor(store, null) {
+        @Override
+        public ParsedExtraction parse(String text, String tenantId,
+                                       List<String> recentEntityNames) {
+            if (result == ExtractionResult.EMPTY) return null;
+            return new ParsedExtraction(List.of(), List.of(), List.of());
+        }
+
+        @Override
+        public ExtractionResult apply(ParsedExtraction parsed, String tenantId,
+                                       PrincipalId principalId) {
+            return result;
+        }
+    };
+}
+```
+
+Add import for `io.casehub.platform.api.identity.PrincipalId`.
+
+Update all `new ExtractionRequested(...)` calls to include 5th arg (null principalId):
+```java
+// Every: new ExtractionRequested("text", "t1", List.of(), List.of(segmentId))
+// becomes: new ExtractionRequested("text", "t1", List.of(), List.of(segmentId), null)
+```
+
+Update all 3 test methods.
+
+- [ ] **Step 7: Update existing ConversationBridgeTest calls to new 5-arg signature**
 
 All existing test calls pass `null` as the 4th arg. Add `null` as the 5th arg (confidenceOrigin):
 
@@ -381,12 +415,12 @@ All existing test calls pass `null` as the 4th arg. Add `null` as the 5th arg (c
 
 Update all 6 existing test methods.
 
-- [ ] **Step 7: Run test to verify it passes**
+- [ ] **Step 8: Run test to verify it passes**
 
 Run: `JAVA_HOME=$(/usr/libexec/java_home -v 26) mvn test -pl mindmap-intelligence -Dtest=ConversationBridgeTest#process_withPrincipalId_setsOnCreatedNodes -Dsurefire.failIfNoSpecifiedTests=false`
 Expected: PASS
 
-- [ ] **Step 8: Write test — null confidenceOrigin defaults to STATED**
+- [ ] **Step 9: Write test — null confidenceOrigin defaults to STATED**
 
 ```java
 @Test
@@ -400,7 +434,7 @@ void process_nullConfidence_defaultsToStated() {
 
 Add import for `io.casehub.neocortex.cognitive.ConfidenceOrigin`.
 
-- [ ] **Step 9: Write test — INFERRED confidence creates nodes at 0.7**
+- [ ] **Step 10: Write test — INFERRED confidence creates nodes at 0.7**
 
 ```java
 @Test
@@ -413,7 +447,7 @@ void process_inferredConfidence_createsNodesAt07() {
 }
 ```
 
-- [ ] **Step 10: Write test — ExtractionRequested carries principalId**
+- [ ] **Step 11: Write test — ExtractionRequested carries principalId**
 
 ```java
 @Test
@@ -425,17 +459,17 @@ void process_firesExtractionEventWithPrincipalId() {
 }
 ```
 
-- [ ] **Step 11: Run all ConversationBridge tests**
+- [ ] **Step 12: Run all ConversationBridge tests**
 
 Run: `JAVA_HOME=$(/usr/libexec/java_home -v 26) mvn test -pl mindmap-intelligence -Dtest=ConversationBridgeTest`
 Expected: all tests PASS
 
-- [ ] **Step 12: Run full mindmap-intelligence test suite**
+- [ ] **Step 13: Run full mindmap-intelligence test suite**
 
 Run: `JAVA_HOME=$(/usr/libexec/java_home -v 26) mvn test -pl mindmap-intelligence`
-Expected: all tests PASS (including ExtractionRequestedObserver tests — these call `extractor.extract()` which is unchanged in behavior)
+Expected: all tests PASS (including ExtractionRequestedObserver tests — now using parse/apply stub)
 
-- [ ] **Step 13: Commit**
+- [ ] **Step 14: Commit**
 
 ```bash
 git -C /Users/mdproctor/claude/casehub/neocortex add mindmap-intelligence/src/
