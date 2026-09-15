@@ -2,7 +2,7 @@
 
 ## State
 branch: issue-291-migrate-schema-modules
-state: scaffolded
+state: active
 project-sha: bbc97f6f5053e9f2bed0917fc162114592d78fbb
 date: 2026-09-15
 issue-repo: casehubio/neocortex
