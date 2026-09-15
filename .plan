@@ -2,7 +2,7 @@
 
 ## State
 branch: issue-337-parseonly-principalid
-state: scaffolded
+state: active
 project-sha: f492a5f005c056bd45ff1f03c99e03e6769e9b11
 date: 2026-09-15
 issue-repo: casehubio/neocortex
@@ -13,7 +13,7 @@ flyway-next-v: none
 
 ## Queue
 - [ ] casehubio/neocortex#337 — Issue #337 ← active
-  - [ ] Batch 1: parse-apply-decomposition
-    - [ ] Task 1: Make parsed types public and add parse/apply
-  - [ ] Batch 2: principalid-confidence
-    - [ ] Task 2: Fix ConversationBridge signature and wire principalId/confidence
+  - [x] Batch 1: parse-apply-decomposition
+    - [x] Task 1: Make parsed types public and add parse/apply
+  - [x] Batch 2: principalid-confidence
+    - [x] Task 2: Fix ConversationBridge signature and wire principalId/confidence
