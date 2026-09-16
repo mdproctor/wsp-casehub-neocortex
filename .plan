@@ -2,7 +2,7 @@
 
 ## State
 branch: issue-340-cognitive-s-batch
-state: scaffolded
+state: active
 project-sha: 6b458970699957c5dfc8e970f11bbe6c50453058
 date: 2026-09-16
 issue-repo: casehubio/neocortex
@@ -13,3 +13,12 @@ flyway-next-v: none
 
 ## Queue
 - [ ] casehubio/neocortex#340 — Issue #340 ← active
+  - [ ] Batch 1: Corroboration
+    - [ ] Task 1: SPI change + scorer
+    - [ ] Task 2: Phase batch-query
+  - [ ] Batch 2: Significance
+    - [ ] Task 3: Extractor + accumulator
+    - [ ] Task 4: Scheduler integration
+  - [ ] Batch 3: Diversity
+    - [ ] Task 5: MmrSelector algorithm
+    - [ ] Task 6: Decorator wiring
