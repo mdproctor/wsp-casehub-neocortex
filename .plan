@@ -13,3 +13,8 @@ flyway-next-v: none
 
 ## Queue
 - [ ] casehubio/neocortex#270 — Issue #270 ← active
+  - [ ] Batch 1: Reload infrastructure
+    - [ ] Task 1: Registry reload methods + CognitiveProfilesReloaded event
+    - [ ] Task 2: CognitiveLoader reload observer
+  - [ ] Batch 2: File watcher
+    - [ ] Task 3: CognitiveProfileWatcher — filesystem loading + merge + DirectoryWatcher lifecycle
