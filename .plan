@@ -2,7 +2,7 @@
 
 ## State
 branch: issue-270-hot-reload-cognitive-profiles
-state: scaffolded
+state: active
 project-sha: 27e579ea40a9f99e8803290f6a76610c80e0d85f
 date: 2026-09-15
 issue-repo: casehubio/neocortex
@@ -13,8 +13,8 @@ flyway-next-v: none
 
 ## Queue
 - [ ] casehubio/neocortex#270 — Issue #270 ← active
-  - [ ] Batch 1: Reload infrastructure
-    - [ ] Task 1: Registry reload methods + CognitiveProfilesReloaded event
-    - [ ] Task 2: CognitiveLoader reload observer
-  - [ ] Batch 2: File watcher
-    - [ ] Task 3: CognitiveProfileWatcher — filesystem loading + merge + DirectoryWatcher lifecycle
+  - [x] Batch 1: Reload infrastructure
+    - [x] Task 1: Registry reload methods + CognitiveProfilesReloaded event
+    - [x] Task 2: CognitiveLoader reload observer
+  - [x] Batch 2: File watcher
+    - [x] Task 3: CognitiveProfileWatcher — filesystem loading + merge + DirectoryWatcher lifecycle
