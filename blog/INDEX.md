@@ -60,3 +60,4 @@
 | [2026-09-11-mdp02-context-on-the-wire.md](2026-09-11-mdp02-context-on-the-wire.md) | 2026-09-11 | FeedbackContext SPI enrichment — typed fields + attributes map, default method bridge, V2 SQLite migration |
 | [2026-09-13-mdp01-the-ecological-inference-trap.md](2026-09-13-mdp01-the-ecological-inference-trap.md) | 2026-09-13 | Ecological inference in agent-global mood correlation; event-triggered windows for discrete events; circular shift surrogates for DTW significance |
 | [2026-09-14-mdp01-cognitive-schema-flywheel.md](2026-09-14-mdp01-cognitive-schema-flywheel.md) | 2026-09-14 | Schema flywheel: discovery, guided extraction, and dev-time promotion for the cognitive type system |
+| [2026-09-16-mdp01-cognitive-discrimination.md](2026-09-16-mdp01-cognitive-discrimination.md) | 2026-09-16 | Three S-batch cognitive enhancements: corroboration-gated graduation, significance-triggered consolidation, CBR retrieval diversity via MMR |
