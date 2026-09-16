@@ -75,7 +75,7 @@ Issue #339 (importance scoring at ingestion, scale M) is still open. This design
 ```java
 @ApplicationScoped
 public class SignificanceAccumulator {
-    private final ConcurrentHashMap<String, AtomicDouble> perTenant = new ConcurrentHashMap<>();
+    private volatile ConcurrentHashMap<String, DoubleAdder> perTenant = new ConcurrentHashMap<>();
     private final ConsolidationScheduler scheduler;
     private final SignificanceExtractor extractor;
     private final double threshold;
@@ -84,18 +84,19 @@ public class SignificanceAccumulator {
     void onExperienceRecorded(@Observes ExperienceRecorded event) {
         double significance = extractor.extract(event);
         String tenantId = event.event().tenantId();
-        double total = perTenant
-            .computeIfAbsent(tenantId, k -> new AtomicDouble())
-            .addAndGet(significance);
-        if (total >= threshold) {
+        DoubleAdder adder = perTenant.computeIfAbsent(tenantId, k -> new DoubleAdder());
+        adder.add(significance);
+        if (adder.sum() >= threshold) {
             triggerExecutor.submit(() -> scheduler.consolidateNow(tenantId));
         }
     }
 
     public SignificanceSnapshot swapAndReset() {
-        var old = new HashMap<String, Double>();
-        perTenant.forEach((k, v) -> old.put(k, v.getAndSet(0.0)));
-        return new SignificanceSnapshot(old);
+        var old = perTenant;
+        perTenant = new ConcurrentHashMap<>();
+        var snapshot = new HashMap<String, Double>();
+        old.forEach((k, v) -> snapshot.put(k, v.sum()));
+        return new SignificanceSnapshot(Map.copyOf(snapshot));
     }
 }
 ```
