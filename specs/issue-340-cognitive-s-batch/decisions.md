@@ -48,3 +48,41 @@
 **Sources:** Issue #342, Issue #339, ExperienceRecorded.java
 **Exploration:** quick
 **Status:** captured
+
+## D5: Diversity integration point for CBR retrieval (#344)
+
+**Choice:** New `DiversityCbrCaseMemoryStore` @Decorator on CbrCaseMemoryStore following the established `DelegatingCbrCaseMemoryStore` pattern. Runs after scoring/reranking decorators (lower @Priority). Config-gated (`casehub.cbr.diversity.enabled`).
+**Alternatives:**
+- Post-processing inside QdrantCbrCaseMemoryStore — couples diversity to Qdrant, doesn't apply to InMemoryCbrCaseMemoryStore.
+- Standalone utility called by consumer — no automatic application, every consumer must remember to call it.
+**Rationale:** Consistent with all other retrieval modifiers (OutcomeWeighting @65, TrustWeighted @60, CrossEncoderReranking @75, ScopeDecay @85). Decorator chain is the established pattern. Config-gated means zero overhead when disabled.
+**Trade-offs:** Over-fetches by a configurable factor (topK * 2) to have candidates for diversity selection. Slightly more retrieval work when enabled.
+**Sources:** DelegatingCbrCaseMemoryStore.java, OutcomeWeightingCbrCaseMemoryStore.java, QdrantCbrCaseMemoryStore.retrieveSimilar()
+**Exploration:** quick
+**Status:** captured
+
+## D6: Pairwise similarity metric for diversity detection (#344)
+
+**Choice:** Feature-based pairwise similarity via existing `CbrSimilarityScorer`. Reuses the established scoring infrastructure — handles categorical, numeric, temporal, and structured fields. No new infrastructure.
+**Alternatives:**
+- Embedding cosine similarity — captures semantic redundancy but requires EmbeddingModel at retrieval time (optional dependency). Adds latency for batch embedding.
+- Jaccard on feature keys — very fast but extremely coarse. Two cases with identical keys but different values look identical.
+**Rationale:** CbrSimilarityScorer already handles the full type system. Using it for pairwise comparison is consistent and semantically correct. No additional dependencies.
+**Trade-offs:** O(K²) pairwise comparisons on the over-fetched set. For typical K (5-20), this is negligible.
+**Depends on:** D5 (decorator placement)
+**Sources:** CbrSimilarityScorer.java, ScoredCbrCase.featureSimilarities()
+**Exploration:** quick
+**Status:** captured
+
+## D7: Diversity replacement strategy (#344)
+
+**Choice:** MMR-style greedy selection (Maximal Marginal Relevance). Over-fetch topK*2, then greedily select K results maximizing λ*similarity_to_query - (1-λ)*max_similarity_to_selected. λ configurable (default 0.7 favors relevance).
+**Alternatives:**
+- Swap most redundant — find highest mutual similarity pair in top-K, replace lower-scored one with best diverse candidate from outside top-K. Simpler but ad-hoc.
+- Cluster-then-pick — cluster over-fetched results, pick best per cluster. More principled but adds clustering complexity and cluster count tuning.
+**Rationale:** MMR is the standard IR diversity technique. Well-understood, single-pass, O(K²) on the over-fetched set. λ parameter gives direct control over relevance-diversity trade-off. No tuning of cluster counts or similarity thresholds needed.
+**Trade-offs:** λ requires calibration per use case. Default 0.7 is conservative (relevance-heavy). Users can tune lower for more diversity.
+**Depends on:** D5 (decorator placement), D6 (similarity metric)
+**Sources:** Issue #344, CBR-LLM survey (arXiv:2504.06943)
+**Exploration:** quick
+**Status:** captured
