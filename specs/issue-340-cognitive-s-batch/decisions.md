@@ -26,12 +26,16 @@
 
 ## D3: Accumulator placement for significance trigger (#342)
 
-**Choice:** New standalone `SignificanceAccumulator` @ApplicationScoped bean in mindmap-intelligence. Observes `ExperienceRecorded` CDI events, accumulates per-tenant significance, calls `consolidateNow()` when threshold crossed.
+**Choice:** New standalone `SignificanceAccumulator` @ApplicationScoped bean in mindmap-intelligence. Observes `ExperienceRecorded` CDI events, accumulates per-tenant significance, triggers consolidation asynchronously when threshold crossed.
 **Alternatives:**
 - Extend ConsolidationScheduler directly — adds CDI observer + accumulation logic to an already 6-param constructor. Tangles timer and threshold concerns.
 - Extend RetrievalAccessTracker — reuses swap-and-reset pattern but conflates node retrieval access tracking with experience significance tracking.
 **Rationale:** Clean separation: scheduler owns the timer, accumulator owns the threshold trigger. Single responsibility. Extensible for #339 — swap event count for importance score without touching the scheduler.
 **Trade-offs:** One more bean. Minimal — it's small and focused.
+**Review refinements (R1-11, R1-12, R1-13):**
+- `consolidateNow()` must be called asynchronously (submit to internal executor), not in the CDI observer thread — synchronous invocation blocks the experience recording path on full consolidation.
+- Reset via swap-and-reset pattern (following RetrievalAccessTracker): reset counter at consolidation start, not at trigger time. Events during consolidation count toward the next cycle.
+- If consolidation lock is held when significance triggers, the request is dropped (tryLock). This is acceptable — consolidation is idempotent and the timer will catch up.
 **Sources:** ConsolidationScheduler.java, RetrievalAccessTracker.java, ExperienceRecorded.java
 **Exploration:** quick
 **Status:** captured
@@ -51,13 +55,18 @@
 
 ## D5: Diversity integration point for CBR retrieval (#344)
 
-**Choice:** New `DiversityCbrCaseMemoryStore` @Decorator on CbrCaseMemoryStore following the established `DelegatingCbrCaseMemoryStore` pattern. Runs after scoring/reranking decorators (lower @Priority). Config-gated (`casehub.cbr.diversity.enabled`).
+**Choice:** New `DiversityCbrCaseMemoryStore` @Decorator @Priority(55) on CbrCaseMemoryStore following the `RerankingCbrCaseMemoryStore` pattern (CDI @Decorator + DelegatingCbrCaseMemoryStore base + @Inject @Delegate @Any). Config-gated (`casehub.cbr.diversity.enabled`).
 **Alternatives:**
 - Post-processing inside QdrantCbrCaseMemoryStore — couples diversity to Qdrant, doesn't apply to InMemoryCbrCaseMemoryStore.
 - Standalone utility called by consumer — no automatic application, every consumer must remember to call it.
-**Rationale:** Consistent with all other retrieval modifiers (OutcomeWeighting @65, TrustWeighted @60, CrossEncoderReranking @75, ScopeDecay @85). Decorator chain is the established pattern. Config-gated means zero overhead when disabled.
-**Trade-offs:** Over-fetches by a configurable factor (topK * 2) to have candidates for diversity selection. Slightly more retrieval work when enabled.
-**Sources:** DelegatingCbrCaseMemoryStore.java, OutcomeWeightingCbrCaseMemoryStore.java, QdrantCbrCaseMemoryStore.retrieveSimilar()
+**Rationale:** Consistent with all other retrieval modifiers. Priority 55 places it after all scoring/reranking (Reranking @75, OutcomeWeighting @65, TrustWeighted @60) so MMR sees fully-scored results. Config-gated means zero overhead when disabled.
+**Trade-offs:** Over-fetches by a configurable factor (default 1.5×, not 2×) to limit cross-encoder cost. At 1.5× with topK=10, cross-encoder reranks 15 instead of 10 candidates — 50% more work, not 100%.
+**Review refinements (R1-18, R1-19, R1-20, R1-22):**
+- Follows the RerankingCbrCaseMemoryStore wiring pattern specifically (CDI @Decorator, not manual delegation).
+- Priority 55 chosen to run after TrustWeighted @60 — MMR uses fully-modulated scores, which is architecturally correct (prefer diverse results that are also trusted/proven).
+- Over-fetch factor reduced from 2× to 1.5× to limit cross-encoder cost propagation.
+- Intercepts `registerSchema()` to cache CbrFeatureSchema for pairwise similarity computation via CbrSimilarityScorer.
+**Sources:** RerankingCbrCaseMemoryStore.java, DelegatingCbrCaseMemoryStore.java, QdrantCbrCaseMemoryStore.retrieveSimilar()
 **Exploration:** quick
 **Status:** captured
 
