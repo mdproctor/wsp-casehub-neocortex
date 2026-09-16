@@ -23,3 +23,28 @@
 **Sources:** GraduationScorer.java, DefaultGraduationScorer.java, ExperienceConsolidationPhase.java, MemoryQuery.forSubject()
 **Exploration:** quick
 **Status:** captured
+
+## D3: Accumulator placement for significance trigger (#342)
+
+**Choice:** New standalone `SignificanceAccumulator` @ApplicationScoped bean in mindmap-intelligence. Observes `ExperienceRecorded` CDI events, accumulates per-tenant significance, calls `consolidateNow()` when threshold crossed.
+**Alternatives:**
+- Extend ConsolidationScheduler directly — adds CDI observer + accumulation logic to an already 6-param constructor. Tangles timer and threshold concerns.
+- Extend RetrievalAccessTracker — reuses swap-and-reset pattern but conflates node retrieval access tracking with experience significance tracking.
+**Rationale:** Clean separation: scheduler owns the timer, accumulator owns the threshold trigger. Single responsibility. Extensible for #339 — swap event count for importance score without touching the scheduler.
+**Trade-offs:** One more bean. Minimal — it's small and focused.
+**Sources:** ConsolidationScheduler.java, RetrievalAccessTracker.java, ExperienceRecorded.java
+**Exploration:** quick
+**Status:** captured
+
+## D4: Significance metric for accumulator (#342)
+
+**Choice:** Event count with pluggable extractor — `@FunctionalInterface SignificanceExtractor` with `double extract(ExperienceRecorded)`. @DefaultBean returns 1.0 (pure count). Configurable threshold. When #339 lands, a new extractor returns the importance score.
+**Alternatives:**
+- Cumulative confidence — sum confidence values. More nuanced but still a proxy, and hardcodes the metric choice.
+- Pure event count, no pluggability — YAGNI argument. But #339 is already filed and scoped; the pluggable interface costs one interface + one @DefaultBean.
+**Rationale:** The extractor costs almost nothing (one @FunctionalInterface, one trivial @DefaultBean). It positions cleanly for #339 and avoids a refactor when importance scoring lands. The accumulator doesn't care what the number means — just whether the sum crossed a threshold.
+**Trade-offs:** Marginal complexity of the pluggable interface. Justified by the known #339 dependency.
+**Depends on:** D3 (accumulator placement)
+**Sources:** Issue #342, Issue #339, ExperienceRecorded.java
+**Exploration:** quick
+**Status:** captured
