@@ -2,7 +2,7 @@
 
 ## State
 branch: issue-353-move-memory-impls
-state: closing:review
+state: closing:promoted
 project-sha: fa51012d4c45c69479df3d83a681678972451b45
 date: 2026-09-18
 issue-repo: casehubio/neocortex
