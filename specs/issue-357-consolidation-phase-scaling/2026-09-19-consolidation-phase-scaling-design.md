@@ -51,7 +51,8 @@ queries, amortized across all pairs. Memory: O(n × avg_degree × 40B) —
 ~2MB at n=5000 with avg degree 10.
 
 **Phase 2 — Prefix bucketing:**
-Group nodes by their normalized name prefix (lowercase first 3 characters).
+Group nodes by their normalized name prefix (lowercase, trimmed, first 3
+characters; names shorter than 3 chars use the full name as the key).
 Only compare within buckets. For Jaro-Winkler ≥ 0.85, names must be very
 similar — prefix sharing is nearly guaranteed. O(n) bucketing + O(Σbᵢ²)
 within-bucket comparisons.
