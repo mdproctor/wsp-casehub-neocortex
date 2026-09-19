@@ -2,7 +2,7 @@
 
 ## State
 branch: issue-358-sqlite-datasource-factory
-state: scaffolded
+state: active
 project-sha: 9218e210c6a5409abadd925ddb0b76ce6f2cfdeb
 date: 2026-09-19
 issue-repo: casehubio/neocortex
@@ -13,3 +13,7 @@ flyway-next-v: none
 
 ## Queue
 - [ ] casehubio/neocortex#358 — Issue #358 ← active
+  - [ ] Batch 1: Foundation
+    - [ ] Task 1: Create sqlite-support module + factory + tests
+  - [ ] Batch 2: Migration
+    - [ ] Task 2: Migrate 5 stores to SqliteDataSourceFactory
