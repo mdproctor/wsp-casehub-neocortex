@@ -2,7 +2,7 @@
 
 ## State
 branch: issue-357-consolidation-phase-scaling
-state: scaffolded
+state: active
 project-sha: 59d306839ec2493e95cfc9f5335e27f633a04ecc
 date: 2026-09-19
 issue-repo: casehubio/neocortex
@@ -13,3 +13,9 @@ flyway-next-v: none
 
 ## Queue
 - [ ] casehubio/neocortex#357 — Issue #357 ← active
+  - [ ] Batch 1: Orphan SPI
+    - [ ] Task 1: nodesWithoutEdges SPI + impls + contract test
+  - [ ] Batch 2: Sampled Brandes
+    - [ ] Task 2: approximateBetweennessCentrality + caller update
+  - [ ] Batch 3: Merge Detection
+    - [ ] Task 3: Prefix bucketing + bulk pre-load rewrite
