@@ -13,7 +13,7 @@ flyway-next-v: none
 
 ## Queue
 - [ ] casehubio/neocortex#358 — Issue #358 ← active
-  - [ ] Batch 1: Foundation
-    - [ ] Task 1: Create sqlite-support module + factory + tests
-  - [ ] Batch 2: Migration
-    - [ ] Task 2: Migrate 5 stores to SqliteDataSourceFactory
+  - [x] Batch 1: Foundation
+    - [x] Task 1: Create sqlite-support module + factory + tests
+  - [x] Batch 2: Migration
+    - [x] Task 2: Migrate 5 stores to SqliteDataSourceFactory
