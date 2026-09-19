@@ -13,9 +13,9 @@ flyway-next-v: none
 
 ## Queue
 - [ ] casehubio/neocortex#357 — Issue #357 ← active
-  - [ ] Batch 1: Orphan SPI
-    - [ ] Task 1: nodesWithoutEdges SPI + impls + contract test
-  - [ ] Batch 2: Sampled Brandes
-    - [ ] Task 2: approximateBetweennessCentrality + caller update
-  - [ ] Batch 3: Merge Detection
-    - [ ] Task 3: Prefix bucketing + bulk pre-load rewrite
+  - [x] Batch 1: Orphan SPI
+    - [x] Task 1: nodesWithoutEdges SPI + impls + contract test
+  - [x] Batch 2: Sampled Brandes
+    - [x] Task 2: approximateBetweennessCentrality + caller update
+  - [x] Batch 3: Merge Detection
+    - [x] Task 3: Prefix bucketing + bulk pre-load rewrite
