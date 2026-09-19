@@ -2,22 +2,43 @@
 
 ## Last Session
 
-Batch graph operations (#356) — full lifecycle from design through implementation to close.
+Two GA audit issues (#357, #358) — design, implementation, and close for both in a single session.
 
 ### What Happened
-- Stamped and closed prior branch `fix/368-cbr-intersection-normalization` (CBR intersection normalization fix)
-- Designed, planned, and implemented #356: batch `addNodes`/`addEdges` for MindMapStore SPI
-- 4 commits landed on main: SPI defaults, SQLite single-transaction JDBC batch, decorator batch overrides (DerivedEdge, TraitApplication, MutationTracking, IdleTracker), caller migration (MindMapExtractor, CommunitySummaryPhase, ExperienceConsolidationPhase, TypeRegistry)
-- ConversationBridge excluded from migration — CDI event interleaving
+
+**#357 — Consolidation phase scaling (S/Med)**
+- First-principles analysis revealed merge detection bottleneck was per-pair SQL amplification, not the O(n²) name comparison
+- Prefix bucketing + bulk neighbor pre-loading for merge detection — O(n² + k×SQL) → O(n×SQL + Σbᵢ²)
+- Sampled Brandes for approximate betweenness centrality — new `approximateBetweennessCentrality(store, subgraphId, tenantId, k)` method with deterministic seed (k=100)
+- `nodesWithoutEdges` default SPI method on MindMapStore — SqliteMindMapStore overrides with single NOT IN query, InMemoryMindMapStore with set difference
+- All three node-count safety guards removed (500-node merge, 2000-node centrality)
+- Contributor guide updated with new algorithm descriptions
+
+**#358 — SQLite DataSource factory (S/Low)**
+- New `sqlite-support` module with `SqliteDataSourceFactory` — static `create()` overloads + `migrate()`
+- 5 SQLite stores migrated: SqliteMindMapStore, SqliteMemoryStore, SqliteRetrievalTracker, SqliteCbrRetrievalTracker, SqliteSnapshotStore
+- 37 additions, 202 deletions — 165 lines of duplication eliminated
+- CLAUDE.md updated with new module
 
 ### Issues Closed
-- #356 (batch graph operations)
-- #368 (CBR intersection normalization — stamped from prior session)
+- #357 (consolidation phase scaling)
+- #358 (SQLite DataSource factory)
 
 ## Next
 
-Continue #355 GA audit child issues — #357 (consolidation phase scaling) is next in priority order.
+Continue #355 GA audit — #359 (event recorder dedup + DelegatingCaseMemoryStore) is next in priority order.
+
+Remaining in priority order:
+- #359 — event recorder dedup + DelegatingCaseMemoryStore (S/Low)
+- #360 — extract cbr-algorithms from memory-api (M/Med)
+- #361 — resolve mindmap→cognitive-index upward dependency (S/High)
+- #362 — audit orphaned SPIs (S/Low)
+- #363 — API consistency (M/Med)
+- #364 — consumer-facing SPI Javadoc (M/Low)
+- #365 — config consistency (M/Med)
+- #366 — config reference documentation (S/Low)
+- #367 — SPI completeness (L/Med)
 
 ## Cross-Module
 
-- Engine AML tests should pass after rebuilding against latest neocortex (intersection normalization fix from prior session)
+- Engine AML tests should pass after rebuilding against latest neocortex
