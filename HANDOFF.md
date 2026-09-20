@@ -2,39 +2,39 @@
 
 ## Last Session
 
-**From casehub-aml #10 session (2026-09-20):**
-- Committed `9390a1a2` on branch `issue-359-event-recorder-dedup`: added protected no-args constructors to `EventRecorderCore` and `EngagementRecorderCore` for Quarkus 3.39 CDI proxy compatibility. Filed as neocortex#373.
-- Needs: cherry-pick to main or merge the branch.
-
-**Previous session:**
-Two GA audit issues (#357, #358) — design, implementation, and close for both in a single session.
+Two issues closed (#359, #372) in a single branch, plus a cross-repo CDI fix (#373 from casehub-aml).
 
 ### What Happened
 
-**#357 — Consolidation phase scaling (S/Med)**
-- First-principles analysis revealed merge detection bottleneck was per-pair SQL amplification, not the O(n²) name comparison
-- Prefix bucketing + bulk neighbor pre-loading for merge detection — O(n² + k×SQL) → O(n×SQL + Σbᵢ²)
-- Sampled Brandes for approximate betweenness centrality — new `approximateBetweennessCentrality(store, subgraphId, tenantId, k)` method with deterministic seed (k=100)
-- `nodesWithoutEdges` default SPI method on MindMapStore — SqliteMindMapStore overrides with single NOT IN query, InMemoryMindMapStore with set difference
-- All three node-count safety guards removed (500-node merge, 2000-node centrality)
-- Contributor guide updated with new algorithm descriptions
+**#359 — Event recorder dedup + DelegatingCaseMemoryStore (S/Low)**
+- Extracted `EventRecorderCore<E, R, F, S>` abstract base in `memory-core` — shared `record()`/`recordAll()` batch logic with type-safe hooks (toInput, toRecorded, toFailure, toResult, emptyResult)
+- `ExperienceRecorderCore` and `EngagementRecorderCore` reduced from ~60 lines each to ~10 lines
+- Created `DelegatingCaseMemoryStore` in `memory-api` — forwarding base paralleling `DelegatingCbrCaseMemoryStore`
+- `ErasureNotificationCaseMemoryStore` simplified to extend it — 10 manual forwarding methods removed
+- `memory-core` module documented in CLAUDE.md (was missing)
 
-**#358 — SQLite DataSource factory (S/Low)**
-- New `sqlite-support` module with `SqliteDataSourceFactory` — static `create()` overloads + `migrate()`
-- 5 SQLite stores migrated: SqliteMindMapStore, SqliteMemoryStore, SqliteRetrievalTracker, SqliteCbrRetrievalTracker, SqliteSnapshotStore
-- 37 additions, 202 deletions — 165 lines of duplication eliminated
-- CLAUDE.md updated with new module
+**#372 — CaseContextRetriever (S/Low)**
+- New `CaseContextRetriever` in `rag-api` — multi-corpus retrieval with per-corpus error isolation, sourceDocumentId dedup (keeps highest score), score-sorted truncation
+- Improved over issue proposal: returns `List<RetrievedChunk>` (typed) not `List<Map<String, Object>>` (loose); static `toMap()` for serialization; placed in rag-api (not rag-core) to avoid heavy transitive deps
+- 11 unit tests
+- Code review fix: `toMap()` metadata ordering to prevent key collision
+
+**#373 — CDI proxy no-arg constructors (cross-repo from casehub-aml)**
+- Protected no-arg constructors added to `EventRecorderCore` and `EngagementRecorderCore` for Quarkus CDI proxy compatibility
+
+### Documentation Updated
+- CLAUDE.md: memory-core module, DelegatingCaseMemoryStore, CaseContextRetriever
+- ARC42STORIES §5: memory-core container, CaseContextRetriever in rag-api, DelegatingCaseMemoryStore in memory-api
+- Consumer guide: CaseContextRetriever in rag-api row, DelegatingCaseMemoryStore in memory-api row
+- Contributor guide: memory-core module row, CaseContextRetriever, DelegatingCaseMemoryStore, ErasureNotificationCaseMemoryStore
 
 ### Issues Closed
-- #357 (consolidation phase scaling)
-- #358 (SQLite DataSource factory)
+- #359 (event recorder dedup + DelegatingCaseMemoryStore)
+- #372 (CaseContextRetriever)
 
 ## Next
 
-Continue #355 GA audit — #359 (event recorder dedup + DelegatingCaseMemoryStore) is next in priority order.
-
-Remaining in priority order:
-- #359 — event recorder dedup + DelegatingCaseMemoryStore (S/Low)
+Continue #355 GA audit. Remaining in priority order:
 - #360 — extract cbr-algorithms from memory-api (M/Med)
 - #361 — resolve mindmap→cognitive-index upward dependency (S/High)
 - #362 — audit orphaned SPIs (S/Low)
@@ -47,3 +47,4 @@ Remaining in priority order:
 ## Cross-Module
 
 - Engine AML tests should pass after rebuilding against latest neocortex
+- casehubio/soc#57 can now refactor to use `CaseContextRetriever` (#372 landed)
