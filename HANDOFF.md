@@ -34,11 +34,14 @@ Two issues closed (#359, #372) in a single branch, plus a cross-repo CDI fix (#3
 
 ## Next
 
-Continue #355 GA audit. Remaining in priority order:
+**Priority: #375 — rename Case-prefixed SPIs + plan-type engine vocabulary (M/High)**
+Cross-repo slot work: neocortex + engine + SOC/life consumers. Rename CaseMemoryStore → MemoryStore, CaseRetriever → CorpusRetriever, plan-type fields to platform types. Add @Deprecated bridges — no more bare renames that break downstream.
+
+Then continue #355 GA audit. Remaining in priority order:
 - #360 — extract cbr-algorithms from memory-api (M/Med)
 - #361 — resolve mindmap→cognitive-index upward dependency (S/High)
 - #362 — audit orphaned SPIs (S/Low)
-- #363 — API consistency (M/Med)
+- #363 — API consistency (M/Med) — #375 covers the highest-priority subset
 - #364 — consumer-facing SPI Javadoc (M/Low)
 - #365 — config consistency (M/Med)
 - #366 — config reference documentation (S/Low)
@@ -48,3 +51,4 @@ Continue #355 GA audit. Remaining in priority order:
 
 - Engine AML tests should pass after rebuilding against latest neocortex
 - casehubio/soc#57 can now refactor to use `CaseContextRetriever` (#372 landed)
+- #375 rename will touch engine, SOC, life CBR consumers — coordinate via slot
