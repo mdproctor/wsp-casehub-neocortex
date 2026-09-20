@@ -1,0 +1,15 @@
+# Work Plan — issue-377-cbr-record-rename
+
+## State
+branch: issue-377-cbr-record-rename
+state: scaffolded
+project-sha: slot-creation
+date: 2026-09-20
+issue-repo: casehubio/neocortex
+covers: 377
+design-repo: project
+design-section-hashes: 
+flyway-next-v: unknown
+
+## Queue
+- [ ] casehubio/neocortex#377 — Issue #377 ← active
