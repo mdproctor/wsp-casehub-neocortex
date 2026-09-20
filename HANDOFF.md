@@ -2,6 +2,11 @@
 
 ## Last Session
 
+**From casehub-aml #10 session (2026-09-20):**
+- Committed `9390a1a2` on branch `issue-359-event-recorder-dedup`: added protected no-args constructors to `EventRecorderCore` and `EngagementRecorderCore` for Quarkus 3.39 CDI proxy compatibility. Filed as neocortex#373.
+- Needs: cherry-pick to main or merge the branch.
+
+**Previous session:**
 Two GA audit issues (#357, #358) — design, implementation, and close for both in a single session.
 
 ### What Happened
