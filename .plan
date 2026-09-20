@@ -2,7 +2,7 @@
 
 ## State
 branch: issue-359-event-recorder-dedup
-state: scaffolded
+state: active
 project-sha: 0bae3bec119fe7eb63e3eef310b272d20c3ee776
 date: 2026-09-20
 issue-repo: casehubio/neocortex
