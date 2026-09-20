@@ -13,4 +13,4 @@ flyway-next-v: none
 
 ## Queue
 - [x] casehubio/neocortex#359 — Issue #359
-- [ ] casehubio/neocortex#372 — CaseContextRetriever — generic case-context RAG retrieval ← active
+- [x] casehubio/neocortex#372 — CaseContextRetriever — generic case-context RAG retrieval
