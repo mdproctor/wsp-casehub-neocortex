@@ -22,6 +22,10 @@ Neocortex uses MindMap conventions for cognitive goal types — dependency types
 
 Neocortex gains eidos-api as a compile dependency on modules that need it (cognitive-index, mindmap-intelligence, goal module). The cognitive layer naturally needs to know the identity it's cognitive of — the `DescriptorView` indirection was principled but unnecessary. Direct access to `AgentGoal`, `GoalPriority`, `AgentDescriptor` simplifies the interface.
 
+Lifecycle state transitions follow the existing AgentGoal mutation pattern: engine routing (GoalFormationService, GoalRevisionEvaluator, GoalAbandonmentEvaluator) writes lifecycle state via `AgentRegistry.register()`. Neocortex reads lifecycle state via eidos-api — it does not write lifecycle transitions. This is consistent with the "No split-brain" foundation.
+
+DescriptorView remains for modules that don't need goal-specific context (agent name, disposition for cognitive derivation). Modules requiring AgentGoal access (cognitive-index, mindmap-intelligence, goal module) use eidos-api directly. DescriptorView.goals (`List<String>`) is not deprecated — it serves as a thin summary for non-goal contexts. AgentGoal is authoritative for cognitive goal processing.
+
 **Alternatives:**
 - New `neocortex-goal-api` module — adds a build artifact for types that naturally split between eidos (identity) and neocortex (cognitive). Over-abstraction.
 - platform-api — goal lifecycle and horizon are domain concepts, not platform infrastructure. Stretches what "platform primitive" means.
@@ -32,7 +36,7 @@ Neocortex gains eidos-api as a compile dependency on modules that need it (cogni
 **Trade-offs:** eidos-api grows by a few enums and fields on AgentGoal. neocortex gains a dependency on eidos-api (currently zero — but the cognitive layer should know the identity it's cognitive of).
 **Sources:** AgentGoal.java, GoalPriority.java, DescriptorView.java, SubgraphTypes.java, MindMapVocabulary pattern, dependency graph analysis
 **Exploration:** deep-analysis (three sessions)
-**Status:** captured
+**Status:** revised — added lifecycle write ownership (R1-02), DescriptorView transition plan (R1-03)
 
 ---
 
@@ -51,11 +55,11 @@ Two representations, different purposes: fast signal cache (eidos, volatile) for
 - Neocortex becomes the backend — GoalSignalStore backed by neocortex memory. Couples engine routing latency to neocortex availability.
 
 **Rationale:** The existing ExperienceEvent flow already delivers goal outcomes to neocortex. No new integration needed. The volatile signal cache is fast enough for engine routing. Durability is a broader eidos concern that shouldn't block #345.
-**Trade-offs:** Goal signal counts reset on JVM restart. Engine routing evaluators lose accumulated history. Acceptable for pre-release; eidos persistence review is a separate issue.
+**Trade-offs:** Goal signal counts reset on JVM restart. Engine routing evaluators lose accumulated history. Acceptable for pre-release; eidos persistence review is a separate issue. **Trigger for revisiting:** Deferral becomes unacceptable when goal evolution must survive JVM restarts for production reliability — specifically, when multi-session agent behavior depends on accumulated goal history. Tracked as eidos issue for broader persistence review covering GoalSignalStore, drive state, and trait pressure.
 **Depends on:** D1 (neocortex → eidos-api dependency)
 **Sources:** InMemoryGoalSignalStore.java, GoalOutcomeRecorder.java, ExperienceEvent hierarchy
 **Exploration:** quick
-**Status:** captured
+**Status:** revised — added concrete trigger condition for revisiting (R1-05)
 
 ---
 
@@ -70,14 +74,14 @@ Neocortex builds cognitive goal substrate: recognition from experience, dependen
 Over time, blocks can consume neocortex's cognitive signals to enrich its orchestration: "is this proposed goal already tracked cognitively?" (dedup), "what's the cognitive priority of this goal?" (ranking), "is this goal blocked by dependencies?" (deferral). This is gradual adoption via CDI events and neocortex query APIs — not a migration.
 
 **Alternatives:**
-- Cognitive functions migrate to neocortex — drive→goal mapping, LLM formation, priority escalation. Cleanest long-term but biggest scope increase and unclear boundary (drives ARE behavioral, not cognitive).
+- Cognitive functions migrate to neocortex — drive→goal mapping, LLM formation, priority escalation. Cleanest long-term but biggest scope increase and unclear boundary (in this platform's convention, drives are behavioral rather than cognitive — this is an architectural boundary, not a cognitive science claim).
 - Neocortex defines SPIs, blocks implements immediately — premature before the cognitive system exists. Define SPIs from real usage, not speculation.
 
-**Rationale:** The substrate/orchestration split is the right boundary. Neocortex provides capability. Blocks provides integration. Moving orchestration to neocortex would force neocortex into behavioral decisions (when to propose, how to escalate, how to render prompts) that belong in blocks.
+**Rationale:** The substrate/orchestration split is the right boundary — defined as a platform convention, not a cognitive science universal. Cognitive science (SDT, BDI, Soar, ACT-R) treats motivation as cognitive; our distinction is architectural: neocortex handles knowledge-building operations (memory, inference, graph construction), blocks handles action-driving operations (drive evaluation, prompt rendering, goal proposal, behavioral wiring). Neocortex provides capability. Blocks provides integration. Moving orchestration to neocortex would force neocortex into behavioral decisions (when to propose, how to escalate, how to render prompts) that belong in blocks.
 **Trade-offs:** Two systems process goal-related information. Mitigated by CDI events and the substrate/orchestration boundary — they don't overlap, they complement.
 **Sources:** GoalProposalOrchestrator.java (500+ lines, deeply woven with drives/narrative), ReflectionSynthesizer pattern (SPI + NoOp)
 **Exploration:** deep-analysis
-**Status:** captured
+**Status:** revised — reframed cognitive/behavioral boundary as platform convention (R1-08)
 
 ---
 
@@ -173,7 +177,7 @@ Out of scope (separate issues):
 **Resolution triggers (GoalResolutionPhase, priority 35):**
 - **Prune:** Distant goals with decomposed sub-goals that haven't been accessed → collapse back to single node
 - **Expand:** Approaching goals (time proximity) or newly-overlapping goals → increase resolution via cognitive decomposition SPI
-- **Merge:** Shared sub-goals across parent goals → merge sub-goal nodes, create `contributes-to` edges to both parents
+- **Merge:** Shared sub-goals across parent goals → merge sub-goal nodes, create `contributes-to` edges to both parents. Detection uses embedding similarity (SPLADE + dense vectors, leveraging existing neocortex infrastructure) for semantic matching — name-based Jaro-Winkler (MergeDetectionPhase) is insufficient for prose goals where "understand customer pain points" and "assess user frustration areas" are semantically equivalent but lexically distant
 - **Revise:** Dependency state changed (sub-goal completed, blocker removed, new information) → update graph
 - **Decay:** Goals with no activity and declining affect → reduce priority, suggest dormancy/abandonment
 
@@ -205,4 +209,75 @@ Returns `ParsedExtraction` (existing type from MindMapExtractor) — entities (s
 **Depends on:** D3 (SPI pattern for LLM access), D6 (scope — GoalResolutionPhase is in-scope)
 **Sources:** ConsolidationScheduler.java, MindMapExtractor.java (ParsedExtraction pattern), context doc §Progressive Resolution, context doc §Cognitive vs Execution Decomposition
 **Exploration:** deep-analysis (two sessions)
+**Status:** revised — specified embedding similarity for goal merge detection (R1-21)
+
+---
+
+## D8: Intentionlike → Goallike trait relationship
+
+**Choice:** Goallike replaces Intentionlike. Intentionlike is deprecated.
+
+Intentionlike (`goal()`, `status()`, `priority()`) is a minimal skeleton created before the goal cognition design existed. It's registered in TypeRegistry under the `"intention"` cognitive type but carries no lifecycle, horizon, dependency, or affect semantics.
+
+Goallike replaces it with the full goal domain model: lifecycle state, horizon, origin (recognized/proposed/inherited), resolution level, affect valence. Goallike is registered in TypeRegistry under `"goal"` as a new cognitive type. Existing code referencing Intentionlike (TypeRegistry registration, CognitiveTraitInterfaceTest) is updated to use Goallike.
+
+Intentionlike is not retained alongside Goallike — having both creates ambiguity about which interface represents goal semantics. The migration is mechanical: Intentionlike has 2 production references (TypeRegistry registration, CognitiveDerivationEngine) and test references.
+
+**Alternatives:**
+- Keep both — Intentionlike as a super-interface of Goallike. Adds unnecessary indirection for 3 methods. No consumer needs the minimal view.
+- Rename Intentionlike to Goallike — preserves history but the semantics expand beyond renaming.
+
+**Rationale:** Clean replacement. Intentionlike was a placeholder. Goallike is the designed interface.
+**Sources:** Intentionlike.java (3 methods), TypeRegistry.java (cognitive type registration)
+**Exploration:** surfaced by review (R1-25)
+**Status:** captured
+
+---
+
+## D9: GOAL subgraph type for goal nodes
+
+**Choice:** Goal nodes use a dedicated GOAL subgraph type, separate from COGNITIVE.
+
+SubgraphTypes currently defines: PERSON, PROJECT, RESEARCH_AREA, ORGANISATION, CONCEPT, GENERAL, TYPE_SYSTEM, COGNITIVE. ExperienceConsolidationPhase graduates experiences into COGNITIVE. Goal nodes get their own GOAL subgraph type.
+
+Separation enables:
+- GoalResolutionPhase operates on GOAL subgraph independently
+- CuriositySignalGenerator can prioritize GOAL subgraphs independently (high-affect approaching-deadline goals get priority)
+- Goal-specific consolidation scheduling (GOAL subgraph may need different processing frequency than COGNITIVE)
+
+GoalResolutionPhase processes GOAL subgraph nodes. When goal nodes reference cognitive experience nodes (via edges), the edges cross subgraph boundaries — this is already supported by MindMap's edge model (edges reference node IDs, not subgraph types).
+
+**Alternatives:**
+- Use COGNITIVE for goal nodes — simpler, but goal processing and experience processing intermix in the same subgraph priority queue. No independent scheduling.
+- New GOAL_COGNITIVE compound — over-specified. Subgraph types are coarse categories, not fine-grained taxonomies.
+
+**Rationale:** Subgraph types exist for independent scheduling and prioritization. Goals have different consolidation needs than experiences (resolution management, dependency tracking, affect-driven urgency). A dedicated type enables the right scheduling granularity.
+**Sources:** SubgraphTypes.java, CuriositySignalGenerator, ConsolidationScheduler subgraph priority
+**Exploration:** surfaced by review (R1-26)
+**Status:** captured
+
+---
+
+## D10: Goal-conditioned retrieval mechanism
+
+**Choice:** Graph proximity in MindMap, implemented as a ModulationFactor.
+
+A `GoalRelevanceModulationFactor` implements `ModulationFactor<T>` and weights retrieved memories by their graph proximity to active goal nodes. Memories whose MindMap entity nodes are within N edges of a goal node receive higher modulation weight.
+
+The mechanism leverages existing infrastructure:
+- MindMap graph traversal (neighbors, edges) for proximity computation
+- ModulationFactor SPI (`double apply(T item, ModulationProfile<T> profile)`) for retrieval weighting
+- CognitiveProfile.resolve() already collects edges and memories for entity nodes
+
+Graph proximity naturally captures goal relevance: memories directly associated with a goal (1 edge) are highly relevant; memories associated with a goal's dependency (2 edges) are moderately relevant; distant memories contribute less. The weighting decays with edge distance.
+
+**Alternatives:**
+- Embedding similarity between memory text and goal description — accurate but expensive (requires embedding computation during retrieval). May complement graph proximity for cold-start goals with few graph connections.
+- Explicit tagging (memory recorded with goal reference) — requires upstream changes to memory recording. Only captures explicitly tagged memories, misses implicit relevance.
+- Keyword matching — brittle, misses semantic relationships.
+
+**Rationale:** Graph proximity is the natural mechanism for MindMap-based retrieval. It's computationally cheap (graph traversal, no LLM/embedding), leverages existing infrastructure, and improves as the goal graph densifies through consolidation.
+**Trade-offs:** Cold-start goals (newly recognized, few graph connections) get minimal modulation benefit. Embedding similarity may supplement graph proximity for these cases. This is an implementation optimization, not a design change.
+**Sources:** ModulationFactor.java (SPI), CognitiveProfile.resolve() (edge collection), MindMapStore.neighbors() (graph traversal)
+**Exploration:** surfaced by review (R1-27)
 **Status:** captured
