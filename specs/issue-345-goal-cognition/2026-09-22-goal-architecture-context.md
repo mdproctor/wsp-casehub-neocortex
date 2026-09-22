@@ -240,6 +240,35 @@ Desiredstate has `Dependency(from, to)` and `DesiredStateGraph`. Neocortex propo
 - **B. #345 covers the full architecture** — all 7 scope areas from the epic plus cross-repo integration. Requires a slot with platform, eidos, engine, blocks, desiredstate, neocortex.
 - **C. #345 covers primitives + neocortex** — shared primitives module (wherever it lives) plus neocortex cognitive processing. Cross-repo consumption tracked separately but designed coherently.
 
+### D7: How do blocks' goal decomposition and neocortex's cognitive goal graph relate?
+
+**Context:** Blocks already decomposes prose goals into executable sub-goal DAGs via `DecompositionStrategy`. Multiple strategies exist:
+- `LlmDecomposition` — LLM breaks prose into agent tasks or subtasks (recursive up to maxDepth). Produces `DagPlan<TaskNode.LeafTask>` with `DagNode(dependsOn, JoinType, contingency)`. Subtasks are recursively decomposed.
+- `HeuristicDecomposition`, `CapabilityDependencyDecomposition`, `ForwardReasoningDecomposition` — rule-based strategies
+- `GoapDecompositionStrategy` — Goal-Oriented Action Planning
+- `ExplicitHtnDecompositionStrategy` — Hierarchical Task Network
+- `PortfolioDecompositionStrategy` — multi-strategy selection
+
+Engine's `DefaultGoalDecomposer` iterates `AgentGoal` records from the descriptor, calls the `DecompositionStrategy`, resolves each `GoalStep` to a binding + executor, and materialises the `DagPlan` into `PlanItemDefinition` records. CBR experiences are passed in the `GoalDecompositionContext` to inform decomposition.
+
+**The overlap:** Both blocks/engine and neocortex would produce dependency graphs of sub-goals. The difference is time horizon:
+- **Blocks** decomposes goals for execution NOW — a `DagPlan` that lives for one case execution
+- **Neocortex** would track goal structure OVER TIME — a persistent MindMap graph that accumulates learning about goal decomposition patterns across executions
+
+**How they could work together:**
+- Neocortex's persistent goal graph provides **prior decomposition patterns** ("last time we decomposed goal X, the structure was Y") → informs LLM prompts or seeds HTN/GOAP strategies
+- Neocortex's **known blockers** ("goal A is blocked by B") → decomposition can skip/defer blocked sub-goals
+- Neocortex's **affective context** ("agent repeatedly failed at sub-goal C") → different strategy selection, different agent assignment
+- Neocortex's **goal consolidation** ("goals X and Y share sub-goals") → merged decomposition avoids duplication
+- Blocks' decomposition **outcomes** flow back to neocortex as experience → persistent graph learns which decompositions succeed
+
+**Options:**
+- **A. Blocks decomposes, neocortex learns** — blocks keeps all decomposition strategies. Neocortex receives decomposition outcomes via ExperienceEvent and builds a persistent goal-structure knowledge graph. Over time, neocortex's graph enriches decomposition context (via `GoalDecompositionContext.experiences` which already exists). Clean separation: blocks = execution-time planning, neocortex = cross-execution learning.
+- **B. Neocortex provides decomposition context SPI** — neocortex defines a `GoalStructureProvider` SPI that blocks' strategies can query for prior decomposition patterns, known blockers, and affect signals. Blocks still owns the strategies; neocortex provides richer input.
+- **C. Shared decomposition graph primitives** — both use the same graph types (`DagNode`, `DagPlan` or equivalent). Neocortex's persistent graph IS a `DagPlan` stored in MindMap. Blocks' execution plan is derived from neocortex's cognitive graph. Tightest coupling, most reuse.
+
+**Factors:** Option A is the cleanest separation and `GoalDecompositionContext.experiences` already provides the bridge. Option B makes the enrichment explicit. Option C risks coupling execution-time and cognitive-time concerns.
+
 ## Next Steps
 
 1. **Move to a slot** — this work spans platform, eidos, engine, blocks, desiredstate, neocortex
@@ -275,6 +304,14 @@ Desiredstate has `Dependency(from, to)` and `DesiredStateGraph`. Neocortex propo
 - `io.casehub.neocortex.cognitive.index.DescriptorView` — zero-eidos-dep identity view
 - `io.casehub.neocortex.mindmap.intelligence.CuriositySignalGenerator` — pattern for goal-driven attention
 - `io.casehub.neocortex.memory.experience.GraduationClassifier` — pattern for goal recognition
+- `io.casehub.blocks.agentic.decomposition.LlmDecomposition` — recursive LLM goal decomposition (prose → DagPlan)
+- `io.casehub.blocks.agentic.decomposition.HeuristicDecomposition` — rule-based decomposition
+- `io.casehub.blocks.agentic.decomposition.CapabilityDependencyDecomposition` — dependency-aware decomposition
+- `io.casehub.engine.planning.decomposition.GoapDecompositionStrategy` — GOAP decomposition
+- `io.casehub.engine.planning.decomposition.ExplicitHtnDecompositionStrategy` — HTN decomposition
+- `io.casehub.engine.planning.decomposition.DefaultGoalDecomposer` — orchestrates decomposition per AgentGoal
+- `io.casehub.engine.plan.DagPlan` — immutable DAG with topological sort, cycle detection, sequence/parallel/merge operations
+- `io.casehub.engine.plan.DagNode` — node with dependsOn, JoinType, optional contingency plan
 - Park et al. (2023) — Generative Agents, goal-directed daily planning from reflection
 - Schulz & Jander (2025) — Planless BDI Agents, LLM plan generation from goal descriptions
 - Addison (2025) — La VIDA, goal-self concordance from personality
