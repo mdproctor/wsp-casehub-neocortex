@@ -349,7 +349,26 @@ What blocks would need for cognitive decomposition:
 
 The recursive subtask path in `LlmDecomposition` already produces compound nodes (`"subtask"` + `"description"`) that get recursively decomposed without agent assignment until the leaves. The infrastructure supports variable-depth decomposition with unassigned intermediate nodes.
 
-This means blocks could support **both cognitive and execution decomposition** with minimal changes — a configurable prompt and a lightweight `ThoughtNode` leaf type. The question shifts from "can blocks help?" to "should blocks own cognitive decomposition as a mode, or should neocortex have its own?" The advantage of blocks owning it: GOAP, HTN, heuristic, forward-reasoning strategies would all become available for cognitive decomposition, not just LLM. The advantage of neocortex owning it: zero coupling, cognitive-specific prompt tuning, direct MindMap integration.
+However, the current model is at tension. The vocabulary is execution throughout — `TaskNode`, `LeafTask`, `PlannedTask`, `TaskDescriptor`, `executor()`, `TaskStatus`. Using "TaskNode" to represent a thought stretches terminology beyond intent. The types technically allow it, but the model wasn't designed for it.
+
+**Blocks refactoring opportunity:** The clean parts are already separated — `DagPlan<T>` and `DagNode<T>` are generic, mention nothing about tasks or execution. The pollution is in the intermediate layer: `TaskNode<T>` (sealed, execution-flavored) and `DecompositionStrategy<T>` returning `DagPlan<TaskNode.LeafTask<T>>` instead of `DagPlan<T>`. A refactored blocks would make DAG composition a first-class concept independent of execution, with `DecompositionStrategy<T>` returning `DagPlan<T>` directly. The leaf type becomes truly domain-specific — execution leaves for agent tasks, cognitive leaves for MindMap goal nodes.
+
+**Code verification (challenging the "generalised DAG engine" claim):**
+
+The `DagPlan`/`DagNode`/`JoinType` infrastructure IS general — pure graph machinery with no execution concepts. But the decomposition strategies built on it are deeply coupled to execution:
+- `CapabilityDependencyDecomposition` — reads `RoutingCandidate`, iterates `AgentCapability.inputTypes()/outputTypes()`, picks producers by `qualityHint()`, produces `PlannedTask` with agent refs. The planning algorithm IS about matching capabilities to agents.
+- `GoapDecompositionStrategy` — coupled to `CaseDefinition.getGoapActions()`, engine's `GoapPlanner`, and `GoalStep`. Deeply engine-specific.
+- `ForwardReasoningDecomposition` — SHOP-style forward chaining with `PrimitiveTask.effect()` mutating projected state. Algorithmically general but typed to execution concepts.
+- `LlmDecomposition` — prompt hardwired to agent tasks, parser requires `RoutingCandidate` resolution.
+- `HeuristicDecomposition` — delegates to sub-strategies, inherits their coupling.
+
+**Honest assessment:** Blocks is an **execution planning engine built on top of general DAG infrastructure.** Not a generalised DAG composition engine. The decomposition strategies are deeply woven into `RoutingCandidate`, `AgentCapability`, `CaseDefinition`, `GoapAction`, `PlannedTask`.
+
+**What IS shareable:** `DagPlan`, `DagNode`, `JoinType`, topological sort, cycle detection, `sequentialMerge`, `parallel` — the graph primitives. These could be extracted to a shared module.
+
+**What is NOT shareable without refactoring:** The decomposition strategies themselves. They produce execution-oriented output and consume execution-oriented context.
+
+**Revised direction:** A blocks refactor to separate the DAG infrastructure from execution-specific strategies would benefit both blocks (cleaner model) and neocortex (shared graph primitives). But it's a substantial refactor — the strategies would need to be genericised over both context type AND leaf type, not just state type `T`. Neocortex should build its own cognitive decomposition (LLM-based, MindMap-targeted) using shared DAG primitives, and blocks strategies can be gradually generalised as a separate effort.
 
 **Open sub-questions:**
 - How does the cognitive sub-goal graph map to MindMap? Sub-goals as child nodes with typed edges (decomposes-into), resolution level as a node property.
