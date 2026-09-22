@@ -272,13 +272,41 @@ Both are DAGs with prose nodes and typed edges. The question is whether they sha
 - Neocortex's **goal consolidation** ("goals X and Y share sub-goals") → merged decomposition avoids duplication
 - Blocks' decomposition **outcomes** flow back to neocortex as experience → persistent graph learns which decompositions succeed
 
-**Options:**
-- **A. Blocks decomposes, neocortex learns** — blocks keeps all decomposition strategies. Neocortex receives decomposition outcomes via ExperienceEvent and builds a persistent goal-structure knowledge graph. Over time, neocortex's graph enriches decomposition context (via `GoalDecompositionContext.experiences` which already exists). Clean separation: blocks = planning, neocortex = learning.
-- **B. Neocortex provides decomposition context SPI** — neocortex defines a `GoalStructureProvider` SPI that blocks' strategies can query for prior decomposition patterns, known blockers, and affect signals. Blocks still owns the strategies; neocortex provides richer input.
-- **C. Neocortex owns goals, blocks provides decomposition** — neocortex recognises a goal, asks blocks to decompose it into a sub-goal graph (blocks' `DecompositionStrategy` is the capability), receives back a `DagPlan`, stores the graph persistently in MindMap, owns the execution lifecycle (tracking which sub-goals are done/blocked/deferred), and dispatches ready sub-goals to engine for execution. Blocks provides the decomposition service; neocortex owns the persistent result and orchestrates progress. Flow: neocortex → blocks (decompose) → neocortex (store + manage) → engine (execute).
-- **D. Shared decomposition graph primitives** — both use the same graph types. Neocortex's persistent graph IS a `DagPlan` stored in MindMap. Tightest coupling.
+### Revised framing: progressive resolution
 
-**Factors:** Option C is the most architecturally coherent — neocortex is the cognitive layer that owns goal understanding, blocks is the planning capability it uses, engine is the execution capability it dispatches to. It matches the "shared vocabulary, independent engines" principle but with neocortex as the goal authority rather than eidos. Option A is lowest-risk. Option B is incremental.
+The original options (A–D) assumed decomposition and deliberation are separate concerns. Research and analysis show they are not — you cannot select, prioritise, or compare goals without understanding their structure. In BDI, deliberation requires understanding what a goal involves. In Soar, subgoaling IS cognition. In ACT-R, goal activation (which determines focus) requires knowing the goal's dependency context.
+
+**The cognitive goal graph has variable resolution.** Not all goals need the same level of structural detail. Resolution depends on:
+
+| Factor | Low resolution (single goal node) | High resolution (sub-goal graph) |
+|--------|----------------------------------|----------------------------------|
+| Time proximity | Far off | Imminent |
+| Overlap with other goals | No overlap detected | Shared sub-goals or dependencies |
+| Importance of detail | Decisions don't depend on structure | Prioritisation requires understanding size/cost |
+| Execution readiness | Not being considered for execution | About to be submitted for execution |
+
+A distant goal with no overlaps stays as a single node with prose description. As time nears, or an overlap with another goal is detected, neocortex progressively decomposes — generating rough sub-goals to understand scope, dependencies, and potential sharing. Only when a goal is about to be submitted for execution (or when comparing competing execution plans) does full resolution matter.
+
+This is analogous to level-of-detail in graphics rendering — you don't render what you can't see, and you render nearby objects at higher fidelity than distant ones. The cognitive system spends decomposition effort where it has decision-making value.
+
+**Implications for the architecture:**
+
+1. **Neocortex owns the cognitive goal graph at all resolutions** — from single-node placeholders to fully decomposed sub-goal trees. The graph lives in MindMap. Resolution increases over time or on demand.
+
+2. **Blocks' decomposition strategies are a capability neocortex uses for cognitive understanding** — not for execution planning. Neocortex asks "what would this goal involve?" to inform deliberation. The result is stored persistently as goal knowledge.
+
+3. **Engine's execution decomposition is separate** — when neocortex submits a goal via `GoalFormationService.propose()`, engine decomposes again for execution (finer-grained, agent-assigned, with contingencies and output contracts). Engine's decomposition is execution-specific; neocortex's is cognition-specific.
+
+4. **The "submit for execution" path exists** — `GoalFormationService.propose()` writes `AgentGoal` to `AgentRegistry`. Engine's `DefaultGoalDecomposer` picks it up. Neocortex doesn't need to track execution — outcomes flow back as `ExperienceEvent`.
+
+5. **Dependency tracking triggers resolution increase** — when neocortex detects that goal A might share sub-goals with goal B (overlap detection), or that goal C is approaching its time horizon, it increases resolution by decomposing further. This is a cognitive consolidation activity (fits the `ConsolidationPhase` pattern).
+
+6. **Goal selection operates on the graph at current resolution** — prioritisation uses whatever structural knowledge is available. A single-node goal is prioritised by its prose description, affect, and personality concordance. A decomposed goal is prioritised by sub-goal count, dependency depth, estimated effort, and overlap with other goals.
+
+**Open sub-questions:**
+- How does neocortex call blocks' `DecompositionStrategy` without depending on engine-api? Options: (a) thin SPI in shared primitives module, (b) neocortex depends on engine-api for this one SPI, (c) neocortex has its own cognitive decomposition (LLM-based) independent of blocks' strategies.
+- When does resolution increase? Triggers: time proximity threshold, overlap detection in consolidation, explicit user request, pre-execution preparation.
+- How does the cognitive sub-goal graph map to MindMap? Sub-goals as child nodes with typed edges (decomposes-into), resolution level as a node property.
 
 ## Next Steps
 
