@@ -1,12 +1,20 @@
 # HANDOFF — casehub-neocortex
 
-## Last Session
+## Last Session (extended — two rounds)
 
-Cross-repo architecture audit for Epic #345 (goal cognition). Traced all goal primitives across eidos, engine, blocks, desiredstate, and neocortex — discovered four distinct goal concepts sharing one word. Blocks has the largest goal subsystem (500+ line GoalProposalOrchestrator with drive-based cognitive processing). GoalSignalStore in eidos is volatile with no durable implementation. Desiredstate already has a dependency graph and phased lifecycle that parallels what #345 proposes. Agreed on "complement, not replace" with shared vocabulary and independent engines. Created slot 203 with all 6 repos.
+**Round 1:** Cross-repo architecture audit for Epic #345. Traced goal primitives across 6 repos, discovered 4 goal concepts, mapped dependency graph. Created slot 203.
+
+**Round 2 (this session):** Deep analysis of blocks' decomposition, research grounding, and architectural refinement. Key findings:
+
+- **Research grounding:** BDI separates desires (cognitive) from intentions (committed) from execution. ACT-R: goals bias retrieval. Scherer: goals are reference points for emotional appraisal. La VIDA: personality-concordant goal selection. Cognitive goals = deliberation, not planning.
+- **Progressive resolution:** Cognitive goal graph has variable depth — single node for distant goals, decomposed for approaching/overlapping ones. LOD analogy. Resolution managed bidirectionally by consolidation sleep cycle (prune distant detail, expand approaching goals, merge shared sub-goals).
+- **Cognitive vs execution decomposition:** Blocks' strategies (GOAP, HTN, LLM, heuristic) are execution-coupled (RoutingCandidate, AgentCapability, PlannedTask). Not reusable for cognitive decomposition. Neocortex needs its own LLM-based cognitive decomposition producing MindMap nodes.
+- **No shared graph types needed:** MindMap IS neocortex's graph. DagPlan is engine's. Interface is GoalFormationService.propose() (prose + priority in) and ExperienceEvent (outcomes out). ~250 lines of graph code not worth extracting to platform.
+- **Blocks refactor:** Worth doing for blocks' own cleanliness (generics + factory patterns), but not a #345 dependency.
 
 ## Immediate Next Step
 
-Open a CLI in slot 203 (`~/claude/casehub/slots/203/neocortex`), run `work`. Resolve decisions D1–D6 from the context doc, write the design spec, then create per-repo child issues.
+In slot 203, pull this branch into the workspace clone and read the context doc. Resolve D1–D7, write the design spec.
 
 ## References
 
