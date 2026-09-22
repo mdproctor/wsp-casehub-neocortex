@@ -303,10 +303,28 @@ This is analogous to level-of-detail in graphics rendering — you don't render 
 
 6. **Goal selection operates on the graph at current resolution** — prioritisation uses whatever structural knowledge is available. A single-node goal is prioritised by its prose description, affect, and personality concordance. A decomposed goal is prioritised by sub-goal count, dependency depth, estimated effort, and overlap with other goals.
 
+### Resolution management via consolidation ("sleep")
+
+The existing `ConsolidationScheduler` runs periodic maintenance phases when the system is idle — this IS the cognitive "sleep" cycle. Goal resolution is managed as a consolidation phase (`GoalResolutionPhase`), not as a real-time process.
+
+During consolidation, the phase:
+- **Prunes** — distant goals with decomposed sub-goals that haven't been accessed → collapse back to single node. Too much detail too far out wastes graph complexity. The detail can be re-derived when needed.
+- **Expands** — approaching goals (time proximity) or newly-overlapping goals → increase resolution by decomposing further. The system invests cognitive effort where decisions are imminent.
+- **Merges** — detects shared sub-goals across different parent goals → merge sub-goal nodes, create "contributes-to" edges to both parents. This is how the system discovers that two apparently independent goals share infrastructure.
+- **Revises** — goals whose dependency state changed (sub-goal completed elsewhere, blocker removed, new information) → update the graph.
+- **Decays** — goals with no activity and declining affect → reduce priority, suggest dormancy or abandonment.
+
+This mirrors human sleep consolidation — prune irrelevant detail, strengthen relevant connections, surface relationships not obvious during waking cognition. The `IdleTracker` + `ConsolidationScheduler` already handle timing. `CuriositySignalGenerator` already prioritises subgraphs for consolidation attention — goal subgraphs with high-affect or approaching-deadline goals would naturally receive priority.
+
+Existing consolidation phases that goal resolution complements:
+- `ExperienceConsolidationPhase` (priority 15) — graduates experiences to typed nodes. Goal outcomes from execution could graduate to goal-structure knowledge.
+- `MergeDetectionPhase` (priority 20) — Jaro-Winkler name similarity + Jaccard neighbor overlap. Same mechanism detects shared sub-goals across parent goals.
+- `CuriosityRefreshPhase` (priority 40) — recomputes curiosity signals. Goal-driven curiosity ("what do I need to know to pursue this goal?") is a natural category.
+
 **Open sub-questions:**
 - How does neocortex call blocks' `DecompositionStrategy` without depending on engine-api? Options: (a) thin SPI in shared primitives module, (b) neocortex depends on engine-api for this one SPI, (c) neocortex has its own cognitive decomposition (LLM-based) independent of blocks' strategies.
-- When does resolution increase? Triggers: time proximity threshold, overlap detection in consolidation, explicit user request, pre-execution preparation.
 - How does the cognitive sub-goal graph map to MindMap? Sub-goals as child nodes with typed edges (decomposes-into), resolution level as a node property.
+- What priority should `GoalResolutionPhase` have in the consolidation schedule? Must run after `ExperienceConsolidationPhase` (needs graduated experience data) and after `MergeDetectionPhase` (needs merge candidates).
 
 ## Next Steps
 
