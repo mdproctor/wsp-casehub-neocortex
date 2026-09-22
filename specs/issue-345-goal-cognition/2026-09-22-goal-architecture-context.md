@@ -368,7 +368,11 @@ The `DagPlan`/`DagNode`/`JoinType` infrastructure IS general — pure graph mach
 
 **What is NOT shareable without refactoring:** The decomposition strategies themselves. They produce execution-oriented output and consume execution-oriented context.
 
-**Revised direction:** A blocks refactor to separate the DAG infrastructure from execution-specific strategies would benefit both blocks (cleaner model) and neocortex (shared graph primitives). But it's a substantial refactor — the strategies would need to be genericised over both context type AND leaf type, not just state type `T`. Neocortex should build its own cognitive decomposition (LLM-based, MindMap-targeted) using shared DAG primitives, and blocks strategies can be gradually generalised as a separate effort.
+**Revised direction:** A blocks refactor to separate the DAG infrastructure from execution-specific strategies would benefit blocks (cleaner model). But sharing graph types between blocks and neocortex is not worth the cost — `DagPlan`/`DagNode`/`JoinType` are ~250 lines total, neocortex and engine never exchange graphs at runtime, and neocortex already has MindMap as its graph infrastructure. The interface between neocortex and engine is `GoalFormationService.propose()` which exchanges goal descriptions (prose + priority), not graph structures.
+
+Neocortex uses MindMap for cognitive goal graphs. Engine/blocks use `DagPlan` for execution plans. Communication is through goal submission, not graph sharing. No platform extraction needed.
+
+Blocks refactoring (generics + factory patterns) still benefits blocks independently — cleaner separation of DAG infrastructure from execution types, less terminological tension. But it's a blocks concern, not a #345 dependency.
 
 **Open sub-questions:**
 - How does the cognitive sub-goal graph map to MindMap? Sub-goals as child nodes with typed edges (decomposes-into), resolution level as a node property.
