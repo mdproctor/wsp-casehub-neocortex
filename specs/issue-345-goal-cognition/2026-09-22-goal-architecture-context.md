@@ -321,10 +321,31 @@ Existing consolidation phases that goal resolution complements:
 - `MergeDetectionPhase` (priority 20) — Jaro-Winkler name similarity + Jaccard neighbor overlap. Same mechanism detects shared sub-goals across parent goals.
 - `CuriosityRefreshPhase` (priority 40) — recomputes curiosity signals. Goal-driven curiosity ("what do I need to know to pursue this goal?") is a natural category.
 
+### Cognitive decomposition vs execution decomposition
+
+Blocks' `DecompositionStrategy` is execution-oriented by design — `TaskNode.LeafTask` requires `executor()` (an `ExecutorRef`), `status()` (a `TaskStatus`). Every node must be an agent-assigned task. `LlmDecomposition`'s prompt says "decompose the goal into agent tasks assigned to the agent best suited for it." `PlannedTask` requires an `AgentRef`.
+
+Cognitive sub-goals are not agent tasks. They are intentions — abstract prose representing what a goal involves. "Understand current pain points", "reduce response time", "build trust through consistency." No agent, no capability, no output contract.
+
+**Neocortex needs its own cognitive decomposition** — LLM-based, producing prose sub-goal nodes in MindMap with `decomposes-into` edges. The prompt is different: "what does achieving this involve?" not "which agent does what?"
+
+Two decompositions, different questions, different times:
+
+| | Cognitive (neocortex) | Execution (blocks/engine) |
+|---|---|---|
+| Question | "What does this goal involve?" | "How do I execute this goal?" |
+| When | Early — to understand structure for selection | Late — when submitted for execution |
+| Output | MindMap nodes (prose + affect + confidence) | DagPlan (agent tasks + contracts + contingencies) |
+| Node type | Intention/thought — no executor | PlannedTask — requires AgentRef |
+| Persistence | Persistent graph, variable resolution | Per-case plan, discarded after execution |
+| Who uses it | Deliberation (selection, prioritisation, overlap detection) | Engine dispatcher (routing, worker assignment) |
+
+Future option: generalise blocks' `DecompositionStrategy<T>` so the output isn't forced to `TaskNode.LeafTask` with `executor()`. Would allow blocks' strategies (LLM, GOAP, HTN) to be used for cognitive decomposition too. But that's a blocks refactor separate from #345.
+
 **Open sub-questions:**
-- How does neocortex call blocks' `DecompositionStrategy` without depending on engine-api? Options: (a) thin SPI in shared primitives module, (b) neocortex depends on engine-api for this one SPI, (c) neocortex has its own cognitive decomposition (LLM-based) independent of blocks' strategies.
 - How does the cognitive sub-goal graph map to MindMap? Sub-goals as child nodes with typed edges (decomposes-into), resolution level as a node property.
 - What priority should `GoalResolutionPhase` have in the consolidation schedule? Must run after `ExperienceConsolidationPhase` (needs graduated experience data) and after `MergeDetectionPhase` (needs merge candidates).
+- Should cognitive decomposition use `MindMapExtractor` (existing LLM extraction pipeline with entity/relationship parsing), a new `GoalDecomposer` SPI in neocortex, or a standalone LLM call?
 
 ## Next Steps
 
