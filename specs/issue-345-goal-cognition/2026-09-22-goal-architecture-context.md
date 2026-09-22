@@ -251,9 +251,19 @@ Desiredstate has `Dependency(from, to)` and `DesiredStateGraph`. Neocortex propo
 
 Engine's `DefaultGoalDecomposer` iterates `AgentGoal` records from the descriptor, calls the `DecompositionStrategy`, resolves each `GoalStep` to a binding + executor, and materialises the `DagPlan` into `PlanItemDefinition` records. CBR experiences are passed in the `GoalDecompositionContext` to inform decomposition.
 
-**The overlap:** Both blocks/engine and neocortex would produce dependency graphs of sub-goals. The difference is time horizon:
-- **Blocks** decomposes goals for execution NOW — a `DagPlan` that lives for one case execution
-- **Neocortex** would track goal structure OVER TIME — a persistent MindMap graph that accumulates learning about goal decomposition patterns across executions
+**The overlap:** Both blocks/engine and neocortex produce dependency graphs with prose nodes and metadata. A `DagPlan` is a plan, not an execution — the engine/executor decides WHEN to dispatch based on dependencies. Each `DagNode` carries rich metadata: prose description, agent assignment (`AgentRef`), output validation gates (`OutputContract`), contingency plans (alternative `DagPlan` on failure), judgment targets (`JudgmentTarget` with prompt, evidence requirements, trust threshold, escalation strategy), and join semantics (ALL_OF or ANY_OF).
+
+The differences are in node semantics, edge semantics, and lifecycle:
+
+| | Blocks `DagPlan` | Neocortex cognitive graph |
+|---|---|---|
+| Node content | Prose task + agent assignment + output contract + judgment | Prose goal + affect + confidence + traits |
+| Edge semantics | "must complete before" (execution ordering) | "enables/blocks/requires" (semantic relationship) |
+| Lifecycle | Plan is created, executed, completed | Graph is persistent, evolves over time |
+| Who consumes | Engine executor (dispatches when deps satisfied) | Cognitive processes (prioritisation, curiosity, retrieval) |
+| Decomposition | LLM/GOAP/HTN produces the graph | Recognition + consolidation produces the graph |
+
+Both are DAGs with prose nodes and typed edges. The question is whether they share graph primitives or bridge at integration points.
 
 **How they could work together:**
 - Neocortex's persistent goal graph provides **prior decomposition patterns** ("last time we decomposed goal X, the structure was Y") → informs LLM prompts or seeds HTN/GOAP strategies
@@ -263,11 +273,12 @@ Engine's `DefaultGoalDecomposer` iterates `AgentGoal` records from the descripto
 - Blocks' decomposition **outcomes** flow back to neocortex as experience → persistent graph learns which decompositions succeed
 
 **Options:**
-- **A. Blocks decomposes, neocortex learns** — blocks keeps all decomposition strategies. Neocortex receives decomposition outcomes via ExperienceEvent and builds a persistent goal-structure knowledge graph. Over time, neocortex's graph enriches decomposition context (via `GoalDecompositionContext.experiences` which already exists). Clean separation: blocks = execution-time planning, neocortex = cross-execution learning.
+- **A. Blocks decomposes, neocortex learns** — blocks keeps all decomposition strategies. Neocortex receives decomposition outcomes via ExperienceEvent and builds a persistent goal-structure knowledge graph. Over time, neocortex's graph enriches decomposition context (via `GoalDecompositionContext.experiences` which already exists). Clean separation: blocks = planning, neocortex = learning.
 - **B. Neocortex provides decomposition context SPI** — neocortex defines a `GoalStructureProvider` SPI that blocks' strategies can query for prior decomposition patterns, known blockers, and affect signals. Blocks still owns the strategies; neocortex provides richer input.
-- **C. Shared decomposition graph primitives** — both use the same graph types (`DagNode`, `DagPlan` or equivalent). Neocortex's persistent graph IS a `DagPlan` stored in MindMap. Blocks' execution plan is derived from neocortex's cognitive graph. Tightest coupling, most reuse.
+- **C. Neocortex owns goals, blocks provides decomposition** — neocortex recognises a goal, asks blocks to decompose it into a sub-goal graph (blocks' `DecompositionStrategy` is the capability), receives back a `DagPlan`, stores the graph persistently in MindMap, owns the execution lifecycle (tracking which sub-goals are done/blocked/deferred), and dispatches ready sub-goals to engine for execution. Blocks provides the decomposition service; neocortex owns the persistent result and orchestrates progress. Flow: neocortex → blocks (decompose) → neocortex (store + manage) → engine (execute).
+- **D. Shared decomposition graph primitives** — both use the same graph types. Neocortex's persistent graph IS a `DagPlan` stored in MindMap. Tightest coupling.
 
-**Factors:** Option A is the cleanest separation and `GoalDecompositionContext.experiences` already provides the bridge. Option B makes the enrichment explicit. Option C risks coupling execution-time and cognitive-time concerns.
+**Factors:** Option C is the most architecturally coherent — neocortex is the cognitive layer that owns goal understanding, blocks is the planning capability it uses, engine is the execution capability it dispatches to. It matches the "shared vocabulary, independent engines" principle but with neocortex as the goal authority rather than eidos. Option A is lowest-risk. Option B is incremental.
 
 ## Next Steps
 
