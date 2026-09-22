@@ -15,8 +15,8 @@ no cognitive goal processing. Agents can have goals (eidos), execute them
 affective impact, progressively decompose as execution approaches, or condition
 memory retrieval on active goal context.
 
-Neocortex adds the cognitive goal substrate — the fifth dimension — that
-enriches the existing goal architecture with structured goal knowledge.
+Neocortex adds the cognitive goal substrate that enriches the existing goal
+architecture with structured goal knowledge.
 
 ## Architecture
 
@@ -147,7 +147,9 @@ public interface Goallike {
 
 Registered types: `"intention"` and `"desire"` become subtypes of `"goal"` in
 TypeRegistry, so LLM extraction producing these types maps to the unified goal
-type.
+type. Both `Intentionlike` and `Desirelike` Java interfaces are deprecated and
+replaced by `Goallike` — the migration is mechanical (2 production references
+each in TypeRegistry and CognitiveDerivationEngine).
 
 ### GOAL subgraph type (D9)
 
@@ -287,9 +289,9 @@ goal-like content that hasn't already been tracked.
 Runs between GoalResolutionPhase (35) and CuriosityRefreshPhase (40).
 
 Computes anticipated affect for active goals:
-- **Approaching deadline + high importance** → increased arousal, potentially
-  negative pleasure (stress/urgency)
-- **Blocked goal + high importance** → frustration (negative pleasure, high
+- **Approaching deadline + high urgency** → increased arousal, potentially
+  negative pleasure (stress)
+- **Blocked goal + high urgency** → frustration (negative pleasure, high
   arousal)
 - **Recently completed goal** → satisfaction (positive pleasure shift)
 - **Dormant goal with declining affect** → reduced arousal
@@ -369,7 +371,9 @@ Blocks provides LLM implementations for neocortex SPIs:
   neocortex cognitive signal consumption over time)
 - Desiredstate's `GoalCompiler<G>` and `DesiredStateGraph` unchanged
 - Case model `Goal` (ExpressionEvaluator conditions) unchanged
-- `GoalSignalStore` remains volatile (D2)
+- `GoalSignalStore` remains volatile (D2) — goal signal counts reset on JVM
+  restart. Acceptable for pre-release; eidos persistence review tracked
+  separately
 
 ## Module Structure
 
@@ -379,9 +383,9 @@ New types go in existing modules — no new modules created:
 |------|--------|---------|
 | `Goallike` | mindmap-intelligence | `io.casehub.neocortex.mindmap.intelligence` |
 | `GoallikeTraitRule` | mindmap-intelligence | `io.casehub.neocortex.mindmap.intelligence` |
-| `CognitiveGoalDecomposer` | mindmap-api (or memory-api) | `io.casehub.neocortex.mindmap` |
-| `CognitiveGoalRecognizer` | mindmap-api (or memory-api) | `io.casehub.neocortex.mindmap` |
-| `RecognizedGoal` | mindmap-api (or memory-api) | `io.casehub.neocortex.mindmap` |
+| `CognitiveGoalDecomposer` | mindmap-api | `io.casehub.neocortex.mindmap` |
+| `CognitiveGoalRecognizer` | mindmap-api | `io.casehub.neocortex.mindmap` |
+| `RecognizedGoal` | mindmap-api | `io.casehub.neocortex.mindmap` |
 | `GoalResolutionPhase` | mindmap-intelligence | `io.casehub.neocortex.mindmap.intelligence.consolidation` |
 | `GoalRecognitionPhase` | mindmap-intelligence | `io.casehub.neocortex.mindmap.intelligence.consolidation` |
 | `GoalAffectPhase` | mindmap-intelligence | `io.casehub.neocortex.mindmap.intelligence.consolidation` |
