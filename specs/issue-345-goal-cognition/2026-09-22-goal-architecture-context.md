@@ -340,7 +340,16 @@ Two decompositions, different questions, different times:
 | Persistence | Persistent graph, variable resolution | Per-case plan, discarded after execution |
 | Who uses it | Deliberation (selection, prioritisation, overlap detection) | Engine dispatcher (routing, worker assignment) |
 
-Future option: generalise blocks' `DecompositionStrategy<T>` so the output isn't forced to `TaskNode.LeafTask` with `executor()`. Would allow blocks' strategies (LLM, GOAP, HTN) to be used for cognitive decomposition too. But that's a blocks refactor separate from #345.
+**Correction: blocks' types are more flexible than initially assessed.** `TaskDescriptor.executor()` is `@Nullable`. `GoalStep` (engine's own leaf type) already returns `null` for `executor()`. The `DagPlan` infrastructure (dependency edges, topological sort, cycle detection, join types, contingencies) works regardless of whether nodes have executors.
+
+What blocks would need for cognitive decomposition:
+1. **Different prompt** — `LlmDecomposition` already accepts a `SystemPromptCustomiser` SPI. A cognitive-mode customiser swaps "decompose into agent tasks" to "decompose into sub-goals."
+2. **Different leaf type** — a `ThoughtNode` implementing `LeafTask` with `executor() → null`, prose description + rationale. Pattern already exists: `GoalStep` does exactly this.
+3. **Same DAG infrastructure** — `DagPlan`, `DagNode`, topological sort, `sequentialMerge`, `JoinType` — all reusable unchanged.
+
+The recursive subtask path in `LlmDecomposition` already produces compound nodes (`"subtask"` + `"description"`) that get recursively decomposed without agent assignment until the leaves. The infrastructure supports variable-depth decomposition with unassigned intermediate nodes.
+
+This means blocks could support **both cognitive and execution decomposition** with minimal changes — a configurable prompt and a lightweight `ThoughtNode` leaf type. The question shifts from "can blocks help?" to "should blocks own cognitive decomposition as a mode, or should neocortex have its own?" The advantage of blocks owning it: GOAP, HTN, heuristic, forward-reasoning strategies would all become available for cognitive decomposition, not just LLM. The advantage of neocortex owning it: zero coupling, cognitive-specific prompt tuning, direct MindMap integration.
 
 **Open sub-questions:**
 - How does the cognitive sub-goal graph map to MindMap? Sub-goals as child nodes with typed edges (decomposes-into), resolution level as a node property.
