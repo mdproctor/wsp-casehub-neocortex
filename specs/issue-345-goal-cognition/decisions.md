@@ -1,35 +1,208 @@
-## Foundation: Three-dimensional goal architecture (agreed)
+## Foundation: Architecture boundaries (agreed)
 
-Goals operate across three interacting dimensions: LLM goals (prose, blocks/langchain4j), case goals (predicates, engine), and cognitive goals (neocortex, NEW). Cognitive goals manage and enrich goals from both other dimensions, and also operate standalone. Eidos `AgentRegistry` remains the single authoritative store for "what goals does this agent have." Neocortex provides cognitive context that feeds into formation/revision. No split-brain.
+**Three-dimensional goal architecture:** LLM goals (prose, blocks/langchain4j), case goals (predicates, engine), cognitive goals (neocortex, NEW). Cognitive goals manage and enrich goals from both dimensions, and also operate standalone.
 
-Established by cross-repo audit and two brainstorming sessions. See `2026-09-22-goal-architecture-context.md` for full analysis.
+**Substrate vs orchestration split:** Neocortex = cognitive substrate (the WHAT — memory, knowledge graph, affect, curiosity, consolidation, goal cognition). Blocks = cognitive agent orchestration (the HOW — drives, goal proposal, narrative, social cognition, prompt rendering, behavioral wiring). Integration testing of the full cognitive agent lives at the blocks level.
+
+**SPI inversion for LLM access:** Neocortex defines SPIs for cognitive operations requiring LLM (goal decomposition, goal recognition, consolidation phases). Blocks provides LLM-backed implementations via `@Alternative @Priority`. `@DefaultBean` NoOp in neocortex ensures standalone operation (e.g. Hortora). Pattern: `ReflectionSynthesizer`, `GraduationScorer`/`GraduationClassifier`.
+
+**No split-brain:** Eidos `AgentRegistry` is the single authoritative store for "what goals does this agent have." Neocortex provides cognitive context that feeds INTO `GoalFormationContext` and `GoalRevisionContext`. No parallel goal registry.
+
+Established by cross-repo audit, three brainstorming sessions, and live discussion. See `2026-09-22-goal-architecture-context.md`.
 
 ---
 
 ## D1: Where do shared goal primitives live?
 
-*Pending — see proposal below*
+**Choice:** No new shared module. Two existing layers, one natural dependency.
+
+Eidos-api gets enriched identity-level goal types (expand `AgentGoal` with lifecycle state, horizon). These are typed enums following eidos conventions (`GoalPriority`, `GoalOutcome`).
+
+Neocortex uses MindMap conventions for cognitive goal types — dependency types as edge vocabulary strings (`enables`, `blocks`, `requires`, `contributes-to`, `decomposes-into`), origin as a node property, resolution level as a property. Follows existing neocortex conventions (`SubgraphTypes`, edge vocabulary, property-based classification).
+
+Neocortex gains eidos-api as a compile dependency on modules that need it (cognitive-index, mindmap-intelligence, goal module). The cognitive layer naturally needs to know the identity it's cognitive of — the `DescriptorView` indirection was principled but unnecessary. Direct access to `AgentGoal`, `GoalPriority`, `AgentDescriptor` simplifies the interface.
+
+**Alternatives:**
+- New `neocortex-goal-api` module — adds a build artifact for types that naturally split between eidos (identity) and neocortex (cognitive). Over-abstraction.
+- platform-api — goal lifecycle and horizon are domain concepts, not platform infrastructure. Stretches what "platform primitive" means.
+- eidos-api for ALL types — forces eidos to carry cognitive vocabulary (dependency types, origin) it doesn't use internally.
+
+**Rationale:** Each layer uses its own conventions. The shared vocabulary is the documented spec (property names, edge types, lifecycle values), not a Java module. Types go where they naturally belong — identity concepts in eidos, cognitive concepts in neocortex. One-way dependency: neocortex → eidos-api. No reverse.
+
+**Trade-offs:** eidos-api grows by a few enums and fields on AgentGoal. neocortex gains a dependency on eidos-api (currently zero — but the cognitive layer should know the identity it's cognitive of).
+**Sources:** AgentGoal.java, GoalPriority.java, DescriptorView.java, SubgraphTypes.java, MindMapVocabulary pattern, dependency graph analysis
+**Exploration:** deep-analysis (three sessions)
+**Status:** captured
+
+---
 
 ## D2: What happens to eidos GoalSignalStore?
 
-*Pending — see proposal below*
+**Choice:** Leave volatile. Neocortex tracks goal outcomes separately via ExperienceEvent flow.
+
+Eidos's `GoalSignalStore` is a fast signal cache for engine routing evaluators — "how many successes/failures for this goal recently?" The `InMemoryGoalSignalStore` (volatile `ConcurrentHashMap`) serves this purpose. Engine routing is a hot path that needs low-latency reads.
+
+Neocortex gets goal outcomes via the existing `ExperienceEvent` flow — durable, rich episodic storage in CaseMemoryStore. The cognitive system builds its understanding of goal effectiveness from episodic memory, not from a signal counter.
+
+Two representations, different purposes: fast signal cache (eidos, volatile) for routing decisions vs persistent knowledge (neocortex, memory/MindMap) for cognitive reasoning. If eidos durability becomes genuinely needed later, it's an eidos concern — not #345 scope.
+
+**Alternatives:**
+- Eidos gets durable persistence — JPA/SQLite GoalSignalStore. Adds persistence weight to eidos for a cache. Broader eidos persistence review needed (drive state, trait pressure also volatile).
+- Neocortex becomes the backend — GoalSignalStore backed by neocortex memory. Couples engine routing latency to neocortex availability.
+
+**Rationale:** The existing ExperienceEvent flow already delivers goal outcomes to neocortex. No new integration needed. The volatile signal cache is fast enough for engine routing. Durability is a broader eidos concern that shouldn't block #345.
+**Trade-offs:** Goal signal counts reset on JVM restart. Engine routing evaluators lose accumulated history. Acceptable for pre-release; eidos persistence review is a separate issue.
+**Depends on:** D1 (neocortex → eidos-api dependency)
+**Sources:** InMemoryGoalSignalStore.java, GoalOutcomeRecorder.java, ExperienceEvent hierarchy
+**Exploration:** quick
+**Status:** captured
+
+---
 
 ## D3: What moves from blocks to neocortex?
 
-*Pending — see proposal below*
+**Choice:** Nothing moves now. Neocortex builds complementary substrate; blocks keeps orchestration.
+
+Blocks' `GoalProposalOrchestrator` with drives, mappers, LLM formation, narrative escalation, and outcome pressure is behavioral orchestration — it wires cognitive signals into agent behavior. This belongs in blocks.
+
+Neocortex builds cognitive goal substrate: recognition from experience, dependency graph in MindMap, affect valuation, progressive resolution via consolidation. Neocortex defines SPIs (GoalDecompositionService, GoalRecognitionService) with NoOp defaults. Blocks provides LLM-backed implementations.
+
+Over time, blocks can consume neocortex's cognitive signals to enrich its orchestration: "is this proposed goal already tracked cognitively?" (dedup), "what's the cognitive priority of this goal?" (ranking), "is this goal blocked by dependencies?" (deferral). This is gradual adoption via CDI events and neocortex query APIs — not a migration.
+
+**Alternatives:**
+- Cognitive functions migrate to neocortex — drive→goal mapping, LLM formation, priority escalation. Cleanest long-term but biggest scope increase and unclear boundary (drives ARE behavioral, not cognitive).
+- Neocortex defines SPIs, blocks implements immediately — premature before the cognitive system exists. Define SPIs from real usage, not speculation.
+
+**Rationale:** The substrate/orchestration split is the right boundary. Neocortex provides capability. Blocks provides integration. Moving orchestration to neocortex would force neocortex into behavioral decisions (when to propose, how to escalate, how to render prompts) that belong in blocks.
+**Trade-offs:** Two systems process goal-related information. Mitigated by CDI events and the substrate/orchestration boundary — they don't overlap, they complement.
+**Sources:** GoalProposalOrchestrator.java (500+ lines, deeply woven with drives/narrative), ReflectionSynthesizer pattern (SPI + NoOp)
+**Exploration:** deep-analysis
+**Status:** captured
+
+---
 
 ## D4: How does neocortex integrate with engine routing?
 
-*Pending — see proposal below*
+**Choice:** Separate cognitive evaluation via ConsolidationPhase. Engine routing picks up changes through existing query APIs.
 
-## D5: Does desiredstate share goal dependency primitives?
+Neocortex runs goal cognitive processing in its consolidation schedule (`GoalResolutionPhase`, `GoalRecognitionPhase`). These phases update MindMap goal state — dependencies, affect, lifecycle, resolution level.
 
-*Pending — see proposal below*
+Engine routing accesses cognitive goal context through:
+1. `CognitiveProfile.resolve()` — returns `EntityKnowledge` with goal node, edges (dependencies), memories (experiences), trajectory (affect). Already designed for this (#253 D33-D43).
+2. `GoalFormationContext.recentMemories` — neocortex's goal-related memories appear naturally in the formation context.
+3. `GoalFormationService.propose()` — when cognitive processing identifies a goal ready for execution, neocortex (or blocks, acting on neocortex signals) proposes it.
+4. `ExperienceEvent` — outcomes from engine flow back to neocortex's cognitive goal tracking.
+
+No changes to engine APIs needed. Engine doesn't know or care that cognitive processing runs in a consolidation phase — it just sees enriched context through existing query interfaces.
+
+**Alternatives:**
+- Enrich GoalFormationContext with cognitive fields — adds neocortex-specific fields to platform-api. Couples platform types to cognitive concepts.
+- Neocortex-backed GoalFormationStrategy — replaces LLM formation with cognitive formation. Too aggressive; LLM strategy works. Augment context, don't replace the strategy.
+
+**Rationale:** The consolidation pattern is proven (ExperienceConsolidationPhase, MergeDetectionPhase, CuriosityRefreshPhase). Cognitive goal processing is periodic, not real-time — it runs during idle periods and updates persistent state. Engine routing reads the updated state on its next evaluation. No coupling, no latency impact on routing.
+**Trade-offs:** Cognitive updates are not immediate — there's a lag between a goal event and cognitive processing. Acceptable because engine routing uses its own fast evaluators for real-time decisions. Cognitive depth adds perspective, not urgency.
+**Depends on:** D1 (neocortex → eidos-api for AgentGoal access)
+**Sources:** ConsolidationScheduler.java, CognitiveProfile.java, GoalFormationContext.java, GoalFormationService.java
+**Exploration:** quick
+**Status:** captured
+
+---
+
+## D5: Does desiredstate share goal dependency primitives with neocortex?
+
+**Choice:** Independent types. Desiredstate's `Dependency(from, to)` is execution ordering. Neocortex's edges are semantic relationships. Different concepts.
+
+Desiredstate's `Dependency` means "provision A before B" — topological execution order. Neocortex's goal edges mean "A enables B", "C blocks D" — semantic relationships that inform cognitive reasoning. An "enables" relationship doesn't necessarily mean "execute first" — it means "achieving A makes B possible."
+
+The integration point (if needed later) is a `CognitiveGoalCompiler` that translates neocortex's goal dependency graph into a desiredstate execution graph. The translation IS the integration — mapping semantic relationships to execution ordering. No shared type captures both semantics cleanly.
+
+**Alternatives:**
+- Shared `GoalDependency(from, to, type)` — forces desiredstate to carry semantic types it doesn't interpret, or neocortex to carry execution concepts it doesn't need.
+- Neocortex dependency informs desiredstate — a future concern. Design the integration point when a CognitiveGoalCompiler is actually needed.
+
+**Rationale:** Execution ordering and semantic relationships are genuinely different. Sharing a type to avoid ~3 lines of duplication adds coupling without benefit. desiredstate doesn't need to know that "enables" is a relationship type; it just needs "A before B."
+**Trade-offs:** If a CognitiveGoalCompiler is built, it must translate between representations. Acceptable — translation is the natural integration pattern for cross-subsystem concerns.
+**Sources:** Dependency.java (desiredstate), MindMapVocabulary edge types, GoalCompiler<G> generic
+**Exploration:** quick
+**Status:** captured
+
+---
 
 ## D6: Scope of epic #345
 
-*Pending — see proposal below*
+**Choice:** #345 covers neocortex cognitive goal substrate. Cross-repo consumption tracked as separate issues per repo.
+
+Scope includes:
+- Cognitive goal representation in MindMap (Goallike trait, GOAL subgraph type, structured properties)
+- Goal dependency graph (typed edges via MindMapVocabulary)
+- Goal recognition SPIs (with NoOp defaults, blocks provides LLM impl)
+- Goal cognitive decomposition SPIs (same SPI pattern)
+- GoalResolutionPhase (consolidation — progressive resolution, prune/expand/merge/revise/decay)
+- Goal affect integration (anticipated affect, frustration modeling, satisfaction)
+- Goal-conditioned retrieval (ModulationFactor for goal relevance)
+- eidos-api dependency for identity access (AgentGoal on cognitive modules)
+- Eidos AgentGoal enrichment (lifecycle state, horizon fields)
+
+Out of scope (separate issues):
+- Engine routing enrichment (engine repo issue)
+- Blocks adoption of cognitive signals (blocks repo issue)
+- Desiredstate CognitiveGoalCompiler (desiredstate repo issue)
+- Eidos GoalSignalStore durability (eidos repo issue)
+- Blocks DAG infrastructure refactor (blocks repo issue)
+- Cross-agent goal awareness (future epic, depends on perspectival overlay infra)
+
+**Alternatives:**
+- Neocortex only (no eidos changes) — leaves AgentGoal without lifecycle/horizon. Other repos can't evolve toward the shared vocabulary.
+- Full cross-repo (all 6 repos) — requires simultaneous changes to platform, eidos, engine, blocks, desiredstate, neocortex. Too large for one epic.
+
+**Rationale:** Neocortex ships the cognitive substrate + eidos enrichment. Other repos adopt incrementally via separate issues. The spec designs for cross-repo coherence (shared vocabulary, documented edge types, CDI event contracts) without requiring simultaneous implementation.
+**Trade-offs:** Cross-repo integration is designed but not implemented in #345. Each consuming repo ships its adoption independently. Acceptable — the substrate must exist before consumers can adopt it.
+**Depends on:** D1 (no new module), D3 (nothing moves from blocks)
+**Sources:** .plan deferred batches, context doc §Next Steps
+**Exploration:** quick
+**Status:** captured
+
+---
 
 ## D7: Cognitive decomposition and progressive resolution
 
-*Pending — see proposal below*
+**Choice:** Progressive resolution model. Neocortex owns cognitive goal graph at variable resolution. LLM-based cognitive decomposition via SPI (blocks implements). Resolution managed by consolidation sleep cycle.
+
+**Variable resolution:** Distant goals are single MindMap nodes with prose description. As time nears, overlaps are detected, or execution approaches, the GoalResolutionPhase increases resolution by decomposing into sub-goal nodes with `decomposes-into` edges. Approaching + overlapping goals get highest resolution. Distant + isolated goals stay as single nodes.
+
+**Resolution triggers (GoalResolutionPhase, priority 35):**
+- **Prune:** Distant goals with decomposed sub-goals that haven't been accessed → collapse back to single node
+- **Expand:** Approaching goals (time proximity) or newly-overlapping goals → increase resolution via cognitive decomposition SPI
+- **Merge:** Shared sub-goals across parent goals → merge sub-goal nodes, create `contributes-to` edges to both parents
+- **Revise:** Dependency state changed (sub-goal completed, blocker removed, new information) → update graph
+- **Decay:** Goals with no activity and declining affect → reduce priority, suggest dormancy/abandonment
+
+**Cognitive decomposition mechanism:** SPI defined in neocortex — `CognitiveGoalDecomposer` with `@FunctionalInterface` pattern:
+```java
+List<ParsedExtraction> decompose(String goalDescription, 
+    List<MindMapNode> contextNodes, String tenantId);
+```
+Returns `ParsedExtraction` (existing type from MindMapExtractor) — entities (sub-goals) and relationships (decomposes-into edges). NoOp @DefaultBean returns empty list. Blocks provides LLM-backed implementation with cognitive prompt ("what does achieving this involve?" not "which agent does what?").
+
+**GoalResolutionPhase priority 35:** After ExperienceConsolidationPhase (15), MergeDetectionPhase (20), SchemaDiscoveryPhase (25). Before CuriosityRefreshPhase (40) — goal resolution should inform curiosity signals.
+
+**Two decompositions, separate concerns:**
+
+| | Cognitive (neocortex) | Execution (blocks/engine) |
+|---|---|---|
+| Question | "What does this involve?" | "How do I execute this?" |
+| When | Early — to understand structure | Late — when submitted for execution |
+| Output | MindMap nodes (prose + affect + confidence) | DagPlan (agent tasks + contracts) |
+| Persistence | Persistent graph, variable resolution | Per-case plan, discarded after execution |
+
+**Alternatives:**
+- Share DagPlan infrastructure — MindMap IS neocortex's graph. DagPlan is engine's. ~250 lines not worth extracting. Interface is GoalFormationService.propose() + ExperienceEvent.
+- Fixed resolution (always decompose) — wastes cognitive effort on distant/irrelevant goals. LOD analogy: render nearby at high fidelity, distant at low.
+- No cognitive decomposition (rely on engine decomposition) — engine decomposition is execution-coupled (agent assignment, capability matching). Can't inform cognitive deliberation (prioritization, overlap detection, opportunity cost).
+
+**Rationale:** Progressive resolution matches human cognition — we don't plan distant goals in detail. The consolidation sleep cycle manages resolution bidirectionally (expand approaching, prune receding). SPI pattern keeps LLM infrastructure in blocks while neocortex owns the cognitive processing logic.
+**Trade-offs:** Cognitive decomposition may produce different sub-goals than execution decomposition — they answer different questions. Not a defect; it's the point. Cognitive structure informs selection, execution structure informs dispatch.
+**Depends on:** D3 (SPI pattern for LLM access), D6 (scope — GoalResolutionPhase is in-scope)
+**Sources:** ConsolidationScheduler.java, MindMapExtractor.java (ParsedExtraction pattern), context doc §Progressive Resolution, context doc §Cognitive vs Execution Decomposition
+**Exploration:** deep-analysis (two sessions)
+**Status:** captured
