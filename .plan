@@ -13,3 +13,9 @@ flyway-next-v: none
 
 ## Queue
 - [ ] casehubio/neocortex#380 — Issue #380 ← active
+  - [ ] Batch 1: Example+Build
+    - [ ] Task 1: GoalCognitionWalkthroughTest module
+  - [ ] Batch 2: Blog
+    - [ ] Task 2: Educational blog article with SVGs
+  - [ ] Batch 3: Docs
+    - [ ] Task 3: CLAUDE.md update + build verification
