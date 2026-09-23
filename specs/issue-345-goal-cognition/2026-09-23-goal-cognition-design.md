@@ -131,11 +131,12 @@ gains optional `horizon` field per goal entry.
 Two categories of cognitive goals with different authority models:
 
 **Linked goals** (have `eidos-goal-name` property): Eidos `AgentRegistry` is
-authoritative. GoalResolutionPhase's Sync step reads `AgentGoal` lifecycle
-state via eidos-api and updates the MindMap node's `status` property to match.
-One-way flow: eidos → MindMap. Neocortex never writes lifecycle transitions
-for linked goals — it provides cognitive context (dependencies, affect,
-priority) that feeds into `GoalFormationContext` and `GoalRevisionContext`.
+authoritative. GoalResolutionPhase's Sync step queries `GoalLifecycleProvider`
+SPI (see §SPIs) for current lifecycle state and updates the MindMap node's
+`status` property to match. One-way flow: eidos → MindMap. Neocortex never
+writes lifecycle transitions for linked goals — it provides cognitive context
+(dependencies, affect, priority) that feeds into `GoalFormationContext` and
+`GoalRevisionContext`.
 
 **Standalone cognitive goals** (no eidos counterpart): MindMap is the sole
 store. GoalResolutionPhase manages lifecycle transitions directly:
@@ -198,6 +199,7 @@ each in `TypeRegistry.COGNITIVE_TYPES`).
 | `Intentionlike.status()` | Status string | `Goallike.status()` |
 | `Intentionlike.priority()` | Priority string | Dropped — replaced by computed `priority` property |
 | `Desirelike.aspiration()` | Aspiration text | `Goallike.description()` |
+| `Desirelike.status()` | Status string | `Goallike.status()` |
 | `Desirelike.urgency()` | Urgency string | `Goallike.urgency()` |
 
 ### GOAL subgraph type (D9)
@@ -226,9 +228,11 @@ GOAL subgraphs per tenant. Enables independent scheduling in
 Registered globally in `CognitiveLoader.init()` alongside cognitive type
 registration — not through per-agent `CognitiveDefaults` profiles. Goal edge
 vocabulary is domain infrastructure shared across all agents. A static
-`GOAL_VOCABULARY` constant in the goal module provides the `MindMapVocabulary`
-instance; `CognitiveLoader.init()` calls `store.registerVocabulary(GOAL_VOCABULARY)`
-after the existing type registration block:
+`GOAL_VOCABULARY` constant in `GoalVocabulary` (mindmap-api,
+`io.casehub.neocortex.mindmap`) provides the `MindMapVocabulary` instance;
+`CognitiveLoader.init()` calls
+`store.registerVocabulary(GoalVocabulary.GOAL_VOCABULARY)` after the existing
+type registration block:
 
 | Edge type | Aliases | Purpose |
 |-----------|---------|---------|
@@ -313,9 +317,32 @@ The cognitive goal graph is still valuable without decomposition: manually
 created goals, recognized goals, and their dependency edges still function.
 Progressive resolution is a cognitive enhancement, not a prerequisite.
 
+### GoalLifecycleProvider
+
+Defined in mindmap-api. Blocks provides implementation backed by
+`AgentRegistry`.
+
+```java
+@FunctionalInterface
+public interface GoalLifecycleProvider {
+    Map<String, GoalLifecycleState> getLifecycleStates(
+        String agentId, String tenantId);
+}
+```
+
+`@DefaultBean` NoOp returns empty map — standalone deployments have no
+linked goals, so the Sync step becomes a no-op. Blocks implementation
+queries `AgentRegistry.resolve(agentId, tenantId).goals()` and maps each
+`AgentGoal` to its `GoalLifecycleState`.
+
+GoalResolutionPhase's Sync step injects this SPI and calls it to read
+eidos lifecycle state for linked goals. This follows the same inversion
+pattern as `CognitiveGoalDecomposer` and `CognitiveGoalRecognizer` —
+neocortex defines what it needs; blocks provides the runtime implementation.
+
 ### CognitiveGoalRecognizer
 
-Defined in neocortex. Blocks provides LLM-backed implementation.
+Defined in mindmap-api. Blocks provides LLM-backed implementation.
 
 ```java
 @FunctionalInterface
@@ -351,7 +378,8 @@ allocation for general consolidation phases — goal-specific phases are scoped
 to the GOAL subgraph by design. If no curiosity signal targets the GOAL
 subgraph, goal phases still run — goal processing is not optional.
 
-Manages progressive resolution of the cognitive goal graph:
+Manages progressive resolution of the cognitive goal graph. Steps execute
+in the order listed — this order is load-bearing:
 
 **Prune:** Distant goals with decomposed sub-goals that haven't been accessed
 → collapse back to single node. The sub-goal nodes are removed and the parent
@@ -379,9 +407,20 @@ completed, the blocked goal transitions from `blocked` to `active`. Periodic
 cycle detection runs as a safety net — edges created by LLM decomposition may
 form transitive cycles.
 
-**Sync:** For goals linked via `eidos-goal-name`, read `AgentGoal` lifecycle
-state via eidos-api and update MindMap node `status` property to match.
-One-way flow: eidos → MindMap. See §Lifecycle State Synchronization.
+**Sync:** For goals linked via `eidos-goal-name`, query `GoalLifecycleProvider`
+SPI for current lifecycle state and update MindMap node `status` property to
+match. One-way flow: eidos → MindMap. See §Lifecycle State Synchronization.
+
+Step ordering rationale: Expand before Merge (new sub-goals from expansion are
+candidates for cross-parent merging). Revise before Sync (update internal
+dependency state before importing external lifecycle). Sync last (imports
+authoritative state that subsequent phases — GoalAffectPhase,
+GoalPrioritizationPhase — use for their computations).
+
+### GoalPrioritizationPhase (priority 38)
+
+Runs after GoalAffectPhase (37), ensuring priority computation uses
+current-tick affect values. Steps execute in the order listed.
 
 **Prioritize:** Compute composite `priority` property on each active goal
 node. See §Goal Priority Computation.
@@ -393,8 +432,8 @@ mechanism.
 
 ### Goal Priority Computation
 
-Computed during GoalResolutionPhase's Prioritize step. Stored as the `priority`
-property (0.0–1.0) on each active goal node.
+Computed during GoalPrioritizationPhase's Prioritize step. Stored as the
+`priority` property (0.0–1.0) on each active goal node.
 
 **Composite formula:**
 
@@ -474,10 +513,11 @@ with a `MindMapStore` reference and a `String tenantId`. Active goal nodes
 are queried once at construction (or cached with TTL) to avoid per-item
 graph queries.
 
-**Entity mapping:** Each `Memory` has a `domain` and optionally entity names
-in its attributes. The factor maps `memory.domain()` to a MindMap entity node
-via `MindMapStore.search(MindMapQuery)`. If the memory's entity has a
-MindMap node, graph proximity to active goals is computed.
+**Entity mapping:** Each `Memory` has a `Subject` with `type()` and `id()`.
+The factor maps `memory.subject().id()` to a MindMap entity node via
+`MindMapStore.search(MindMapQuery)`, scoped by `memory.subject().type()`
+to match the appropriate subgraph. If the memory's subject has a MindMap
+node, graph proximity to active goals is computed.
 
 Proximity computation:
 1. Identify active goal nodes (status=active in GOAL subgraph) — cached at
@@ -573,11 +613,14 @@ New types go in existing modules — no new modules created:
 | `GoallikeTraitRule` | mindmap-intelligence | `io.casehub.neocortex.mindmap.intelligence` |
 | `CognitiveGoalDecomposer` | mindmap-api | `io.casehub.neocortex.mindmap` |
 | `GoalDecompositionResult` | mindmap-api | `io.casehub.neocortex.mindmap` |
+| `GoalVocabulary` | mindmap-api | `io.casehub.neocortex.mindmap` |
+| `GoalLifecycleProvider` | mindmap-api | `io.casehub.neocortex.mindmap` |
 | `CognitiveGoalRecognizer` | mindmap-api | `io.casehub.neocortex.mindmap` |
 | `RecognizedGoal` | mindmap-api | `io.casehub.neocortex.mindmap` |
 | `GoalResolutionPhase` | mindmap-intelligence | `io.casehub.neocortex.mindmap.intelligence.consolidation` |
 | `GoalRecognitionPhase` | mindmap-intelligence | `io.casehub.neocortex.mindmap.intelligence.consolidation` |
 | `GoalAffectPhase` | mindmap-intelligence | `io.casehub.neocortex.mindmap.intelligence.consolidation` |
+| `GoalPrioritizationPhase` | mindmap-intelligence | `io.casehub.neocortex.mindmap.intelligence.consolidation` |
 | `GoalRelevanceModulationFactor` | cognitive-index | `io.casehub.neocortex.cognitive.index` |
 | `GoalLifecycleState` | eidos-api | `io.casehub.eidos.api` |
 | `GoalHorizon` | eidos-api | `io.casehub.eidos.api` |
@@ -602,6 +645,31 @@ New types go in existing modules — no new modules created:
 - CognitiveGoalRecognizer NoOp: returns empty list (standalone mode)
 - Eidos AgentGoal: lifecycle state and horizon fields (backward compatible —
   nullable, existing tests pass without values)
+- Cycle detection: reject cycles in blocks/requires/decomposes-into edges,
+  allow cycles in enables/contributes-to edges
+- Cycle detection periodic: GoalResolutionPhase Revise detects and resolves
+  transitive cycles introduced by LLM decomposition
+- Goal priority computation: composite formula with four signals, default
+  weights, edge cases (missing affect → neutral 0.5, no inbound edges →
+  importance 0.0)
+- GoalPrioritizationPhase: runs after GoalAffectPhase, uses current-tick
+  affect values
+- Dynamic urgency: target-date present → urgency computed from temporal
+  distance; target-date absent → static urgency property used
+- Lifecycle state synchronization: linked goals sync from GoalLifecycleProvider,
+  standalone goals managed by GoalResolutionPhase
+- Goal supersession: MindMapStore.supersede() called during Merge, supersession
+  chain preserved
+- abandonment-reason: required property when status=abandoned, validated on
+  transition
+- GoalDecompositionResult: construction, SubGoal/GoalRelationship inner records,
+  EMPTY constant, conversion to MindMap nodes and edges
+- SubgraphPriority independence: goal phases run regardless of whether GOAL
+  appears in the curiosity-generated priority list
+- GoalLifecycleProvider: NoOp returns empty map, blocks implementation returns
+  lifecycle states from AgentRegistry
+- Desirelike/Intentionlike → Goallike mapping: all methods mapped correctly
+  including Desirelike.status()
 
 ## References
 
