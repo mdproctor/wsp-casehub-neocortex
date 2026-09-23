@@ -12,12 +12,14 @@ projects: [casehubio/neocortex]
 
 Most agent frameworks treat goals the same way they treat prompts — as strings that exist for one request and vanish. The LLM receives "help the user book a flight," generates some actions, and when the actions stop, the goal is gone. No memory of it. No record of what blocked it. No sense of whether pursuing it felt productive or frustrating. No way to notice that two different goals both need the same sub-task.
 
+<div>
 <svg viewBox="0 0 600 160" xmlns="http://www.w3.org/2000/svg" style="max-width:100%; font-family: system-ui, sans-serif;">
   <rect x="120" y="30" width="360" height="60" rx="30" fill="#f0f0f0" stroke="#ccc" stroke-width="1.5" stroke-dasharray="6,3"/>
   <text x="300" y="65" text-anchor="middle" font-size="14" fill="#666">"Help the user book a flight"</text>
   <text x="300" y="120" text-anchor="middle" font-size="12" fill="#999">No edges. No state. No history.</text>
   <text x="300" y="140" text-anchor="middle" font-size="11" fill="#bbb">The goal exists for one request, then it's gone.</text>
 </svg>
+</div>
 
 This is like building a person who can only think about one thing at a time and forgets it the moment they look away.
 
@@ -29,6 +31,7 @@ Here's what happens when you build that. Four scenarios, four capabilities.
 
 A PhD student's research agent tracks two goals. "Understand transformers" is aspirational — years away, no deadline, no decomposition needed. "Submit NeurIPS paper" is due in three weeks.
 
+<div>
 <svg viewBox="0 0 800 300" xmlns="http://www.w3.org/2000/svg" style="max-width:100%; font-family: system-ui, sans-serif;">
   <!-- Low resolution (distant) -->
   <text x="200" y="25" text-anchor="middle" font-size="13" font-weight="bold" fill="#7627bb">Distant — low resolution</text>
@@ -69,6 +72,7 @@ A PhD student's research agent tracks two goals. "Understand transformers" is as
   <text x="400" y="58" text-anchor="middle" font-size="10" fill="#999">urgency increases →</text>
   <defs><marker id="arr-grey" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#ccc"/></marker></defs>
 </svg>
+</div>
 
 This is **progressive resolution** — borrowed from level-of-detail rendering in computer graphics (Clark, 1976). Nearby objects get high-fidelity polygons; distant objects get low-poly placeholders. The same principle applies to goal knowledge.
 
@@ -92,6 +96,7 @@ Seven properties. That's what separates a structured goal from a string.
 
 A product team agent tracks feature goals with dependency edges. "Ship v2.0" is blocked by "hire senior engineer." "Improve onboarding" enables "reduce churn." "Build payment integration" requires "PCI compliance review."
 
+<div>
 <svg viewBox="0 0 800 320" xmlns="http://www.w3.org/2000/svg" style="max-width:100%; font-family: system-ui, sans-serif;">
   <defs>
     <marker id="arr-red" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#ea4335"/></marker>
@@ -142,6 +147,7 @@ A product team agent tracks feature goals with dependency edges. "Ship v2.0" is 
   <line x1="100" y1="294" x2="140" y2="294" stroke="#4285f4" stroke-width="2"/>
   <text x="150" y="298" font-size="10" fill="#666">requires — prerequisite</text>
 </svg>
+</div>
 
 The five edge types (`enables`, `blocks`, `requires`, `contributes-to`, `decomposes-into`) encode different dependency semantics. `blocks` and `requires` form a DAG constraint — circular dependencies are rejected on creation. `enables` and `contributes-to` allow cycles because mutual enablement is semantically valid.
 
@@ -155,6 +161,7 @@ The GoalRecognitionPhase scans recent experience memories for goal-like content.
 
 Once tracked, the goal accumulates affect.
 
+<div>
 <svg viewBox="0 0 800 260" xmlns="http://www.w3.org/2000/svg" style="max-width:100%; font-family: system-ui, sans-serif;">
   <!-- Axes -->
   <line x1="80" y1="200" x2="720" y2="200" stroke="#ccc" stroke-width="1"/>
@@ -183,6 +190,7 @@ Once tracked, the goal accumulates affect.
   <text x="500" y="28" text-anchor="middle" font-size="9" fill="#34a853">first dish succeeds</text>
   <text x="500" y="245" text-anchor="middle" font-size="9" fill="#34a853">completed sub-goal</text>
 </svg>
+</div>
 
 Each goal node carries PAD emotional dimensions — pleasure, arousal, dominance. The GoalAffectPhase computes anticipated affect from the goal's current state:
 
@@ -197,6 +205,7 @@ This isn't anthropomorphic decoration. Appraisal theory (Scherer, 2001) models e
 
 A game character pursues two quests simultaneously: "Rescue the princess" and "Find the ancient artifact." Both require finding the blacksmith — one for weapons, one for a map.
 
+<div>
 <svg viewBox="0 0 800 320" xmlns="http://www.w3.org/2000/svg" style="max-width:100%; font-family: system-ui, sans-serif;">
   <defs><marker id="arr-purple" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#9334e6"/></marker></defs>
 
@@ -230,6 +239,7 @@ A game character pursues two quests simultaneously: "Rescue the princess" and "F
   <text x="540" y="268" text-anchor="middle" font-size="22" fill="#ccc">0.0</text>
   <text x="540" y="282" font-size="9" text-anchor="middle" fill="#666">4+ edges</text>
 </svg>
+</div>
 
 The Merge step detects semantically similar sub-goals across different parents. "Find the blacksmith shop" and "find the blacksmith store" — Jaro-Winkler similarity above 0.85 — get merged into a single node with `contributes-to` edges to both parents. The task is done once, benefiting both quests.
 
@@ -239,6 +249,7 @@ Meanwhile, the `GoalRelevanceModulationFactor` biases memory retrieval by graph 
 
 These four capabilities — expand, prune, merge, revise — don't run in real time. They run during "sleep."
 
+<div>
 <svg viewBox="0 0 700 350" xmlns="http://www.w3.org/2000/svg" style="max-width:100%; font-family: system-ui, sans-serif;">
   <!-- Central circle -->
   <circle cx="350" cy="175" r="60" fill="#f8f0ff" stroke="#9334e6" stroke-width="1.5"/>
@@ -276,6 +287,7 @@ These four capabilities — expand, prune, merge, revise — don't run in real t
   <text x="230" y="315" font-size="9" fill="#666">→ product team</text>
   <text x="50" y="130" font-size="9" fill="#666">→ eidos identity</text>
 </svg>
+</div>
 
 The existing consolidation scheduler — a background timer that runs maintenance phases when the system is idle — gains four new phases at priorities 35-45. Each phase operates on the GOAL subgraph regardless of whether curiosity signals prioritise it. Goal processing is not optional.
 
@@ -299,6 +311,7 @@ The priority score is a substrate signal. The agent's orchestration layer decide
 
 One concern going in: would a cognitive goal layer create tight coupling between the memory system, the behavioral orchestration, and the execution engine?
 
+<div>
 <svg viewBox="0 0 700 140" xmlns="http://www.w3.org/2000/svg" style="max-width:100%; font-family: system-ui, sans-serif;">
   <defs><marker id="arr-narrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#666"/></marker></defs>
 
@@ -316,6 +329,7 @@ One concern going in: would a cognitive goal layer create tight coupling between
   <line x1="415" y1="78" x2="285" y2="78" stroke="#666" stroke-width="1.5" marker-end="url(#arr-narrow)"/>
   <text x="350" y="98" text-anchor="middle" font-size="9" fill="#666">outcome events</text>
 </svg>
+</div>
 
 Two channels. Goals flow out as prose descriptions with priority scores. Outcomes flow back as experience events. No shared graph types. No shared goal records. The cognitive goal graph lives in the knowledge store. The execution engine's plans live in their own data structures. Each system evolves independently.
 
