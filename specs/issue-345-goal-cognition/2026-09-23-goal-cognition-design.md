@@ -143,12 +143,24 @@ store. GoalResolutionPhase manages lifecycle transitions directly:
 - `active` → `blocked`: when a `blocks` or `requires` dependency becomes
   active or unresolved
 - `blocked` → `active`: when all blocking dependencies are resolved
-- `active` → `dormant`: via Decay step (extended inactivity)
-- `active` → `abandoned`: via Decay step (with `abandonment-reason` property)
+- `active` → `dormant`: via GoalPrioritizationPhase Decay (extended inactivity)
+- `active` → `abandoned`: via GoalPrioritizationPhase Decay (with
+  `abandonment-reason` property)
 - `active` → `completed`: when engine case outcome confirms goal achievement
+
+**Linked goals and Decay:** GoalPrioritizationPhase's Decay step applies
+lifecycle transitions (`status` property writes) only to standalone goals.
+For linked goals, Decay records a `decay-signal` property (`dormant` or
+`abandon`) on the MindMap node instead of writing `status` directly. Blocks
+reads `decay-signal` during the next `GoalRevisionStrategy` evaluation and
+proposes the transition through eidos — which writes the authoritative state
+change via `AgentRegistry.register()`. The `decay-signal` property is cleared
+by the Sync step when eidos state is imported.
 
 This does not violate no-split-brain: linked goals have one authority (eidos);
 standalone goals have one authority (MindMap). No goal has two authorities.
+Decay respects the authority boundary — it signals, not writes, for linked
+goals.
 
 ### Goal Supersession
 
@@ -222,6 +234,7 @@ GOAL subgraphs per tenant. Enables independent scheduling in
 | `target-date` | ISO-8601 date | Optional deadline — when present, urgency is dynamically computed |
 | `priority` | 0.0-1.0 | Computed composite priority (see §Goal Priority Computation) |
 | `abandonment-reason` | string | Why the goal was abandoned — required when status=abandoned |
+| `decay-signal` | dormant/abandon | Decay recommendation for linked goals — cleared by Sync step |
 
 ### Goal edge vocabulary
 
@@ -325,20 +338,37 @@ Defined in mindmap-api. Blocks provides implementation backed by
 ```java
 @FunctionalInterface
 public interface GoalLifecycleProvider {
-    Map<String, GoalLifecycleState> getLifecycleStates(
+    Map<String, String> getLifecycleStates(
         String agentId, String tenantId);
 }
 ```
 
+Returns goal name → status string (`"active"`, `"blocked"`, `"deferred"`,
+`"completed"`, `"abandoned"`, `"dormant"`). Status strings match the MindMap
+`status` property vocabulary — no eidos types cross this boundary.
+
 `@DefaultBean` NoOp returns empty map — standalone deployments have no
 linked goals, so the Sync step becomes a no-op. Blocks implementation
 queries `AgentRegistry.resolve(agentId, tenantId).goals()` and maps each
-`AgentGoal` to its `GoalLifecycleState`.
+`AgentGoal.lifecycleState().name().toLowerCase()` to the status string.
 
 GoalResolutionPhase's Sync step injects this SPI and calls it to read
-eidos lifecycle state for linked goals. This follows the same inversion
-pattern as `CognitiveGoalDecomposer` and `CognitiveGoalRecognizer` —
-neocortex defines what it needs; blocks provides the runtime implementation.
+eidos lifecycle state for linked goals. The Sync step data flow in
+multi-agent tenants:
+1. Find linked goal nodes in the GOAL subgraph (those with `eidos-goal-name`
+   property)
+2. Group by `node.principalId()` — the `PrincipalId.id()` is the agent
+   identity bridge
+3. Call `GoalLifecycleProvider.getLifecycleStates(principalId.id(), tenantId)`
+   per agent
+4. Match returned states to goal nodes by `eidos-goal-name` property value
+5. Update MindMap `status` property to match
+
+This follows the same inversion pattern as `CognitiveGoalDecomposer` and
+`CognitiveGoalRecognizer` — neocortex defines what it needs; blocks provides
+the runtime implementation. The `Map<String, String>` return type preserves
+mindmap-api's eidos-free boundary (mindmap-api is Tier 1 pure Java with zero
+eidos dependencies).
 
 ### CognitiveGoalRecognizer
 
@@ -409,7 +439,10 @@ form transitive cycles.
 
 **Sync:** For goals linked via `eidos-goal-name`, query `GoalLifecycleProvider`
 SPI for current lifecycle state and update MindMap node `status` property to
-match. One-way flow: eidos → MindMap. See §Lifecycle State Synchronization.
+match. Groups linked goals by `principalId` for multi-agent tenants — see
+§SPIs GoalLifecycleProvider for the full data flow. Clears `decay-signal`
+properties after importing eidos state. One-way flow: eidos → MindMap.
+See §Lifecycle State Synchronization.
 
 Step ordering rationale: Expand before Merge (new sub-goals from expansion are
 candidates for cross-parent merging). Revise before Sync (update internal
@@ -426,9 +459,14 @@ current-tick affect values. Steps execute in the order listed.
 node. See §Goal Priority Computation.
 
 **Decay:** Goals with no activity and declining affect → reduce priority via
-confidence decay. Suggest dormancy (update `status` to `dormant`) or
-abandonment after extended inactivity. Uses existing `ConfidenceDecayDecorator`
-mechanism.
+confidence decay. Uses existing `ConfidenceDecayDecorator` mechanism.
+
+For **standalone goals**: directly update `status` to `dormant` or `abandoned`
+(with `abandonment-reason` property). See §Lifecycle State Synchronization.
+
+For **linked goals**: record `decay-signal` property (`dormant` or `abandon`)
+on the MindMap node. Do NOT write `status` directly — eidos is authoritative.
+Blocks reads the signal during `GoalRevisionStrategy` evaluation.
 
 ### Goal Priority Computation
 
@@ -451,8 +489,12 @@ Where:
 - `feasibility` (0.0–1.0): from goal property. Updated by Revise step when
   blockers are resolved.
 - `affective_valence` (0.0–1.0): derived from PAD dimensions on the goal
-  node. High pleasure + high dominance → high affective valence. Computed
-  by GoalAffectPhase.
+  node. Formula: `(pleasure + dominance + 2) / 4`. Arousal is excluded —
+  it drives affect trajectory (energy, stress) but not goal desirability.
+  Pleasure captures "how positively does the agent feel about this goal."
+  Dominance captures "how much agency does the agent have over it." When
+  PAD dimensions are unset (defaulting to 0.0 — neutral), the formula
+  yields 0.5 (neutral valence). Computed by GoalAffectPhase.
 - `importance` (0.0–1.0): number of `contributes-to` and `enables` inbound
   edges normalized by max across active goals. Goals that enable or
   contribute to many other goals are structurally important.
@@ -510,8 +552,10 @@ Weights retrieved memories by graph proximity to active goal nodes in MindMap.
 **MindMapStore access:** Injected at construction time, not through the
 `ModulationFactor.apply(item, profile)` contract. The factor is constructed
 with a `MindMapStore` reference and a `String tenantId`. Active goal nodes
-are queried once at construction (or cached with TTL) to avoid per-item
-graph queries.
+are cached and refreshed via `@Observes ConsolidationCompleted` — the CDI
+event fired by `ConsolidationScheduler` after each consolidation tick.
+This ties cache refresh to the actual consolidation cycle rather than an
+independent TTL.
 
 **Entity mapping:** Each `Memory` has a `Subject` with `type()` and `id()`.
 The factor maps `memory.subject().id()` to a MindMap entity node via
@@ -586,9 +630,10 @@ Blocks reads neocortex goal state via existing query APIs:
 - `MindMapStore.neighbors(nodeId, edgeType, tenantId)` — traverse dependency
   graph
 
-Blocks provides LLM implementations for neocortex SPIs:
+Blocks provides implementations for neocortex SPIs:
 - `CognitiveGoalDecomposer` — LLM-backed cognitive decomposition
 - `CognitiveGoalRecognizer` — LLM-backed goal recognition
+- `GoalLifecycleProvider` — AgentRegistry-backed lifecycle state query
 
 ## What This Does NOT Change
 
@@ -670,6 +715,17 @@ New types go in existing modules — no new modules created:
   lifecycle states from AgentRegistry
 - Desirelike/Intentionlike → Goallike mapping: all methods mapped correctly
   including Desirelike.status()
+- Decay linked vs standalone: standalone goals get direct status writes,
+  linked goals get decay-signal property (not status). Verify decay-signal
+  cleared by Sync.
+- affective_valence formula: (pleasure + dominance + 2) / 4, arousal excluded,
+  neutral PAD → 0.5
+- GoalLifecycleProvider returns Map<String, String> (no eidos types cross
+  mindmap-api boundary)
+- Sync step agentId sourcing: linked goals grouped by principalId, provider
+  called per agent, results matched by eidos-goal-name
+- GoalRelevanceModulationFactor cache: refreshed on @Observes
+  ConsolidationCompleted, not TTL
 
 ## References
 
