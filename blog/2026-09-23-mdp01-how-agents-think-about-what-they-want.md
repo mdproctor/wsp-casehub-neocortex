@@ -277,13 +277,19 @@ That's it. Neocortex submits goals for execution through the existing formation 
 
 The cognitive goal graph lives in MindMap. Engine's execution plans live in DagPlan. The two systems communicate through goal submission (prose description + priority) and outcome feedback (experience events). Each system can evolve independently.
 
-## What's built, what's next
+## What's built
 
-Batch 1 is committed: eidos gains `GoalLifecycleState` and `GoalHorizon` on `AgentGoal` (backward compatible — nullable fields). Neocortex mindmap-api gains the `GOAL` subgraph type, `GoalVocabulary` (five edge types: enables, blocks, requires, contributes-to, decomposes-into), and three SPIs with NoOp defaults: `CognitiveGoalDecomposer`, `CognitiveGoalRecognizer`, `GoalLifecycleProvider`.
+The full cognitive goal substrate is committed. Eidos gains `GoalLifecycleState` and `GoalHorizon` on `AgentGoal` (backward compatible — nullable fields). Neocortex mindmap-api gains the `GOAL` subgraph type, `GoalVocabulary` (five edge types with aliases), and three SPIs with NoOp defaults.
 
-Four batches remain: the `Goallike` trait interface (replacing the placeholder `Intentionlike`), the `GoalResolutionPhase` with its five-step consolidation cycle, the affect/prioritisation/recognition phases, and goal-conditioned retrieval via a `GoalRelevanceModulationFactor` that weights memories by graph proximity to active goals.
+The `Goallike` trait interface replaces the placeholder `Intentionlike` with seven property accessors — description, status, horizon, origin, resolution, urgency, feasibility. `Intentionlike` and `Desirelike` are deprecated. In the type hierarchy, "intention" and "desire" become subtypes of "goal" — LLM extraction that produces either label now maps to the unified goal type.
 
-The bigger implication crystallised during this work: all of blocks' social cognition state — mental models, user profiles, narratives, strategy profiles — is cognitive memory that belongs in neocortex. Blocks built it because neocortex didn't have the infrastructure yet. Now it does. The follow-up epic (#378) will migrate that state, making blocks a pure processor — reads state, evaluates, decides, writes back. The brain's motivational circuit: processes memories, doesn't store them.
+Four consolidation phases slot into the existing sleep cycle: `GoalResolutionPhase` (priority 35) runs the five-step cycle — prune, expand, merge, revise, sync. `GoalAffectPhase` (37) computes anticipated emotion. `GoalPrioritizationPhase` (38) applies the composite priority formula. `GoalRecognitionPhase` (45) scans experience memories for implicit goals the agent hasn't consciously tracked.
+
+Goal-conditioned retrieval works through a `GoalRelevanceModulationFactor` — a BFS walk from each memory's entity node to active goals, with distance-decayed weights. One edge away: full weight. Two edges: 0.7. Three: 0.4. Four or more: invisible. When an agent is pursuing something, memories near that pursuit surface more readily. When nothing is active, retrieval is neutral.
+
+One thing I noticed during implementation: the design anticipated needing an eidos-api dependency in mindmap-intelligence for lifecycle sync. We didn't. The `GoalLifecycleProvider` SPI returns `Map<String, String>` — status strings, not eidos types. The module boundary held cleaner than expected. Mindmap-api stays zero-deps.
+
+The bigger implication crystallised during the design work: all of blocks' social cognition state — mental models, user profiles, narratives, strategy profiles — is cognitive memory that belongs in neocortex. Blocks built it because neocortex didn't have the infrastructure yet. Now it does. The follow-up epic (#378) will migrate that state, making blocks a pure processor — reads state, evaluates, decides, writes back. The brain's motivational circuit: processes memories, doesn't store them.
 
 The platform is developing a nervous system. RAS for sensing. Neocortex for remembering and reasoning. Blocks for wanting and deciding. Engine for doing. Each layer cleanly separated, each doing what brains figured out millions of years ago: separate what you *know* from what you *want* from what you *do*.
 
