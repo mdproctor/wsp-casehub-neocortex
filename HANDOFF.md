@@ -1,25 +1,27 @@
 # HANDOFF — casehub-neocortex
 
-## Last Session (extended — two rounds)
+## Last Session
 
-**Round 1:** Cross-repo architecture audit for Epic #345. Traced goal primitives across 6 repos, discovered 4 goal concepts, mapped dependency graph. Created slot 203.
+Resolved D1-D10 architectural decisions for goal cognition (#345). Wrote and reviewed design spec (Standard decision review + Standard post-spec review). Created implementation plan (5 batches, 9 tasks). Completed Batch 1 (eidos GoalLifecycleState/GoalHorizon + neocortex SPIs/vocabulary). Created follow-up epic #378 (blocks social memory migration).
 
-**Round 2 (this session):** Deep analysis of blocks' decomposition, research grounding, and architectural refinement. Key findings:
-
-- **Research grounding:** BDI separates desires (cognitive) from intentions (committed) from execution. ACT-R: goals bias retrieval. Scherer: goals are reference points for emotional appraisal. La VIDA: personality-concordant goal selection. Cognitive goals = deliberation, not planning.
-- **Progressive resolution:** Cognitive goal graph has variable depth — single node for distant goals, decomposed for approaching/overlapping ones. LOD analogy. Resolution managed bidirectionally by consolidation sleep cycle (prune distant detail, expand approaching goals, merge shared sub-goals).
-- **Cognitive vs execution decomposition:** Blocks' strategies (GOAP, HTN, LLM, heuristic) are execution-coupled (RoutingCandidate, AgentCapability, PlannedTask). Not reusable for cognitive decomposition. Neocortex needs its own LLM-based cognitive decomposition producing MindMap nodes.
-- **No shared graph types needed:** MindMap IS neocortex's graph. DagPlan is engine's. Interface is GoalFormationService.propose() (prose + priority in) and ExperienceEvent (outcomes out). ~250 lines of graph code not worth extracting to platform.
-- **Blocks refactor:** Worth doing for blocks' own cleanliness (generics + factory patterns), but not a #345 dependency.
+Key architectural decisions:
+- No new shared module — eidos-api for identity types, MindMap conventions for cognitive types
+- neocortex → eidos-api dependency is natural (cognitive layer knows the identity it's cognitive of)
+- SPI inversion for LLM access — neocortex defines SPIs with NoOp defaults, blocks provides implementations
+- Substrate/orchestration split — neocortex stores, blocks processes (brain analogy: cortex vs motivational circuit)
+- Progressive resolution — variable-detail goal graph managed by consolidation sleep cycle
 
 ## Immediate Next Step
 
-In slot 203, pull this branch into the workspace clone and read the context doc. Resolve D1–D7, write the design spec.
+Resume implementation at Batch 2, Task 3: Goallike trait + TypeRegistry + NoOps. Run `work continue`.
 
 ## References
 
-- `specs/issue-345-goal-cognition/2026-09-22-goal-architecture-context.md` — comprehensive audit with dependency graph, all goal types mapped, 6 open decisions (D1–D6)
-- `blog/2026-09-22-mdp01-four-goals-one-word.md` — diary entry
+- `specs/issue-345-goal-cognition/2026-09-23-goal-cognition-design.md` — validated design spec
+- `specs/issue-345-goal-cognition/decisions.md` — D1-D10 architectural decisions
+- `specs/issue-345-goal-cognition/2026-09-22-goal-architecture-context.md` — cross-repo audit
+- `plans/2026-09-23-goal-cognition.md` — implementation plan (5 batches, 9 tasks)
+- `blog/2026-09-23-mdp01-how-agents-think-about-what-they-want.md` — diary entry
 - `JOURNAL.md` — session journal
-- Slot 203: `~/claude/casehub/slots/203/` — platform, eidos, engine, blocks, desiredstate, neocortex
-- Slot .plan: `~/claude/casehub/slots/203/.plan` — queue with Batch 0 active (architecture decisions), Batches 1–6 deferred
+- Eidos branch: `issue-345-goal-cognition` — GoalLifecycleState + GoalHorizon committed
+- neocortex#378 — follow-up: blocks social memory migration
