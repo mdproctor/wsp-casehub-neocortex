@@ -102,7 +102,7 @@ public enum GoalLifecycleState {
     BLOCKED,     // prerequisites not met
     DEFERRED,    // consciously postponed
     COMPLETED,   // achieved
-    ABANDONED,   // given up with reason
+    ABANDONED,   // given up — reason stored as abandonment-reason property on MindMap node
     DORMANT      // not being pursued, can reactivate
 }
 ```
@@ -126,6 +126,45 @@ public enum GoalHorizon {
 Nullable on `AgentGoal`. Set at goal formation time. Blocks' social-config YAML
 gains optional `horizon` field per goal entry.
 
+## Lifecycle State Synchronization
+
+Two categories of cognitive goals with different authority models:
+
+**Linked goals** (have `eidos-goal-name` property): Eidos `AgentRegistry` is
+authoritative. GoalResolutionPhase's Sync step reads `AgentGoal` lifecycle
+state via eidos-api and updates the MindMap node's `status` property to match.
+One-way flow: eidos → MindMap. Neocortex never writes lifecycle transitions
+for linked goals — it provides cognitive context (dependencies, affect,
+priority) that feeds into `GoalFormationContext` and `GoalRevisionContext`.
+
+**Standalone cognitive goals** (no eidos counterpart): MindMap is the sole
+store. GoalResolutionPhase manages lifecycle transitions directly:
+- `active` → `blocked`: when a `blocks` or `requires` dependency becomes
+  active or unresolved
+- `blocked` → `active`: when all blocking dependencies are resolved
+- `active` → `dormant`: via Decay step (extended inactivity)
+- `active` → `abandoned`: via Decay step (with `abandonment-reason` property)
+- `active` → `completed`: when engine case outcome confirms goal achievement
+
+This does not violate no-split-brain: linked goals have one authority (eidos);
+standalone goals have one authority (MindMap). No goal has two authorities.
+
+### Goal Supersession
+
+Goals can be superseded — replaced by a better goal with rationale. Uses
+existing `MindMapStore.supersede(targetId, supersedingId, reason, tenantId)`.
+
+Supersession differs from abandonment: a superseded goal was replaced by a
+better formulation, not given up. The supersession record (via
+`SupersessionStatus`) preserves the replacement chain — useful for cognitive
+reflection ("why did I reformulate this goal?").
+
+GoalResolutionPhase triggers supersession during Merge when two goals are
+semantically equivalent but one is better formulated. The weaker goal is
+superseded by the stronger one. Blocks can also trigger supersession
+explicitly via `MindMapStore.supersede()` when drive re-evaluation produces
+a refined goal.
+
 ## MindMap Goal Representation
 
 ### Goallike trait interface
@@ -148,8 +187,18 @@ public interface Goallike {
 Registered types: `"intention"` and `"desire"` become subtypes of `"goal"` in
 TypeRegistry, so LLM extraction producing these types maps to the unified goal
 type. Both `Intentionlike` and `Desirelike` Java interfaces are deprecated and
-replaced by `Goallike` — the migration is mechanical (2 production references
-each in TypeRegistry and CognitiveDerivationEngine).
+replaced by `Goallike` — the migration is mechanical (1 production reference
+each in `TypeRegistry.COGNITIVE_TYPES`).
+
+### Intentionlike/Desirelike → Goallike mapping
+
+| Old interface | Old method | Goallike equivalent |
+|---------------|-----------|---------------------|
+| `Intentionlike.goal()` | Goal description | `Goallike.description()` |
+| `Intentionlike.status()` | Status string | `Goallike.status()` |
+| `Intentionlike.priority()` | Priority string | Dropped — replaced by computed `priority` property |
+| `Desirelike.aspiration()` | Aspiration text | `Goallike.description()` |
+| `Desirelike.urgency()` | Urgency string | `Goallike.urgency()` |
 
 ### GOAL subgraph type (D9)
 
@@ -168,10 +217,18 @@ GOAL subgraphs per tenant. Enables independent scheduling in
 | `urgency` | 0.0-1.0 | Deadline pressure |
 | `feasibility` | 0.0-1.0 | How close to actionable |
 | `eidos-goal-name` | string | Links to eidos AgentGoal name |
+| `target-date` | ISO-8601 date | Optional deadline — when present, urgency is dynamically computed |
+| `priority` | 0.0-1.0 | Computed composite priority (see §Goal Priority Computation) |
+| `abandonment-reason` | string | Why the goal was abandoned — required when status=abandoned |
 
 ### Goal edge vocabulary
 
-Registered via `MindMapVocabulary` in `CognitiveLoader`:
+Registered globally in `CognitiveLoader.init()` alongside cognitive type
+registration — not through per-agent `CognitiveDefaults` profiles. Goal edge
+vocabulary is domain infrastructure shared across all agents. A static
+`GOAL_VOCABULARY` constant in the goal module provides the `MindMapVocabulary`
+instance; `CognitiveLoader.init()` calls `store.registerVocabulary(GOAL_VOCABULARY)`
+after the existing type registration block:
 
 | Edge type | Aliases | Purpose |
 |-----------|---------|---------|
@@ -180,6 +237,24 @@ Registered via `MindMapVocabulary` in `CognitiveLoader`:
 | `requires` | `depends-on`, `needs` | A is a prerequisite for B |
 | `contributes-to` | `supports`, `helps` | A partially advances B |
 | `decomposes-into` | `breaks-down-to`, `involves` | A has sub-goal B |
+
+### Cycle detection
+
+`blocks` and `requires` edges form a DAG constraint — circular dependencies
+are incoherent ("A blocks B and B blocks A" means neither can activate).
+Validation on edge creation: when adding a `blocks`, `requires`, or
+`decomposes-into` edge, check for cycles via BFS/DFS from target to source
+along edges of the same type. Reject with `CyclicDependencyException` if a
+path exists.
+
+`enables` and `contributes-to` edges are NOT subject to cycle validation —
+mutual enablement ("A enables B and B enables A") is semantically valid
+(synergistic goals).
+
+GoalResolutionPhase also runs periodic cycle detection during the Revise step
+as a safety net — edges created by LLM decomposition may introduce cycles
+that were valid individually but form transitive chains. Detected cycles are
+resolved by removing the most recently added edge and logging a warning.
 
 ### Cross-system linking
 
@@ -194,21 +269,49 @@ Goal MindMap nodes link to eidos identity and engine execution via `NodeRef`:
 
 ### CognitiveGoalDecomposer
 
-Defined in neocortex. Blocks provides LLM-backed implementation.
+Defined in mindmap-api (alongside its return types). Blocks provides
+LLM-backed implementation.
 
 ```java
 @FunctionalInterface
 public interface CognitiveGoalDecomposer {
-    List<ParsedExtraction> decompose(
+    GoalDecompositionResult decompose(
         String goalDescription,
         List<MindMapNode> contextNodes,
         String tenantId);
 }
+
+public record GoalDecompositionResult(
+    List<SubGoal> subGoals,
+    List<GoalRelationship> relationships
+) {
+    public static final GoalDecompositionResult EMPTY =
+        new GoalDecompositionResult(List.of(), List.of());
+
+    public record SubGoal(
+        String description,
+        String suggestedHorizon,
+        Map<String, String> properties) {}
+
+    public record GoalRelationship(
+        String sourceDescription,
+        String targetDescription,
+        String edgeType) {}
+}
 ```
 
-`@DefaultBean` NoOp returns empty list. Blocks implementation uses a cognitive
-prompt: "what does achieving this involve?" — produces sub-goal entities and
-`decomposes-into` relationship edges.
+`@DefaultBean` NoOp returns `GoalDecompositionResult.EMPTY`. Blocks
+implementation uses a cognitive prompt: "what does achieving this involve?" —
+produces sub-goal entities and `decomposes-into` relationship edges.
+GoalResolutionPhase converts `GoalDecompositionResult` into MindMap nodes and
+edges.
+
+**Standalone limitation:** NoOp means GoalResolutionPhase.expand() is a no-op
+in standalone mode (no blocks, no LLM). Standalone deployments (e.g., Hortora)
+get goal storage, recognition, and affect — but not progressive resolution.
+The cognitive goal graph is still valuable without decomposition: manually
+created goals, recognized goals, and their dependency edges still function.
+Progressive resolution is a cognitive enhancement, not a prerequisite.
 
 ### CognitiveGoalRecognizer
 
@@ -241,6 +344,13 @@ if...") and classify on the intention spectrum.
 Runs after ExperienceConsolidationPhase (15), MergeDetectionPhase (20),
 SchemaDiscoveryPhase (25). Before CuriosityRefreshPhase (40).
 
+**SubgraphPriority interaction:** Goal phases always process the GOAL subgraph
+regardless of whether it appears in the `subgraphPriority` list. The priority
+list (computed from curiosity signals) determines processing order and resource
+allocation for general consolidation phases — goal-specific phases are scoped
+to the GOAL subgraph by design. If no curiosity signal targets the GOAL
+subgraph, goal phases still run — goal processing is not optional.
+
 Manages progressive resolution of the cognitive goal graph:
 
 **Prune:** Distant goals with decomposed sub-goals that haven't been accessed
@@ -248,25 +358,69 @@ Manages progressive resolution of the cognitive goal graph:
 goal's `resolution` property drops to `low`. Detail can be re-derived when
 needed.
 
-**Expand:** Approaching goals (time proximity) or newly-overlapping goals →
-invoke `CognitiveGoalDecomposer` SPI, store results as sub-goal MindMap nodes
-with `decomposes-into` edges. Update parent's `resolution` to `medium` or
-`high`.
+**Expand:** Approaching goals (high urgency or near `target-date`) or
+newly-overlapping goals → invoke `CognitiveGoalDecomposer` SPI, store results
+as sub-goal MindMap nodes with `decomposes-into` edges (subject to cycle
+validation — see §Cycle detection). Update parent's `resolution` to `medium`
+or `high`.
 
 **Merge:** Shared sub-goals across parent goals → merge sub-goal nodes, create
-`contributes-to` edges to both parents. Detection uses embedding similarity
-(SPLADE + dense vectors via existing neocortex infrastructure) for semantic
-matching. Two goals like "understand customer pain points" and "assess user
-frustration areas" are semantically equivalent despite lexical distance.
+`contributes-to` edges to both parents. Detection uses the same embedding
+infrastructure as `MergeDetectionPhase` — `Instance<Object> embeddingModel`
+injected at construction. When an embedding model is available (blocks
+deployment), semantic similarity enables matching goals like "understand
+customer pain points" and "assess user frustration areas." When no embedding
+model is available (standalone), falls back to Jaro-Winkler name similarity +
+Jaccard neighbor overlap (same as MergeDetectionPhase).
 
 **Revise:** Dependency state changed (sub-goal completed elsewhere, blocker
 removed, new information) → update graph. If a `blocks` edge target is
-completed, the blocked goal transitions from `blocked` to `active`.
+completed, the blocked goal transitions from `blocked` to `active`. Periodic
+cycle detection runs as a safety net — edges created by LLM decomposition may
+form transitive cycles.
+
+**Sync:** For goals linked via `eidos-goal-name`, read `AgentGoal` lifecycle
+state via eidos-api and update MindMap node `status` property to match.
+One-way flow: eidos → MindMap. See §Lifecycle State Synchronization.
+
+**Prioritize:** Compute composite `priority` property on each active goal
+node. See §Goal Priority Computation.
 
 **Decay:** Goals with no activity and declining affect → reduce priority via
 confidence decay. Suggest dormancy (update `status` to `dormant`) or
 abandonment after extended inactivity. Uses existing `ConfidenceDecayDecorator`
 mechanism.
+
+### Goal Priority Computation
+
+Computed during GoalResolutionPhase's Prioritize step. Stored as the `priority`
+property (0.0–1.0) on each active goal node.
+
+**Composite formula:**
+
+```
+priority = w_u * urgency
+         + w_f * feasibility
+         + w_a * affective_valence
+         + w_i * importance
+```
+
+Where:
+- `urgency` (0.0–1.0): from goal property. When `target-date` is present,
+  dynamically computed as `1.0 - (remaining_time / horizon_budget)` clamped
+  to [0, 1]. When absent, uses the static `urgency` property value.
+- `feasibility` (0.0–1.0): from goal property. Updated by Revise step when
+  blockers are resolved.
+- `affective_valence` (0.0–1.0): derived from PAD dimensions on the goal
+  node. High pleasure + high dominance → high affective valence. Computed
+  by GoalAffectPhase.
+- `importance` (0.0–1.0): number of `contributes-to` and `enables` inbound
+  edges normalized by max across active goals. Goals that enable or
+  contribute to many other goals are structurally important.
+
+Default weights: `w_u=0.3, w_f=0.2, w_a=0.2, w_i=0.3`. Configurable per
+deployment. The priority score is a substrate signal — blocks decides what
+to do with it (goal selection, prompt ordering, capacity allocation).
 
 ### GoalRecognitionPhase (priority 45)
 
@@ -289,8 +443,10 @@ goal-like content that hasn't already been tracked.
 Runs between GoalResolutionPhase (35) and CuriosityRefreshPhase (40).
 
 Computes anticipated affect for active goals:
-- **Approaching deadline + high urgency** → increased arousal, potentially
-  negative pleasure (stress)
+- **High urgency** → increased arousal. When `target-date` is present,
+  urgency is dynamically recomputed from temporal distance (see §Goal
+  Priority Computation). When absent, the static `urgency` property
+  drives the affect computation directly.
 - **Blocked goal + high urgency** → frustration (negative pleasure, high
   arousal)
 - **Recently completed goal** → satisfaction (positive pleasure shift)
@@ -300,17 +456,38 @@ Updates PAD dimensions on goal MindMap nodes. `AffectTrajectoryDecorator`
 captures these changes as domain="affect" memories, feeding the existing
 `AffectTrajectoryAnalyzer` pipeline.
 
+**Deferred: avoidance pattern.** Issue #345 §4 requires modeling dread —
+goals with high importance but high difficulty developing avoidance patterns
+that affect retrieval and curiosity. This requires the basic affect
+infrastructure to be in place first. Tracked as a follow-up issue on
+neocortex (see §Explicitly Deferred Items).
+
 ## Goal-Conditioned Retrieval (D10)
 
-`GoalRelevanceModulationFactor` implements `ModulationFactor<T>`. Weights
-retrieved items by graph proximity to active goal nodes in MindMap.
+`GoalRelevanceModulationFactor` implements `ModulationFactor<Memory>` (typed
+to `Memory`, matching the existing `ModulationFactors.domainWeight()` pattern).
+Weights retrieved memories by graph proximity to active goal nodes in MindMap.
+
+**MindMapStore access:** Injected at construction time, not through the
+`ModulationFactor.apply(item, profile)` contract. The factor is constructed
+with a `MindMapStore` reference and a `String tenantId`. Active goal nodes
+are queried once at construction (or cached with TTL) to avoid per-item
+graph queries.
+
+**Entity mapping:** Each `Memory` has a `domain` and optionally entity names
+in its attributes. The factor maps `memory.domain()` to a MindMap entity node
+via `MindMapStore.search(MindMapQuery)`. If the memory's entity has a
+MindMap node, graph proximity to active goals is computed.
 
 Proximity computation:
-1. Identify active goal nodes (status=active in GOAL subgraph)
-2. For each retrieved item, check if its entity node is within N edges of
-   any active goal node
-3. Apply distance-decaying weight: 1.0 for direct (1 edge), 0.7 for 2 edges,
+1. Identify active goal nodes (status=active in GOAL subgraph) — cached at
+   construction, refreshed per consolidation cycle
+2. For each retrieved memory, resolve its entity node in MindMap
+3. If entity node exists, compute shortest path to any active goal node via
+   BFS on MindMap edges (bounded to depth 4)
+4. Apply distance-decaying weight: 1.0 for direct (1 edge), 0.7 for 2 edges,
    0.4 for 3 edges, 0 for 4+
+5. If no entity node exists, return 1.0 (neutral — no modulation)
 
 Integrates with existing `RetrievalModulator` pipeline. No changes to
 retrieval SPIs — pure composition.
@@ -318,6 +495,17 @@ retrieval SPIs — pure composition.
 Cold-start mitigation: newly recognized goals with few graph connections get
 minimal modulation benefit. Embedding similarity may supplement graph proximity
 as an optimization (not in initial implementation).
+
+## Explicitly Deferred Items
+
+The following requirements from epic #345 are explicitly out of scope for the
+initial implementation. Each will be tracked as a follow-up issue on neocortex.
+
+| Item | Epic reference | Rationale for deferral |
+|------|---------------|----------------------|
+| Opportunity cost awareness | §3 | Blocks-level orchestration concern — "pursuing A means NOT pursuing B" requires selection logic that belongs in blocks' `GoalProposalOrchestrator`. The substrate provides the signals (competing goals, their priorities, resource estimates via decomposition depth). Blocks surfaces the trade-off. |
+| Dread/avoidance pattern | §4 | Requires basic goal affect infrastructure to be in place first. Avoidance is a second-order affect pattern — an agent that dreads a high-importance goal avoids engaging with related topics, which should affect retrieval modulation and curiosity signals. Build on GoalAffectPhase + GoalRelevanceModulationFactor. |
+| Emergent goal discovery | §2 | "Achieving A reveals that B is now possible." GoalResolutionPhase's Revise step handles structural changes (dependency resolution, blocker removal) but not emergent recognition of newly possible goals. This requires integration with GoalRecognitionPhase — when Revise resolves a dependency, recognition should scan for newly possible goals in the updated context. Build on both phases. |
 
 ## Integration Points
 
@@ -384,6 +572,7 @@ New types go in existing modules — no new modules created:
 | `Goallike` | mindmap-intelligence | `io.casehub.neocortex.mindmap.intelligence` |
 | `GoallikeTraitRule` | mindmap-intelligence | `io.casehub.neocortex.mindmap.intelligence` |
 | `CognitiveGoalDecomposer` | mindmap-api | `io.casehub.neocortex.mindmap` |
+| `GoalDecompositionResult` | mindmap-api | `io.casehub.neocortex.mindmap` |
 | `CognitiveGoalRecognizer` | mindmap-api | `io.casehub.neocortex.mindmap` |
 | `RecognizedGoal` | mindmap-api | `io.casehub.neocortex.mindmap` |
 | `GoalResolutionPhase` | mindmap-intelligence | `io.casehub.neocortex.mindmap.intelligence.consolidation` |
