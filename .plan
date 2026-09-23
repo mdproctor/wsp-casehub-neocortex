@@ -2,7 +2,7 @@
 
 ## State
 branch: issue-380-goal-cognition-examples-blog
-state: scaffolded
+state: closing:promoted
 project-sha: 79a2f07bc6ad0daa5ff539b177e4d6aed9615503
 date: 2026-09-23
 issue-repo: casehubio/neocortex
@@ -11,11 +11,6 @@ design-repo: project
 design-section-hashes: 
 flyway-next-v: none
 
+evidence-era: true
 ## Queue
-- [ ] casehubio/neocortex#380 — Issue #380 ← active
-  - [ ] Batch 1: Example+Build
-    - [ ] Task 1: GoalCognitionWalkthroughTest module
-  - [ ] Batch 2: Blog
-    - [ ] Task 2: Educational blog article with SVGs
-  - [ ] Batch 3: Docs
-    - [ ] Task 3: CLAUDE.md update + build verification
+- [x] casehubio/neocortex#380 — Issue #380
