@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 600 160" xmlns="http://www.w3.org/2000/svg" style="max-width:100%; font-family: system-ui, sans-serif;">
+  <rect x="120" y="30" width="360" height="60" rx="30" fill="#f0f0f0" stroke="#ccc" stroke-width="1.5" stroke-dasharray="6,3"/>
+  <text x="300" y="65" text-anchor="middle" font-size="14" fill="#666">"Help the user book a flight"</text>
+  <text x="300" y="120" text-anchor="middle" font-size="12" fill="#999">No edges. No state. No history.</text>
+  <text x="300" y="140" text-anchor="middle" font-size="11" fill="#bbb">The goal exists for one request, then it's gone.</text>
+</svg>

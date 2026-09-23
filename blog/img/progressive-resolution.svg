@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 800 300" xmlns="http://www.w3.org/2000/svg" style="max-width:100%; font-family: system-ui, sans-serif;">
+  <!-- Low resolution (distant) -->
+  <text x="200" y="25" text-anchor="middle" font-size="13" font-weight="bold" fill="#7627bb">Distant — low resolution</text>
+  <rect x="100" y="40" width="200" height="50" rx="8" fill="#f8f0ff" stroke="#9334e6" stroke-width="1.5"/>
+  <text x="200" y="70" text-anchor="middle" font-size="12" fill="#333">Understand transformers</text>
+  <text x="200" y="110" text-anchor="middle" font-size="11" fill="#999">Single node. No sub-goals.</text>
+  <text x="200" y="130" text-anchor="middle" font-size="11" fill="#999">Detail can wait.</text>
+
+  <!-- High resolution (approaching) -->
+  <text x="600" y="25" text-anchor="middle" font-size="13" font-weight="bold" fill="#1e8e3e">Approaching — high resolution</text>
+  <rect x="500" y="40" width="200" height="50" rx="8" fill="#e6f4ea" stroke="#34a853" stroke-width="2"/>
+  <text x="600" y="60" text-anchor="middle" font-size="12" font-weight="bold" fill="#333">Submit NeurIPS paper</text>
+  <text x="600" y="78" text-anchor="middle" font-size="10" fill="#666">urgency: 0.9 · deadline: 3 weeks</text>
+
+  <!-- Sub-goals -->
+  <rect x="460" y="120" width="120" height="35" rx="6" fill="#e8f0fe" stroke="#4285f4" stroke-width="1"/>
+  <text x="520" y="142" text-anchor="middle" font-size="10" fill="#333">Literature review</text>
+
+  <rect x="600" y="120" width="120" height="35" rx="6" fill="#e8f0fe" stroke="#4285f4" stroke-width="1"/>
+  <text x="660" y="142" text-anchor="middle" font-size="10" fill="#333">Run experiments</text>
+
+  <rect x="530" y="175" width="120" height="35" rx="6" fill="#e8f0fe" stroke="#4285f4" stroke-width="1"/>
+  <text x="590" y="197" text-anchor="middle" font-size="10" fill="#333">Write draft</text>
+
+  <!-- Edges -->
+  <line x1="560" y1="90" x2="520" y2="120" stroke="#4285f4" stroke-width="1.5"/>
+  <line x1="640" y1="90" x2="660" y2="120" stroke="#4285f4" stroke-width="1.5"/>
+  <line x1="600" y1="90" x2="590" y2="175" stroke="#4285f4" stroke-width="1.5"/>
+  <line x1="520" y1="155" x2="590" y2="175" stroke="#999" stroke-width="1" stroke-dasharray="4,3"/>
+  <line x1="660" y1="155" x2="590" y2="175" stroke="#999" stroke-width="1" stroke-dasharray="4,3"/>
+
+  <!-- Labels -->
+  <text x="590" y="240" text-anchor="middle" font-size="10" fill="#1e8e3e">decomposes-into</text>
+  <text x="590" y="258" text-anchor="middle" font-size="10" fill="#999">requires (dashed)</text>
+
+  <!-- Arrow between -->
+  <path d="M310,65 L490,65" stroke="#ccc" stroke-width="1" marker-end="url(#arr-grey)" stroke-dasharray="6,3"/>
+  <text x="400" y="58" text-anchor="middle" font-size="10" fill="#999">urgency increases →</text>
+  <defs><marker id="arr-grey" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#ccc"/></marker></defs>
+</svg>
