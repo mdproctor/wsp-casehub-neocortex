@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 700 350" xmlns="http://www.w3.org/2000/svg" style="max-width:100%; font-family: system-ui, sans-serif;">
+  <!-- Central circle -->
+  <circle cx="350" cy="175" r="60" fill="#f8f0ff" stroke="#9334e6" stroke-width="1.5"/>
+  <text x="350" y="170" text-anchor="middle" font-size="13" font-weight="bold" fill="#7627bb">Goal</text>
+  <text x="350" y="188" text-anchor="middle" font-size="13" font-weight="bold" fill="#7627bb">Resolution</text>
+
+  <!-- Phase nodes -->
+  <rect x="290" y="10" width="120" height="40" rx="20" fill="#fce8e6" stroke="#ea4335" stroke-width="1.5"/>
+  <text x="350" y="35" text-anchor="middle" font-size="11" font-weight="bold" fill="#c5221f">Prune</text>
+
+  <rect x="520" y="70" width="120" height="40" rx="20" fill="#e6f4ea" stroke="#34a853" stroke-width="1.5"/>
+  <text x="580" y="95" text-anchor="middle" font-size="11" font-weight="bold" fill="#1e8e3e">Expand</text>
+
+  <rect x="520" y="240" width="120" height="40" rx="20" fill="#f3e8fd" stroke="#9334e6" stroke-width="1.5"/>
+  <text x="580" y="265" text-anchor="middle" font-size="11" font-weight="bold" fill="#7627bb">Merge</text>
+
+  <rect x="290" y="300" width="120" height="40" rx="20" fill="#e8f0fe" stroke="#4285f4" stroke-width="1.5"/>
+  <text x="350" y="325" text-anchor="middle" font-size="11" font-weight="bold" fill="#1a73e8">Revise</text>
+
+  <rect x="60" y="155" width="120" height="40" rx="20" fill="#fef3e0" stroke="#f9ab00" stroke-width="1.5"/>
+  <text x="120" y="180" text-anchor="middle" font-size="11" font-weight="bold" fill="#e37400">Sync</text>
+
+  <!-- Arrows between phases (clockwise) -->
+  <path d="M405,30 Q480,30 530,78" stroke="#666" stroke-width="1.5" fill="none" marker-end="url(#arr-cycle)"/>
+  <path d="M580,115 Q580,180 580,235" stroke="#666" stroke-width="1.5" fill="none" marker-end="url(#arr-cycle)"/>
+  <path d="M520,265 Q450,300 410,320" stroke="#666" stroke-width="1.5" fill="none" marker-end="url(#arr-cycle)"/>
+  <path d="M290,320 Q200,300 170,200" stroke="#666" stroke-width="1.5" fill="none" marker-end="url(#arr-cycle)"/>
+  <path d="M120,155 Q120,80 285,30" stroke="#666" stroke-width="1.5" fill="none" marker-end="url(#arr-cycle)"/>
+  <defs><marker id="arr-cycle" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#666"/></marker></defs>
+
+  <!-- Annotations -->
+  <text x="480" y="48" font-size="9" fill="#666">→ research agent</text>
+  <text x="628" y="180" font-size="9" fill="#666">→ research agent</text>
+  <text x="480" y="298" font-size="9" fill="#666">→ game NPC</text>
+  <text x="230" y="315" font-size="9" fill="#666">→ product team</text>
+  <text x="50" y="130" font-size="9" fill="#666">→ eidos identity</text>
+</svg>

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 800 260" xmlns="http://www.w3.org/2000/svg" style="max-width:100%; font-family: system-ui, sans-serif;">
+  <!-- Axes -->
+  <line x1="80" y1="200" x2="720" y2="200" stroke="#ccc" stroke-width="1"/>
+  <line x1="80" y1="30" x2="80" y2="200" stroke="#ccc" stroke-width="1"/>
+  <text x="40" y="120" text-anchor="middle" font-size="10" fill="#999" transform="rotate(-90,40,120)">intensity</text>
+  <text x="400" y="230" text-anchor="middle" font-size="10" fill="#999">time →</text>
+
+  <!-- Pleasure line (green) -->
+  <polyline points="100,140 200,130 280,180 350,190 420,180 500,100 580,80 650,75 700,80" fill="none" stroke="#34a853" stroke-width="2.5"/>
+  <text x="720" y="83" font-size="10" fill="#34a853">pleasure</text>
+
+  <!-- Arousal line (orange) -->
+  <polyline points="100,160 200,150 280,90 350,70 420,100 500,130 580,150 650,155 700,160" fill="none" stroke="#f9ab00" stroke-width="2.5"/>
+  <text x="720" y="163" font-size="10" fill="#f9ab00">arousal</text>
+
+  <!-- Dominance line (blue) -->
+  <polyline points="100,150 200,145 280,170 350,175 420,160 500,120 580,110 650,105 700,108" fill="none" stroke="#4285f4" stroke-width="2"/>
+  <text x="720" y="111" font-size="10" fill="#4285f4">dominance</text>
+
+  <!-- Event markers -->
+  <line x1="280" y1="35" x2="280" y2="200" stroke="#ea4335" stroke-width="1" stroke-dasharray="3,3"/>
+  <text x="280" y="28" text-anchor="middle" font-size="9" fill="#ea4335">grocery delivery late</text>
+  <text x="280" y="245" text-anchor="middle" font-size="9" fill="#ea4335">blocked + urgent</text>
+
+  <line x1="500" y1="35" x2="500" y2="200" stroke="#34a853" stroke-width="1" stroke-dasharray="3,3"/>
+  <text x="500" y="28" text-anchor="middle" font-size="9" fill="#34a853">first dish succeeds</text>
+  <text x="500" y="245" text-anchor="middle" font-size="9" fill="#34a853">completed sub-goal</text>
+</svg>
