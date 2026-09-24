@@ -2,67 +2,45 @@
 
 ## Last Session
 
-**#296 — Goal-aware cognitive loop** (in progress, Batch 3 partial)
+**#296 — Goal-aware cognitive loop** (CLOSED, landed on main in both repos)
 
-Cross-repo work: neocortex (branch `issue-296-occ-emotion-types`) + blocks (branch `issue-296-goal-aware-cognitive-loop`).
+### What landed
 
-### Completed — neocortex (Batches 1-2)
-
-**OCC Foundation (cognitive-api):**
-- EmotionType enum (22 OCC types), CognitiveEmotion record, EmotionSource (INTRINSIC/EMPATHIC), PadProjection, AlmaPadTable (complete Gebhard 2005 OCC→PAD mapping)
-- 92 cognitive-api tests pass
-
-**GoalAppraisal SPI (mindmap-api):**
-- GoalAppraisal @FunctionalInterface, AppraisalContext record
-- HeuristicGoalAppraisal in mindmap-intelligence — maps goal state → OCC emotions (Hope/Fear/Satisfaction/Distress/Disappointment/Pity)
-- Surfacing gap amplifies Fear via saturating logistic: gap/(gap+1)
-- 12 HeuristicGoalAppraisal tests
-
-**Surfacing + Affect (mindmap-intelligence):**
-- SurfacingAggregationPhase (@Priority 12) — scans CaseMemoryStore for cognitive-event=goal-surfaced experiences, aggregates surfaced-count/first-surfaced-at/last-surfaced-at/last-progress-at/surfacing-progress-gap on goal nodes. 9 tests.
-- GoalAffectPhase revised — delegates to GoalAppraisal SPI when available, falls back to legacy PAD switch. Uses surfacing-progress-gap (not total count). All 9 existing tests pass.
-- **GoalEmotionalProgressionTest** — 7 ordered tests proving the Day 1→7 Hope→Fear→Satisfaction arc works end-to-end within neocortex alone. Full pipeline: surfacing events → aggregation → OCC appraisal.
+**neocortex** (4 commits, 1,265 lines, 15 new files):
+- EmotionType (22 OCC types), CognitiveEmotion, EmotionSource, PadProjection, AlmaPadTable in cognitive-api
+- GoalAppraisal SPI + AppraisalContext in mindmap-api
+- HeuristicGoalAppraisal — maps goal state → OCC emotions with surfacing-gap amplification
+- SurfacingAggregationPhase (@Priority 12) — tracks surfacing history on goal nodes
+- GoalAffectPhase revised — delegates to GoalAppraisal SPI, falls back to legacy
+- GoalEmotionalProgressionTest — 7 ordered tests proving Day 1→7 Hope→Fear→Satisfaction arc
 - 304 mindmap-intelligence tests pass
 
-### Completed — blocks (Batch 3, Task 5 only)
-
-- CognitiveGoalOrchestrator implements CognitionTickParticipant — queries MindMap GOAL nodes, runs GoalAppraisal, records surfacing + agent emotions via CaseMemoryStore, detects decay-signal → GoalRevision, in-memory surfacing cooldown, cold-start fallthrough. 8 tests.
-- CognitiveGoalConfig, CognitiveGoalState, GoalRevision records
+**blocks** (4 commits, 1,002 lines, 12 files):
+- CognitiveGoalOrchestrator — CognitionTickParticipant, surfacing recording, agent-experience memories, decay-signal detection
+- GoalPromptSection extended — unified drive + cognitive goal rendering with OCC emotion labels
 - CognitionCore.setSectionCustomizer() — pre-wrapping section customization hook
+- CognitionDefinition.cognitiveGoal DSL field
+- GoalCognitionIntegrationTest — 9 ordered tests proving full blocks↔neocortex loop
+- 2204 blocks tests pass
 
-### Remaining
+### Follow-up epic
 
-**Task 6: GoalPromptSection extension + SocialAvatarCognition wiring**
-- Extend GoalPromptSection to merge drive goals + cognitive goals
-- Rank by composite priority (α × drive_intensity + (1-α) × mindmap_priority)
-- Render with OCC emotional tone + surfacing context
-- Wire in SocialAvatarCognition: construct CognitiveGoalOrchestrator, register as TERMINAL participant, set section customizer
+**blocks#298** — Cognitive emotion architecture (11 issues):
+- Immediate: #299 CDI wiring (S), #300 GoalRevision consumption (XS), #301 Emotion→Mood bridge (S)
+- OCC extension: neocortex#382 personality calibration, #383 agent-based emotions, #384 compound emotions
+- Architecture: #302 mood congruence, neocortex#385 scenario calibration, #381 push-based attention
+- Repo reorganization: #303 migrate cognitive state blocks→neocortex (XL)
+- Simulation: neocortex#386 cognitive simulation with calendar integration (L)
 
-**Task 7: CognitionDefinition DSL extension**
-- CognitiveGoalConfigSpec record in agentic-yaml
-- Add cognitiveGoal field to CognitionDefinition
+### Design artifacts
 
-**Task 8: E2E scenario test in blocks**
-- Birthday gift reminder with full Day 1-7 progression
-- Uses InMemoryMindMapStore + InMemoryMemoryStore + mock GoalFormationService
-
-### Key decisions
-
-Design spec: `wsp-casehub-blocks/specs/issue-296-goal-aware-cognitive-loop/2026-09-24-goal-aware-cognitive-loop-design.md`
-Research doc: `wsp-casehub-blocks/specs/issue-296-goal-aware-cognitive-loop/2026-09-23-computational-emotion-research.md`
-Decisions: `wsp-casehub-blocks/specs/issue-296-goal-aware-cognitive-loop/decisions.md`
-Plan: `wsp-casehub-blocks/plans/2026-09-24-goal-aware-cognitive-loop.md`
-
-### Build note
-
-Slot's `.m2` Maven repo needed cross-repo deps installed from canonical repos (engine, work, platform, qhorus, ledger, worker, eidos). Use `-Dmaven.repo.local=/Users/mdproctor/claude/casehub/slots/203/.m2` when installing deps from outside the slot, or build within the slot where `.mvn/maven.config` sets this automatically.
+- Research: `wsp-casehub-blocks/specs/issue-296-goal-aware-cognitive-loop/2026-09-23-computational-emotion-research.md`
+- Spec: `wsp-casehub-blocks/specs/issue-296-goal-aware-cognitive-loop/2026-09-24-goal-aware-cognitive-loop-design.md`
+- Decisions: `wsp-casehub-blocks/specs/issue-296-goal-aware-cognitive-loop/decisions.md`
+- Blog: `wsp-casehub-blocks/blog/2026-09-24-mdp01-your-agent-doesnt-know-how-it-feels.md`
 
 ## Immediate Next Step
 
-Resume with `work continue`. Task 6 (GoalPromptSection + wiring) is next. IntelliJ MCP needed for .java edits. The plan doc has the full task specification.
+.plan queue advanced to **neocortex#381** — Design: progressive cognitive attention model for long-running agents.
 
-## References
-
-- `docs/specs/issue-345-goal-cognition/2026-09-23-goal-cognition-design.md` — neocortex goal cognition substrate spec
-- `docs/guides/contributor-guide.md` — GoalUrgency, Decay step, dynamic urgency
-- Blog: `wsp-casehub-blocks/blog/2026-09-24-mdp01-your-agent-doesnt-know-how-it-feels.md`
+However, the user indicated preference to work the blocks#298 epic next — starting with the S/XS wiring issues (#299, #300, #301), then the repo reorganization (#303). Resume with `work continue` to discuss sequencing.
