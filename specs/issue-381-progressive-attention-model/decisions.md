@@ -146,3 +146,28 @@
 **Sources:** ExperienceRecorded.java (CDI event), AffectRecorded (CDI event from AffectTrajectoryDecorator), GoalLifecycleProvider.java (SPI for external goal state)
 **Exploration:** quick
 **Status:** captured
+
+## D13: CognitionCore as attention convergence point (revised D8)
+
+**Choice:** CognitionCore gains a per-principal attention queue. CognitiveAttentionRequired CDI event writes to this queue. Tick-based agents drain it via promptSections(). Idle agents drain it when the push receiver wakes them. Replaces standalone CognitiveAttentionListener.
+**Alternatives:**
+- Standalone CognitiveAttentionListener bypassing CognitionCore — duplicates cognitive state management, doesn't work for tick-based agents
+- Direct LLM invocation from listener — bypasses CognitionCore's prompt assembly and budget management
+**Rationale:** Wacky-manor investigation revealed CognitionCore already owns cognitive state and prompt sections. The attention briefing is another cognitive section. CognitionCore must be the convergence point for both tick-based and push-based agents. This also enables CognitionCore to absorb CognitiveBudget — attention-aware budgeting becomes a platform concern.
+**Trade-offs:** CognitionCore becomes more complex. It now manages attention queue state in addition to tick state. But this complexity belongs there — CognitionCore is the cognitive orchestrator.
+**Depends on:** D8 (blocks contract, superseded)
+**Sources:** wacky-manor ScenarioOrchestrator.java (tick loop with CognitionCore.tick()), CharacterCognition.renderCognitiveSections() (CognitionCore.promptSections() consumption), CognitiveBudget.java (situational attention budgeting)
+**Exploration:** quick
+**Status:** captured
+
+## D14: Platform consolidation direction
+
+**Choice:** Design the attention model so wacky-manor can delete custom cognitive code and use platform features directly. CognitiveBudget → CognitionCore. ManorConsolidationBeans manual wiring → CDI auto-registration. CharacterCognition section rendering → CognitionCore.promptSections(). App code should only provide domain-specific customization (game object types, action descriptors, scenario rules), not cognitive infrastructure.
+**Alternatives:**
+- Keep attention model independent of wacky-manor concerns — misses the consolidation opportunity
+- Full wacky-manor refactor as part of #381 — too large, separate work
+**Rationale:** User direction: make wacky-manor thinner by consolidating into eidos, blocks, and neocortex. #381 is the right vehicle for CognitionCore attention integration. The actual wacky-manor refactor is follow-up work, but the API design should enable it.
+**Trade-offs:** The attention model's API surface must be general enough for wacky-manor's game loop AND idle agent push. This is actually good — it forces a better abstraction.
+**Sources:** wacky-manor CognitiveBudget.java, ManorConsolidationBeans.java, CharacterCognition.java, ScenarioOrchestrator.java
+**Exploration:** quick
+**Status:** captured
