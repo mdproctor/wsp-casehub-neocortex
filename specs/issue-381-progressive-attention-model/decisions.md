@@ -171,3 +171,16 @@
 **Sources:** wacky-manor CognitiveBudget.java, ManorConsolidationBeans.java, CharacterCognition.java, ScenarioOrchestrator.java
 **Exploration:** quick
 **Status:** captured
+
+## D15: Alignment with blocks#303 cognitive state migration
+
+**Choice:** Design the attention model's layer placement to align with the blocks#303 reorganization. All cognitive state types and computation in neocortex. Orchestration and prompt assembly in blocks (CognitionCore). Post-#303, the migrated orchestrators (MoodOrchestrator, DriveOrchestrator, etc.) can emit attention signals directly to the accumulator — same neocortex module, no CDI boundary crossing.
+**Alternatives:**
+- Ignore #303 and design for current layer boundaries — would require rework when orchestrators migrate
+- Wait for #303 to land before designing #381 — blocks the attention model unnecessarily; the layer placement is already clear
+**Rationale:** #303 established the principle: neocortex = brain (state computation), blocks = coordination (tick, prompt, routing). The attention model follows this exactly. Designing for the post-#303 world means no rework when the migration lands.
+**Trade-offs:** Pre-#303, the blocks-side consolidation phases (DriveAdaptation, RelationshipStage, BeliefRevision) produce signals via ConsolidationPhase.signals() which crosses into neocortex's accumulator. Post-#303, these phases move to neocortex and the crossing disappears. The design works either way — the ConsolidationPhase SPI is already in neocortex.
+**Depends on:** D14 (platform consolidation direction)
+**Sources:** blocks#303 issue body (migration scope), blocks#298 epic (sequencing: S/XS wiring first, then OCC extensions, then migration)
+**Exploration:** quick
+**Status:** captured
