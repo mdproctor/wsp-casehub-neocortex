@@ -238,7 +238,20 @@ public class GoalPrioritizationPhase implements ConsolidationPhase {
 | RelationshipStagePhase (blocks) | RELATIONSHIP_STAGE | When familiarity stage changes |
 | BeliefRevisionPhase (blocks) | BELIEF_REVISED | When belief revision fires |
 
-### 5.4 Scheduler signal collection
+### 5.4 Per-principal signal tagging
+
+Consolidation phases iterate per-tenant (the existing granularity).
+Most phases don't know which principal owns which goal. Convention:
+
+- Phases that can resolve ownership (e.g. GoalPrioritizationPhase
+  reads agent-id property on goal nodes) set `principalId` on the signal.
+- Phases that cannot set `principalId = null`. The accumulator
+  broadcasts null-principal signals to all principals in that tenant.
+
+Post-#303, when orchestrators move to neocortex and run per-principal
+(like DriveOrchestrator per agentId), they set principalId directly.
+
+### 5.5 Scheduler signal collection
 
 `ConsolidationScheduler.runPhases()` collects signals after each phase:
 
@@ -293,10 +306,24 @@ Three `@Observes` methods:
 - **AffectRecorded** — if the PAD delta (Euclidean distance from
   previous snapshot) exceeds a configurable threshold (default 0.3),
   create an AFFECT_CHANGE signal.
-- **Goal lifecycle** — when GoalLifecycleProvider returns new state
-  for a tracked goal, create BLOCKER_RESOLVED or DECAY_DETECTED.
+- **Goal lifecycle** — polled at consolidation tick time (same cadence
+  as urgency P75 refresh), not real-time observation.
+  GoalLifecycleProvider is a `@FunctionalInterface` SPI, not an event
+  source. When it returns changed state for a tracked goal, create
+  BLOCKER_RESOLVED or DECAY_DETECTED.
 
-### 6.4 Adaptive threshold
+### 6.4 Signal deduplication
+
+An experience event can trigger both a real-time signal (via
+`@Observes ExperienceRecorded`) AND a consolidation signal (via
+`SignificanceAccumulator` → `consolidateNow()` → phase run). To
+prevent double-counting, the accumulator deduplicates by
+`(sourceNodeId, category)` within a single accumulation window
+(pending signals not yet pushed). If a signal with the same
+sourceNodeId and category already exists, the higher-significance
+one wins.
+
+### 6.5 Adaptive threshold
 
 ```
 baseThreshold = config.attentionThreshold  // default 5.0
@@ -313,21 +340,21 @@ if totalSignificance >= adjustedThreshold:
     clear pending, update lastPushAt
 ```
 
-### 6.5 Minimum interval guard
+### 6.6 Minimum interval guard
 
 Per-principal, configurable via CognitiveDefaults (new field
 `attentionMinIntervalSeconds`, default 300). If
 `now - lastPushAt < minInterval`, suppress. Signals accumulate
 until the interval expires.
 
-### 6.6 Urgency P75 refresh
+### 6.7 Urgency P75 refresh
 
 Updated each consolidation tick by reading the urgency values
 GoalPrioritizationPhase already computes. Nearest-rank percentile
 (reuses FeatureStatistics.compute() from memory-api). Stored per
 principal.
 
-### 6.7 Principal discovery
+### 6.8 Principal discovery
 
 `CognitiveDefaultsRegistry.allAgentIds()` (new method). Returns
 all agent IDs with registered cognitive profiles. Called lazily

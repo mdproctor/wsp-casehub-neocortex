@@ -94,7 +94,7 @@
 **Trade-offs:** Some duplication of goal-fetching logic between orchestrator (tick) and listener (push). Mitigated by extracting shared rendering into a utility.
 **Sources:** CognitiveGoalOrchestrator.java (existing tick-driven pattern), GoalPromptSection (existing goal rendering)
 **Exploration:** quick
-**Status:** captured
+**Status:** superseded by D13
 
 ## D9: Phase signal mechanism
 
