@@ -217,7 +217,12 @@ public interface ConsolidationPhase {
 
 Fully backward compatible. Existing phases return empty until
 individually updated. Phases accumulate signals during `run()`,
-caller reads via `signals()` after `run()` completes.
+caller reads via `signals()` after `run()` completes. The
+`signals()` method uses **drain semantics**: it returns accumulated
+signals and clears internal state. This is required because
+`ConsolidationScheduler.tick()` calls `beginTickAllPhases()` once
+then iterates tenants — without drain, tenant B's `signals()` call
+would include tenant A's signals (cross-tenant leakage).
 
 ### 5.2 Phase implementation pattern
 
@@ -237,7 +242,9 @@ public class GoalPrioritizationPhase implements ConsolidationPhase {
     }
 
     @Override public List<AttentionSignal> signals() {
-        return List.copyOf(pendingSignals);
+        var result = List.copyOf(pendingSignals);
+        pendingSignals.clear();
+        return result;
     }
 }
 ```
@@ -313,13 +320,24 @@ public class CognitiveAttentionAccumulator {
     private final ConcurrentHashMap<String, double[]> padCache
         = new ConcurrentHashMap<>();  // nodeId → [pleasure, arousal, dominance]
 
-    record PrincipalAttention(
-        List<AttentionSignal> pending,
-        Instant lastPushAt,
-        double urgencyP75
-    ) {}
+    static class PrincipalAttention {
+        final ConcurrentLinkedQueue<AttentionSignal> pending
+            = new ConcurrentLinkedQueue<>();
+        volatile Instant lastPushAt = Instant.EPOCH;
+        volatile double urgencyP75 = 0.0;
+    }
 }
 ```
+
+**Threading model.** Three thread contexts access PrincipalAttention:
+(1) daemon thread via `addSignals()` from ConsolidationScheduler
+(behind its ReentrantLock), (2) CDI observer threads via real-time
+`@Observes` methods (no lock), (3) threshold evaluation from either
+context. `ConcurrentLinkedQueue` provides lock-free adds from any
+thread. Threshold evaluation + fire + drain uses
+`ConcurrentHashMap.compute()` on the principal key for atomicity.
+`volatile` fields ensure visibility of `lastPushAt` and `urgencyP75`
+across threads.
 
 MindMapStore is needed for: (a) AffectRecorded observer — look up
 current PAD values from the node to compute delta against cached
@@ -339,11 +357,13 @@ Three `@Observes` methods:
 - **ExperienceRecorded** — uses `event.event().agentId()` for
   principal scoping. If `event.event().metadata()` contains a
   `"goal-node-id"` key, create a targeted signal (URGENCY_SPIKE or
-  AFFECT_CHANGE) with that goal node as sourceNodeId. Otherwise,
-  contribute a baseline significance (1.0) to the agent's attention
-  accumulation without a goal-specific signal. Goal-specific signals
-  are primarily produced by the consolidation path where phases have
-  full access to goal node state.
+  AFFECT_CHANGE) with that goal node as sourceNodeId. Experiences
+  without explicit goal metadata do not produce attention signals
+  directly — they contribute to attention only through the
+  consolidation path (ExperienceRecorded → SignificanceAccumulator
+  → consolidateNow() → phases detect goal-relevant changes →
+  signals). This avoids polluting the attention threshold with
+  undifferentiated activity.
 - **AffectRecorded** — looks up the node's current PAD values via
   `mindMapStore.getNode(event.nodeId(), event.tenantId())` (reads
   `pleasure()`, `arousal()`, `dominance()` from the MindMapNode).
@@ -400,10 +420,19 @@ only the highest-significance version.
 
 ### 6.6 Adaptive threshold
 
-Urgency values are bounded to [0.0, 1.0] by GoalUrgency.computeUrgency(),
-which clamps via `Math.max(0.0, Math.min(1.0, urgency))`. Since
-urgencyP75 is a percentile of these clamped values, it is also bounded
-to [0.0, 1.0]. The minimum adjusted threshold is therefore
+**Urgency domain bounds.** `GoalUrgency.computeUrgency()` clamps to
+[0.0, 1.0] on the target-date path (`Math.max(0.0, Math.min(1.0, ...))`)
+but has unclamped fallback paths that read a raw `urgency` property
+(when no target-date is set or when the target-date is unparseable).
+A manually-set urgency of 2.0 would pass through unclamped. This is
+a pre-existing bug — as part of #381 implementation, both fallback
+paths in GoalUrgency will be fixed to clamp identically:
+`Math.max(0.0, Math.min(1.0, Double.parseDouble(v)))`.
+
+Additionally, the accumulator defensively clamps urgencyP75:
+`Math.min(1.0, urgencyP75)` before applying the threshold formula.
+This ensures the formula is safe even if other urgency sources are
+introduced later. The minimum adjusted threshold is
 `baseThreshold * 0.6` (3.0 with defaults), never zero or negative.
 
 ```
@@ -468,9 +497,11 @@ public class CognitiveAttentionMediator {
     public Optional<AttentionBriefing> drainAttention(String principalId) {
         var queue = attentionQueues.get(principalId);
         if (queue == null || queue.isEmpty()) return Optional.empty();
-        var merged = mergeAll(queue);
-        queue.clear();
-        return Optional.of(merged);
+        List<AttentionBriefing> drained = new ArrayList<>();
+        AttentionBriefing b;
+        while ((b = queue.poll()) != null) drained.add(b);
+        if (drained.isEmpty()) return Optional.empty();
+        return Optional.of(mergeAll(drained));
     }
 }
 ```
