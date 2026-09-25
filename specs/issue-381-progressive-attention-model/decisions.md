@@ -1,0 +1,148 @@
+# Decisions — Progressive Cognitive Attention Model (#381)
+
+## D1: Spec scope
+
+**Choice:** Neocortex + blocks contract
+**Alternatives:**
+- Neocortex only — simpler but leaves blocks integration undefined
+- Full stack (+ agent runtime push receiver) — too many unknowns in the runtime layer; runtime is a separate spec
+**Rationale:** The attention model needs to define what it produces AND how the consumer contract works. The blocks-side listener is the boundary where neocortex hands off to the agent layer. The runtime push receiver (WebSocket/queue/CLI) is a separate concern with its own unknowns.
+**Trade-offs:** Runtime push receiver design deferred — blocks listener will fire a CDI event or call an SPI, but the actual "wake up the LLM" mechanism is out of scope.
+**Sources:** casehubio/neocortex#381 issue body (three-layer architecture sketch)
+**Exploration:** quick
+**Status:** captured
+
+## D2: Trigger model
+
+**Choice:** Event-driven only (significance threshold crossing)
+**Alternatives:**
+- Event + scheduled briefings — adds complexity without clear benefit; schedule can be layered later by runtime-level cron
+- Scheduled with event override — predictable cadence but wasteful when nothing changed
+**Rationale:** The SignificanceAccumulator already implements event-driven threshold crossing. Extending this pattern is simpler than adding a parallel scheduling system. Scheduled briefings (morning wake) can be layered at the runtime level without neocortex changes.
+**Trade-offs:** No built-in periodic check-in — if significance never crosses threshold, the agent never gets pushed. This is by design: no news is no push.
+**Sources:** SignificanceAccumulator.java (existing threshold pattern), ConsolidationScheduler.java (daemon thread lifecycle)
+**Exploration:** quick
+**Status:** captured
+
+## D3: Attention granularity
+
+**Choice:** Per-principal (each agent gets independent attention accumulation and briefings)
+**Alternatives:**
+- Per-tenant — simpler, matches existing ConsolidationScheduler granularity, but all agents see the same attention events
+- Per-tenant with principal filtering — accumulate per-tenant, filter at briefing time; middle ground but briefing construction still needs per-principal ranking
+**Rationale:** Different agents within a tenant care about different goals. CognitiveDefaults are per-agentId, perspectival overlays are per-principal, goal surfacing in CognitiveGoalOrchestrator is per-agent. Attention should match this granularity.
+**Trade-offs:** More state to manage — one accumulator instance per principal per tenant. Consolidation phases currently iterate tenants, not principals. The attention accumulator must enumerate principals within each tenant.
+**Sources:** CognitiveDefaultsRegistry (per-agentId config), PerspectivalResolver (per-principal overlays), CognitiveGoalOrchestrator (per-agent goal surfacing)
+**Exploration:** quick
+**Status:** captured
+
+## D4: Threshold model
+
+**Choice:** Adaptive percentile — threshold drops as urgency distribution shifts upward
+**Alternatives:**
+- Static with decay — fixed threshold that decays over time since last push; doesn't respond to goal landscape
+- Dual threshold — base + emergency; simpler but binary rather than continuous
+**Rationale:** The attention threshold should reflect the cognitive pressure on the agent. When many goals are urgent, the agent should be more sensitive to changes. P75 of active goal urgencies per principal captures this naturally. When P75 urgency > 0.6, threshold halves — more goals approaching deadlines = more frequent attention.
+**Trade-offs:** Requires computing the urgency distribution per principal each consolidation tick. Adds coupling between GoalPrioritizationPhase output and the attention accumulator.
+**Sources:** GoalUrgency.java (time-aware urgency computation), GoalPrioritizationPhase.java (priority + urgency computation per goal)
+**Exploration:** quick
+**Status:** captured
+
+## D5: Briefing granularity
+
+**Choice:** Ranked signals only (AttentionItem-style: goal id, salience score, reason, category)
+**Alternatives:**
+- Signals + summary context — structured per-item summary; larger payload but more self-contained
+- Narrative briefing — LLM-generated text; expensive (requires LLM call during consolidation) and breaks the principle of keeping consolidation LLM-free
+**Rationale:** Mirrors the existing TemporalFocus output format (AttentionItem with salience + reason). The agent uses existing pull APIs (CognitiveProfile.resolve, MindMapStore.search) to get depth on items it decides to act on. Push gives awareness; pull gives depth.
+**Trade-offs:** The blocks listener must know how to pull detail — it needs access to CognitiveProfile or MindMapStore. But CognitiveGoalOrchestrator already has this access.
+**Sources:** TemporalFocus.java (AttentionItem pattern), cognitive-index (pull APIs)
+**Exploration:** quick
+**Status:** captured
+
+## D6: Rate limiting
+
+**Choice:** Minimum interval per principal (configurable, e.g. 5 minutes default)
+**Alternatives:**
+- Token budget per period — more nuanced cost control but harder to reason about; token consumption isn't known until the LLM processes the push
+- Exponential backoff — self-regulating but could starve attention during sustained urgency
+**Rationale:** Simple, predictable, prevents LLM cost runaway. Even if significance re-crosses threshold within the window, the push is suppressed until the interval expires. The interval is configurable per-principal via CognitiveDefaults.
+**Trade-offs:** Fixed floor regardless of urgency — a truly critical signal (e.g. goal deadline in 5 minutes) still waits for the interval to expire. Could add an emergency override threshold, but deferred for simplicity.
+**Sources:** CognitiveDefaults (per-agent configuration), SignificanceAccumulator.java (existing CAS-guarded triggering)
+**Exploration:** quick
+**Status:** captured
+
+## D7: Signal sources
+
+**Choice:** Consolidation + real-time hybrid — both paths converge at per-principal accumulator
+**Alternatives:**
+- Consolidation only — simpler but adds latency for urgent real-time signals
+- Real-time only — fast but misses composite insights from consolidation (decay trends, merge opportunities, cross-goal priority shifts)
+**Rationale:** Consolidation produces composite insights (goal priority recomputation, decay detection across the graph). Real-time events carry immediate significance (experience recorded mentioning a goal, external goal status change). Both are valid attention signals. They converge at the same per-principal accumulator, evaluated against the same adaptive threshold.
+**Trade-offs:** Two signal paths to maintain. Need clear distinction between what consolidation phases produce vs what real-time events carry — avoid double-counting when an experience triggers both a real-time signal AND a consolidation tick.
+**Sources:** SignificanceAccumulator.java (existing event-driven path), ConsolidationScheduler.java (existing consolidation path)
+**Exploration:** quick
+**Status:** captured
+
+## D8: Blocks contract
+
+**Choice:** New dedicated CognitiveAttentionListener (blocks-side)
+**Alternatives:**
+- Evolve CognitiveGoalOrchestrator — add @Observes method; reuses existing state tracking but couples tick-driven and push-driven logic
+- SPI in neocortex (AttentionReceiver) — cleanest dependency direction but adds a new SPI when a CDI event suffices
+**Rationale:** Separation of concerns: CognitiveGoalOrchestrator handles tick-driven goal surfacing (pull). CognitiveAttentionListener handles push-driven attention events. Different triggering mechanisms, different responsibilities. The listener can delegate to the orchestrator's existing goal rendering logic without inheriting its tick lifecycle.
+**Trade-offs:** Some duplication of goal-fetching logic between orchestrator (tick) and listener (push). Mitigated by extracting shared rendering into a utility.
+**Sources:** CognitiveGoalOrchestrator.java (existing tick-driven pattern), GoalPromptSection (existing goal rendering)
+**Exploration:** quick
+**Status:** captured
+
+## D9: Phase signal mechanism
+
+**Choice:** Phase return type evolution — extend ConsolidationPhase to surface attention signals
+**Alternatives:**
+- Observer-based signal emission — phases fire CDI events; no SPI change but signals become implicit and harder to trace
+- Side-channel collector — inject SignalCollector into phases; no SPI change but adds dependency to every phase constructor
+**Rationale:** Phases already compute the insights — this makes them explicit and type-safe. Each phase declares what it found. The scheduler collects signals from all phases per tick and feeds them to the per-principal accumulator. Backward-compatible: existing phases that don't produce signals return empty.
+**Trade-offs:** ConsolidationPhase SPI changes (new method or return type). All existing phase implementations need updating, even if just to return empty. But there are only 10 phases, all in mindmap-intelligence.
+**Sources:** ConsolidationPhase.java (current SPI), PhaseResult.java (current return type), GoalPrioritizationPhase.java (example phase with insights to surface)
+**Exploration:** quick
+**Status:** captured
+
+## D10: ConsolidationPhase SPI evolution
+
+**Choice:** Add `default List<AttentionSignal> signals() { return List.of(); }` to ConsolidationPhase
+**Alternatives:**
+- Change run() return type — breaks all 10 existing implementations
+- Enrich PhaseResult — PhaseResult is constructed by the scheduler, not the phase; would need refactoring
+**Rationale:** Default method is fully backward compatible. Phases accumulate signals during run(), caller reads via signals() after run() completes. No signature change to run(). Existing phases return empty until individually updated.
+**Trade-offs:** Phase implementations must manage internal signal state (typically a List field cleared in beginTick()). Slightly less explicit than a return type, but the default method makes adoption incremental.
+**Depends on:** D9 (phase signal mechanism)
+**Sources:** ConsolidationPhase.java (current SPI with default beginTick())
+**Exploration:** quick
+**Status:** captured
+
+## D11: Principal discovery
+
+**Choice:** CognitiveDefaultsRegistry.allAgentIds() to enumerate known principals
+**Alternatives:**
+- MindMap overlay scan — expensive per tick, misses agents without overlays
+- Explicit registration — adds lifecycle management burden
+**Rationale:** CognitiveDefaultsRegistry already scans classpath for cognitive-profiles/*.yaml and provides forAgent/forAgentOrDefaults lookup. Adding allAgentIds() is trivial. Agents without cognitive profiles don't participate in attention — they haven't opted in to cognitive processing.
+**Trade-offs:** Agents created at runtime (not via YAML profiles) won't be discovered. Acceptable for now — runtime agent creation can use explicit registration later.
+**Depends on:** D3 (per-principal granularity)
+**Sources:** CognitiveDefaultsRegistry.java (classpath scan, volatile Map.copyOf()), CognitiveProfileWatcher.java (filesystem hot-reload)
+**Exploration:** quick
+**Status:** captured
+
+## D12: Real-time signal events
+
+**Choice:** ExperienceRecorded + AffectRecorded + goal lifecycle changes feed attention accumulator directly
+**Alternatives:**
+- All cognitive CDI events — comprehensive but noisy
+- ExperienceRecorded only — simplest but misses urgent affect signals
+**Rationale:** These three event types carry immediate cognitive significance: experiences mention goals (subject matching), affect shifts signal emotional state changes relevant to goal appraisal, and external goal lifecycle changes (from GoalLifecycleProvider) indicate the goal landscape changed outside consolidation. Other events contribute via SignificanceAccumulator → consolidateNow() for batch processing.
+**Trade-offs:** Need goal-relevance filtering on ExperienceRecorded (not all experiences are attention-worthy — only those whose subject matches an active goal). AffectRecorded needs a significance threshold (minor PAD fluctuations shouldn't trigger attention).
+**Depends on:** D7 (hybrid signal sources)
+**Sources:** ExperienceRecorded.java (CDI event), AffectRecorded (CDI event from AffectTrajectoryDecorator), GoalLifecycleProvider.java (SPI for external goal state)
+**Exploration:** quick
+**Status:** captured
