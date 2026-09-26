@@ -2,15 +2,15 @@
 
 ## Last Session
 
-Designed and began implementing the progressive cognitive attention model (#381). Full design cycle: 15 decisions, spec written and 3-round standard reviewed, implementation plan (4 batches, 9 tasks). Batch 1 landed: signal types (AttentionSignal, SignalCategory, AttentionBriefing, CognitiveAttentionRequired), ConsolidationPhase.signals() default method with drain semantics, GoalUrgency clamp fix, CognitiveDefaultsRegistry.allAgentIds(). Wacky-manor investigation reshaped the blocks contract — CognitionCore is the convergence point for tick-based and push-based agents, not a standalone listener.
+Completed and landed the progressive cognitive attention model (#381). All 4 batches implemented: signal types, CognitiveAttentionAccumulator (per-principal adaptive threshold, dedup, interval guard, PAD cache expiry), 6 phases emit signals with drain semantics, scheduler signal collection + urgency P75 refresh, real-time event observers (AffectRecorded PAD delta, ExperienceRecorded goal metadata), end-to-end integration tests. Two audit gaps fixed inline (P75 auto-refresh, PAD cache expiry). 13 commits squashed to 5, merged to main, pushed. 332 tests pass. Issue #381 closed.
 
 ## Immediate Next Step
 
-Resume at Batch 2: implement CognitiveAttentionAccumulator (per-principal state, adaptive threshold, dedup, minimum interval guard). Plan at `plans/2026-09-25-progressive-attention-model.md`.
+Blocks integration: implement CognitiveAttentionMediator (@ApplicationScoped CDI observer → per-principal queues) and wire CognitionCore.lastBriefing field for tick-based and push-based agents. This is the neocortex-to-blocks boundary — the CDI event CognitiveAttentionRequired is already defined and fired.
 
 ## References
 
-- `specs/issue-381-progressive-attention-model/2026-09-25-progressive-attention-model-design.md` — reviewed spec
+- `specs/issue-381-progressive-attention-model/2026-09-25-progressive-attention-model-design.md` — reviewed spec (§7 covers blocks contract)
 - `specs/issue-381-progressive-attention-model/decisions.md` — 15 decisions (D8 superseded by D13)
-- `plans/2026-09-25-progressive-attention-model.md` — implementation plan, Batch 1 complete
+- `plans/2026-09-25-progressive-attention-model.md` — implementation plan, all 4 batches complete
 - `blog/2026-09-25-mdp03-teaching-agents-when-to-care.md` — session diary
