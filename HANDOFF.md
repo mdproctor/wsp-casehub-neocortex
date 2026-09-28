@@ -2,31 +2,47 @@
 
 ## Last Session
 
-Landed **casehubio/neocortex#382** — Personality-prior calibration: JPAF-derived appraisal weights.
+Landed **casehubio/neocortex#338** — TrajectoryGrouper: group experience memories into structured trajectories for reflection synthesis.
 
-- **AppraisalWeights** record in mindmap-api: urgencyWeight, relationshipWeight, fearOnsetThreshold with NEUTRAL constant
-- **AppraisalContext** extended with 8th field (weights), no backwards-compat constructor — all callers explicit
-- **CognitiveDerivationEngine** 9th derivation pathway: disposition profile → AppraisalWeights via empirically-grounded contribution tables (McCrae & Costa 1989, Furnham 1996, Barańczuk 2019). SCALE_FACTOR=1.5 calibrated for ±30% modulation on strongly-typed agents. Math.max(..., 0.1) clamp for degenerate profiles.
-- **HeuristicGoalAppraisal** modified: urgencyWeight modulates hope/fear/distress, fearOnsetThreshold modulates fear gate, relationshipWeight modulates pity
-- **GoalAffectPhase** uses explicit AppraisalWeights.NEUTRAL (no behavioral change in consolidation)
-- **CognitiveGoalOrchestrator** (blocks) needs follow-up PR to wire CognitiveDefaults.appraisalWeights() into AppraisalContext construction
-- CLAUDE.md and contributor-guide.md updated (8 → 9 derivation pathways)
-- Code review: 0 findings. Branch audit (4 dimensions): 0 findings.
+Also landed **casehubio/blocks#320** — LlmReflectionSynthesizer: LLM-backed heuristic extraction from experience trajectories.
 
-Also written:
-- Research methodology doc: `specs/issue-382-jpaf-appraisal-weights/personality-appraisal-calibration.md`
-- Diary entry: `blog/2026-09-27-mdp01-when-personality-meets-fear.md`
-- Design spec: `specs/issue-382-jpaf-appraisal-weights/2026-09-27-jpaf-appraisal-weights-design.md`
+### neocortex#338
+- **TrajectoryGrouper** static utility in `memory-core` — groups flat `List<Memory>` by caseId, orders by timestamp, sub-groups by turn-id, classifies FAILURE/SUCCESS/NEUTRAL via outcome-status attribute, sorts failure-first
+- **Trajectory**, **TrajectoryStep**, **TrajectoryOutcome** records
+- 11 unit tests, code review (1 NOTE fixed: explicit switch instead of enum ordinal for sort order)
+- Design spec: `specs/issue-338-reflection-synthesizer-llm/2026-09-28-reflection-synthesizer-llm-design.md` (6 decisions, light decision review with D1 revised — cross-repo split per issue-345 SPI-inversion pattern)
+- Implementation plan: `plans/2026-09-28-reflection-synthesizer-llm.md`
+
+### blocks#320
+- **LlmReflectionSynthesizer** `@Alternative @Priority(1)` in `blocks` module (`io.casehub.blocks.agentic.social.reflection`)
+- Uses `TrajectoryGrouper` for pre-processing, `AgentProvider.invoke()` for single-pass LLM call
+- Conditional rule output format: "When {condition}, {action}"
+- Failure-derived heuristics prioritised, dedup against existing reflections via prompt context
+- 7 unit tests with mock AgentProvider
+- `memory-core` dependency added to blocks pom.xml
+
+### Also created
+- **blocks#311** — epic: Neocortex cognitive integration — wire landed capabilities into agent loop (XL/High)
+- Child issues: #312 (consolidation), #313 (CBR), #314 (reflection consumption), #315 (engagement — closed by another session), #316 (TemporalFocus — closed), #317 (SocialComparison), #318 (DomainActivation), #319 (CognitiveProfile)
+- **blocks#320** — LlmReflectionSynthesizer issue (created and closed this session)
+
+### Key design decision
+D1 revised after decision review: neocortex stays LLM-free (mechanical substrate). LLM-backed SPI implementations belong in blocks per issue-345 SPI-inversion pattern. MindMapExtractor and CommunitySummaryPhase predate this boundary — legacy exceptions, not precedent.
 
 ## Immediate Next Step
 
-For neocortex: issues #383 (Agent-based OCC emotions: Pride, Shame, Admiration, Reproach) and #384 (Compound OCC emotions) build directly on the AppraisalWeights framework — they'll add new modifier fields for attribution and compound emotions. #385 (Scenario calibration questionnaire) and #386 (Cognitive simulation scenarios) are validation/testing.
+**blocks#312** — Consolidation signal consumption: graduation, merge, curiosity in agent reasoning (M / Med). Independent of #314 (being worked on in another slot). Wires CDI events from neocortex consolidation phases into blocks agent loop.
 
-For blocks: follow-up PR to wire CognitiveDefaults.appraisalWeights() into CognitiveGoalOrchestrator — described in spec §2.7.
+Other open blocks#311 children: #313 (CBR, L/High), #317 (SocialComparison, M/High), #318 (DomainActivation, M/High), #319 (CognitiveProfile, M/Med).
+
+## All Branches Closed
+
+All branches across all 6 repos (neocortex, blocks, platform, engine, eidos, desiredstate) are stamped closed. Both repos pushed to remote.
 
 ## References
 
-- Landed commit: 6ffc6063 on main
-- Design spec: `specs/issue-382-jpaf-appraisal-weights/2026-09-27-jpaf-appraisal-weights-design.md` (4 decisions, light design review)
-- Research doc: `specs/issue-382-jpaf-appraisal-weights/personality-appraisal-calibration.md`
-- Implementation plan: `plans/2026-09-27-jpaf-appraisal-weights.md` (3 batches, 3 tasks)
+- neocortex landed: 77925761 on main
+- blocks landed: db4ee2ec on main
+- Design spec: `specs/issue-338-reflection-synthesizer-llm/2026-09-28-reflection-synthesizer-llm-design.md`
+- Implementation plan: `plans/2026-09-28-reflection-synthesizer-llm.md`
+- Decision review: `/Users/mdproctor/reviews/casehub-slots/issue-338-decisions-20260928-114445/`
