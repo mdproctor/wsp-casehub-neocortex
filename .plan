@@ -1,0 +1,15 @@
+# Work Plan — issue-300-goal-revision-decay-lifecycle
+
+## State
+branch: issue-300-goal-revision-decay-lifecycle
+state: scaffolded
+project-sha: 
+date: 
+issue-repo: casehubio/blocks
+covers: 300
+design-repo: 
+design-section-hashes: 
+flyway-next-v: 
+
+## Queue
+- [ ] casehubio/blocks#300 — Issue #300 ← active
