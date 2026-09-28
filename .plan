@@ -2,7 +2,7 @@
 
 ## State
 branch: issue-383-agent-occ-emotions
-state: closing:merged
+state: active
 project-sha: 6ffc606371041c4a438f997618df1bdd7169c96d
 date: 2026-09-27
 issue-repo: casehubio/neocortex
