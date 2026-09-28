@@ -1,0 +1,33 @@
+{
+  "repo": "neocortex",
+  "branch": "issue-383-agent-occ-emotions",
+  "base": "main",
+  "groups": [
+    {
+      "message": "refactor: remove strategy_classifier \u2014 moved to quarkmind-classifier",
+      "commits": [
+        "70d729536b5a8f36928f0744fa99bc63c7f01722"
+      ],
+      "type": "keep"
+    },
+    {
+      "message": "feat(#383): agent-based OCC emotions \u2014 Pride, Shame, Admiration, Reproach\n\nActionAppraisal SPI parallel to GoalAppraisal. HeuristicActionAppraisal\nwith asymmetric personality-modulated thresholds (strict agents: easy\nShame, hard Pride). Inline compound detection: Gratification, Remorse,\nGratitude, Anger. ActionAppraisalObserver CDI real-time on Outcome events\nwith dual-path self/other appraisal via TARGET_AGENT. AppraisalWeights\nextended with selfStandardsStrictness and otherStandardsStrictness\nderived from DispositionAxes. EmotionSource.ATTRIBUTED for other-agent\njudgment. 27 new tests.\n\nCloses #383",
+      "commits": [
+        "532906bf206d3a659c4871bd696cacb9d9fbc385",
+        "8da7dc659cd48ce09283ab20b906ea6a3a2396b2",
+        "c256439945c3f6f81d8a72c472ba6bf8876b5ad8",
+        "58c9e578da90135ede7f2c2a28aaae23ead99891",
+        "32d881062be128e799c7075d035fc7509d5f67ea"
+      ],
+      "type": "squash"
+    },
+    {
+      "message": "docs(work-end): project-promote artifacts from workspace",
+      "commits": [
+        "c2fb7895b5eb6d9162bd4c0e33f4cb9dffa03ed4"
+      ],
+      "type": "keep"
+    }
+  ],
+  "verified": true
+}
