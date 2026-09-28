@@ -2,15 +2,16 @@
 
 ## D1: Overall architecture — Additive SPI with dual-trigger design
 
-**Choice:** New `ActionAppraisal` SPI parallel to `GoalAppraisal`, with a dual-trigger observer (self-appraisal from Outcome events, other-appraisal from RelationshipRecorded events), inline compound detection, and deferred cursor-based reconciliation for missed-event recovery.
+**Choice:** New `ActionAppraisal` SPI parallel to `GoalAppraisal`, with a single-trigger observer (`@Observes ExperienceRecorded`) providing dual-path logic (self-appraisal and other-appraisal from the same event source), inline compound detection, and deferred cursor-based reconciliation for missed-event recovery.
 **Alternatives:**
 - Unified Appraisal Framework — generic `CognitiveAppraisal<C>` base with GoalAppraisal and ActionAppraisal as specializations. Over-engineered for two specializations; generics complicate CDI injection; refactoring cost with no payoff.
 - Event-Sourced Emotion Pipeline — EmotionProduced CDI events from all sources, downstream compound detector. Inline compound detection eliminates the coordination problem that motivates this; would require refactoring GoalAffectPhase (scope creep).
-**Rationale:** Additive — no refactoring of existing code. Follows the established pattern (GoalAppraisal → HeuristicGoalAppraisal → GoalAffectPhase). Dual-trigger leverages the existing RelationshipEvent pipeline for other-appraisal rather than re-parsing ExperienceRecorded events.
+- Dual-trigger observer (self from ExperienceRecorded, other from RelationshipRecorded) — originally chosen, but RelationshipRecorded loses structured fields (capability, result, metadata) that are needed for goal-relevance computation. Single trigger from ExperienceRecorded gives both paths access to the full Outcome record.
+**Rationale:** Additive — no refactoring of existing code. Follows the established pattern (GoalAppraisal → HeuristicGoalAppraisal → GoalAffectPhase). Single-trigger observer uses ExperienceRecorded for both paths, giving both access to the full Outcome record (capability, result, metadata) needed for structured goal-relevance lookup.
 **Trade-offs:** Two parallel appraisal SPIs with some structural similarity (both return `List<CognitiveEmotion>`). If a third appraisal branch (object-based Love/Hate) is added later, the event-sourced approach may become worth the refactoring.
 **Sources:** HeuristicGoalAppraisal.java, GoalAffectPhase.java, RelationshipProcessor (memory-core module), OCC theory (Ortony, Clore & Collins 1988)
-**Exploration:** deep-analysis
-**Status:** captured
+**Exploration:** deep-analysis → revised after review (R2-02)
+**Status:** revised — changed from dual-trigger to single-trigger observer; dual-trigger dropped because RelationshipRecorded loses structured data needed for goal-relevance computation
 
 ## D2: ActionAppraisal SPI design
 
@@ -38,7 +39,7 @@
 
 ## D4: AppraisalWeights extension
 
-**Choice:** Extend existing `AppraisalWeights` record with two new fields: `selfStandardsStrictness` (double, [0.5, 2.0]) and `otherStandardsStrictness` (double, [0.5, 2.0]). Default both to 1.0 in `NEUTRAL`. Derive from DispositionAxes: `ruleFollowing: strict` → high selfStandardsStrictness (1.6) and high otherStandardsStrictness (1.4); `ruleFollowing: flexible` → low selfStandardsStrictness (0.7) and low otherStandardsStrictness (0.6); `socialOrient: cooperative` → lower otherStandardsStrictness (−0.2 modifier, more forgiving); `socialOrient: competitive` → higher otherStandardsStrictness (+0.2 modifier, judges others harshly). The `deriveAppraisalWeights` method takes both `List<WeightedTerm> profile` (for existing urgency/relationship/fear fields) and `DispositionAxes axes` (for new standards fields).
+**Choice:** Extend existing `AppraisalWeights` record with two new fields: `selfStandardsStrictness` (double, [0.5, 2.0]) and `otherStandardsStrictness` (double, [0.5, 2.0]). Default both to 1.0 in `NEUTRAL`. Derive from DispositionAxes: `ruleFollowing: strict` → high selfStandardsStrictness (1.6) and high otherStandardsStrictness (1.4); `ruleFollowing: flexible` → low selfStandardsStrictness (0.7) and low otherStandardsStrictness (0.6); `socialOrient: cooperative` → lower otherStandardsStrictness (−0.2 modifier, more forgiving); `socialOrient: competitive` → higher otherStandardsStrictness (+0.2 modifier, judges others harshly). Derived values are clamped to [0.5, 2.0] after applying all modifiers, consistent with AppraisalWeights' compact constructor validation. The `deriveAppraisalWeights` method takes both `List<WeightedTerm> profile` (for existing urgency/relationship/fear fields) and `DispositionAxes axes` (for new standards fields).
 **Alternatives:**
 - Separate `ActionAppraisalWeights` record — avoids breaking the 3-arg constructor, but fragments weight configuration across two records when they're naturally part of one personality profile.
 - Derive from Big Five traits (conscientiousness → self-strictness, agreeableness → other-strictness) — only works for Big Five agents; silently produces no derivation for JPAF agents, the dominant framework. DispositionAxes are framework-agnostic.
@@ -47,22 +48,26 @@
 **Trade-offs:** Breaking change to existing AppraisalWeights constructors. All callers (GoalAffectPhase, tests, CognitiveDerivationEngine) need updating. The `deriveAppraisalWeights` method signature changes from `(List<WeightedTerm>)` to `(List<WeightedTerm>, DispositionAxes)`.
 **Depends on:** D2 (ActionContext carries AppraisalWeights)
 **Sources:** AppraisalWeights.java, CognitiveDerivationEngine.java (deriveAppraisalWeights, deriveCbrStrategy, deriveSocialCognition methods), DispositionAxes.java
-**Exploration:** quick → revised after review (R1-03)
-**Status:** revised — changed derivation source from Big Five traits to DispositionAxes; added Big Five and JPAF as rejected alternatives
+**Exploration:** quick → revised after review (R1-03, R2-03)
+**Status:** revised — changed derivation source from Big Five traits to DispositionAxes; added Big Five and JPAF as rejected alternatives; added post-modifier clamping to [0.5, 2.0]
 
-## D5: Trigger design — self via Outcome, other via RelationshipRecorded
+## D5: Trigger design — single ExperienceRecorded trigger, dual-path logic
 
-**Choice:** Single `ActionAppraisalObserver` with two CDI observer methods: (1) `@Observes ExperienceRecorded` filtering for Outcome events where actingAgent == apprasingAgent → self-appraisal (Pride/Shame), (2) `@Observes RelationshipRecorded` → other-appraisal (Admiration/Reproach). Other-appraisal uses the RelationshipRecorded event as a trigger to identify other-agent interactions, then derives praiseworthiness from goal relevance: the observer looks up the appraising agent's goals in MindMapStore and computes how the other agent's action (described in RelationshipEvent.description/sourceEventType/confidence) relates to those goals. Praiseworthiness = `outcomePolarity * |goalRelevance_of_other_action|`, modulated by `otherStandardsStrictness` and relationship score.
+**Choice:** Single `ActionAppraisalObserver` with one CDI observer method: `@Observes ExperienceRecorded`, filtering for `Outcome` events. Two paths within the same handler:
+- **Self-appraisal (Pride/Shame):** `Outcome.agentId() == apprasingAgentId` — the appraising agent's own action produced this outcome.
+- **Other-appraisal (Admiration/Reproach):** `metadata.get(ExperienceAttributeKeys.TARGET_AGENT)` present and differs from `agentId` — another agent was involved in this outcome.
+
+Both paths have access to the full `Outcome` record: `capability`, `result`, `confidence`, and `metadata`. Goal relevance is computed identically for both paths — the observer looks up the appraising agent's goals in MindMapStore and matches the outcome's `capability` against goal-linked capabilities. The difference is which `standardsStrictness` is applied (self vs other) and that other-appraisal is modulated by relationship score.
 **Alternatives:**
-- Use QualitySignal from RelationshipEvent as praiseworthiness baseline — QualitySignal is always NEUTRAL in the current codebase (RelationshipProcessor hardcodes it). The blocks-layer CognitionCore.deriveQualitySignal() produces non-NEUTRAL signals but that's in a higher module layer; the mindmap-intelligence observer cannot depend on it.
-- Observe only ExperienceRecorded for both paths — would need to re-derive target-agent and quality signal, duplicating RelationshipProcessor's TARGET_AGENT detection logic.
-- Separate observer classes per trigger — cleaner separation but unnecessary; a single class with two observer methods is idiomatic CDI.
-**Rationale:** RelationshipRecorded provides the trigger ("another agent was involved") while goal relevance provides the praiseworthiness signal. This avoids depending on QualitySignal (which is a placeholder) and uses the same goal-based praiseworthiness computation as self-appraisal, adapted for other-agent actions. The relationship score from existing AppraisalContext infrastructure modulates intensity (closer relationships produce stronger Admiration/Reproach).
-**Trade-offs:** Other-appraisal depends on RelationshipProcessor having already fired and recorded the event. CDI observer ordering is not guaranteed, but RelationshipRecorded fires from RelationshipProcessor's ExperienceRecorded handler — so the appraisal observer sees it in the correct sequence.
-**Depends on:** D1 (dual-trigger architecture)
-**Sources:** RelationshipProcessor.java (memory-core module), RelationshipRecorded.java, ExperienceRecorded.java, CognitionCore.java (blocks layer — evidence that QualitySignal derivation is LLM-based, not available at mindmap-intelligence tier)
-**Exploration:** deep-analysis → revised after review (R1-02)
-**Status:** revised — replaced QualitySignal-based praiseworthiness with goal-relevance-based derivation; added QualitySignal as rejected alternative with evidence
+- Use QualitySignal from RelationshipEvent as praiseworthiness baseline — QualitySignal is always NEUTRAL in the current codebase (RelationshipProcessor hardcodes it at line 40 with `Map.of()`). The blocks-layer CognitionCore.deriveQualitySignal() produces non-NEUTRAL signals but that's LLM-based and in a higher module tier.
+- Dual-trigger observer (self from ExperienceRecorded, other from RelationshipRecorded) — `RelationshipProcessor` constructs `RelationshipEvent` with `Map.of()` as metadata, losing the `capability` and `result` fields from the original `Outcome`. Without these structured fields, goal-relevance computation for other-appraisal degrades to NLU on free-text `description` — which the mindmap-intelligence tier cannot do.
+- Separate observer classes per path — cleaner separation but unnecessary; dual-path logic within a single handler is straightforward (one TARGET_AGENT check).
+**Rationale:** Single trigger from ExperienceRecorded gives both paths access to the full Outcome record. The TARGET_AGENT metadata check (`metadata.get(TARGET_AGENT)`) is a single-line operation — not a meaningful duplication of RelationshipProcessor's logic. RelationshipProcessor continues to handle relationship memory storage independently; the ActionAppraisalObserver handles emotion appraisal independently. Each observer has its own concern.
+**Trade-offs:** The observer now handles both paths in one method, which is slightly more complex than two separate observer methods. But the alternative (dual-trigger) loses data that makes other-appraisal non-functional.
+**Depends on:** D1 (architecture)
+**Sources:** RelationshipProcessor.java (memory-core, line 41 — `Map.of()` evidence), Outcome.java (capability/result fields), ExperienceAttributeKeys.java (TARGET_AGENT key), ExperienceRecorded.java
+**Exploration:** deep-analysis → revised R1-02, revised R2-02
+**Status:** revised — changed from dual-trigger (ExperienceRecorded + RelationshipRecorded) to single-trigger (ExperienceRecorded only); RelationshipRecorded loses structured data needed for goal-relevance computation
 
 ## D6: Praiseworthiness heuristics
 
@@ -138,7 +143,7 @@ For other-appraisal, `praiseworthiness *= relationshipScore` (stronger relations
 
 ## D11: Execution model — real-time CDI observer
 
-**Choice:** ActionAppraisalObserver is a CDI `@Observes` event handler that fires in real-time on ExperienceRecorded/RelationshipRecorded events, not a ConsolidationPhase.
+**Choice:** ActionAppraisalObserver is a CDI `@Observes` event handler that fires in real-time on ExperienceRecorded events, not a ConsolidationPhase.
 **Alternatives:**
 - ConsolidationPhase (batch, tick-driven) — would batch-process action appraisals like GoalAffectPhase. But goal appraisal is naturally batch (iterate all goals per tick) while action appraisal is naturally event-driven (respond to a specific action's outcome). Batching would delay emotional response to actions until the next consolidation tick and require event buffering.
 - Hybrid (real-time with consolidation fallback) — the cursor-based reconciliation phase mentioned in D1 can serve as a future catch-up mechanism for missed events, but the primary path is real-time.
@@ -146,7 +151,7 @@ For other-appraisal, `praiseworthiness *= relationshipScore` (stronger relations
 **Trade-offs:**
 - Thread context: the observer runs in the event producer's thread, not the consolidation scheduler's thread. This is acceptable because the observer's work is lightweight (goal lookup + heuristic computation + emotion production).
 - PAD write contention: the observer does NOT write PAD directly — it produces CognitiveEmotion records that flow through the attention/mood pipeline (see D15). GoalAffectPhase writes PAD to goal nodes; the observer writes to a different target or emits emotions for downstream consumption. No direct write contention.
-- Ordering: CDI synchronous observers fire in undefined order, but the ActionAppraisalObserver and RelationshipProcessor observe different CDI events (ExperienceRecorded vs RelationshipRecorded), so ordering is not a concern for self-appraisal. For other-appraisal, RelationshipRecorded is fired BY RelationshipProcessor's ExperienceRecorded handler, guaranteeing correct sequencing.
+- Ordering: CDI synchronous observers fire in undefined order. Both ActionAppraisalObserver and RelationshipProcessor observe ExperienceRecorded, so their execution order within a single event dispatch is non-deterministic. This is acceptable because they have independent concerns — RelationshipProcessor handles relationship memory storage, ActionAppraisalObserver handles emotion appraisal — and neither depends on the other's output.
 **Depends on:** D1 (dual-trigger architecture), D5 (trigger design)
 **Sources:** SignificanceAccumulator.java (@Observes ExperienceRecorded pattern), MemoryBeans.java (CDI event wiring), GoalAffectPhase.java (ConsolidationPhase pattern for contrast)
 **Exploration:** surfaced by review (R1-09)
