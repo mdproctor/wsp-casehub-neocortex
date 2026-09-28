@@ -1,0 +1,2 @@
+{"event":"land","repo":"neocortex","branch":"issue-383-agent-occ-emotions","base_branch":"main","landed_sha":"b4fdb5da22d3cabbab1adc34b748fc29957149df","push_target":"upstream","mirrored":true,"stamped":true,"timestamp":"2026-09-28T00:47:58.435841+00:00"}
+{"event":"promote","branch":"issue-383-agent-occ-emotions","files":[],"timestamp":"2026-09-28T00:49:41.368662+00:00"}
