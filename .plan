@@ -13,3 +13,11 @@ flyway-next-v: none
 
 ## Queue
 - [ ] casehubio/neocortex#383 — Issue #383 ← active
+  - [ ] Batch 1: API Foundation
+    - [ ] Task 1: Extend AppraisalWeights with standards strictness
+    - [ ] Task 2: New API types ActionOutcome ActionContext ActionAppraisal
+  - [ ] Batch 2: Heuristic Appraisal
+    - [ ] Task 3: HeuristicActionAppraisal TDD implementation
+    - [ ] Task 4: CognitiveDerivationEngine standards derivation
+  - [ ] Batch 3: Observer Wiring
+    - [ ] Task 5: ActionAppraisalObserver and NoOpActionAppraisal
