@@ -1,0 +1,15 @@
+# Work Plan — issue-338-reflection-synthesizer-llm
+
+## State
+branch: issue-338-reflection-synthesizer-llm
+state: scaffolded
+project-sha: 
+date: 
+issue-repo: casehubio/neocortex
+covers: 338
+design-repo: project
+design-section-hashes: 
+flyway-next-v: none
+
+## Queue
+- [ ] casehubio/neocortex#338 — Issue #338 ← active
