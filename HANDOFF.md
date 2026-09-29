@@ -2,20 +2,22 @@
 
 ## Last Session
 
-Closed blocks#300 (GoalRevision consumption — decay-signal lifecycle transitions, XS/Low). Three changes across three repos close the decay-signal feedback loop:
-
-- **eidos** (`705b800`): `updateGoalLifecycleState` default method on `AgentRegistry` — targeted goal lifecycle transition without full descriptor rebuild. Read-modify-write via findById + register; implementations can override with optimized paths.
-- **blocks** (`cc168fda`): `consumeGoalRevisions` in `SocialAvatarCognition.tick()` — reads pendingRevisions after each tick, maps dormant→DORMANT / abandon→ABANDONED via AgentRegistry.
-- **blocks** (`23547f9f`): `EidosGoalLifecycleProvider` in blocks-core — bridges eidos AgentGoal.lifecycleState back to neocortex GoalResolutionPhase.sync() via GoalLifecycleProvider SPI.
-
-Also resolved: eidos voice branch (issue-89-voice-profile) landed on eidos main, fixing blocks-core compilation.
+Designed and began implementing blocks#303 — migrating the entire social cognition layer from blocks to neocortex. First-principles analysis ("would this be used without neocortex?") expanded scope from 8 orchestrators to the full social cognition package (~213 files, ~13K LOC). Completed batches 1-3 of 7: module scaffolding (cognition-api + cognition), 95 value type migrations to cognition-api, and store consolidation (NarrativeMemory, StrategyMemory, UserProfileMemory, MentalModelMemory replacing ad-hoc Store SPIs).
 
 ## Immediate Next Step
 
-All immediate wiring issues in blocks#298 epic are closed (#299, #300, #301). blocks#302 (mood congruence) also landed in slot 196. blocks#303 (XL/High migrate cognitive state to neocortex) is the next major item — now unblocked.
+Resume executing-plans at Batch 4: move pure-computation orchestrators (Mood, Drive, Narrative, PersonalityEvolution) to the cognition module. Open IntelliJ workspace with both repos first.
 
 ## Cross-Module
 
-- blocks#303 (XL/High) — migrate cognitive state to neocortex. All prerequisites closed.
-- blocks#308 (L/High) — context-budget prompt rendering, still open.
-- Hortora/soredium#394 — work-end forcing_function blocks on pre-existing findings from other branches. Filed this session.
+- blocks#303 modifies both neocortex and blocks repos. blocks is on main at 52e40944.
+- New types from #317/#318 (CognitiveProfileParticipant, DomainActivationParticipant, DomainActivationSnapshot, 3 new prompt sections) need inclusion in later migration batches.
+
+## References
+
+- `wsp/specs/issue-303-migrate-cognitive-state/2026-09-29-cognition-migration-design.md` — design spec
+- `wsp/specs/issue-303-migrate-cognitive-state/decisions.md` — 6 design decisions
+- `wsp/plans/2026-09-29-cognition-migration.md` — implementation plan (7 batches)
+- `wsp/scripts/migrate_types.py` — cross-repo file migration script
+- `wsp/scripts/fix_imports.py` — cross-subpackage import fixer
+- `wsp/blog/2026-09-29-mdp01-the-brain-that-lived-in-the-wrong-body.md` — diary
