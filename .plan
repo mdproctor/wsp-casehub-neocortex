@@ -13,3 +13,19 @@ flyway-next-v:
 
 ## Queue
 - [ ] casehubio/blocks#303 — Issue #303 ← active
+  - [ ] Batch 1: Scaffolding
+    - [ ] Task 1: Create cognition modules
+  - [ ] Batch 2: Value Types
+    - [ ] Task 2: Move enums records sealed
+  - [ ] Batch 3: Store Consolidation
+    - [ ] Task 3: Consolidate CBR stores
+    - [ ] Task 4: Consolidate CaseMemory stores
+  - [ ] Batch 4: Pure Orchestrators
+    - [ ] Task 5: Move Mood Drive Narrative Personality
+  - [ ] Batch 5: LLM Orchestrators
+    - [ ] Task 6: Move UserModel MentalModel Strategy InnerLife
+  - [ ] Batch 6: Framework
+    - [ ] Task 7: Move CognitionCore and framework
+    - [ ] Task 8: Move goal emergence consolidation
+  - [ ] Batch 7: Bridge
+    - [ ] Task 9: Update blocks bridge and cleanup
