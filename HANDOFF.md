@@ -12,11 +12,10 @@ Also resolved: eidos voice branch (issue-89-voice-profile) landed on eidos main,
 
 ## Immediate Next Step
 
-blocks#301 (Emotion → Mood bridge, S/Low) is the last immediate wiring issue in blocks#298 epic. After that, blocks#303 (XL/High migrate cognitive state to neocortex) is unblocked.
+All immediate wiring issues in blocks#298 epic are closed (#299, #300, #301). blocks#302 (mood congruence) also landed in slot 196. blocks#303 (XL/High migrate cognitive state to neocortex) is the next major item — now unblocked.
 
 ## Cross-Module
 
-- blocks#303 (XL/High) — migrate cognitive state to neocortex. Previously blocked by blocks#300 — now unblocked.
-- blocks#302 (mood congruence, M/High) — still open, batch 4 of the cognitive emotion epic.
+- blocks#303 (XL/High) — migrate cognitive state to neocortex. All prerequisites closed.
 - blocks#308 (L/High) — context-budget prompt rendering, still open.
 - Hortora/soredium#394 — work-end forcing_function blocks on pre-existing findings from other branches. Filed this session.
