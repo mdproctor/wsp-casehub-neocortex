@@ -12,7 +12,7 @@ SPIs, CBR, experience, reflection, mood, engagement) and blocks (orchestrated ag
 patterns with mental models, drives, strategies, narratives, user profiles). Each subsystem
 stores knowledge in isolated backends — `CaseMemoryStore` for flat text memories,
 `CbrCaseMemoryStore` for feature-vector similarity, and domain-specific CBR wrappers
-(`CbrMentalModelStore`, `CbrStrategyStore`, `CbrUserProfileStore`, `CbrNarrativeStore`).
+(`MentalModelMemory`, `StrategyMemory`, `UserProfileMemory`, `NarrativeMemory`).
 
 The missing capability is **structural knowledge** — typed relationships between entities
 across subsystems. An agent knows facts about a user (mental model), has strategies for

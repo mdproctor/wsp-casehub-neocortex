@@ -13,13 +13,13 @@ flyway-next-v:
 
 ## Queue
 - [ ] casehubio/blocks#303 — Issue #303 ← active
-  - [ ] Batch 1: Scaffolding
-    - [ ] Task 1: Create cognition modules
-  - [ ] Batch 2: Value Types
-    - [ ] Task 2: Move enums records sealed
-  - [ ] Batch 3: Store Consolidation
-    - [ ] Task 3: Consolidate CBR stores
-    - [ ] Task 4: Consolidate CaseMemory stores
+  - [x] Batch 1: Scaffolding
+    - [x] Task 1: Create cognition modules
+  - [x] Batch 2: Value Types
+    - [x] Task 2: Move enums records sealed
+  - [x] Batch 3: Store Consolidation
+    - [x] Task 3: Consolidate CBR stores
+    - [x] Task 4: Consolidate CaseMemory stores
   - [ ] Batch 4: Pure Orchestrators
     - [ ] Task 5: Move Mood Drive Narrative Personality
   - [ ] Batch 5: LLM Orchestrators

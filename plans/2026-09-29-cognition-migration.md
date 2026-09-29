@@ -437,14 +437,14 @@ Update all method calls to use the new helper.
 
 - [ ] **Step 4: Repeat for StrategyMemory**
 
-Same pattern: read `CbrStrategyStore`, create `StrategyMemory` helper,
+Same pattern: read `StrategyMemory`, create `StrategyMemory` helper,
 update `StrategyLearningOrchestrator`.
 
 - [ ] **Step 5: Delete old Store SPIs and implementations**
 
 Use `ide_refactor_safe_delete` for each: `NarrativeStore`,
-`NoOpNarrativeStore`, `CbrNarrativeStore`, `CbrStateStore`,
-`StrategyStore`, `CbrStrategyStore`.
+`NoOpNarrativeStore`, `NarrativeMemory`, `CbrStateStore`,
+`StrategyStore`, `StrategyMemory`.
 
 - [ ] **Step 6: Run tests**
 
@@ -490,12 +490,12 @@ Refs casehubio/blocks#303"
 Create `cognition/src/main/java/io/casehub/neocortex/cognition/usermodel/UserProfileMemory.java`.
 
 Pattern: `@ApplicationScoped`, `Instance<CaseMemoryStore>` injection,
-domain="user-profile". Read `CbrUserProfileStore` to understand query
+domain="user-profile". Read `UserProfileMemory` to understand query
 patterns and replicate with `CaseMemoryStore.query()`.
 
 - [ ] **Step 2: Write MentalModelMemory query helper**
 
-Same pattern with domain="mental-model". Read `CbrMentalModelStore`.
+Same pattern with domain="mental-model". Read `MentalModelMemory`.
 
 - [ ] **Step 3: Update orchestrators**
 
