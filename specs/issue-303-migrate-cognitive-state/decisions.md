@@ -3,8 +3,10 @@
 ## D1: Migration scope — all cognitive code moves
 
 **Choice:** Move all 8 orchestrators, CognitionCore, all supporting types,
-Store SPIs, and the social cognition surface (prompt sections, civility
-constraints) from blocks to neocortex.
+Store SPIs, goal proposal, emergence, belief revision, and consolidation
+phases from blocks to neocortex. Prompt sections and SocialAvatarCognition
+stay in blocks as the bridge layer (they implement blocks' PromptSection
+interface and would create a circular dependency if moved).
 
 **Alternatives:**
 - Pure-computation only (4 orchestrators) — leaves the architecture

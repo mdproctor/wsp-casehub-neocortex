@@ -42,7 +42,7 @@ renders it for the LLM conversation.
 
 ## Module Structure
 
-### cognition-api (zero deps, Tier 1)
+### cognition-api (depends on cognitive-api)
 
 Package: `io.casehub.neocortex.cognition`
 
@@ -68,8 +68,9 @@ Contains:
 - Goal proposal types: goal policies, mappers, records
 - Emergence types: norm/collective-goal records, configs
 
-Dependencies: cognitive-api only (for Confidence, ConfidenceOrigin, etc.).
-Most types are pure records/enums with zero deps.
+Dependencies: cognitive-api (for Confidence, ConfidenceOrigin, etc.).
+Not zero-deps — signal hierarchies and config types reference
+cognitive-api types. Most individual types are pure records/enums.
 
 ### cognition (CDI implementation)
 
@@ -86,12 +87,14 @@ io.casehub.neocortex.cognition
   .drive        — DriveOrchestrator, DriveComposer, drive source impls
                    (Affiliation, Autonomy, Competence, Curiosity),
                    DriveAdaptationPhase, RelationshipPressureSource
-  .narrative    — NarrativeOrchestrator, NarrativePipeline,
-                   NarrativeOutputProcessor, NarrativeContentSummariser
-  .usermodel    — UserModelOrchestrator
+  .narrative    — NarrativeOrchestrator, GroupNarrativeOrchestrator,
+                   NarrativePipeline, NarrativeOutputProcessor,
+                   NarrativeContentSummariser, NarrativeStateSchema
+  .usermodel    — UserModelOrchestrator, SubjectResolver,
+                   InteractionMapper
   .mentalmodel  — MentalModelOrchestrator
-  .strategy     — StrategyLearningOrchestrator
-  .innerlife    — InnerLifeOrchestrator
+  .strategy     — StrategyLearningOrchestrator, TokenJaccardDistance
+  .innerlife    — InnerLifeOrchestrator, CivilityConstraint
   .personality  — PersonalityEvolutionOrchestrator
   .goal         — GoalProposalOrchestrator, CognitiveGoalOrchestrator,
                    LlmDriveGoalFormationStrategy, LlmCrossAxisGoalEnricher
@@ -119,13 +122,18 @@ already use `Instance<>` throughout (confirmed by optionality audit).
 
 ### cognition-inmem
 
-In-memory store stubs for `@QuarkusTest`. Follows existing pattern
-(mindmap-inmem, memory-inmem).
+Orchestrator-level test stubs — not store stubs (stores consolidate onto
+existing neocortex abstractions which already have in-memory backends).
+Provides `@Alternative @Priority(2)` no-op implementations of
+CognitionCore and orchestrator SPIs for apps that depend on cognition-api
+but don't want cognitive ticking in tests. Follows existing pattern
+(mindmap-inmem, memory-inmem, inference-inmem).
 
 ### cognition-testing
 
-Contract test base classes. Follows existing pattern (mindmap-testing,
-memory-testing, rag-testing).
+Contract test base classes for CognitionCore tick lifecycle, orchestrator
+state transitions, and store consolidation query helpers. Follows existing
+pattern (mindmap-testing, memory-testing, rag-testing).
 
 ## Store Consolidation
 
@@ -136,7 +144,7 @@ No new Store SPIs. Existing ad-hoc stores map onto neocortex abstractions:
 | NarrativeStore | CbrRecordStore | CbrNarrativeStore already uses CBR. NarrativeStateSchema already defines the CBR schema. Direct mapping. |
 | StrategyStore | CbrRecordStore | Strategy profiles are feature-vector records with similarity search. This IS CBR. |
 | UserProfileStore | CaseMemoryStore | User observations + synthesized profiles are domain-scoped memories (domain="user-profile"). |
-| MentalModelStore | CaseMemoryStore | BDI snapshots are domain-scoped memories (domain="mental-model"). Alternatively, MindMap nodes with Believable/Intentional traits on per-agent subgraphs. |
+| MentalModelStore | CaseMemoryStore | BDI snapshots are domain-scoped memories (domain="mental-model"). Structured JSON body with beliefs, desires, intentions per subject. |
 
 Each consolidation replaces a custom SPI + JPA implementation with
 domain-specific query helpers on top of the generic store. Typed
@@ -174,23 +182,29 @@ Move bottom-up — types with zero dependencies first:
 No blocks code changes needed yet — blocks can depend on
 cognition-api temporarily during migration.
 
-### Phase 2: Pure-computation orchestrators → cognition
+### Phase 2: Store consolidation (before orchestrator moves)
+
+Consolidate stores while orchestrators are still in blocks. This avoids
+a window where moved orchestrators reference blocks stores that haven't
+been consolidated yet.
+
+For each store:
+1. Write the domain-specific query helper on the neocortex store
+2. Update the blocks orchestrator to use the neocortex store
+3. Delete the blocks Store SPI + JPA implementation
+4. Update/move tests
+
+### Phase 3: Pure-computation orchestrators → cognition
 
 Move orchestrators that don't use LLM:
 1. MoodOrchestrator + MoodCongruentGoalAppraisal + GoalEmotionMoodBridge
 2. DriveOrchestrator + DriveComposer + drive source impls
-3. NarrativeOrchestrator + NarrativePipeline + NarrativeOutputProcessor
+3. NarrativeOrchestrator + NarrativePipeline + NarrativeOutputProcessor +
+   NarrativeContentSummariser + NarrativeStateSchema +
+   GroupNarrativeOrchestrator
 4. PersonalityEvolutionOrchestrator
 
 Each move: update imports in blocks to point at neocortex, run tests.
-
-### Phase 3: Store consolidation
-
-For each store, in parallel:
-1. Write the domain-specific query helper on the neocortex store
-2. Migrate data access in the orchestrator to use the neocortex store
-3. Delete the blocks Store SPI + JPA implementation
-4. Update/move tests
 
 ### Phase 4: LLM-backed orchestrators → cognition
 
@@ -198,8 +212,7 @@ For each store, in parallel:
 2. MentalModelOrchestrator
 3. StrategyLearningOrchestrator
 4. InnerLifeOrchestrator
-5. NarrativeContentSummariser
-6. LlmReflectionSynthesizer
+5. LlmReflectionSynthesizer
 
 ### Phase 5: Framework + higher-order components → cognition
 
