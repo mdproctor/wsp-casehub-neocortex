@@ -2,7 +2,7 @@
 
 ## State
 branch: issue-303-migrate-cognitive-state
-state: scaffolded
+state: active
 project-sha: 
 date: 
 issue-repo: casehubio/blocks
@@ -13,19 +13,5 @@ flyway-next-v:
 
 ## Queue
 - [ ] casehubio/blocks#303 — Issue #303 ← active
-  - [x] Batch 1: Scaffolding
-    - [x] Task 1: Create cognition modules
-  - [x] Batch 2: Value Types
-    - [x] Task 2: Move enums records sealed
-  - [x] Batch 3: Store Consolidation
-    - [x] Task 3: Consolidate CBR stores
-    - [x] Task 4: Consolidate CaseMemory stores
-  - [ ] Batch 4: Pure Orchestrators
-    - [ ] Task 5: Move Mood Drive Narrative Personality
-  - [ ] Batch 5: LLM Orchestrators
-    - [ ] Task 6: Move UserModel MentalModel Strategy InnerLife
-  - [ ] Batch 6: Framework
-    - [ ] Task 7: Move CognitionCore and framework
-    - [ ] Task 8: Move goal emergence consolidation
-  - [ ] Batch 7: Bridge
-    - [ ] Task 9: Update blocks bridge and cleanup
+  - [ ] Batch 1: Batch 4
+    - [ ] Task 1: Task 5: Move Mood Drive Narrative Personality
