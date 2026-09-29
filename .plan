@@ -1,0 +1,15 @@
+# Work Plan — issue-303-migrate-cognitive-state
+
+## State
+branch: issue-303-migrate-cognitive-state
+state: scaffolded
+project-sha: 
+date: 
+issue-repo: casehubio/blocks
+covers: 303
+design-repo: 
+design-section-hashes: 
+flyway-next-v: 
+
+## Queue
+- [ ] casehubio/blocks#303 — Issue #303 ← active
