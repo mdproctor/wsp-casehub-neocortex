@@ -2,16 +2,54 @@
 
 ## Last Session
 
-Designed and began implementing blocks#303 — migrating the entire social cognition layer from blocks to neocortex. First-principles analysis ("would this be used without neocortex?") expanded scope from 8 orchestrators to the full social cognition package (~213 files, ~13K LOC). Completed batches 1-3 of 7: module scaffolding (cognition-api + cognition), 95 value type migrations to cognition-api, and store consolidation (NarrativeMemory, StrategyMemory, UserProfileMemory, MentalModelMemory replacing ad-hoc Store SPIs).
+Continued implementing blocks#303 — migrating social cognition layer from blocks to neocortex. Completed Batch 4 (pure-computation orchestrators) with scope adjustments based on dependency analysis. Moved 8 classes + 4 test classes from blocks to neocortex cognition module. 45 tests pass.
+
+### Batch 4 — what moved
+
+| Class | From (blocks) | To (neocortex cognition) | Changes |
+|-------|--------------|-------------------------|---------|
+| MoodOrchestrator | social/ | mood/ | KeyedLock → inline ConcurrentHashMap<String, ReentrantLock> |
+| MoodCongruentGoalAppraisal | social/ | mood/ | Clean move |
+| DriveOrchestrator | social/drive/ | drive/ | Removed CDI constructor (blocks deps); DriveSource-based only |
+| DriveComposer | social/drive/ | drive/ | Clean move |
+| NarrativeOrchestrator | social/narrative/ | narrative/ | NarrativeStore → NarrativeMemory, KeyedLock inlined |
+| GroupNarrativeOrchestrator | social/narrative/ | narrative/ | Same rewire as above |
+| PersonalityEvolutionOrchestrator | social/ | personality/ | KeyedLock inlined |
+| RelationshipPressureSource | social/ | personality/ | Clean move |
+
+### Batch 4 — what was deferred
+
+These classes have blocking blocks dependencies and can't move until their dependencies migrate:
+
+| Class | Blocking dependency | Move when |
+|-------|-------------------|-----------|
+| GoalEmotionMoodBridge | CognitiveGoalOrchestrator | Batch 6 |
+| CuriosityDrive | MemoryHygieneOrchestrator | Batch 5/6 |
+| CompetenceDrive | StrategyLearningOrchestrator | Batch 5 |
+| AffiliationDrive | UserModelOrchestrator | Batch 5 |
+| AutonomyDrive | MentalModelOrchestrator | Batch 5 |
+| DriveAdaptationPhase | NeedSatisfactionConfig, NeedTier | Batch 6 |
+| NarrativePipeline | blocks summarisation framework | Batch 5/6 |
+| NarrativeOutputProcessor | blocks OutputProcessor SPI | Batch 5/6 |
+| NarrativeContentSummariser | StructuredAgentInvoker | Batch 5 |
+| NarrativeEmissionPolicy | blocks EmissionPolicy SPI | Batch 5/6 |
+
+### Key findings
+
+- Batch 2 duplicated types to cognition-api but did NOT remove blocks originals or add cognition-api dependency to blocks. Both copies coexist.
+- `ide_move_file` cannot cross project boundaries in a workspace. All moves done by creating files in neocortex with adjusted packages.
+- eidos-api added to neocortex parent POM dependency management.
+- rag-spring has a pre-existing drift detection failure (unrelated to #303).
 
 ## Immediate Next Step
 
-Resume executing-plans at Batch 4: move pure-computation orchestrators (Mood, Drive, Narrative, PersonalityEvolution) to the cognition module. Open IntelliJ workspace with both repos first.
+Batch 5: Move LLM-backed orchestrators (UserModelOrchestrator, MentalModelOrchestrator, StrategyLearningOrchestrator, InnerLifeOrchestrator, LlmReflectionSynthesizer). Replace StructuredAgentInvoker with AgentProvider.
 
 ## Cross-Module
 
 - blocks#303 modifies both neocortex and blocks repos. blocks is on main at 52e40944.
-- New types from #317/#318 (CognitiveProfileParticipant, DomainActivationParticipant, DomainActivationSnapshot, 3 new prompt sections) need inclusion in later migration batches.
+- Blocks code untouched — all changes so far are neocortex-side additions. Blocks cleanup deferred to Batch 7.
+- New types from #317/#318 (CognitiveProfileParticipant, DomainActivationParticipant, DomainActivationSnapshot) already partially handled (DomainActivationSnapshot is in cognition module).
 
 ## References
 
