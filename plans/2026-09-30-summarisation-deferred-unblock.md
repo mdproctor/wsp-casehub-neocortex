@@ -415,11 +415,13 @@ Refs casehubio/blocks#303"
 - Create: `summarisation/.../SummarisationRunner.java` (300 LOC)
 - Create: `summarisation/.../EventAccumulator.java` (59 LOC)
 - Create: `summarisation/.../WindowPolicyEmission.java` (27 LOC, package-private)
-- Create: `summarisation/.../KeyedAccumulator.java` (84 LOC)
-- Create: `summarisation/.../KeyedSummarisationRunner.java` (255 LOC)
-- Create: `summarisation/.../VerbatimContentSummariser.java` (30 LOC)
 - Create: `summarisation/.../DefaultSummarisationPipelineFactory.java`
 - Modify: `pom.xml` (parent — add module)
+
+Only the two engine classes (SummarisationRunner + EventStreamBus) plus
+SummarisationRunner's internal deps. EventStreamBus is already in
+summarisation-api. KeyedSummarisationRunner, KeyedAccumulator,
+VerbatimContentSummariser deferred — YAGNI until a consumer needs them.
 
 **Interfaces:**
 - Consumes: summarisation-api (Task 1)
@@ -494,9 +496,6 @@ Files to copy (change package only):
 - `SummarisationRunner.java` (300 LOC — builder + tick engine)
 - `EventAccumulator.java` (59 LOC — synchronized buffer with drain)
 - `WindowPolicyEmission.java` (27 LOC — package-private EmissionPolicy impl)
-- `KeyedAccumulator.java` (84 LOC — grouped accumulation by key)
-- `KeyedSummarisationRunner.java` (255 LOC — keyed variant + builder)
-- `VerbatimContentSummariser.java` (30 LOC — pass-through ContentSummariser)
 
 All imports reference types from `summarisation-api` — update package
 from `io.casehub.blocks.summarisation` to
@@ -560,7 +559,7 @@ Expected: BUILD SUCCESS.
 
 - [ ] **Step 6: Copy engine tests from blocks**
 
-Read all engine test files from
+Read engine test files from
 `blocks/summarisation-api/src/test/java/io/casehub/blocks/summarisation/`.
 Copy to
 `summarisation/src/test/java/io/casehub/neocortex/summarisation/`,
@@ -569,12 +568,6 @@ changing package declarations:
 - `SummarisationRunnerBuilderTest`
 - `EventAccumulatorTest`
 - `WindowPolicyEmissionTest`
-- `KeyedAccumulatorTest`
-- `KeyedSummarisationRunnerTest`
-- `KeyedSummarisationRunnerBuilderTest`
-- `KeyedSummarisationRunnerStatefulTest`
-- `examples/stateful/StatefulSummariserExampleTest`
-- `examples/keyed/KeyedGroupingExampleTest`
 
 Add a test for `DefaultSummarisationPipelineFactory`:
 
@@ -623,7 +616,7 @@ Expected: all tests pass.
 git add summarisation/ pom.xml
 git commit -m "feat(#303): create summarisation runtime module
 
-SummarisationRunner engine, EventAccumulator, KeyedSummarisationRunner,
+SummarisationRunner engine, EventAccumulator,
 DefaultSummarisationPipelineFactory. Neocortex is fully self-contained
 for cognitive summarisation — no blocks dependency at runtime.
 
