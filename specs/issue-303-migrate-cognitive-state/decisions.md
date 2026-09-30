@@ -1,38 +1,41 @@
 # Decisions — blocks#303: Migrate Cognitive State
 
-## D1: Migration scope — all cognitive code moves
+## D1: Migration scope — complete extraction, no bridge
 
-**Choice:** Move all 8 orchestrators, CognitionCore, all supporting types,
-Store SPIs, goal proposal, emergence, belief revision, and consolidation
-phases from blocks to neocortex. Prompt sections and SocialAvatarCognition
-stay in blocks as the bridge layer (they implement blocks' PromptSection
-interface and would create a circular dependency if moved).
+**Choice:** Move ALL cognitive code to neocortex — orchestrators,
+CognitionCore, prompt rendering, defaults, rendering utilities. No bridge
+layer remains in blocks. Blocks retains only: a thin AvatarCognition
+adapter (blocks' speech lifecycle → CognitionCore), and the YAML DSL
+(CognitionCompiler + spec records with import updates).
+
+**Supersedes:** Original D1 kept prompt sections and SocialAvatarCognition
+in blocks as a "bridge layer." Revised after first-principles analysis:
+neocortex is the complete single-agent cognitive stack. A cognitive LLM
+agent doesn't need blocks at all — blocks adds multi-agent orchestration.
+The "bridge" was a migration artifact, not an architectural boundary.
 
 **Alternatives:**
-- Pure-computation only (4 orchestrators) — leaves the architecture
-  half-migrated with cognitive state split across repos
-- Move orchestrators but keep CognitionCore in blocks — CognitionCore
-  would never be composed with anything else in blocks; it's a cognitive
-  tick scheduler, same pattern as ConsolidationScheduler
+- Bridge layer in blocks (original D1) — SocialAvatarCognition and prompt
+  sections stay in blocks, forwarding to neocortex. Creates permanent
+  technical debt: blocks code tightly coupled to cognitive internals,
+  forwarding calls without adding value.
+- Pure-computation only — leaves architecture half-migrated
 
-**Rationale:** Applied the test "would this be useful or ever be used
-without neocortex?" to every component. Every orchestrator, the tick
-scheduler, and the social cognition surface failed — they all depend on
-neocortex types, stores, or SPIs. The current split is a historical
-accident, not a design choice.
+**Rationale:** Applied the test: "for a single cognitive agent, does it
+need blocks?" No. All drivers, ticks, prompt rendering, state management
+are neocortex concerns. Blocks' role is multi-agent orchestration and
+declarative configuration (YAML/annotation DSL). The prompt rendering
+system is cognitive — it's how the brain presents itself to the LLM.
 
-**Trade-offs:** Larger migration scope. Blocks loses its social cognition
-package entirely, becoming a generic agent framework. This is the correct
-architecture — blocks provides lifecycle, tools, sessions, plans; neocortex
-provides all cognitive computation.
+**Trade-offs:** Larger scope than original D1 (prompt sections move too).
+Blocks' speech-api PromptSection interface stays in blocks — neocortex
+defines its own rendering, blocks adapts if needed.
 
-**Sources:** blocks#303 issue body, blocks#296 (established the pattern),
-blocks social/ package structure, neocortex CLAUDE.md module descriptions
+**Sources:** blocks#303, architectural discussion 2026-09-30
 
-**Exploration:** deep-analysis (first-principles dependency test on all 8
-orchestrators + CognitionCore + social surface)
+**Exploration:** deep-analysis
 
-**Status:** captured
+**Status:** captured (revised 2026-09-30)
 
 ## D2: No circular dependency — clean one-way flow
 
@@ -170,3 +173,114 @@ itself. Clean, simple, accurate.
 **Exploration:** quick
 
 **Status:** captured
+
+## D7: Prompt rendering is cognitive — moves to neocortex
+
+**Choice:** The composable prompt rendering system (23 prompt sections,
+AffordanceRenderer, CognitiveObservationSections, CognitiveSystemPromptRenderer)
+moves to neocortex cognition. CognitionCore.promptSections() composes them.
+The rendering system is how the cognitive engine presents itself to the LLM.
+
+**Alternatives:**
+- Keep in blocks as bridge — creates permanent coupling, prompt sections
+  are tightly bound to cognitive types they render, not to blocks
+  infrastructure
+- Replace with JSON serialization — tested and rejected; the composable
+  prose rendering was built through multiple design iterations for
+  behavioral conditioning effectiveness. JSON may work for some domains
+  (neocortex#390 will evaluate) but the existing system shouldn't be
+  discarded based on theory
+
+**Rationale:** Cohesion principle — prompt sections are coupled to the
+cognitive types they render. When a cognitive type changes, its prompt
+section changes. They belong together. The rendering format (prose vs JSON
+vs hybrid) should be pluggable per driver (neocortex#390).
+
+**Sources:** architectural discussion 2026-09-30
+
+**Exploration:** deep-analysis
+
+**Status:** captured
+
+## D8: Cognitive brief — eidos base + evolved layer
+
+**Choice:** The cognitive brief (system-prompt-level instructions on how to
+think and use cognitive capabilities) has two layers:
+1. Base layer (eidos prompt cycle) — stable identity, capabilities,
+   personality-driven reasoning style
+2. Evolved layer (cognition) — learned adaptations from experience,
+   evolved autonomously via consolidation phase (neocortex#391)
+
+CognitionCore does not need a bootstrap step — eidos handles the base
+brief. CognitionCore provides dynamic state. Both compose in the system
+prompt.
+
+**Alternatives:**
+- CognitionCore generates the brief — wrong separation; the brief is
+  identity (eidos), not runtime state (cognition)
+- Static brief — misses the opportunity for metacognitive improvement
+
+**Rationale:** CognitiveDerivationEngine already derives cognitive config
+from eidos (DescriptorView → CognitiveDefaults). The brief is the prose
+version of that derivation. Evolution is autonomous — no lifecycle hook
+needed; consolidation infrastructure handles timing.
+
+**Sources:** architectural discussion 2026-09-30, neocortex#391
+
+**Exploration:** deep-analysis
+
+**Status:** captured
+
+## D9: Cognitive lifecycle follows orchestrator pattern
+
+**Choice:** The cognitive lifecycle uses the established orchestrator
+pattern: mechanical steps execute deterministically, the LLM receives
+commands at defined points when judgment is needed.
+
+Every lifecycle phase is mechanical + LLM commands:
+- Tick: mechanical (compute state) → LLM command (appraise) → mechanical
+- Prompt rendering: mechanical (collect state) → render per config
+- Brief evolution: mechanical (collect observations) → LLM (evaluate)
+- Consolidation: mechanical (detect candidates) → LLM (summarize)
+
+**Rationale:** CognitionCore already uses this pattern (AgentProvider for
+mood appraisal, BDI extraction). Making it explicit and consistent across
+all lifecycle phases creates a uniform architecture.
+
+**Sources:** architectural discussion 2026-09-30
+
+**Exploration:** quick
+
+**Status:** captured
+
+**Depends on:** D7, D8
+
+## D10: Internal cognitive LLM calls use separate context
+
+**Choice:** Internal cognitive processing (mood appraisal, BDI extraction,
+brief evolution, consolidation summaries) uses separate LLM calls via
+AgentProvider — never the main conversation context window. Each cognitive
+command is a focused, short-lived call with minimal context scoped to that
+specific task.
+
+Could use cheaper/smaller models for mechanical cognitive tasks (mood
+classification, signal extraction) where full capability isn't needed.
+
+**Alternatives:**
+- Use the main conversation LLM — wastes the expensive conversation
+  context window on internal processing; context is precious for the
+  actual conversation
+
+**Rationale:** The main LLM context holds the brief, cognitive state,
+conversation history, and user message. Internal cognitive computation
+should not compete for this space. AgentProvider already provides the
+separation — this decision makes it an explicit architectural constraint.
+
+**Sources:** architectural discussion 2026-09-30, existing CognitionCore
+AgentProvider usage pattern
+
+**Exploration:** quick
+
+**Status:** captured
+
+**Depends on:** D9
