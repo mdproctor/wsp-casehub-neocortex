@@ -13,22 +13,24 @@ blocks to neocortex
 epic)
 
 **Goal:** Unblock the 6 deferred classes from the cognition migration by
-creating `summarisation-api` as a proper neocortex module (SPIs for the
-event summarisation framework), adding prerequisite types to
-`cognition-api` and `mindmap-api`, and moving all 6 classes to the
-`cognition` module.
+creating `summarisation` as a single neocortex module (SPIs + engine +
+CDI wiring), adding prerequisite types to `memory-api` and `mindmap-api`,
+and moving all 6 classes to the `cognition` module.
 
-**Architecture:** New `summarisation-api` module owns the event
-summarisation contracts (SPIs, records, utility types). New
-`summarisation` module provides the full runtime engine
-(`SummarisationRunner`, `EventAccumulator`, `KeyedSummarisationRunner`,
-`DefaultSummarisationPipelineFactory`). This makes neocortex fully
-self-contained — a cognitive LLM can run with only neocortex, no blocks
-on classpath. Blocks' copy coexists temporarily; Batch 7 consolidates
-blocks onto neocortex's engine. `cognition` depends on `summarisation`
-(transitive access to `summarisation-api`). `NarrativePipeline` receives
-`SummarisationPipelineFactory` via CDI — resolved by
-`DefaultSummarisationPipelineFactory` in the `summarisation` module.
+**Architecture:** New `summarisation` module owns the entire event
+summarisation framework — SPIs, records, engine, and CDI wiring — in one
+module. No api/runtime split. This makes neocortex fully self-contained:
+a cognitive LLM runs with only neocortex, no blocks on classpath. Blocks'
+copy coexists temporarily; Batch 7 consolidates blocks onto neocortex's
+module. `cognition` depends on `summarisation`. `NarrativePipeline`
+receives `SummarisationPipelineFactory` via CDI — resolved by
+`DefaultSummarisationPipelineFactory` in the same module.
+
+**Renames from blocks originals:**
+- `EventStreamBus` → `LevelEventBus`
+- `EventAccumulator` → `LevelEventAccumulator`
+- `Compactor` → `LevelEventCompactor`
+- `KeyedAccumulator` → `KeyedLevelEventAccumulator` (when brought over)
 
 **Tech Stack:** Java 21, Quarkus 3.32.2, CDI, Maven multi-module
 
@@ -50,25 +52,37 @@ blocks onto neocortex's engine. `cognition` depends on `summarisation`
 
 ---
 
-## Batch 1: summarisation-api Module + Prerequisite Types
+## Batch 1: Summarisation Module + Prerequisite Types
 
-### Task 1: Create summarisation-api module with SPIs
+### Task 1: Create summarisation module
+
+Single module containing the full framework: SPIs, records, engine, and
+`DefaultSummarisationPipelineFactory`. Everything stays together — no
+api/runtime split. Blocks and cognition both depend on this module.
 
 **Files:**
-- Create: `summarisation-api/pom.xml`
-- Create: 14 Java files in
-  `summarisation-api/src/main/java/io/casehub/neocortex/summarisation/`
+- Create: `summarisation/pom.xml`
+- Create: 17 Java files in
+  `summarisation/src/main/java/io/casehub/neocortex/summarisation/`
+- Create: `DefaultSummarisationPipelineFactory.java`
 - Modify: `pom.xml` (parent — add module)
 
 **Interfaces:**
-- Produces: 11 SPI/record types from blocks' summarisation-api
-  (package-changed to `io.casehub.neocortex.summarisation`), plus 2
-  new SPIs (`SummarisationPipeline`, `SummarisationPipelineFactory`)
-  and `EventStreamBus` as a concrete utility.
+- Produces: Full summarisation framework — SPIs (`ContentSummariser`,
+  `Summariser`, `StatefulSummariser`, `OutputProcessor`, `EmissionPolicy`,
+  `LevelEventCompactor`, `StateStore`, `Tickable`, `SummarisationPipeline`,
+  `SummarisationPipelineFactory`), records (`LevelEvent`, `EventLevel`,
+  `WindowPolicy`), engine (`SummarisationRunner`, `LevelEventAccumulator`,
+  `WindowPolicyEmission`), utility (`LevelEventBus`), and CDI wiring
+  (`DefaultSummarisationPipelineFactory`). Neocortex is fully
+  self-contained for cognitive summarisation.
 
-- [ ] **Step 1: Create summarisation-api POM**
+**Rename:** `LevelEventBus` → `LevelEventBus` (makes the LevelEvent
+coupling explicit — this is not a generic event bus).
 
-Create `summarisation-api/pom.xml`:
+- [ ] **Step 1: Create summarisation POM**
+
+Create `summarisation/pom.xml`:
 
 ```xml
 <?xml version="1.0"?>
@@ -82,13 +96,18 @@ Create `summarisation-api/pom.xml`:
     <version>0.2-SNAPSHOT</version>
   </parent>
   <artifactId>casehub-neocortex-summarisation</artifactId>
-  <name>CaseHub Neocortex - Summarisation API</name>
-  <description>Event summarisation SPIs — content summarisers, emission policies, pipeline factory. Pure Java, zero framework deps.</description>
+  <name>CaseHub Neocortex - Summarisation</name>
+  <description>Event summarisation framework — LevelEvent model, ContentSummariser/EmissionPolicy/OutputProcessor SPIs, SummarisationRunner engine, LevelEventBus, DefaultSummarisationPipelineFactory.</description>
   <dependencies>
     <dependency>
       <groupId>org.jspecify</groupId>
       <artifactId>jspecify</artifactId>
       <version>1.0.0</version>
+    </dependency>
+    <dependency>
+      <groupId>jakarta.enterprise</groupId>
+      <artifactId>jakarta.enterprise.cdi-api</artifactId>
+      <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>org.junit.jupiter</groupId>
@@ -106,20 +125,21 @@ Create `summarisation-api/pom.xml`:
 
 - [ ] **Step 2: Add module to parent POM**
 
-In `pom.xml` (neocortex root), add `<module>summarisation-api</module>`
-before `cognition-api` (line 76):
+In `pom.xml` (neocortex root), add before `cognition-api` (line 76):
 
 ```xml
-    <module>summarisation-api</module>
+    <module>summarisation</module>
     <module>cognition-api</module>
 ```
 
-- [ ] **Step 3: Create SPI files**
+- [ ] **Step 3: Create all files**
 
 Create all files in
-`summarisation-api/src/main/java/io/casehub/neocortex/summarisation/`.
+`summarisation/src/main/java/io/casehub/neocortex/summarisation/`.
 Source from blocks' `summarisation-api` — change package to
 `io.casehub.neocortex.summarisation`.
+
+**SPIs and records** (copy with package change):
 
 **LevelEvent.java:**
 ```java
@@ -249,14 +269,14 @@ public interface EmissionPolicy<IN, S> {
 }
 ```
 
-**Compactor.java:**
+**LevelEventCompactor.java:**
 ```java
 package io.casehub.neocortex.summarisation;
 
 import java.util.List;
 
 @FunctionalInterface
-public interface Compactor<E> {
+public interface LevelEventCompactor<E> {
     List<LevelEvent<E>> compact(List<LevelEvent<E>> events);
 }
 ```
@@ -317,8 +337,7 @@ public record WindowPolicy(long maxAge, int maxCount) {
 
 - [ ] **Step 4: Create new SPIs**
 
-**SummarisationPipeline.java** — SPI that NarrativePipeline codes
-against. Blocks' `SummarisationRunner` implements this:
+**SummarisationPipeline.java:**
 
 ```java
 package io.casehub.neocortex.summarisation;
@@ -328,8 +347,7 @@ public interface SummarisationPipeline<IN> extends Tickable {
 }
 ```
 
-**SummarisationPipelineFactory.java** — factory for building pipelines
-from component SPIs. Blocks provides the implementation:
+**SummarisationPipelineFactory.java:**
 
 ```java
 package io.casehub.neocortex.summarisation;
@@ -348,160 +366,31 @@ public interface SummarisationPipelineFactory {
 }
 ```
 
-- [ ] **Step 5: Create EventStreamBus**
+- [ ] **Step 5: Create LevelEventBus**
 
 Read blocks'
-`summarisation-api/src/main/java/io/casehub/blocks/summarisation/EventStreamBus.java`.
-Create in neocortex with package change. This is a concrete utility
-class (predicate-based CopyOnWriteArrayList pub/sub, 47 LOC) — it
-belongs in summarisation-api because it's a general-purpose event bus
-with no engine-specific logic.
+`summarisation-api/src/main/java/io/casehub/blocks/summarisation/LevelEventBus.java`
+(47 LOC). Create as `LevelEventBus.java` in neocortex — rename class
+from `LevelEventBus` to `LevelEventBus`, change package. The class is
+a CopyOnWriteArrayList-based pub/sub typed to `LevelEvent<E>`.
 
-```java
-package io.casehub.neocortex.summarisation;
-
-// Copy full source from blocks, changing only the package declaration.
-// The class uses CopyOnWriteArrayList, Predicate, Consumer — all java.util.
-```
-
-- [ ] **Step 6: Build summarisation-api**
-
-```bash
-JAVA_HOME=$(/usr/libexec/java_home -v 26) mvn clean install -pl summarisation-api -DskipTests
-```
-
-Expected: BUILD SUCCESS.
-
-- [ ] **Step 7: Copy tests from blocks**
-
-Read all test files from
-`blocks/summarisation-api/src/test/java/io/casehub/blocks/summarisation/`.
-Copy to
-`summarisation-api/src/test/java/io/casehub/neocortex/summarisation/`,
-changing package declarations. 18 test files, 132 tests.
-
-Bring tests for SPIs + records + EventStreamBus only:
-`LevelEventTest`, `ContentSummariserTest`, `SummariserTest`,
-`StatefulSummariserTest`, `EventStreamBusTest`, `EmissionPolicyTest`,
-`WindowPolicyTest`, `VerbatimContentSummariserTest`.
-
-Engine tests move in Task 1b.
-
-- [ ] **Step 8: Run tests**
-
-```bash
-JAVA_HOME=$(/usr/libexec/java_home -v 26) mvn test -pl summarisation-api
-```
-
-Expected: all tests pass.
-
-- [ ] **Step 9: Commit**
-
-```bash
-git add summarisation-api/ pom.xml
-git commit -m "feat(#303): create summarisation-api module
-
-Event summarisation SPIs — ContentSummariser, Summariser, EmissionPolicy,
-OutputProcessor, SummarisationPipeline, SummarisationPipelineFactory,
-EventStreamBus utility. Pure Java, zero framework deps.
-
-Refs casehubio/blocks#303"
-```
-
-### Task 1b: Create summarisation runtime module
-
-**Files:**
-- Create: `summarisation/pom.xml`
-- Create: `summarisation/.../SummarisationRunner.java` (300 LOC)
-- Create: `summarisation/.../EventAccumulator.java` (59 LOC)
-- Create: `summarisation/.../WindowPolicyEmission.java` (27 LOC, package-private)
-- Create: `summarisation/.../DefaultSummarisationPipelineFactory.java`
-- Modify: `pom.xml` (parent — add module)
-
-Only the two engine classes (SummarisationRunner + EventStreamBus) plus
-SummarisationRunner's internal deps. EventStreamBus is already in
-summarisation-api. KeyedSummarisationRunner, KeyedAccumulator,
-VerbatimContentSummariser deferred — YAGNI until a consumer needs them.
-
-**Interfaces:**
-- Consumes: summarisation-api (Task 1)
-- Produces: Full summarisation engine + `DefaultSummarisationPipelineFactory`
-  (`@DefaultBean` — provides real pipeline wiring to any consumer
-  without explicit engine configuration). Neocortex is fully
-  self-contained for cognitive summarisation.
-
-- [ ] **Step 1: Create summarisation POM**
-
-Create `summarisation/pom.xml`:
-
-```xml
-<?xml version="1.0"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
-  <modelVersion>4.0.0</modelVersion>
-  <parent>
-    <groupId>io.casehub</groupId>
-    <artifactId>casehub-neocortex-parent</artifactId>
-    <version>0.2-SNAPSHOT</version>
-  </parent>
-  <artifactId>casehub-neocortex-summarisation</artifactId>
-  <name>CaseHub Neocortex - Summarisation</name>
-  <description>Event summarisation runtime — SummarisationRunner engine, event accumulation, keyed grouping, DefaultSummarisationPipelineFactory.</description>
-  <dependencies>
-    <dependency>
-      <groupId>io.casehub</groupId>
-      <artifactId>casehub-neocortex-summarisation</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.jspecify</groupId>
-      <artifactId>jspecify</artifactId>
-      <version>1.0.0</version>
-    </dependency>
-    <dependency>
-      <groupId>jakarta.enterprise</groupId>
-      <artifactId>jakarta.enterprise.cdi-api</artifactId>
-      <scope>provided</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.junit.jupiter</groupId>
-      <artifactId>junit-jupiter</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.assertj</groupId>
-      <artifactId>assertj-core</artifactId>
-      <scope>test</scope>
-    </dependency>
-  </dependencies>
-</project>
-```
-
-- [ ] **Step 2: Add module to parent POM**
-
-In `pom.xml` (neocortex root), add after `summarisation-api`:
-
-```xml
-    <module>summarisation</module>
-```
-
-- [ ] **Step 3: Copy engine classes from blocks**
+- [ ] **Step 6: Copy engine classes from blocks**
 
 Read each file from
 `blocks/summarisation-api/src/main/java/io/casehub/blocks/summarisation/`.
 Create in `summarisation/src/main/java/io/casehub/neocortex/summarisation/`
-with package change.
+with package change:
 
-Files to copy (change package only):
 - `SummarisationRunner.java` (300 LOC — builder + tick engine)
-- `EventAccumulator.java` (59 LOC — synchronized buffer with drain)
+- `LevelEventAccumulator.java` (59 LOC — synchronized buffer with drain)
 - `WindowPolicyEmission.java` (27 LOC — package-private EmissionPolicy impl)
 
-All imports reference types from `summarisation-api` — update package
-from `io.casehub.blocks.summarisation` to
-`io.casehub.neocortex.summarisation`.
+`SummarisationRunner` must implement `SummarisationPipeline<IN>`. Verify
+the builder API when reading blocks' source. If it doesn't already
+implement these interfaces, add `implements SummarisationPipeline<IN>`
+and wire the existing `tick()` and event acceptance methods.
 
-- [ ] **Step 4: Create DefaultSummarisationPipelineFactory**
+- [ ] **Step 7: Create DefaultSummarisationPipelineFactory**
 
 Create `summarisation/src/main/java/io/casehub/neocortex/summarisation/DefaultSummarisationPipelineFactory.java`:
 
@@ -543,31 +432,21 @@ public class DefaultSummarisationPipelineFactory implements SummarisationPipelin
 }
 ```
 
-Note: `SummarisationRunner` must implement `SummarisationPipeline<IN>`
-(extends `Tickable` + `accept(LevelEvent<IN>)`). Verify the builder API
-matches when reading blocks' source. If `SummarisationRunner` doesn't
-already implement these interfaces, add them — the class already has
-`tick()` and an event acceptance method.
-
-- [ ] **Step 5: Build summarisation module**
+- [ ] **Step 8: Build**
 
 ```bash
-JAVA_HOME=$(/usr/libexec/java_home -v 26) mvn clean install -pl summarisation-api,summarisation -DskipTests
+JAVA_HOME=$(/usr/libexec/java_home -v 26) mvn clean install -pl summarisation -DskipTests
 ```
 
 Expected: BUILD SUCCESS.
 
-- [ ] **Step 6: Copy engine tests from blocks**
+- [ ] **Step 9: Copy all tests from blocks**
 
-Read engine test files from
+Read all test files from
 `blocks/summarisation-api/src/test/java/io/casehub/blocks/summarisation/`.
-Copy to
-`summarisation/src/test/java/io/casehub/neocortex/summarisation/`,
-changing package declarations:
-- `SummarisationRunnerTest`
-- `SummarisationRunnerBuilderTest`
-- `EventAccumulatorTest`
-- `WindowPolicyEmissionTest`
+Copy to `summarisation/src/test/java/io/casehub/neocortex/summarisation/`,
+changing package declarations and renaming `LevelEventBusTest` →
+`LevelEventBusTest`. All 18 test files, 132 tests.
 
 Add a test for `DefaultSummarisationPipelineFactory`:
 
@@ -575,7 +454,6 @@ Add a test for `DefaultSummarisationPipelineFactory`:
 package io.casehub.neocortex.summarisation;
 
 import org.junit.jupiter.api.Test;
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -602,21 +480,21 @@ class DefaultSummarisationPipelineFactoryTest {
 }
 ```
 
-- [ ] **Step 7: Run tests**
+- [ ] **Step 10: Run tests**
 
 ```bash
-JAVA_HOME=$(/usr/libexec/java_home -v 26) mvn test -pl summarisation-api,summarisation
+JAVA_HOME=$(/usr/libexec/java_home -v 26) mvn test -pl summarisation
 ```
 
 Expected: all tests pass.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 11: Commit**
 
 ```bash
 git add summarisation/ pom.xml
 git commit -m "feat(#303): create summarisation runtime module
 
-SummarisationRunner engine, EventAccumulator,
+SummarisationRunner engine, LevelEventAccumulator,
 DefaultSummarisationPipelineFactory. Neocortex is fully self-contained
 for cognitive summarisation — no blocks dependency at runtime.
 
@@ -635,7 +513,7 @@ Refs casehubio/blocks#303"
 - Modify: `cognition/pom.xml` (add summarisation dependency)
 
 **Interfaces:**
-- Consumes: summarisation-api + summarisation (Tasks 1 + 1b)
+- Consumes: summarisation (Task 1)
 - Produces: Types needed by the 6 deferred classes
 
 Note: ReflectionEntry, ReflectionQueryStore, and KnowledgeGapSummary go
@@ -741,7 +619,7 @@ Add to `cognition/pom.xml`, after `cognition-api`:
 ```
 
 This gives cognition the full engine (transitive access to
-summarisation-api). `DefaultSummarisationPipelineFactory` is discovered
+summarisation). `DefaultSummarisationPipelineFactory` is discovered
 by CDI — NarrativePipeline gets a real pipeline, not a no-op.
 
 - [ ] **Step 8: Build to verify**
@@ -775,7 +653,7 @@ Expected: all pass.
 git add cognition-api/ mindmap-api/ mindmap-intelligence/ cognition/pom.xml
 git commit -m "feat(#303): add prerequisite types for deferred class migration
 
-KnowledgeGapSummary, ReflectionEntry, ReflectionQueryStore in cognition-api.
+KnowledgeGapSummary, ReflectionEntry, ReflectionQueryStore in memory-api.
 ConsolidationArtifact in mindmap-api. MemoryHygieneOrchestrator extended
 with knowledgeGaps(). ConsolidationCompleted carries artifacts.
 
@@ -796,7 +674,7 @@ Refs casehubio/blocks#303"
 
 **Interfaces:**
 - Consumes: `MemoryHygieneOrchestrator.knowledgeGaps()`,
-  `KnowledgeGapSummary` (cognition-api, Task 2),
+  `KnowledgeGapSummary` (memory-api, Task 2),
   `ConsolidationArtifact` (mindmap-api, Task 2),
   `ConsolidationCompleted` (mindmap-intelligence, Task 2)
 - Produces: `CuriosityDrive` (`DriveSource` impl),
@@ -809,7 +687,7 @@ Read blocks' test:
 
 Create `cognition/src/test/java/io/casehub/neocortex/cognition/drive/CuriosityDriveTest.java`.
 Adapt: change package, update imports to neocortex types
-(`KnowledgeGapSummary`, `MemoryHygieneOrchestrator` from cognition-api,
+(`KnowledgeGapSummary` from memory-api, `MemoryHygieneOrchestrator` from cognition-api,
 `DriveSource`/`DriveIntensity` from cognition-api drive package).
 
 - [ ] **Step 2: Run test — verify failure**
@@ -897,7 +775,7 @@ Refs casehubio/blocks#303"
 - Create: `cognition/.../cognition/innerlife/InnerLifeOrchestratorTest.java`
 
 **Interfaces:**
-- Consumes: `LevelEvent` (summarisation-api),
+- Consumes: `LevelEvent` (summarisation),
   `AgentProvider` (platform-agent-api), `InnerLifeConfig`,
   `MotivationAssessment`, `ContentQualityGate`, `CivilityConstraint`
   (all cognition-api), `CaseMemoryStore` (memory-api),
@@ -1001,9 +879,9 @@ Refs casehubio/blocks#303"
 
 **Interfaces:**
 - Consumes: `ContentSummariser`, `OutputProcessor`, `EmissionPolicy`,
-  `StateStore`, `EventStreamBus`, `SummarisationPipelineFactory`,
-  `LevelEvent`, `EventLevel` (all from summarisation-api);
-  `ReflectionEntry`, `ReflectionQueryStore` (cognition-api);
+  `StateStore`, `LevelEventBus`, `SummarisationPipelineFactory`,
+  `LevelEvent`, `EventLevel` (all from summarisation);
+  `ReflectionEntry`, `ReflectionQueryStore` (memory-api);
   `NarrativeMemory`, `NarrativeState`, `NarrativeConfig`,
   `NarrativeStateSchema`, `TokenJaccardDistance` (cognition);
   `AgentProvider` (platform-agent-api)
@@ -1016,7 +894,7 @@ Read blocks' test:
 (5 tests, 97 LOC).
 
 Create `cognition/src/test/java/io/casehub/neocortex/cognition/narrative/NarrativeOutputProcessorTest.java`.
-Adapt: package change, `OutputProcessor` import from summarisation-api.
+Adapt: package change, `OutputProcessor` import from summarisation.
 
 - [ ] **Step 2: Create NarrativeOutputProcessor**
 
@@ -1045,9 +923,9 @@ Read blocks' test:
 Create `cognition/src/test/java/io/casehub/neocortex/cognition/narrative/NarrativeContentSummariserTest.java`.
 Adapt:
 - Package change
-- `ContentSummariser` import from summarisation-api
+- `ContentSummariser` import from summarisation
 - `StructuredAgentInvoker` → `AgentProvider` mock/stub
-- `ReflectionEntry` import from cognition-api
+- `ReflectionEntry` import from memory-api
 
 - [ ] **Step 5: Create NarrativeContentSummariser**
 
@@ -1080,7 +958,7 @@ Create `cognition/src/main/java/io/casehub/neocortex/cognition/narrative/Narrati
 
 Changes:
 - Package: `io.casehub.neocortex.cognition.narrative`
-- `EmissionPolicy`, `LevelEvent` imports from summarisation-api
+- `EmissionPolicy`, `LevelEvent` imports from summarisation
 - `TokenJaccardDistance` → already in cognition (migrated Batch 5)
 - `NarrativeSynthesisGate`, `IndividualEpisode`, `NarrativeState` →
   already in cognition-api/cognition
@@ -1093,15 +971,15 @@ Create `cognition/src/main/java/io/casehub/neocortex/cognition/narrative/Reflect
 
 Changes:
 - Package: `io.casehub.neocortex.cognition.narrative`
-- `EventStreamBus`, `LevelEvent`, `EventLevel` imports from
-  summarisation-api
-- `ReflectionEntry`, `ReflectionQueryStore` imports from cognition-api
+- `LevelEventBus`, `LevelEvent`, `EventLevel` imports from
+  summarisation module
+- `ReflectionEntry`, `ReflectionQueryStore` imports from memory-api
 
 - [ ] **Step 9: Create NarrativeStateStore**
 
 This replaces the old `CbrStateStore` → `CbrNarrativeStore` →
 `NarrativeStore` chain. It wraps `NarrativeMemory` (already exists)
-and implements `StateStore<NarrativeState>` from summarisation-api.
+and implements `StateStore<NarrativeState>` from summarisation.
 
 Create `cognition/src/main/java/io/casehub/neocortex/cognition/narrative/NarrativeStateStore.java`:
 
@@ -1145,10 +1023,10 @@ Read blocks' test:
 Create `cognition/src/test/java/io/casehub/neocortex/cognition/narrative/NarrativePipelineTest.java`.
 Adapt:
 - Package change
-- Summarisation imports from summarisation-api
+- Summarisation imports from summarisation
 - Mock `SummarisationPipelineFactory` — return a test pipeline
   that captures accepted events and produces canned output on tick
-- `ReflectionEntry` from cognition-api
+- `ReflectionEntry` from memory-api
 - `NarrativeMemory`, `NarrativeState` etc from cognition
 
 - [ ] **Step 11: Create NarrativePipeline**
@@ -1158,7 +1036,7 @@ Read blocks'
 Create `cognition/src/main/java/io/casehub/neocortex/cognition/narrative/NarrativePipeline.java`.
 
 This is a rewrite, not a straight copy. The original wires
-`EventStreamBus` + `SummarisationRunner`. The new version uses
+`LevelEventBus` + `SummarisationRunner`. The new version uses
 `SummarisationPipelineFactory` SPI:
 
 ```java
@@ -1171,7 +1049,7 @@ import jakarta.enterprise.inject.Instance;
 @ApplicationScoped
 public class NarrativePipeline implements Tickable {
 
-    private final EventStreamBus<ReflectionEntry> reflectionBus;
+    private final LevelEventBus<ReflectionEntry> reflectionBus;
     private final SummarisationPipeline<ReflectionEntry> pipeline;
 
     NarrativePipeline(
@@ -1182,7 +1060,7 @@ public class NarrativePipeline implements Tickable {
             NarrativeMemory narrativeMemory,
             NarrativeConfig config) {
 
-        this.reflectionBus = new EventStreamBus<>();
+        this.reflectionBus = new LevelEventBus<>();
 
         if (factoryInstance.isResolvable()) {
             var stateStore = new NarrativeStateStore(narrativeMemory, config.tenantId());
@@ -1262,10 +1140,11 @@ After all batches complete:
 
 1. Update `HANDOFF.md` — move all 6 deferred items from "Deferred" to
    completed batches
-2. Update neocortex `CLAUDE.md` — add `summarisation-api` module
+2. Update neocortex `CLAUDE.md` — add `summarisation` module
    description and Maven coordinates
-3. Note in HANDOFF: blocks' `summarisation-api` engine needs to
-   implement `SummarisationPipelineFactory` SPI (Batch 7 bridge work)
+3. Note in HANDOFF: blocks needs to migrate imports from
+   `io.casehub.blocks.summarisation` to
+   `io.casehub.neocortex.summarisation` (Batch 7 bridge work)
 
 ---
 
@@ -1273,7 +1152,7 @@ After all batches complete:
 
 - [2026-09-29-cognition-migration.md] — parent migration plan
 - [2026-09-29-cognition-migration-design.md] — design spec
-- blocks `summarisation-api/` — source for SPI types
+- blocks `summarisation-api/` — source for summarisation framework types
 - blocks `blocks-core/.../agentic/social/` — source for deferred classes
 - slot 196 branch `issue-312-consolidation-artifacts` — ConsolidationArtifact source
 - casehubio/blocks#303 — focal issue
