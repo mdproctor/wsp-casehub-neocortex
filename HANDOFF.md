@@ -51,21 +51,21 @@ Design session for blocks#303 Batch 7. No implementation — pure architectural 
 | 6d: Summarisation module | Done | Full summarisation framework |
 | 6e: Prerequisite types | Done | KnowledgeGapSummary, ReflectionEntry, ReflectionQueryStore, ConsolidationArtifact |
 | 6f: Deferred classes | Done | CuriosityDrive, ConsolidationMediator, InnerLifeOrchestrator, NarrativePipeline + related |
-| 7: Complete Extraction | Not started | Revised plan ready |
+| 7: Complete Extraction | In progress | Task 12 done |
 
 ### Deferred items
 
 | Item | Reason |
 |------|--------|
-| CognitionCore.promptSections() | Now in scope for Batch 7 Task 12 (was deferred as "bridge layer") |
+| CognitionCore.promptSections() | Done — wired in Task 12 |
 | KeyedSummarisationRunner | YAGNI — bring when blocks migrates to neocortex summarisation |
 | KeyedLevelEventAccumulator | YAGNI — same as above |
 
 ## Immediate Next Step
 
-**Batch 7 execution — 4 tasks:**
+**Batch 7 execution — Task 12 done, 3 remaining:**
 
-1. **Task 12: Move prompt rendering to neocortex** — Define CognitionPromptRenderer interface in cognition-api. Move 23 prompt sections + AffordanceRenderer + CognitiveObservationSections + CognitiveSystemPromptRenderer. Wire CognitionCore.promptSections().
+1. ~~**Task 12: Move prompt rendering to neocortex**~~ — Done. CognitionPromptRenderer interface in cognition-api. 21 prompt sections + 8 observation rendering types + CognitiveSystemPromptRenderer + ProactiveSpeechSupport + DirectiveSection in cognition module. CognitionCore.promptSections() wired with section customizer and attention relevance overrides. Also added lastFocus()/lastReflections() to TemporalFocusOrchestrator/ReflectionRetrievalOrchestrator SPIs, added cognitive-index dependency to cognition-api.
 
 2. **Task 13: Move defaults** — Recreate SocialCognitionDefaultBeans' 13 @DefaultBean configs in neocortex cognition module.
 
