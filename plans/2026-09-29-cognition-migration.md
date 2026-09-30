@@ -778,28 +778,113 @@ Refs casehubio/blocks#303"
 
 ---
 
-## Batch 7: Blocks Bridge Update + Cleanup
+## Batch 7: Complete Extraction + Blocks Cleanup
 
-### Task 12: Update blocks bridge layer and delete migrated code
+> **Revised 2026-09-30.** Original plan kept a bridge layer in blocks
+> (SocialAvatarCognition, prompt sections). Revised after architectural
+> analysis: neocortex is the complete single-agent cognitive stack. No
+> bridge. See decisions D1 (revised), D7–D10.
+
+### Task 12: Move prompt rendering to neocortex cognition
+
+Move the composable prompt rendering system from blocks to neocortex.
+This is cognitive code — how the brain presents itself to the LLM.
 
 **Files:**
-- Modify: `SocialAvatarCognition` — update all injections to point at
-  neocortex cognition types
-- Modify: 16 prompt sections — update imports to neocortex cognition types
-- Modify: `CognitiveSystemPromptRenderer`, `SocialPromptAssembler`
-- Modify: `SocialCognitionDefaultBeans`
-- Delete: All remaining social/ types that were migrated (use
-  `ide_refactor_safe_delete`)
-- Modify: blocks POM — add `cognition` dependency, remove
-  `cognition-api` (transitively included)
+- Move: 23 prompt section classes from blocks `social/prompt/` →
+  `cognition/.../cognition/prompt/`
+- Move: `AffordanceRenderer`, `CognitiveObservationSections` →
+  `cognition/.../cognition/prompt/`
+- Move: `CognitiveSystemPromptRenderer` → `cognition/.../cognition/prompt/`
+- Create: neocortex prompt section interface in `cognition-api`
+  (replaces dependency on blocks' speech-api PromptSection)
+- Wire: `CognitionCore.promptSections()` to compose rendered output
 
-**Interfaces:**
-- Consumes: All cognition module beans
-- Produces: Blocks bridge layer pointing at neocortex
+**Design notes:**
+- Each driver's prompt section should be pluggable (prose/JSON/hybrid)
+  to support neocortex#390 evaluation
+- Rendering format is a per-driver strategy, not hardcoded
+- The interface blocks' PromptSection used: `@Nullable String
+  contribute(PromptContext)` where PromptContext is `(agentId,
+  tenantId, subjectId)`. The neocortex equivalent should carry the
+  same context without depending on speech-api.
 
-- [ ] **Step 1: Add cognition dependency to blocks**
+- [ ] **Step 1: Define cognition prompt rendering interface**
 
-Replace the temporary `cognition-api` dependency with `cognition`:
+Create in `cognition-api`:
+```java
+@FunctionalInterface
+public interface CognitionPromptRenderer {
+    @Nullable String render(CognitionRenderContext context);
+}
+```
+
+And `CognitionRenderContext` record with `(String agentId, String
+tenantId, @Nullable String subjectId)`.
+
+- [ ] **Step 2: Move prompt sections**
+
+Move each prompt section class to `cognition/.../cognition/prompt/`.
+Update to implement `CognitionPromptRenderer` instead of blocks'
+`PromptSection`. Adapt import changes for cognitive types already
+in neocortex.
+
+- [ ] **Step 3: Move rendering utilities**
+
+Move `AffordanceRenderer` and `CognitiveObservationSections` to
+`cognition/.../cognition/prompt/`. These are pure Java rendering
+utilities coupled to cognitive types.
+
+- [ ] **Step 4: Wire CognitionCore.promptSections()**
+
+Add `promptSections()` method to CognitionCore. Discovers all
+`CognitionPromptRenderer` instances, composes output. Populates
+`CognitionMetrics.promptSectionsContributed` and
+`promptSectionContent` (fields already exist).
+
+- [ ] **Step 5: Move CognitiveSystemPromptRenderer**
+
+Implements eidos `SystemPromptRenderer`. Depends on eidos types and
+`CognitionConfig` — no blocks dependency. Move to cognition module.
+
+- [ ] **Step 6: Build and test neocortex**
+
+```bash
+JAVA_HOME=$(/usr/libexec/java_home -v 26) mvn clean install
+```
+
+### Task 13: Move defaults to neocortex
+
+**Files:**
+- Create: `@DefaultBean` producers in cognition module for all 13
+  orchestrator configs (from `SocialCognitionDefaultBeans`)
+- Create: `@DefaultBean` for `SubjectResolver`, `InteractionMapper`,
+  `NormFilter` implementations
+- Delete: `SocialCognitionDefaultBeans` from blocks
+
+- [ ] **Step 1: Read SocialCognitionDefaultBeans**
+
+Understand all 14 `@DefaultBean` producers. Recreate in
+`cognition/.../cognition/CognitionDefaultBeans.java`.
+
+- [ ] **Step 2: Build and test**
+
+### Task 14: Blocks cleanup — delete migrated code
+
+**Files:**
+- Delete: All 169 non-prompt production files in `agentic/social/`
+  (already duplicated in neocortex)
+- Delete: All 113 test files for migrated code
+- Delete: `SocialAvatarCognition` (replaced by blocks using
+  CognitionCore directly)
+- Delete: `SocialPromptAssembler` (CognitionCore owns composition)
+- Delete: `SocialCognitionDefaultBeans` (moved to neocortex)
+- Delete: 23 prompt section originals (moved to neocortex)
+- Check: `StructuredAgentInvoker`, `KeyedLock` — safe delete if unused
+- Modify: blocks POM — add `cognition` dependency
+
+- [ ] **Step 1: Add cognition dependency to blocks POM**
+
 ```xml
 <dependency>
   <groupId>io.casehub</groupId>
@@ -807,29 +892,28 @@ Replace the temporary `cognition-api` dependency with `cognition`:
 </dependency>
 ```
 
-- [ ] **Step 2: Update SocialAvatarCognition**
+- [ ] **Step 2: Create thin AvatarCognition adapter**
 
-Read `SocialAvatarCognition` — update all `@Inject` fields and
-constructor parameters to use neocortex cognition types. IntelliJ should
-have already updated most imports during the moves.
+Blocks' speech-ws uses `AvatarCognition` SPI. Create a thin adapter
+that delegates to CognitionCore — blocks' integration point.
+Not a shim: it maps blocks' speech lifecycle (when to tick, when to
+evaluate proactive) to CognitionCore calls.
 
-- [ ] **Step 3: Update prompt sections**
+- [ ] **Step 3: Update CognitionCompiler imports**
 
-For each of the 16 prompt section classes: verify imports point at
-neocortex cognition types. Fix any that still reference old blocks
-packages.
+YAML DSL's CognitionCompiler + spec records produce config types now
+in cognition-api. Update imports. The compiler logic is unchanged.
 
-- [ ] **Step 4: Delete migrated blocks packages**
+- [ ] **Step 4: Delete all migrated blocks code**
 
-Use `ide_refactor_safe_delete` on the `agentic/social/` package
-directories that are now empty (all code moved to neocortex).
+Use `ide_refactor_safe_delete` on `agentic/social/` packages.
+Delete `SocialAvatarCognition`, `SocialPromptAssembler`,
+`SocialCognitionDefaultBeans`.
 
-- [ ] **Step 5: Delete shared utilities if unused**
+- [ ] **Step 5: Delete unused utilities**
 
-Check `StructuredAgentInvoker` — if no remaining blocks code uses it,
-`ide_refactor_safe_delete`. Same for `KeyedLock`.
-
-Check `ContentSummariser` — if only used by now-migrated code, delete.
+`StructuredAgentInvoker`, `KeyedLock` — safe delete if no remaining
+blocks consumers.
 
 - [ ] **Step 6: Build full test suites**
 
@@ -843,36 +927,42 @@ JAVA_HOME=$(/usr/libexec/java_home -v 26) mvn clean install
 
 Both repos: full build with tests.
 
-- [ ] **Step 7: Update consumer examples**
+### Task 15: Update documentation
 
-Update casehub/examples (wackymanor) imports from blocks social types
-to neocortex cognition types. Add cognition module dependency.
+- [ ] **Step 1: Update neocortex CLAUDE.md**
 
-- [ ] **Step 8: Update documentation**
+Add cognition and cognition-api module descriptions. Add prompt
+rendering to cognition module description. Update module table.
 
-Update blocks CLAUDE.md — remove social cognition module descriptions.
-Update neocortex CLAUDE.md — add cognition and cognition-api module
-descriptions following existing format.
+- [ ] **Step 2: Update blocks CLAUDE.md**
 
-- [ ] **Step 9: Final commit**
+Remove social cognition module descriptions. Note that cognitive
+capabilities are provided by neocortex cognition module.
+
+- [ ] **Step 3: Update consumer examples**
+
+Update casehub/examples (wackymanor) imports from blocks social
+types to neocortex cognition types.
+
+- [ ] **Step 4: Final commits**
 
 In neocortex:
 ```bash
-git commit -m "feat(#303): complete cognition migration — all social cognition in neocortex
+git commit -m "feat(#303): complete cognition migration — full extraction to neocortex
 
-8 orchestrators, CognitionCore, goal proposal, emergence, consolidation
-phases, store consolidation. ~213 files, ~13K LOC migrated.
+All cognitive code including prompt rendering, defaults, and composition.
+Neocortex is the complete single-agent cognitive stack. No bridge layer.
 
 Closes casehubio/blocks#303"
 ```
 
 In blocks:
 ```bash
-git commit -m "refactor(#303): blocks retains bridge layer only
+git commit -m "refactor(#303): remove all cognitive code from blocks
 
-SocialAvatarCognition and prompt sections bridge neocortex cognition
-to blocks conversation surface. All cognitive computation moved to
-neocortex.
+Cognitive capabilities provided by neocortex cognition module.
+Blocks retains: AvatarCognition adapter (speech lifecycle), YAML DSL
+(CognitionCompiler config parsing).
 
 Refs casehubio/blocks#303"
 ```
@@ -882,11 +972,13 @@ Refs casehubio/blocks#303"
 ## References
 
 - [2026-09-29-cognition-migration-design.md] — design spec this plan implements
-- [decisions.md] — 6 captured design decisions
+- [decisions.md] — 10 captured design decisions (D1–D10)
 - casehubio/blocks#303 — focal issue
 - casehubio/blocks#298 — parent epic
 - casehubio/blocks#296 — established the migration pattern (OCC emotions)
-- casehubio/blocks#317 — prerequisite (must land before execution)
+- casehubio/blocks#317 — prerequisite (landed)
+- neocortex#390 — prompt format evaluation (prose vs JSON vs hybrid)
+- neocortex#391 — adaptive cognitive brief (metacognitive feedback loop)
 - neocortex CLAUDE.md — module structure and naming conventions
 - blocks `agentic/social/` package — source code being migrated
 - rag-query-augmentation — AgentProvider usage precedent in neocortex
