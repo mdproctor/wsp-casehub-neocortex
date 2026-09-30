@@ -2,38 +2,23 @@
 
 ## Last Session
 
-Design session for blocks#303 Batch 7. No implementation — pure architectural analysis and planning. Revised Batch 7 from "bridge update" to "complete extraction, no bridge." Created 3 new issues, transferred 4 issues from blocks to neocortex, closed blocks#311 epic.
+Batch 7 implementation — completed Tasks 12 and 13 of the cognition migration.
 
-### Key architectural decisions (D7–D10)
+### Task 12: Move prompt rendering to neocortex (Done)
 
-1. **D7: Prompt rendering is cognitive** — the 23 prompt sections, AffordanceRenderer, CognitiveObservationSections move to neocortex cognition. CognitionCore.promptSections() composes them. No bridge layer in blocks.
+Created the complete prompt rendering system in neocortex cognition:
 
-2. **D8: Cognitive brief = eidos base + evolved layer** — eidos prompt cycle generates the base brief (identity, capabilities, reasoning style). Cognition evolves it through experience (metacognitive feedback loop, neocortex#391).
+- **cognition-api**: `CognitionPromptRenderer` (`@FunctionalInterface`, `@Nullable String render(CognitionRenderContext)`) and `CognitionRenderContext` record
+- **cognition/prompt/**: 21 prompt sections migrated from blocks (MoodPromptSection, DrivePromptSection, NarrativePromptSection, AttentionPromptSection, EntityKnowledgePromptSection, StrategyPromptSection, UserModelPromptSection, MentalModelPromptSection, CharacterDrivePromptSection, NeedsPyramidPromptSection, ConsolidationPromptSection, TemporalFocusPromptSection, ReflectionPromptSection, SocialComparisonPromptSection, DomainActivationPromptSection, EmergentGoalPromptSection, ConstraintPromptSection, DirectiveSection, CognitivePreambleGenerator, CognitiveSystemPromptRenderer, ProactiveSpeechSupport)
+- **cognition/prompt/observation/**: 8 rendering types (ObservationSection sealed hierarchy, AffordanceRenderer, CognitiveObservationSections with motivationalStateSection + narrativeSection)
+- **CognitionCore**: wired `promptSections()` with section customizer, attention relevance overrides, consolidation artifact draining. Added `innerLife` and `consolidationMediator` fields
+- **SPI additions**: `TemporalFocusOrchestrator.lastFocus()` and `ReflectionRetrievalOrchestrator.lastReflections()`. Added cognitive-index dependency to cognition-api POM
 
-3. **D9: Lifecycle follows orchestrator pattern** — mechanical steps + LLM commands at defined points. Every lifecycle phase (tick, rendering, brief evolution, consolidation) follows this pattern.
+32 files changed, 1753 LOC added. 191 tests pass.
 
-4. **D10: Internal cognitive LLM calls use separate context** — mood appraisal, BDI extraction, brief evolution use separate LLM calls via AgentProvider. Never the main conversation context window. Uses existing platform request routing.
+### Task 13: Move defaults (Done)
 
-### Issues created
-
-| Issue | What |
-|-------|------|
-| neocortex#390 | Evaluate prompt rendering formats: prose vs JSON vs hybrid |
-| neocortex#391 | Adaptive cognitive brief — metacognitive feedback loop |
-| neocortex#392 | Multi-agent cognitive architecture — Inside Out model with adversarial subsystems |
-
-### Issues transferred (blocks → neocortex)
-
-| From | To | What |
-|------|----|------|
-| blocks#308 | neocortex#393 | Context-budget-aware prompt rendering |
-| blocks#283 | neocortex#394 | Directive-minimal architecture |
-| blocks#286 | neocortex#395 | Neocortex seeding user guide |
-| blocks#313 | neocortex#396 | CBR plan adaptation |
-
-### Issues closed
-
-- blocks#311 — Epic: Neocortex cognitive integration (all children resolved)
+Created `CognitionDefaultBeans` with 16 `@DefaultBean @Singleton` producers: 13 config records (DriveConfig, MoodConfig, PersonalityEvolutionConfig, InnerLifeConfig, MentalModelConfig, UserModelConfig, StrategyLearningConfig, NarrativeConfig, GoalProposalConfig, GoalEscalationConfig, NormDetectionConfig, MoodCongruenceConfig, CognitiveGoalConfig) + SubjectResolver (empty set) + InteractionMapper (CognitiveImpact.fromText) + NormFilter (identity). Skipped blocks-only `EventStreamBus<DecisionSignal>`.
 
 ### Batches completed (prior sessions)
 
@@ -51,7 +36,7 @@ Design session for blocks#303 Batch 7. No implementation — pure architectural 
 | 6d: Summarisation module | Done | Full summarisation framework |
 | 6e: Prerequisite types | Done | KnowledgeGapSummary, ReflectionEntry, ReflectionQueryStore, ConsolidationArtifact |
 | 6f: Deferred classes | Done | CuriosityDrive, ConsolidationMediator, InnerLifeOrchestrator, NarrativePipeline + related |
-| 7: Complete Extraction | In progress | Task 12 done |
+| 7: Complete Extraction | In progress | Tasks 12–13 done, Tasks 14–15 remain |
 
 ### Deferred items
 
@@ -63,15 +48,11 @@ Design session for blocks#303 Batch 7. No implementation — pure architectural 
 
 ## Immediate Next Step
 
-**Batch 7 execution — Task 12 done, 3 remaining:**
+**Batch 7 — Tasks 12–13 done, 2 remaining:**
 
-1. ~~**Task 12: Move prompt rendering to neocortex**~~ — Done. CognitionPromptRenderer interface in cognition-api. 21 prompt sections + 8 observation rendering types + CognitiveSystemPromptRenderer + ProactiveSpeechSupport + DirectiveSection in cognition module. CognitionCore.promptSections() wired with section customizer and attention relevance overrides. Also added lastFocus()/lastReflections() to TemporalFocusOrchestrator/ReflectionRetrievalOrchestrator SPIs, added cognitive-index dependency to cognition-api.
+1. **Task 14: Blocks cleanup** — Delete 169 migrated production files + 113 tests + SocialAvatarCognition + SocialPromptAssembler + SocialCognitionDefaultBeans + 23 prompt section originals. Create thin AvatarCognition adapter. Update CognitionCompiler imports. **This is the first task touching blocks code.** blocks on main at 52e40944.
 
-2. **Task 13: Move defaults** — Recreate SocialCognitionDefaultBeans' 13 @DefaultBean configs in neocortex cognition module.
-
-3. **Task 14: Blocks cleanup** — Delete 169 migrated production files + 113 tests + SocialAvatarCognition + SocialPromptAssembler + SocialCognitionDefaultBeans + 23 prompt section originals. Create thin AvatarCognition adapter. Update CognitionCompiler imports.
-
-4. **Task 15: Documentation** — Update neocortex and blocks CLAUDE.md. Update examples.
+2. **Task 15: Documentation** — Update neocortex and blocks CLAUDE.md. Update examples.
 
 ## Cross-Module
 
