@@ -2,7 +2,7 @@
 
 ## Last Session
 
-Continued blocks#303 — migrating social cognition layer from blocks to neocortex. Completed Batch 5 in full and most of Batch 6 (framework + goals). Total: 34 production classes + 12 test files migrated. 149 cognition tests pass.
+Continued blocks#303 — unblocked all 6 deferred classes by creating `summarisation` module and moving classes to cognition. Total: 46 production classes + 25 test files migrated. 191 cognition tests + 101 summarisation tests pass.
 
 ### Batches completed
 
@@ -17,48 +17,42 @@ Continued blocks#303 — migrating social cognition layer from blocks to neocort
 | 6a: Consolidation Phases | Done | BeliefRevisionPhase, RelationshipStagePhase |
 | 6b: Framework + Goals | Done | CognitionCore, CognitionSnapshot, CognitionDelta, CognitionMetrics, AttentionRelevance, CognitiveAttentionMediator, CognitiveGoalOrchestrator, GoalProposalOrchestrator, GoalEmotionMoodBridge |
 | 6c: SPIs for blocked | Done | MemoryHygieneOrchestrator, TemporalFocusOrchestrator, ReflectionRetrievalOrchestrator (thin interfaces in cognition-api) |
+| 6d: Summarisation module | Done | LevelEvent, EventLevel, ContentSummariser, Summariser, StatefulSummariser, OutputProcessor, EmissionPolicy, LevelEventCompactor, StateStore, Tickable, WindowPolicy, LevelEventBus, LevelEventAccumulator, SummarisationRunner, WindowPolicyEmission, VerbatimContentSummariser, SummarisationPipeline, SummarisationPipelineFactory, DefaultSummarisationPipelineFactory |
+| 6e: Prerequisite types | Done | KnowledgeGapSummary, ReflectionEntry, ReflectionQueryStore (memory-api), ConsolidationArtifact (mindmap-api), ConsolidationCompleted updated |
+| 6f: Deferred classes | Done | CuriosityDrive, ConsolidationMediator, InnerLifeOrchestrator, NarrativePipeline, NarrativeContentSummariser, NarrativeOutputProcessor, NarrativeEmissionPolicy, ReflectionEventAdapter, NarrativeStateStore |
 | 7: Bridge | Not started | |
 
 ### Deferred items
 
 | Item | Reason |
 |------|--------|
-| ConsolidationMediator | Depends on ConsolidationArtifact (exists in slot 196, not merged to main) |
-| CuriosityDrive | MemoryHygieneOrchestrator impl blocked on summarisation framework |
-| InnerLifeOrchestrator | LevelEvent (blocks summarisation) |
-| NarrativePipeline | blocks EventStreamBus, SummarisationRunner |
-| NarrativeOutputProcessor | blocks OutputProcessor SPI |
-| NarrativeContentSummariser | blocks ContentSummariser SPI |
 | CognitionCore.promptSections() | Bridge layer — stays in blocks |
+| KeyedSummarisationRunner | YAGNI — bring when blocks migrates to neocortex summarisation |
+| KeyedLevelEventAccumulator | YAGNI — same as above |
 
 ### Key design decisions this session
 
-1. **CognitionCore without promptSections()** — removed all prompt bridge methods. CognitionCore owns tick scheduling and interaction recording. Blocks' SocialAvatarCognition will construct prompt sections using CognitionCore's accessors.
+1. **Summarisation as single neocortex module** — full framework (SPIs + engine) in one module, no api/runtime split. Blocks keeps its copy temporarily; Batch 7 consolidates.
 
-2. **Thin SPIs for blocked orchestrators** — created minimal interfaces (MemoryHygieneOrchestrator, TemporalFocusOrchestrator, ReflectionRetrievalOrchestrator) in cognition-api so CognitionCore compiles without the full implementations.
+2. **Renames for clarity** — EventStreamBus → LevelEventBus, EventAccumulator → LevelEventAccumulator, Compactor → LevelEventCompactor. Names that sound generic but are tied to LevelEvent now say so explicitly.
 
-3. **ConsolidationMediator deferred** — depends on ConsolidationArtifact sealed interface that exists in slot 196's branch but hasn't merged to main. Will land when that branch merges.
+3. **SummarisationPipelineFactory SPI** — NarrativePipeline receives a factory, passes its component SPIs (summariser, emission policy, output processor, state store), gets back a SummarisationPipeline. DefaultSummarisationPipelineFactory wraps SummarisationRunner.
 
-4. **Unblock strategies:**
-   - CommonGroundState: 3 pure records (42 LOC) duplicated to cognition-api
-   - ContentSummariser: nullable in StrategyLearningOrchestrator, dropped entirely
-   - NeedSatisfactionConfig: duplicated to cognition drive package
-   - StructuredAgentInvoker: replaced with inline AgentProvider.invoke() calls throughout
+4. **Memory-api for shared types** — KnowledgeGapSummary, ReflectionEntry, ReflectionQueryStore in memory-api (not cognition-api) so blocks can use them without pulling cognition's dependency chain.
+
+5. **ConsolidationArtifact created on this branch** — same types as slot 196's branch. Accept merge conflict (types are identical, resolution is trivial).
+
+6. **NarrativeStateStore replaces CbrStateStore chain** — wraps NarrativeMemory (already existed), implements summarisation StateStore. Eliminates NarrativeStore/CbrNarrativeStore/CbrStateStore adapter chain.
 
 ### Key findings
 
-- Batch 2 duplicated types to cognition-api but did NOT remove blocks originals. Both copies coexist.
-- `ide_move_file` cannot cross project boundaries. All moves done by creating files in neocortex.
-- eidos-api, memory-core, jackson-databind, platform-agent-api added as cognition dependencies.
-- ConsolidationArtifact sealed interface exists in slot 196 but not on main — blocks references it.
+- Summarisation framework deeply embedded in blocks (~20 non-social consumers). Cannot be moved out of blocks — both copies coexist.
+- Batch 2 dependency analysis missed transitive dependencies outside `agentic/social/` package tree (summarisation, memory types). Full import closure should have been computed.
+- MemoryHygieneOrchestrator impl (233 LOC) still in blocks — depends on SummaryResult from qhorus-api.
 
 ## Immediate Next Step
 
-Batch 7: blocks bridge update. Update SocialAvatarCognition to inject neocortex cognition beans, update prompt sections to use neocortex types, delete migrated blocks code. This is blocks-side work.
-
-Before Batch 7, consider:
-- Merging slot 196's ConsolidationArtifact so ConsolidationMediator can move
-- Moving goal-specific phases from mindmap-intelligence to cognition (GoalResolutionPhase, GoalAffectPhase, GoalPrioritizationPhase, GoalRecognitionPhase) — neocortex-internal moves
+Batch 7: blocks bridge update. Update SocialAvatarCognition to inject neocortex cognition beans, update prompt sections to use neocortex types, delete migrated blocks code, migrate blocks' summarisation imports to neocortex.
 
 ## Cross-Module
 
@@ -67,6 +61,7 @@ Before Batch 7, consider:
 
 ## References
 
-- `wsp/specs/issue-303-migrate-cognitive-state/2026-09-29-cognition-migration-design.md` — design spec
-- `wsp/specs/issue-303-migrate-cognitive-state/decisions.md` — 6 design decisions
-- `wsp/plans/2026-09-29-cognition-migration.md` — implementation plan (7 batches)
+- `plans/2026-09-29-cognition-migration.md` — parent migration plan
+- `plans/2026-09-30-summarisation-deferred-unblock.md` — summarisation + deferred classes plan
+- `specs/issue-303-migrate-cognitive-state/2026-09-29-cognition-migration-design.md` — design spec
+- `specs/issue-303-migrate-cognitive-state/decisions.md` — design decisions
