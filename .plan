@@ -1,4 +1,4 @@
-# Work Plan — neocortex-quality-pass
+# Work Plan — main
 
 ## State
 branch: main
@@ -12,6 +12,5 @@ design-section-hashes:
 flyway-next-v: 
 
 ## Queue
-- [ ] casehubio/neocortex#388 — DomainActivation skip empty subgraphs
-- [ ] casehubio/neocortex#362 — Audit orphaned SPIs
+- [ ] casehubio/neocortex#362 — Audit orphaned SPIs ← active
 - [ ] casehubio/neocortex#367 — SPI completeness — missing DefaultBeans
