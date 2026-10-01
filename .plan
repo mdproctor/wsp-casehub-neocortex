@@ -2,7 +2,7 @@
 
 ## State
 branch: issue-303-migrate-cognitive-state
-state: active
+state: closing:review
 project-sha: 
 date: 
 issue-repo: casehubio/blocks
@@ -11,10 +11,6 @@ design-repo:
 design-section-hashes: 
 flyway-next-v: 
 
+evidence-era: true
 ## Queue
-- [ ] casehubio/blocks#303 — Issue #303 ← active
-  - [ ] Batch 1: Batch 4
-    - [ ] Task 1: Task 5: Move Mood Drive Narrative Personality
-
-## Deferred
-- [ ] NarrativePipeline + NarrativeOutputProcessor + NarrativeContentSummariser — blocked on blocks summarisation framework (L / High) []
+- [x] casehubio/blocks#303 — Issue #303
