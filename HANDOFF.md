@@ -2,15 +2,16 @@
 
 ## Last Session
 
-- **#361** — Extracted `RuleResolver` SPI into mindmap-api to break mindmap → cognitive-index upward dependency. DeclarativeRuleRegistry implements it. 9 files changed, full build green. Landed on main, pushed, issue closed.
+- **#361** — Extracted `RuleResolver` SPI into mindmap-api to break mindmap → cognitive-index upward dependency. DeclarativeRuleRegistry implements it.
+- **#346** — Optional text-similarity corroboration for graduation scoring. TextSimilarityCorroborator with embedding (cosine) and keyword (Jaccard) strategies. GraduationContext enriched with textSimilarityCount. Off by default. 16 new tests.
+- **Blocks cleanup** — landed `issue-325-remove-social-jpa` (removed 3 orphaned modules) and `issue-324-restore-goal-producers` (CDI/Spring producers). Pushed to canonical local main.
 
 ## Immediate Next Step
 
-Quality pass queue in .plan (3 issues remaining, #346 is active):
+Quality pass queue in .plan (2 issues remaining, #365 is active):
 
-1. **#346** — optional text-similarity corroboration for graduation scoring (S/Med — feature)
-2. **#365** — configuration consistency — naming, feature flags, fail-fast, timeouts (M/Med — refactor pass)
-3. **#366** — config reference documentation — all properties (S-M/Low — docs sweep, do after #365)
+1. **#365** — configuration consistency — naming, feature flags, fail-fast, timeouts (M/Med — refactor pass)
+2. **#366** — config reference documentation — all properties (S-M/Low — docs sweep, do after #365)
 
 ## Parked (Large Architecture)
 
