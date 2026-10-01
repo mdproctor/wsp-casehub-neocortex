@@ -2,7 +2,7 @@
 
 ## State
 branch: 365-config-consistency
-state: closing:pushed
+state: closing:merged
 project-sha: 
 date: 
 issue-repo: casehubio/neocortex
