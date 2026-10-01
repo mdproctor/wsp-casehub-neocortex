@@ -2,7 +2,7 @@
 
 ## Last Session
 
-Batch 7 Task 14 — blocks cleanup (in progress). blocks#317 gate cleared.
+Batch 7 Task 14 — blocks cleanup (compile-clean). blocks#317 gate cleared.
 
 ### Task 14: Blocks cleanup (In progress)
 
@@ -21,15 +21,12 @@ Batch 7 Task 14 — blocks cleanup (in progress). blocks#317 gate cleared.
 - Deleted duplicate types (blocks `ReflectionEntry`, `KnowledgeGapSummary` — identical to neocortex versions)
 - Fixed `CognitiveObservationSections` imports (drive + emergence types)
 
-**Remaining work (same branch, blocks side):**
-1. **ReflectionEntry import propagation** — 5 files in `io.casehub.blocks.memory` need `import io.casehub.neocortex.memory.ReflectionEntry` since the same-package version was deleted
-2. **NarrativePipeline constructor** — needs `SummarisationPipelineFactory` (5th parameter) which is a new neocortex type
-3. **3 unmigrated SPI implementations** — `SocialNormDetector`, `NarrativeGoalEscalationPolicy`, `LlmCrossAxisGoalEnricher` were deleted but not migrated. Producers removed with placeholder comments. Need follow-up issues.
-4. **BlocksAutoConfiguration** — Spring Boot auto-config needs same import updates as BlocksBeans (parallel CDI wiring)
-5. **CognitionCompiler + CompiledCognition** — agentic-yaml module needs import updates for 14+ config types
-6. **agentic-yaml test files** — `CognitionStack` and LLM test classes need import updates
-7. **social-jpa modules** — JPA store implementations reference deleted store SPIs. Dead code since store consolidation. Need decision: delete modules or defer.
-8. **Build verification** — full `mvn clean install` on both repos
+**Remaining work (same branch):**
+1. **3 unmigrated SPI implementations** — `SocialNormDetector`, `NarrativeGoalEscalationPolicy`, `LlmCrossAxisGoalEnricher` producers removed with placeholder comments. File follow-up issues to migrate or recreate.
+2. **Test compilation** — agentic-yaml test files (`CognitionStack`, LLM tests) need import updates for social→neocortex types. Not blocking production compile.
+3. **social-jpa modules** — JPA store implementations compile clean but implement orphaned SPIs. Dead code since store consolidation. File issue to remove modules.
+4. **Full test suite** — `mvn clean install` with tests on both repos.
+5. **Task 15** — Documentation updates (CLAUDE.md for both repos, consumer examples).
 
 **Key discovery:** The migration scope was larger than originally planned. The store consolidation (Batch 3) changed orchestrator constructor signatures from Store SPIs to Memory classes. The blocks CDI wiring needed comprehensive rewrite, not just import updates. Three SPI implementations were missed in the migration plan.
 
