@@ -25,9 +25,10 @@ New quality pass queue in .plan (4 issues, #361 is active):
 
 ## Cross-Module
 
-Two blocks branches pending merge to blocks main:
-- `issue-324-restore-goal-producers` — CDI/Spring producers for #324 + #323
-- `issue-325-remove-social-jpa` — 3 module deletion
+Blocks branches landed on main (this session):
+- `issue-325-remove-social-jpa` — removed 3 orphaned social-jpa modules (2109 lines deleted)
+- `issue-324-restore-goal-producers` — restored CDI/Spring producers for #323 + #324 (rebased on top of #325)
+- Pushed to canonical local main
 
 ## References
 
