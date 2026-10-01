@@ -2,7 +2,7 @@
 
 ## State
 branch: issue-303-migrate-cognitive-state
-state: closing:merged
+state: closing:stamped
 project-sha: 
 date: 
 issue-repo: casehubio/blocks
