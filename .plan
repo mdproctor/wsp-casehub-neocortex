@@ -1,18 +1,15 @@
-# Work Plan — cognition-migration-followup
+# Work Plan — issue-324-migrate-goal-escalation
 
 ## State
-branch: main
-state: active
+branch: issue-324-migrate-goal-escalation
+state: scaffolded
 project-sha: 
 date: 
 issue-repo: casehubio/blocks
-covers: 
+covers: 324
 design-repo: 
 design-section-hashes: 
 flyway-next-v: 
 
 ## Queue
-- [ ] casehubio/blocks#324 — Migrate NarrativeGoalEscalationPolicy and LlmCrossAxisGoalEnricher
-- [ ] casehubio/blocks#323 — Migrate SocialNormDetector to neocortex cognition
-- [ ] casehubio/blocks#325 — Remove orphaned social-jpa modules
-- [ ] casehubio/blocks#326 — Update wacky-manor examples imports
+- [ ] casehubio/blocks#324 — Issue #324 ← active
