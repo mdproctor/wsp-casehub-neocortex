@@ -2,20 +2,15 @@
 
 ## Last Session
 
-Completed quality pass queue (.plan): #388, #362, #367. All three landed on main, pushed, issues closed.
-
-- **#388** — DomainActivation.correlate() now skips empty subgraphs instead of aborting the batch. 3 new tests.
-- **#362** — Orphaned SPI audit: added NoOpAgentTrustProvider @DefaultBean, removed empty VocabularyNormalizationDecorator, kept CaseEnrichmentStep as consumer extension point.
-- **#367** — SPI completeness: @DefaultBean audit found zero new needed (2 already exist, 3 not CDI, 2 intentionally required, 1 gracefully degrades). Added 57 contract tests across 5 SPIs (CursorStore, CorpusStore/Reader, ChangeSource, QueryExpander, RelevanceEvaluator).
+- **#361** — Extracted `RuleResolver` SPI into mindmap-api to break mindmap → cognitive-index upward dependency. DeclarativeRuleRegistry implements it. 9 files changed, full build green. Landed on main, pushed, issue closed.
 
 ## Immediate Next Step
 
-New quality pass queue in .plan (4 issues, #361 is active):
+Quality pass queue in .plan (3 issues remaining, #346 is active):
 
-1. **#361** — resolve mindmap → cognitive-index upward dependency (S/High — architectural, moves code between modules)
-2. **#346** — optional text-similarity corroboration for graduation scoring (S/Med — feature)
-3. **#365** — configuration consistency — naming, feature flags, fail-fast, timeouts (M/Med — refactor pass)
-4. **#366** — config reference documentation — all properties (S-M/Low — docs sweep, do after #365)
+1. **#346** — optional text-similarity corroboration for graduation scoring (S/Med — feature)
+2. **#365** — configuration consistency — naming, feature flags, fail-fast, timeouts (M/Med — refactor pass)
+3. **#366** — config reference documentation — all properties (S-M/Low — docs sweep, do after #365)
 
 ## Parked (Large Architecture)
 
