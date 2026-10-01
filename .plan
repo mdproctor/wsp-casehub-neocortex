@@ -1,7 +1,7 @@
 # Work Plan — neocortex-quality-pass-2
 
 ## State
-branch: main
+branch: 365-config-consistency
 state: active
 project-sha: 
 date: 
@@ -12,7 +12,7 @@ design-section-hashes:
 flyway-next-v: 
 
 ## Queue
-- [ ] casehubio/neocortex#361 — resolve mindmap to cognitive-index upward dependency <- active
-- [ ] casehubio/neocortex#346 — optional text-similarity corroboration for graduation scoring
-- [ ] casehubio/neocortex#365 — configuration consistency — naming feature flags fail-fast timeouts
+- [x] casehubio/neocortex#361 — resolve mindmap to cognitive-index upward dependency
+- [x] casehubio/neocortex#346 — optional text-similarity corroboration for graduation scoring
+- [ ] casehubio/neocortex#365 — configuration consistency — naming feature flags fail-fast timeouts ← active
 - [ ] casehubio/neocortex#366 — config reference documentation — all properties
