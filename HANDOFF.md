@@ -2,16 +2,14 @@
 
 ## Last Session
 
-- **#361** — Extracted `RuleResolver` SPI into mindmap-api to break mindmap → cognitive-index upward dependency. DeclarativeRuleRegistry implements it.
-- **#346** — Optional text-similarity corroboration for graduation scoring. TextSimilarityCorroborator with embedding (cosine) and keyword (Jaccard) strategies. GraduationContext enriched with textSimilarityCount. Off by default. 16 new tests.
-- **Blocks cleanup** — landed `issue-325-remove-social-jpa` (removed 3 orphaned modules) and `issue-324-restore-goal-producers` (CDI/Spring producers). Pushed to canonical local main.
+- **#365** — Configuration consistency: renamed `casehub.consolidation.*` → `casehub.mindmap.consolidation.*` (3 Java files + CLAUDE.md + contributor-guide + 4 specs), ExpansionConfigValidator fail-fast (warning → IllegalStateException), REST client timeouts for Mem0/Graphiti (5s/30s), documented config conventions in contributor-guide.
+- Garden: revised GE-20260521-0bd1e6 with @IfBuildProperty/@Alternative build-time validation variant.
 
 ## Immediate Next Step
 
-Quality pass queue in .plan (2 issues remaining, #365 is active):
+Quality pass queue in .plan (1 issue remaining, #366 is active):
 
-1. **#365** — configuration consistency — naming, feature flags, fail-fast, timeouts (M/Med — refactor pass)
-2. **#366** — config reference documentation — all properties (S-M/Low — docs sweep, do after #365)
+1. **#366** — config reference documentation — all properties (M/Med — systematic docs sweep of every `casehub.*` and `quarkus.rest-client.*` property)
 
 ## Parked (Large Architecture)
 
@@ -19,14 +17,6 @@ Quality pass queue in .plan (2 issues remaining, #365 is active):
 - **#392** — Multi-agent Inside Out architecture (XL/High)
 - **#393** — Context-budget-aware prompt rendering (L/High)
 
-## Cross-Module
-
-Blocks branches landed on main (this session):
-- `issue-325-remove-social-jpa` — removed 3 orphaned social-jpa modules (2109 lines deleted)
-- `issue-324-restore-goal-producers` — restored CDI/Spring producers for #323 + #324 (rebased on top of #325)
-- Pushed to canonical local main
-
 ## References
 
-- `plans/2026-09-29-cognition-migration.md` — migration plan (complete)
-- `specs/issue-303-migrate-cognitive-state/decisions.md` — design decisions
+- `docs/guides/contributor-guide.md` — new Configuration Conventions section added this session
