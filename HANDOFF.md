@@ -2,7 +2,7 @@
 
 ## Last Session
 
-Batch 7 Task 14 — blocks cleanup (compile-clean). blocks#317 gate cleared.
+Batch 7 complete — Tasks 14 and 15 done. All cognitive code migrated to neocortex.
 
 ### Task 14: Blocks cleanup (In progress)
 
@@ -21,12 +21,11 @@ Batch 7 Task 14 — blocks cleanup (compile-clean). blocks#317 gate cleared.
 - Deleted duplicate types (blocks `ReflectionEntry`, `KnowledgeGapSummary` — identical to neocortex versions)
 - Fixed `CognitiveObservationSections` imports (drive + emergence types)
 
-**Remaining work (same branch):**
-1. **3 unmigrated SPI implementations** — `SocialNormDetector`, `NarrativeGoalEscalationPolicy`, `LlmCrossAxisGoalEnricher` producers removed with placeholder comments. File follow-up issues to migrate or recreate.
-2. **Test compilation** — agentic-yaml test files (`CognitionStack`, LLM tests) need import updates for social→neocortex types. Not blocking production compile.
-3. **social-jpa modules** — JPA store implementations compile clean but implement orphaned SPIs. Dead code since store consolidation. File issue to remove modules.
-4. **Full test suite** — `mvn clean install` with tests on both repos.
-5. **Task 15** — Documentation updates (CLAUDE.md for both repos, consumer examples).
+**Follow-up issues filed:**
+- blocks#323 — Migrate SocialNormDetector to neocortex
+- blocks#324 — Migrate NarrativeGoalEscalationPolicy + LlmCrossAxisGoalEnricher to neocortex
+- blocks#325 — Remove orphaned social-jpa modules
+- blocks#326 — Update wacky-manor examples imports
 
 **Key discovery:** The migration scope was larger than originally planned. The store consolidation (Batch 3) changed orchestrator constructor signatures from Store SPIs to Memory classes. The blocks CDI wiring needed comprehensive rewrite, not just import updates. Three SPI implementations were missed in the migration plan.
 
@@ -64,7 +63,7 @@ Created `CognitionDefaultBeans` with 16 `@DefaultBean @Singleton` producers: 13 
 | 6d: Summarisation module | Done | Full summarisation framework |
 | 6e: Prerequisite types | Done | KnowledgeGapSummary, ReflectionEntry, ReflectionQueryStore, ConsolidationArtifact |
 | 6f: Deferred classes | Done | CuriosityDrive, ConsolidationMediator, InnerLifeOrchestrator, NarrativePipeline + related |
-| 7: Complete Extraction | In progress | Tasks 12–13 done, Tasks 14–15 remain |
+| 7: Complete Extraction | Done | Tasks 12–15 complete |
 
 ### Deferred items
 
