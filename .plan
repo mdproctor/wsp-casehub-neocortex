@@ -1,19 +1,15 @@
-# Work Plan — neocortex-quality-pass-2
+# Work Plan — issue-366-config-reference-docs
 
 ## State
-branch: main
-state: active
+branch: issue-366-config-reference-docs
+state: scaffolded
 project-sha: 
 date: 
 issue-repo: casehubio/neocortex
-covers: 
+covers: 366
 design-repo: 
 design-section-hashes: 
 flyway-next-v: 
-evidence-era: true
 
 ## Queue
-- [x] casehubio/neocortex#361 — resolve mindmap to cognitive-index upward dependency
-- [x] casehubio/neocortex#346 — optional text-similarity corroboration for graduation scoring
-- [x] casehubio/neocortex#365 — configuration consistency — naming feature flags fail-fast timeouts
-- [ ] casehubio/neocortex#366 — config reference documentation — all properties ← active
+- [ ] casehubio/neocortex#366 — Issue #366 ← active
