@@ -1,95 +1,81 @@
 # HANDOFF — casehub-neocortex
 
-## Last Session
+## Status
 
-Batch 7 complete — Tasks 14 and 15 done. All cognitive code migrated to neocortex.
-
-### Task 14: Blocks cleanup (In progress)
-
-**Completed:**
-- Added `casehub-neocortex-cognition-api` + `casehub-neocortex-cognition` dependency to blocks-core, blocks, agentic-yaml, blocks-spring POMs
-- Deleted 305 migrated files from `agentic/social/` (192 production + 113 test, 27,984 LOC)
-- Created `CognitionAvatarAdapter` in `blocks-core/io.casehub.blocks.agentic.cognition` — thin `AvatarCognition` bridge delegating to neocortex `CognitionCore`
-- Migrated `CognitiveProfileParticipant` and `DomainActivationParticipant` to neocortex `cognition/core/` (were missing from migration)
-- Rewrote `BlocksBeans` cognitive wiring:
-  - Replaced dead CBR store producers with Memory producers (NarrativeMemory, MentalModelMemory, UserProfileMemory, StrategyMemory)
-  - Updated orchestrator constructors (NarrativeOrchestrator, MentalModelOrchestrator, UserModelOrchestrator, StrategyLearningOrchestrator)
-  - DriveOrchestrator now constructs individual DriveSource instances (CuriosityDrive, CompetenceDrive, AffiliationDrive, AutonomyDrive)
-  - Replaced `socialAvatarCognition` producer with `cognitionAvatarAdapter` producing `CognitionAvatarAdapter` with full participant setup
-- Made blocks `MemoryHygieneOrchestrator` implement neocortex `io.casehub.neocortex.cognition.memory.MemoryHygieneOrchestrator` SPI
-- Made blocks `ReflectionQueryStore` extend neocortex `io.casehub.neocortex.memory.ReflectionQueryStore`
-- Deleted duplicate types (blocks `ReflectionEntry`, `KnowledgeGapSummary` — identical to neocortex versions)
-- Fixed `CognitiveObservationSections` imports (drive + emergence types)
-
-**Follow-up issues filed:**
-- blocks#323 — Migrate SocialNormDetector to neocortex
-- blocks#324 — Migrate NarrativeGoalEscalationPolicy + LlmCrossAxisGoalEnricher to neocortex
-- blocks#325 — Remove orphaned social-jpa modules
-- blocks#326 — Update wacky-manor examples imports
-
-**Key discovery:** The migration scope was larger than originally planned. The store consolidation (Batch 3) changed orchestrator constructor signatures from Store SPIs to Memory classes. The blocks CDI wiring needed comprehensive rewrite, not just import updates. Three SPI implementations were missed in the migration plan.
-
-### Previous session (Tasks 12-13 done)
-
-### Task 12: Move prompt rendering to neocortex (Done)
-
-Created the complete prompt rendering system in neocortex cognition:
-
-- **cognition-api**: `CognitionPromptRenderer` (`@FunctionalInterface`, `@Nullable String render(CognitionRenderContext)`) and `CognitionRenderContext` record
-- **cognition/prompt/**: 21 prompt sections migrated from blocks (MoodPromptSection, DrivePromptSection, NarrativePromptSection, AttentionPromptSection, EntityKnowledgePromptSection, StrategyPromptSection, UserModelPromptSection, MentalModelPromptSection, CharacterDrivePromptSection, NeedsPyramidPromptSection, ConsolidationPromptSection, TemporalFocusPromptSection, ReflectionPromptSection, SocialComparisonPromptSection, DomainActivationPromptSection, EmergentGoalPromptSection, ConstraintPromptSection, DirectiveSection, CognitivePreambleGenerator, CognitiveSystemPromptRenderer, ProactiveSpeechSupport)
-- **cognition/prompt/observation/**: 8 rendering types (ObservationSection sealed hierarchy, AffordanceRenderer, CognitiveObservationSections with motivationalStateSection + narrativeSection)
-- **CognitionCore**: wired `promptSections()` with section customizer, attention relevance overrides, consolidation artifact draining. Added `innerLife` and `consolidationMediator` fields
-- **SPI additions**: `TemporalFocusOrchestrator.lastFocus()` and `ReflectionRetrievalOrchestrator.lastReflections()`. Added cognitive-index dependency to cognition-api POM
-
-32 files changed, 1753 LOC added. 191 tests pass.
-
-### Task 13: Move defaults (Done)
-
-Created `CognitionDefaultBeans` with 16 `@DefaultBean @Singleton` producers: 13 config records (DriveConfig, MoodConfig, PersonalityEvolutionConfig, InnerLifeConfig, MentalModelConfig, UserModelConfig, StrategyLearningConfig, NarrativeConfig, GoalProposalConfig, GoalEscalationConfig, NormDetectionConfig, MoodCongruenceConfig, CognitiveGoalConfig) + SubjectResolver (empty set) + InteractionMapper (CognitiveImpact.fromText) + NormFilter (identity). Skipped blocks-only `EventStreamBus<DecisionSignal>`.
-
-### Batches completed (prior sessions)
-
-| Batch | Status | Classes moved |
-|-------|--------|---------------|
-| 1: Scaffolding | Done | cognition-api + cognition modules |
-| 2: Value Types | Done | ~90 types duplicated to cognition-api |
-| 3: Store Consolidation | Done | NarrativeMemory, StrategyMemory, UserProfileMemory, MentalModelMemory |
-| 4: Pure Orchestrators | Done | MoodOrchestrator, MoodCongruentGoalAppraisal, DriveOrchestrator, DriveComposer, NarrativeOrchestrator, GroupNarrativeOrchestrator, PersonalityEvolutionOrchestrator, RelationshipPressureSource |
-| 5: LLM Orchestrators | Done | UserModelOrchestrator, LlmReflectionSynthesizer, InteractionMapper, TokenJaccardDistance, MentalModelOrchestrator, StrategyLearningOrchestrator |
-| 5b: Drive Sources | Done | AffiliationDrive, AutonomyDrive, CompetenceDrive, DriveAdaptationPhase |
-| 6a: Consolidation Phases | Done | BeliefRevisionPhase, RelationshipStagePhase |
-| 6b: Framework + Goals | Done | CognitionCore, CognitionSnapshot, CognitionDelta, CognitionMetrics, AttentionRelevance, CognitiveAttentionMediator, CognitiveGoalOrchestrator, GoalProposalOrchestrator, GoalEmotionMoodBridge |
-| 6c: SPIs for blocked | Done | MemoryHygieneOrchestrator, TemporalFocusOrchestrator, ReflectionRetrievalOrchestrator |
-| 6d: Summarisation module | Done | Full summarisation framework |
-| 6e: Prerequisite types | Done | KnowledgeGapSummary, ReflectionEntry, ReflectionQueryStore, ConsolidationArtifact |
-| 6f: Deferred classes | Done | CuriosityDrive, ConsolidationMediator, InnerLifeOrchestrator, NarrativePipeline + related |
-| 7: Complete Extraction | Done | Tasks 12–15 complete |
-
-### Deferred items
-
-| Item | Reason |
-|------|--------|
-| CognitionCore.promptSections() | Done — wired in Task 12 |
-| KeyedSummarisationRunner | YAGNI — bring when blocks migrates to neocortex summarisation |
-| KeyedLevelEventAccumulator | YAGNI — same as above |
+blocks#303 (migrate cognitive state) is **CLOSED**. Both repos landed on main. Neocortex squashed to 7 commits. All tests green.
 
 ## Immediate Next Step
 
-**Batch 7 — Tasks 12–13 done, 2 remaining:**
+Four follow-up issues remain in the .plan queue, ordered by impact:
 
-1. **Task 14: Blocks cleanup** — Delete 169 migrated production files + 113 tests + SocialAvatarCognition + SocialPromptAssembler + SocialCognitionDefaultBeans + 23 prompt section originals. Create thin AvatarCognition adapter. Update CognitionCompiler imports. **This is the first task touching blocks code.** blocks on main at 52e40944.
+### 1. blocks#324 — Migrate NarrativeGoalEscalationPolicy + LlmCrossAxisGoalEnricher (XS)
 
-2. **Task 15: Documentation** — Update neocortex and blocks CLAUDE.md. Update examples.
+**What:** Two SPI implementations deleted from blocks `agentic/social/goal/` but not migrated to neocortex.
 
-## Cross-Module
+**NarrativeGoalEscalationPolicy** (62 lines) implements `GoalEscalationPolicy` SPI. Escalates goal priority based on narrative theme alignment — strongest-theme match with count-based cap, sign-aware so declining themes demote.
 
-- blocks#303 modifies both neocortex and blocks repos. blocks on main at 52e40944.
-- Blocks code untouched so far — all changes are neocortex-side additions. Batch 7 is the first batch touching blocks.
+**LlmCrossAxisGoalEnricher** (60 lines) implements `CrossAxisGoalEnricher` SPI. Uses `AgentProvider` to LLM-enrich compound goals that span multiple drive axes.
+
+**Where to create:** neocortex `cognition/src/main/java/io/casehub/neocortex/cognition/goal/`. Both SPIs are already defined in cognition-api at `io.casehub.neocortex.cognition.goal`.
+
+**After creating:** restore CDI producer in blocks `BlocksBeans` (line ~431 placeholder) and Spring producer in `BlocksAutoConfiguration` (line ~349 placeholder). Both files have comments marking where the producers were removed.
+
+**Source code:** recoverable from `git show 52e40944:blocks-core/src/main/java/io/casehub/blocks/agentic/social/goal/NarrativeGoalEscalationPolicy.java` and same for `LlmCrossAxisGoalEnricher.java`.
+
+### 2. blocks#323 — Migrate SocialNormDetector (S)
+
+**What:** `SocialNormDetector` (180 lines) detects emergent social norms from CBR store observations. Groups behavioral patterns, computes adherence rates, classifies strength (EMERGING/ESTABLISHED/DECLINING), per-tenant caching with `KeyedLock`.
+
+**Where to create:** neocortex `cognition/src/main/java/io/casehub/neocortex/cognition/emergence/`. All dependent types (`NormDetectionConfig`, `SocialNorm`, `NormStrength`, `NormObservation`, `DetectedNorms`, `NormDetectionTick`, `NormObservationSchema`) already exist in cognition-api.
+
+**KeyedLock dependency:** The class uses `io.casehub.blocks.agent.KeyedLock` (a blocks utility providing per-key `ReentrantLock` via `ConcurrentHashMap`). Either migrate `KeyedLock` to neocortex or replace with inline `ConcurrentHashMap<String, ReentrantLock>` + `computeIfAbsent` pattern.
+
+**After creating:** restore CDI producer in `BlocksBeans` (line ~330 placeholder) and `BlocksAutoConfiguration` (line ~304 placeholder).
+
+**Source code:** `git show 52e40944:blocks-core/src/main/java/io/casehub/blocks/agentic/social/emergence/SocialNormDetector.java`
+
+### 3. blocks#325 — Remove orphaned social-jpa modules (S)
+
+**What:** Three modules implementing store SPIs that no orchestrator injects anymore:
+- `social-jpa` — Quarkus JPA: `JpaMentalModelStore`, `JpaStrategyStore`, `JpaUserProfileStore`, `JpaNarrativeStore`
+- `social-jpa-common` — shared entities: `MentalModelEntity`, `NarrativeEntity`, converters
+- `social-spring-jpa` — Spring Boot: `SpringMentalModelStore`, `SpringStrategyStore`, etc.
+
+**Why orphaned:** Batch 3 consolidated the store SPIs (`MentalModelStore`, `StrategyStore`, `UserProfileStore`, `NarrativeStore`) into `CaseMemoryStore`-backed Memory classes (`MentalModelMemory`, `UserProfileMemory`, etc.). The JPA implementations have no consumers — the orchestrators now inject Memory classes, not Store SPIs.
+
+**The modules compile clean** — the value types they reference (`AttributedState`, `NarrativeFragment`, etc.) were updated to neocortex imports. But they implement interfaces that nothing injects.
+
+**Action:** Verify no CDI/Spring injection points remain (search for `@Inject MentalModelStore`, `@Autowired StrategyStore`, etc. across all repos). Then remove from blocks parent POM `<modules>` section and delete the 3 module directories.
+
+### 4. blocks#326 — Update wacky-manor examples imports (XS)
+
+**What:** `examples/wacky-manor/src/test/java/io/casehub/blocks/agentic/social/OverlayFamiliarityPropertyModelTest.java` references `io.casehub.blocks.agentic.social.*`.
+
+**Action:** Mechanical import replacement: `io.casehub.blocks.agentic.social.X` → `io.casehub.neocortex.cognition.X` (use the same class-to-package mapping from the migration). This is in a separate repo (`casehub/examples`), not in the blocks or neocortex repos.
+
+## Architecture After Migration
+
+**Neocortex cognition modules** (new — section 5 in CLAUDE.md):
+- `cognition-api` — SPIs, value types, config records, prompt renderer interface
+- `cognition` — CognitionCore (composition root), all orchestrators, drive sources, prompt sections, participants, defaults
+
+**Blocks cognition integration** (new package `io.casehub.blocks.agentic.cognition`):
+- `CognitionAvatarAdapter` — thin `AvatarCognition` bridge. Delegates tick/record/evaluate to neocortex `CognitionCore`. Bridges `CognitionPromptRenderer` → `PromptSection` via inline assembler wrapping. Consumes goal revisions and bridges to eidos lifecycle.
+- `MemoryHygieneSpiAdapter` — bridges blocks `MemoryHygieneOrchestrator` (returns `HygieneTick`) to neocortex SPI (returns `void`). Needed because blocks' hygiene orchestrator has a richer return type.
+
+**Key type unifications done during migration:**
+- blocks `ReflectionEntry` and `KnowledgeGapSummary` deleted — neocortex versions in `memory-api` are authoritative
+- blocks `ReflectionQueryStore` now extends `io.casehub.neocortex.memory.ReflectionQueryStore`
+- blocks `MemoryHygieneOrchestrator` stays as-is (different return type prevents direct SPI impl) — adapter bridges it
+
+**CDI wiring changes (BlocksBeans + BlocksAutoConfiguration):**
+- Dead CBR store producers (`CbrMentalModelStore`, `CbrStrategyStore`, `CbrUserProfileStore`, `CbrNarrativeStore`, `NoOpNarrativeStore`) → replaced with Memory producers (`MentalModelMemory`, `UserProfileMemory`, `StrategyMemory`, `NarrativeMemory`)
+- Orchestrator constructors updated from Store SPIs to Memory classes
+- `DriveOrchestrator` decomposed from monolithic constructor to individual `DriveSource` instances (`CuriosityDrive`, `CompetenceDrive`, `AffiliationDrive`, `AutonomyDrive`)
+- `socialAvatarCognition` → `cognitionAvatarAdapter` with full participant setup (CognitiveGoalOrchestrator, CognitiveProfileParticipant, DomainActivationParticipant)
 
 ## References
 
 - `plans/2026-09-29-cognition-migration.md` — migration plan (Batch 7 revised)
-- `plans/2026-09-30-summarisation-deferred-unblock.md` — summarisation + deferred classes plan
 - `specs/issue-303-migrate-cognitive-state/2026-09-29-cognition-migration-design.md` — design spec
 - `specs/issue-303-migrate-cognitive-state/decisions.md` — 10 design decisions (D1–D10)
-- `specs/issue-303-migrate-cognitive-state/2026-09-30-cognitive-architecture-roadmap.md` — 5-phase roadmap

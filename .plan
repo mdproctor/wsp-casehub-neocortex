@@ -1,0 +1,18 @@
+# Work Plan — cognition-migration-followup
+
+## State
+branch: main
+state: active
+project-sha: 
+date: 
+issue-repo: casehubio/blocks
+covers: 
+design-repo: 
+design-section-hashes: 
+flyway-next-v: 
+
+## Queue
+- [ ] casehubio/blocks#324 — Migrate NarrativeGoalEscalationPolicy and LlmCrossAxisGoalEnricher
+- [ ] casehubio/blocks#323 — Migrate SocialNormDetector to neocortex cognition
+- [ ] casehubio/blocks#325 — Remove orphaned social-jpa modules
+- [ ] casehubio/blocks#326 — Update wacky-manor examples imports
