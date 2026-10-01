@@ -2,11 +2,26 @@
 
 ## Last Session
 
-Completed all cognition migration follow-ups: #324 (goal escalation/enricher), #323 (SocialNormDetector), #325 (social-jpa module removal), #326 (wacky-manor, landed in examples slot). Closed epic #378 — blocks is now stateless for cognition. Net -1,340 lines across neocortex and blocks.
+Completed quality pass queue (.plan): #388, #362, #367. All three landed on main, pushed, issues closed.
+
+- **#388** — DomainActivation.correlate() now skips empty subgraphs instead of aborting the batch. 3 new tests.
+- **#362** — Orphaned SPI audit: added NoOpAgentTrustProvider @DefaultBean, removed empty VocabularyNormalizationDecorator, kept CaseEnrichmentStep as consumer extension point.
+- **#367** — SPI completeness: @DefaultBean audit found zero new needed (2 already exist, 3 not CDI, 2 intentionally required, 1 gracefully degrades). Added 57 contract tests across 5 SPIs (CursorStore, CorpusStore/Reader, ChangeSource, QueryExpander, RelevanceEvaluator).
 
 ## Immediate Next Step
 
-Quality pass queue in .plan: #388 (DomainActivation bugfix, S/Low), #362 (orphaned SPI audit, S/Low), #367 (SPI completeness, L/Med).
+New quality pass queue in .plan (4 issues, #361 is active):
+
+1. **#361** — resolve mindmap → cognitive-index upward dependency (S/High — architectural, moves code between modules)
+2. **#346** — optional text-similarity corroboration for graduation scoring (S/Med — feature)
+3. **#365** — configuration consistency — naming, feature flags, fail-fast, timeouts (M/Med — refactor pass)
+4. **#366** — config reference documentation — all properties (S-M/Low — docs sweep, do after #365)
+
+## Parked (Large Architecture)
+
+- **#391** — Adaptive cognitive brief (L/High)
+- **#392** — Multi-agent Inside Out architecture (XL/High)
+- **#393** — Context-budget-aware prompt rendering (L/High)
 
 ## Cross-Module
 
