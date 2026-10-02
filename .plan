@@ -2,7 +2,7 @@
 
 ## State
 branch: main
-state: closing:merged
+state: closing:stamped
 project-sha: 
 date: 
 issue-repo: casehubio/neocortex
