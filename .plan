@@ -16,4 +16,4 @@ evidence-era: true
 - [x] casehubio/neocortex#361 — resolve mindmap to cognitive-index upward dependency
 - [x] casehubio/neocortex#346 — optional text-similarity corroboration for graduation scoring
 - [x] casehubio/neocortex#365 — configuration consistency — naming feature flags fail-fast timeouts
-- [ ] casehubio/neocortex#366 — config reference documentation — all properties ← active
+- [x] casehubio/neocortex#366 — config reference documentation — all properties
