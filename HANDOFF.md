@@ -2,21 +2,24 @@
 
 ## Last Session
 
-- **#365** — Configuration consistency: renamed `casehub.consolidation.*` → `casehub.mindmap.consolidation.*` (3 Java files + CLAUDE.md + contributor-guide + 4 specs), ExpansionConfigValidator fail-fast (warning → IllegalStateException), REST client timeouts for Mem0/Graphiti (5s/30s), documented config conventions in contributor-guide.
-- Garden: revised GE-20260521-0bd1e6 with @IfBuildProperty/@Alternative build-time validation variant.
+Completed #407 (research: psychology cause-effect models). Produced a 1456-line
+spec covering 6 psychological models (attachment, BIS/BAS, CBT, trauma, operant
+conditioning, Bandura) composed into a CAPS spreading activation network. Key
+decision: two-layer hybrid (CAPS + behavioral attractors) with Rescorla-Wagner
+weight updates — three-layer Bayesian design simplified during standard
+adversarial review (60 findings incorporated, 4 dimensions, $136). Extracted
+starter topology YAML (77 nodes, 38 connections, disposition modifiers). Landed
+on main as 97cdd961.
 
 ## Immediate Next Step
 
-Quality pass queue in .plan (1 issue remaining, #366 is active):
-
-1. **#366** — config reference documentation — all properties (M/Med — systematic docs sweep of every `casehub.*` and `quarkus.rest-client.*` property)
-
-## Parked (Large Architecture)
-
-- **#391** — Adaptive cognitive brief (L/High)
-- **#392** — Multi-agent Inside Out architecture (XL/High)
-- **#393** — Context-budget-aware prompt rendering (L/High)
+Start #401 — standardised experience-to-behaviour schema. The catalogue of
+reusable entries (trigger → tendency → seeding recipe) that #408 and #398
+consume. Read the #407 spec first.
 
 ## References
 
-- `docs/guides/contributor-guide.md` — new Configuration Conventions section added this session
+- Spec: `specs/issue-407-psychology-cause-effect-models/2026-10-02-psychology-cause-effect-models-design.md`
+- Topology: `neocortex/docs/specs/2026-10-02-caps-topology.yaml`
+- Decisions: `specs/issue-407-psychology-cause-effect-models/decisions.md`
+- Epic: casehubio/neocortex#406
