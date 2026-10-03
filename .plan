@@ -13,3 +13,10 @@ flyway-next-v: unknown
 
 ## Queue
 - [ ] casehubio/neocortex#412 — Issue #412 ← active
+  - [ ] Batch 1: Foundation
+    - [ ] Task 1: Subgraph types + ActivityVocabulary
+    - [ ] Task 2: Trait interfaces + trait rules
+  - [ ] Batch 2: Check-In API
+    - [ ] Task 3: CheckInService
+  - [ ] Batch 3: CRM Queries
+    - [ ] Task 4: ActivityQueryService
