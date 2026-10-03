@@ -1,53 +1,48 @@
 # HANDOFF — casehub-neocortex
 
-## Current Epic
+## Last Session (2026-10-03)
 
-**#570 — Corpus quality fixes** (follows #551). Slot 211.
+Closed #404 (spring-integration-test). Branch `issue-403-spring-completeness` landed as e190a88a on main.
 
-## Last Session
+**Changes:**
+- Created spring-integration-test module (POM, TestApplication, SpringBootCompositionTest)
+- Added `@ConditionalOnBean` guards to 3 auto-configs:
+  - `MemoryAutoConfiguration` → gated on `CaseMemoryStore`
+  - `CognitionAutoConfiguration` → gated on `MindMapStore`
+  - `RagAutoConfiguration` → gated on `EmbeddingModel`
+- Root cause: auto-configs failed with `UnsatisfiedDependencyException` when SPI stores weren't on classpath
 
-Resolved all 6 quality fix issues from #562 assessment. All work on branch `issue-564-per-memory-enrichments` (6 commits, ready for work-end).
+**Still open:** #405 (cognitive-index core extraction — 6 CDI beans need -core POJOs). #403 epic stays open.
 
-**What shipped:**
-- **#564 closed as invalid** — quality assessment incorrectly reported zero per-memory enrichments; corpus actually has 197/261 memories with full enrichment suite. Assessment corrected, grade upgraded PARTIAL→PASS.
-- **#565 edge resolution** — added `resolve_edge_endpoints()` with 4 strategies (first-name matching, explicit aliases, paren-strip, dedup aliases). 312 of 534 dangling references resolved. `aliases.yaml` for per-biography overrides. 16 unit tests.
-- **#566 subgraph assignments** — derived `subgraph` field from `subgraph_type` during assembly. All 132 nodes now have subgraph assignments.
-- **#567 contributes-to saturation** — scoped cross-tier inference to subdomain + adjacent tiers only. 1172→317 contributes-to edges, total 1570→715, max fan-out 50→18.
-- **#568 factual errors** — added `correct_edge_errors()` for structural fixes (inversions, duplicates, UNVALIDATED types) + per-biography corrections via `edge-corrections.yaml`. 16 corrections, 12 removals.
-- **#569 arousal compression** — added calibration anchors to enrichment prompt (6-point arousal scale) + `audit_pad_distribution()` distribution check with stdev<0.2 warning. Re-enrichment needed for full effect.
+## Previous Session
 
-**New files:**
-- `extraction/output/aliases.yaml` — entity name aliases for edge resolution
-- `extraction/output/edge-corrections.yaml` — factual edge corrections
-- `extraction/tests/test_edge_resolution.py` — 22 tests for resolution + correction
+Completed two issues across two branches:
 
-**Corpus metrics after fixes:**
-- 132 nodes (all with subgraph assignments)
-- 703 edges (was 1570)
-- 261 memories (197 enriched)
-- 118 unresolved edge endpoints (genuinely missing entities — artworks, people, places)
-- Arousal compression flagged (stdev=0.14, needs re-enrichment)
+**#345 — Goal cognition substrate** (closed, landed on main)
+- Goallike trait + GoallikeTraitRule, TypeRegistry goal hierarchy
+- GoalResolutionPhase (Prune, Expand, Merge, Revise, Sync) @Priority(35)
+- GoalAffectPhase @Priority(37), GoalPrioritizationPhase @Priority(38)
+- GoalRecognitionPhase @Priority(45), GoalRelevanceModulationFactor
+- NoOp defaults for all 3 SPIs, CognitiveLoader registers GoalVocabulary
+- CLAUDE.md + contributor guide updated
+
+**#380 — Example module + blog article** (closed, landed on main)
+- `example-goal-cognition` walkthrough: 10 phases, 4 scenarios (research, product, personal, game NPC)
+- Blog: "When your agent forgets what it wants" — ~3000 words, 7 SVG illustrations
+- Public constructors on consolidation phases for example access
+
+**#379 — Filed** (open, in .plan queue)
+- Conformance gaps from #345 branch audit: GoalPrioritizationPhase Decay step + dynamic urgency from target-date
 
 ## Immediate Next Step
 
-**#560 — Second biography trial run** (L scale, deferred from #551). Run the full extraction/enrichment pipeline on a new biography to validate generality. This is the remaining queue item.
+Resume with `work start #379`. The issue has full acceptance criteria. Scale: S, Complexity: Med.
 
-## Queue
+## References
 
-| # | Title | Scale | Priority | Status |
-|---|-------|-------|----------|--------|
-| 570 | Epic issue | — | — | Active |
-| 564 | Per-memory enrichments missing | M | Critical | **Closed — invalid** |
-| 565 | Entity naming inconsistency | M | High | **Closed** |
-| 566 | Nodes missing subgraph/type | S | High | **Closed** |
-| 567 | Contributes-to saturation | S | Medium | **Closed** |
-| 568 | Factual errors in edges | S | Medium | **Closed** |
-| 569 | PAD arousal compression | XS | Low | **Closed** |
-| 560 | Second biography trial run | L | Deferred | Queued |
-
-## State
-
-- On `issue-564-per-memory-enrichments` branch, 6 commits ahead of main
-- 22 Python tests passing (test_edge_resolution.py)
-- All existing Java tests unaffected (Python-only changes)
-- Branch ready for work-end squash and merge
+- `docs/guides/contributor-guide.md` — goal cognition section added
+- `docs/specs/issue-345-goal-cognition/2026-09-23-goal-cognition-design.md` — design spec (in project, promoted)
+- `blog/2026-09-23-mdp02-when-your-agent-forgets-what-it-wants.md` — educational blog (in workspace)
+- `examples/example-goal-cognition/` — walkthrough example
+- neocortex#378 — follow-up epic: blocks social memory migration
+- neocortex#379 — follow-up: Decay step + dynamic urgency
