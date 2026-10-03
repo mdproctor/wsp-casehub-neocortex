@@ -12,7 +12,7 @@ Closed #404 (spring-integration-test). Branch `issue-403-spring-completeness` la
   - `RagAutoConfiguration` → gated on `EmbeddingModel`
 - Root cause: auto-configs failed with `UnsatisfiedDependencyException` when SPI stores weren't on classpath
 
-**Still open:** #405 (cognitive-index core extraction — 6 CDI beans need -core POJOs). #403 epic stays open.
+**Also closed:** #405 (cognitive-index POJO extraction — removed CDI annotations from 5 classes, added CognitiveIndexBeans factory). #403 epic closed.
 
 ## Previous Session
 
