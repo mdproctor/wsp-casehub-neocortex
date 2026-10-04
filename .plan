@@ -1,0 +1,15 @@
+# Work Plan — issue-428-cognitive-appraisal-arch
+
+## State
+branch: issue-428-cognitive-appraisal-arch
+state: scaffolded
+project-sha: 
+date: 
+issue-repo: casehubio/neocortex
+covers: 428
+design-repo: 
+design-section-hashes: 
+flyway-next-v: unknown
+
+## Queue
+- [ ] casehubio/neocortex#428 — Issue #428 ← active
