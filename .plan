@@ -1,0 +1,15 @@
+# Work Plan — issue-430-llm-backed-appraisal
+
+## State
+branch: issue-430-llm-backed-appraisal
+state: scaffolded
+project-sha: 
+date: 
+issue-repo: casehubio/neocortex
+covers: 430
+design-repo: 
+design-section-hashes: 
+flyway-next-v: 
+
+## Queue
+- [ ] casehubio/neocortex#430 — Issue #430 ← active
