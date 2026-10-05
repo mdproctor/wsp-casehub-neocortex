@@ -13,3 +13,10 @@ flyway-next-v:
 
 ## Queue
 - [ ] casehubio/neocortex#432 — Issue #432 ← active
+  - [x] Batch 1: AppraisalResult narrative
+    - [x] Task 1: Add narrative field
+  - [x] Batch 2: LlmAppraisalStrategy
+    - [x] Task 2: Implement strategy
+  - [x] Batch 3: Prompt+Wiring
+    - [x] Task 3: Update prompt section
+    - [x] Task 4: Wire CDI default
