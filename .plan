@@ -2,7 +2,7 @@
 
 ## State
 branch: issue-455-remove-habituation-enabled-flag
-state: active
+state: closing:review
 project-sha: 
 date: 
 issue-repo: casehubio/neocortex
@@ -11,5 +11,6 @@ design-repo:
 design-section-hashes: 
 flyway-next-v: 
 
+evidence-era: true
 ## Queue
 - [ ] casehubio/neocortex#455 — Issue #455 ← active
