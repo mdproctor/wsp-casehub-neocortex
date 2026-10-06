@@ -2,7 +2,7 @@
 
 ## State
 branch: issue-432-sub-llm-cognitive-appraisal
-state: active
+state: closing:review
 project-sha: 
 date: 
 issue-repo: casehubio/neocortex
@@ -11,6 +11,7 @@ design-repo:
 design-section-hashes: 
 flyway-next-v: 
 
+evidence-era: true
 ## Queue
 - [ ] casehubio/neocortex#432 — Issue #432 ← active
   - [x] Batch 1: AppraisalResult narrative
