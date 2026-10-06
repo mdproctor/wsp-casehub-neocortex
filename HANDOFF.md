@@ -2,27 +2,20 @@
 
 ## Last Session
 
-Completed #418 (Knowledge Pipeline Phase 2) — all 7 child issues landed on main as 769d4758. Then brainstormed Phase 3 direction: dimensional memory (CBR-based operational knowledge beyond hierarchical LLM memory), auto-generated task briefs, persistent RAG-indexed web content, and CBR learning loops.
-
-**Phase 2 final work (#423):**
-- CDI wiring: @ApplicationScoped, @Inject, DefaultBeans producers with Instance<LocationPlatform> multi-provider discovery
-- Audit: wired KnowledgePipelineMetrics (was dead code), fixed @ApplicationScoped scoping on 4 producers, added @PreDestroy for ResearchSessionStore
-- Config: consolidated into @ConfigMapping, fixed shared SqliteConfig default collision (separate ResearchSqliteConfig)
-- Tests: 104 total — CDI smoke test, refreshStale, subsumption, provider error isolation
-- Squashed 13→8 commits, pushed, merged to main, branch stamped
-- 3 garden entries captured (SmallRye config gotchas)
-
-**Phase 3 R&D doc:** Written at `specs/2026-10-05-knowledge-pipeline-phase-3-rnd.md` — explores dimensional memory, task briefs, RAG content indexing, platform integration map, cost analysis, skeptical assessment, incremental build order.
+Landed epic #438 — full audit of neocortex wiring gaps. 19 of 20 child issues fixed in a single session: 5 CDI bean annotations (Tier 1), 5 pipeline wiring fixes (Tier 2), 4 functional gap fixes (Tier 3), 5 cleanup items (Tier 4). All merged to main as 19 squashed commits. One deferred (#455 — habituationEnabled record field removal, needs stable IntelliJ for 25+ positional constructor updates).
 
 ## Immediate Next Step
 
-No active branch. Options:
-- Start Phase 3a (dimensional memory foundation) if ready to implement
-- Return to #412 (activity/CRM tracking) which has a stale .plan
-- Review the Phase 3 R&D doc and refine before committing to implementation
+Two items remaining:
+- **casehubio/neocortex#455** — remove dead `habituationEnabled` from CognitionConfig (deferred, S/Med)
+- **casehubio/blocks#333** — wire `configureAppraisal()` + `configureGutFeeling()` + `setMoodPersister()` in blocks production runtime (M/High, blocks repo)
+
+## Cross-Module
+
+blocks#333 depends on neocortex #438 work (all landed). blocks branch `issue-438-neocortex-audit-wiring` has the CognitiveProfileParticipant constructor update from #445. Pre-existing blocks changes stashed (`pre-existing changes`).
 
 ## References
 
-- Phase 3 R&D: `specs/2026-10-05-knowledge-pipeline-phase-3-rnd.md`
-- Phase 2 plan: `plans/2026-10-04-knowledge-pipeline-phase-2.md`
-- Diary: `blog/2026-10-05-mdp01-when-the-wiring-is-the-feature.md`
+- Design spec: `specs/issue-438-neocortex-audit-wiring/2026-10-06-neocortex-audit-wiring-design.md`
+- Plan: `plans/2026-10-06-neocortex-audit-wiring.md`
+- Diary: `blog/2026-10-06-mdp01-the-activation-boundary.md`
