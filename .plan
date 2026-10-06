@@ -10,8 +10,9 @@ covers: 432
 design-repo: 
 design-section-hashes: 
 flyway-next-v: 
-
 evidence-era: true
+landed_sha: 37b43a73
+
 ## Queue
 - [ ] casehubio/neocortex#432 — Issue #432 ← active
   - [x] Batch 1: AppraisalResult narrative
