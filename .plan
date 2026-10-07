@@ -1,0 +1,15 @@
+# Work Plan — issue-470-sub-thought-bio-import
+
+## State
+branch: issue-470-sub-thought-bio-import
+state: scaffolded
+project-sha: 
+date: 
+issue-repo: casehubio/neocortex
+covers: 470
+design-repo: 
+design-section-hashes: 
+flyway-next-v: 
+
+## Queue
+- [ ] casehubio/neocortex#470 — Issue #470 ← active
