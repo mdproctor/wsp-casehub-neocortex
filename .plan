@@ -2,7 +2,7 @@
 
 ## State
 branch: issue-455-remove-habituation-enabled-flag
-state: closing:pushed
+state: closing:merged
 project-sha: 
 date: 
 issue-repo: casehubio/neocortex
