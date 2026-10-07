@@ -2,11 +2,17 @@
 
 ## Last Session
 
-Landed 4 issues from the cognitive workbench epic (#471): DriveGoalBridgeParticipant (#463), need-tier on GOAL nodes (#464), OCC emotion lifecycle on GOAL nodes (#465), and a circular dependency fix between GoalAffectPhase and GoalPrioritizationPhase (#476). The circular dependency was caused by HeuristicGoalAppraisal reading composite `priority` (which includes affect) — replaced with `salience` from `importance` + `drive-intensity` primitives. First-principles OCC analysis confirmed no downsides — all emotions scale more correctly with intrinsic salience.
+Batch session: closed 4 issues in one pass.
+- **#474** — upgraded GoalRecognitionPhase dedup from equalsIgnoreCase to Jaro-Winkler (XS)
+- **#464** — already done (prior session), closed issue
+- **#466** — exposed 6 new CognitionApi endpoints: graph traversal, affect trajectory, attention briefing, domain activation, graph analytics, activity queries (M)
+- **#402** — skipped, blocked by prerequisite #399 (deductive goal formation)
+- Closed stale issues #467 and #469 (work already landed on main)
 
 ## Immediate Next Step
 
-casehubio/neocortex#466 — expose CognitionApi endpoints for cognitive visualization (M/Med). Different implementation area (API endpoints) from this session's cognitive internals work.
+- **casehubio/neocortex#402** — CognitiveEmergenceTest, blocked by #399
+- **casehubio/blocks#333** — wire `configureAppraisal()` + `configureGutFeeling()` + `setMoodPersister()` in blocks production runtime (M/High, blocks repo)
 
 ## References
 
