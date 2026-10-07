@@ -1,6 +1,6 @@
 delete_progress=done
 report_render=done
-_final_gate_attempt=2
+_final_gate_attempt=3
 _branch=issue-467-goal-tier-property
 report_init=done
 code_review=done
@@ -63,3 +63,8 @@ merge_pass=done
 stamp_pass=done
 write_landed=done
 cleanup_pass=done
+queue_decision_attempt=1
+last_yielded=queue_decision
+queue_decision=done
+queue_decision_produced=0
+_final_gate_forced=yes
