@@ -1,0 +1,17 @@
+# Work Plan — casehub-neocortex
+
+## Queue
+- [ ] casehubio/neocortex#400 — Cognitive section calibration — prominence, ordering, disposition reinforcement ← active
+- [ ] casehubio/neocortex#433 — LlmAppraisalStrategy: add disposition axes to sub-LLM input
+- [ ] casehubio/neocortex#444 — Wire CARMA appraisal + gut feeling into production runtime
+- [ ] casehubio/neocortex#475 — Drift detection — periodic calibration check between LLM character state and declared cognitive state
+- [ ] casehubio/neocortex#399 — Deductive goal formation — GoalFormationStrategy from situational knowledge + personality
+- [ ] casehubio/neocortex#470 — Sub-thought representation and biographical import template schema
+
+## State
+branch: casehub-neocortex
+state: active
+issue-repo: casehubio/neocortex
+covers: casehubio/neocortex#400
+Current: casehubio/neocortex#400 — Cognitive section calibration — prominence, ordering, disposition reinforcement
+date: 2026-10-07
