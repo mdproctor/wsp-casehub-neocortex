@@ -2,20 +2,13 @@
 
 ## Last Session
 
-Landed epic #438 — full audit of neocortex wiring gaps. 19 of 20 child issues fixed in a single session: 5 CDI bean annotations (Tier 1), 5 pipeline wiring fixes (Tier 2), 4 functional gap fixes (Tier 3), 5 cleanup items (Tier 4). All merged to main as 19 squashed commits. One deferred (#455 — habituationEnabled record field removal, needs stable IntelliJ for 25+ positional constructor updates).
+Landed 4 issues from the cognitive workbench epic (#471): DriveGoalBridgeParticipant (#463), need-tier on GOAL nodes (#464), OCC emotion lifecycle on GOAL nodes (#465), and a circular dependency fix between GoalAffectPhase and GoalPrioritizationPhase (#476). The circular dependency was caused by HeuristicGoalAppraisal reading composite `priority` (which includes affect) — replaced with `salience` from `importance` + `drive-intensity` primitives. First-principles OCC analysis confirmed no downsides — all emotions scale more correctly with intrinsic salience.
 
 ## Immediate Next Step
 
-Two items remaining:
-- **casehubio/neocortex#455** — remove dead `habituationEnabled` from CognitionConfig (deferred, S/Med)
-- **casehubio/blocks#333** — wire `configureAppraisal()` + `configureGutFeeling()` + `setMoodPersister()` in blocks production runtime (M/High, blocks repo)
-
-## Cross-Module
-
-blocks#333 depends on neocortex #438 work (all landed). blocks branch `issue-438-neocortex-audit-wiring` has the CognitiveProfileParticipant constructor update from #445. Pre-existing blocks changes stashed (`pre-existing changes`).
+casehubio/neocortex#466 — expose CognitionApi endpoints for cognitive visualization (M/Med). Different implementation area (API endpoints) from this session's cognitive internals work.
 
 ## References
 
-- Design spec: `specs/issue-438-neocortex-audit-wiring/2026-10-06-neocortex-audit-wiring-design.md`
-- Plan: `plans/2026-10-06-neocortex-audit-wiring.md`
-- Diary: `blog/2026-10-06-mdp01-the-activation-boundary.md`
+- Design specs: `specs/issue-471-cognitive-workbench/`
+- Garden entry: `GE-20261007-7134d5` — circular phase dependency technique
