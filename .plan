@@ -1,0 +1,15 @@
+# Work Plan — issue-400-cognitive-section-calibration
+
+## State
+branch: issue-400-cognitive-section-calibration
+state: scaffolded
+project-sha: 
+date: 
+issue-repo: casehubio/neocortex
+covers: casehubio/neocortex#400
+design-repo: 
+design-section-hashes: 
+flyway-next-v: 
+
+## Queue
+- [ ] casehubio/neocortex#400 — Issue #400 ← active
