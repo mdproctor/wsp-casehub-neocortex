@@ -2,20 +2,19 @@
 
 ## Last Session
 
-Landed epic #438 — full audit of neocortex wiring gaps. 19 of 20 child issues fixed in a single session: 5 CDI bean annotations (Tier 1), 5 pipeline wiring fixes (Tier 2), 4 functional gap fixes (Tier 3), 5 cleanup items (Tier 4). All merged to main as 19 squashed commits. One deferred (#455 — habituationEnabled record field removal, needs stable IntelliJ for 25+ positional constructor updates).
+Landed epic #437 — extend query normalization pipeline beyond location to all platform SPIs. Four sub-issues (#459-#462): SpatialSearchableProvider adapter, CDI wiring for DomainRegistry with auto-discovery, orchestrator refactor to dispatch through DomainRegistry, ExpansionStrategy removal (replaced by DomainSupport.normalizerChain). Code review caught latent NPE in CDI producer (SpatialBlockingStrategy constructed with null). Branch audit passed all 4 dimensions. Merged to main as a21adb86.
+
+Two acceptance criteria on #461 intentionally deferred: `promote()` still delegates to EntityPromoter directly (needs per-domain PromotionStrategy registry), `refreshStale()` retains `List<LocationPlatform>` (needs RefreshStrategy SPI).
 
 ## Immediate Next Step
 
-Two items remaining:
-- **casehubio/neocortex#455** — remove dead `habituationEnabled` from CognitionConfig (deferred, S/Med)
-- **casehubio/blocks#333** — wire `configureAppraisal()` + `configureGutFeeling()` + `setMoodPersister()` in blocks production runtime (M/High, blocks repo)
-
-## Cross-Module
-
-blocks#333 depends on neocortex #438 work (all landed). blocks branch `issue-438-neocortex-audit-wiring` has the CognitiveProfileParticipant constructor update from #445. Pre-existing blocks changes stashed (`pre-existing changes`).
+No active branch. Options:
+- Start cognitive workbench work (#471 epic, #463-470 child issues)
+- Return to #343 (graph-as-retrieval-modality)
+- Address #444 (wire CARMA + gut feeling into production runtime)
 
 ## References
 
-- Design spec: `specs/issue-438-neocortex-audit-wiring/2026-10-06-neocortex-audit-wiring-design.md`
-- Plan: `plans/2026-10-06-neocortex-audit-wiring.md`
-- Diary: `blog/2026-10-06-mdp01-the-activation-boundary.md`
+- Design spec: `specs/issue-437-extend-query-normalization/2026-10-06-extend-query-normalization-design.md`
+- Decisions: `specs/issue-437-extend-query-normalization/decisions.md`
+- Diary: `blog/2026-10-06-mdp01-breaking-the-location-monopoly.md`
