@@ -2,19 +2,19 @@
 
 ## Last Session
 
-Batch session: closed 4 issues in one pass.
-- **#474** — upgraded GoalRecognitionPhase dedup from equalsIgnoreCase to Jaro-Winkler (XS)
-- **#464** — already done (prior session), closed issue
-- **#466** — exposed 6 new CognitionApi endpoints: graph traversal, affect trajectory, attention briefing, domain activation, graph analytics, activity queries (M)
-- **#402** — skipped, blocked by prerequisite #399 (deductive goal formation)
-- Closed stale issues #467 and #469 (work already landed on main)
+Three issues landed in one session:
+- **#433** — added DispositionAxes to LlmAppraisalStrategy sub-LLM input (S/Low, landed as 4b793a26)
+- **#402** — GoalFormationEmergenceTest: 11 CAPS emergence tests across 4 categories (S/Med, landed as 1c731edf)
+- **#399** — deductive goal formation: new DeductiveGoalFormationStrategy SPI + LlmDeductiveGoalFormationStrategy + GoalProposalOrchestrator integration (M/High, landed as 58a710da)
 
 ## Immediate Next Step
 
-- **casehubio/neocortex#402** — CognitiveEmergenceTest, blocked by #399
+No active branch. Options:
 - **casehubio/blocks#333** — wire `configureAppraisal()` + `configureGutFeeling()` + `setMoodPersister()` in blocks production runtime (M/High, blocks repo)
+- **casehubio/neocortex#343** — graph-as-retrieval-modality
+- **casehubio/neocortex#444** — wire CARMA + gut feeling into production runtime
 
 ## References
 
-- Design specs: `specs/issue-471-cognitive-workbench/`
-- Garden entry: `GE-20261007-7134d5` — circular phase dependency technique
+- Design spec: `docs/specs/issue-399-deductive-goal-formation/2026-10-07-deductive-goal-formation-design.md`
+- Decisions: `docs/specs/issue-399-deductive-goal-formation/decisions.md`

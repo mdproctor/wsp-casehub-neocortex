@@ -68,3 +68,4 @@ last_yielded=queue_decision
 queue_decision=done
 queue_decision_produced=0
 _final_gate_forced=yes
+checkout_main_mechanical_attempt=1
