@@ -1,0 +1,15 @@
+# Work Plan — issue-433-disposition-in-appraisal
+
+## State
+branch: issue-433-disposition-in-appraisal
+state: scaffolded
+project-sha: 
+date: 
+issue-repo: casehubio/neocortex
+covers: 433
+design-repo: 
+design-section-hashes: 
+flyway-next-v: 
+
+## Queue
+- [ ] casehubio/neocortex#433 — Issue #433 ← active
