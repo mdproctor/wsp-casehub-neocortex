@@ -100,15 +100,16 @@ Confidence values are lower than VerbalCue heuristics (0.8) because sub-thought 
 - Pure pull (all consumers read from participant accessor) — MentalModelOrchestrator.record() is a push API (it expects signals). Forcing pull would require MentalModelOrchestrator to poll SubThoughtTickParticipant, which is architecturally wrong — the mental model receives signals, it doesn't fetch them.
 - Pure push (participant calls all consumers during its tick) — DriveOrchestrator.tick() is called by CognitionCore at step 6, not during FOUNDATION. The participant can't push to drives because drives haven't ticked yet. The participant stores data; DriveOrchestrator reads it when it ticks.
 **Rationale:** Each consumer's API dictates the data flow direction:
-- **MentalModelOrchestrator (push):** record() accepts MentalStateSignal instances. SubThoughtTickParticipant calls `mentalModel.record(new SubThoughtCue(...), agentId, subjectId, tenantId)` during its FOUNDATION tick, before the per-subject mental model loop (CognitionCore step 5). The participant takes MentalModelOrchestrator and SubjectResolver as constructor parameters. Entity names from sub-thoughts are mapped to subjectIds via SubjectResolver.
+- **MentalModelOrchestrator (push):** record() accepts MentalStateSignal instances. SubThoughtTickParticipant calls `mentalModel.record(new SubThoughtCue(...), agentId, subjectId, tenantId)` during its FOUNDATION tick, before the per-subject mental model loop (CognitionCore step 5). The participant takes MentalModelOrchestrator and SubjectResolver as constructor parameters.
 - **DriveOrchestrator (pull):** DriveOrchestrator.tick() runs at step 6. It reads from SubThoughtTickParticipant.currentSubThoughts() to compute modulation, like it reads from NarrativeOrchestrator.currentNarrative().
 - **CAPS (pull via metadata):** Per D4, sub-thought data reaches SituationClassifier through the metadata map at consolidation time. No tick-time CAPS concern.
 - **Prompt rendering (pull):** Prompt sections access via CognitionCore's SubThoughtTickParticipant field, like AppraisalPromptSection accesses AppraisalTickParticipant.
-**Trade-offs:** The participant is both an active coordinator (push to mental model) and a passive data store (pull for drives, CAPS). This dual role is consistent with AppraisalTickParticipant, which actively pushes mood signals (bridgeToMood) while passively serving appraisal results.
-**Sources:** MentalModelOrchestrator.record() (push API, line 64–78), DriveOrchestrator.tick() (pull pattern with NarrativeOrchestrator, line 80–84), AppraisalTickParticipant (dual push/pull precedent: bridgeToMood + currentResult)
-**Exploration:** surfaced by review (R1-14, R1-19)
+**Entity-name-to-subjectId resolution:** SubjectIds ARE human-readable entity names — this is the platform convention. Evidence: CognitiveProfileParticipant.collectSeeds() calls `CognitiveProfileQuery.byName(subjectId, tenantId)` — treating subjectId as a name directly. CognitionCore.extractAndRecordMentalState() uses "What {subjectId} said:" in LLM prompts. The participant resolves entity names from sub-thoughts to subjectIds by membership check: if extracted entity name ∈ `resolver.relevantSubjects(agentId, tenantId)`, push SubThoughtCue to `mentalModel.record(signal, agentId, entityName, tenantId)`. If the entity is not a tracked subject, the sub-thought is still available for drives and CAPS but no mental model push occurs. No name-to-ID resolution API is needed because subjectId = entity name.
+**Trade-offs:** The participant is both an active coordinator (push to mental model) and a passive data store (pull for drives, CAPS). This dual role is consistent with AppraisalTickParticipant, which actively pushes mood signals (bridgeToMood) while passively serving appraisal results. Entity name matching is case-sensitive string equality — fuzzy matching ("Sarah" vs "sarah") is not handled at this layer.
+**Sources:** MentalModelOrchestrator.record() (push API, line 64–78), DriveOrchestrator.tick() (pull pattern with NarrativeOrchestrator, line 80–84), AppraisalTickParticipant (dual push/pull precedent: bridgeToMood + currentResult), CognitiveProfileParticipant.collectSeeds() (byName(subjectId) — subjectId used as entity name), CognitionCore.extractAndRecordMentalState() ("What {subjectId} said:" in BDI prompt)
+**Exploration:** surfaced by review (R1-14, R1-19) → revised via review (R2-01)
 **Depends on:** D1 (participant placement and accessor)
-**Status:** captured
+**Status:** revised — entity-name-to-subjectId resolution specified (R2-01)
 
 ## D8: SubThought value type vs attribute-based access
 
@@ -124,17 +125,19 @@ Confidence values are lower than VerbalCue heuristics (0.8) because sub-thought 
 
 ## D9: Tick-scoped vs memory-scoped sub-thought unification
 
-**Choice:** Sync results are ephemeral (tick-only), async results are persistent (memory attributes), participant merges both with async-wins precedence
+**Choice:** Sync results are ephemeral (tick-only), async results are event-cached (no per-tick store I/O), participant merges both with async-wins precedence
 **Alternatives:**
 - Persist sync results — adds a write to every tick, creates potential conflicts with async enrichment, complicates the "async overwrites sync" reconciliation in D5.
 - Only serve async results — loses same-tick availability for the current observation. The observation may not yet be a recorded memory (D6's trigger), so async results don't exist yet.
+- Per-tick CaseMemoryStore query for recent enriched memories — adds store I/O to the tick path, contradicting D5's zero-I/O principle. CaseMemoryStore backend cost varies (InMemory is cheap, JPA/SQLite/Qdrant involve real I/O).
 **Rationale:**
 - **Sync results (D5):** Ephemeral SubThought instances in SubThoughtTickParticipant's ConcurrentHashMap. Produced from current observation text. Cleared when the next tick begins (or when the key is overwritten). Not stored in memory attributes.
-- **Async results (D6):** Persistent memory attributes. Available in subsequent ticks when the participant queries recent memories.
-- **Unification:** SubThoughtTickParticipant.tick() produces a merged view: current sync results + SubThoughts reconstructed from recent memory attributes (queried from memory store). If sync and async produce sub-thoughts for the same text span with different types, async wins (higher confidence, LLM-backed).
-- **No double-storage:** Sync results exist only in-memory for the current tick. This avoids the overwrite/merge complexity the reviewer identifies — there's nothing to overwrite because sync results aren't persisted.
-**Trade-offs:** Sync results are lost after the tick. If the same observation text triggers a tick but is never recorded as an experience (edge case), its sub-thoughts are never persisted. Acceptable because non-recorded observations are inherently ephemeral.
-**Sources:** SubThoughtTickParticipant ConcurrentHashMap (D1), enrichAttributes() persistence (D6), reconciliation strategy (D5)
-**Exploration:** surfaced by review (R1-16)
-**Depends on:** D1 (participant storage), D5 (sync extraction), D6 (async enrichment)
-**Status:** captured
+- **Async results (D6):** Persistent memory attributes via enrichAttributes(). Made available to the participant via event-driven cache — NOT per-tick store queries.
+- **Event-driven async cache:** SubThoughtExtractor.applySubThoughts() already enriches memory attributes and has access to the parsed SubThought data (ParsedSubThought records). After enrichAttributes(), the extractor fires a CDI event (SubThoughtsEnriched) carrying the parsed SubThought instances. SubThoughtTickParticipant observes this event and populates a time-windowed async cache (ConcurrentHashMap, keyed by agentId:tenantId, entries expire after configurable TTL). During tick, the merged view reads from: sync results (current observation) + async cache (event-pushed, zero store I/O). This follows the same event-driven pattern as D5's entity name cache.
+- **Unification:** SubThoughtTickParticipant.tick() produces a merged view: current sync results + async-cached SubThoughts. If sync and async produce sub-thoughts for the same text span with different types, async wins (higher confidence, LLM-backed).
+- **No double-storage:** Sync results exist only in-memory for the current tick. Async results exist in both memory attributes (persistence) and the event-driven cache (tick-time access). The cache is fed by events, not by querying the store.
+**Trade-offs:** Sync results are lost after the tick. If the same observation text triggers a tick but is never recorded as an experience (edge case), its sub-thoughts are never persisted. Acceptable because non-recorded observations are inherently ephemeral. The async cache adds a CDI event to the SubThoughtExtractor path, but this is lightweight compared to a per-tick store query.
+**Sources:** SubThoughtTickParticipant ConcurrentHashMap (D1), SubThoughtExtractor.applySubThoughts() (ParsedSubThought records available post-enrichment), enrichAttributes() persistence (D6), reconciliation strategy (D5)
+**Exploration:** surfaced by review (R1-16) → revised via review (R2-02)
+**Depends on:** D1 (participant storage), D5 (sync extraction), D6 (async enrichment + event push)
+**Status:** revised — per-tick store query replaced with event-driven cache (R2-02)
