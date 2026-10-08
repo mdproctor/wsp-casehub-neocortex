@@ -18,11 +18,11 @@ flyway-next-v:
   - [x] Batch 2: Core Tick Integration
     - [x] Task 2: RuleBasedSubThoughtExtractor
     - [x] Task 3: SubThoughtTickParticipant + CognitionCore wiring
-  - [ ] Batch 3: Downstream Consumers
+  - [x] Batch 3: Downstream Consumers
     - [x] Task 4: SubThoughtModulation + DriveComposer
     - [x] Task 5: MentalModelOrchestrator SubThoughtCue dispatch
-    - [ ] Task 6: SubThoughtPromptSection
-  - [ ] Batch 4: Async Enrichment
-    - [ ] Task 7: SubThoughtExtractionObserver + LLM extraction
-  - [ ] Batch 5: CAPS Integration
-    - [ ] Task 8: SubThoughtSituationDecorator + metadata
+    - [x] Task 6: SubThoughtPromptSection
+  - [x] Batch 4: Async Enrichment
+    - [x] Task 7: SubThoughtExtractionObserver + LLM extraction
+  - [x] Batch 5: CAPS Integration
+    - [x] Task 8: SubThoughtSituationDecorator + metadata
