@@ -85,7 +85,7 @@ public record SubThought(
 
 Companion utility class `SubThoughts`:
 - `extract(Memory memory)` — reconstructs `List<SubThought>` from memory attributes (sub-thought-N-type/text/entity pattern)
-- `merge(List<SubThought> sync, List<SubThought> async)` — combines with async-wins precedence for overlapping text spans
+- `merge(List<SubThought> sync, List<SubThought> async)` — combines with async-wins precedence. Overlap is determined by sentence-level text equality (normalized whitespace). When sync and async both produce a SubThought for the same sentence, the async version replaces the sync version
 - `ofType(List<SubThought>, String type)` — filter by sub-thought type
 - `forEntity(List<SubThought>, String entity)` — filter by entity name
 
@@ -116,7 +116,7 @@ FOUNDATION-phase `CognitionTickParticipant`. Registered via `CognitionCore.confi
 
 ### 3. RuleBasedSubThoughtExtractor (cognition)
 
-Fast sync extraction. No CDI — plain class instantiated by SubThoughtTickParticipant or CognitionCore.
+Fast sync extraction. `@ApplicationScoped` CDI bean — needs event observation for entity name cache refresh.
 
 **Keyword sets** (static, per sub-thought type):
 - `affect-observation`: felt, seemed, appeared, looked, sounded, happy, sad, anxious, distressed, upset, worried, cheerful, tense, relaxed, frustrated
@@ -138,7 +138,7 @@ Fast sync extraction. No CDI — plain class instantiated by SubThoughtTickParti
 2. For each sentence, check keyword sets — assign sub-thought type by highest keyword match count (ties: first match wins)
 3. For each typed sentence, scan for cached entity names
 4. Produce `SubThought(type, sentence, entity, 0.5, SYNC)` for each match
-5. Return unmatched sentences as-is (no sub-thought produced — not everything is a cognitive reaction)
+5. Sentences with no keyword matches produce no SubThought — not everything is a cognitive reaction. The returned list contains only matched sentences
 
 ### 4. MentalStateSignal.SubThoughtCue (cognition-api)
 
@@ -338,6 +338,12 @@ Merging: for duplicate node IDs, take max confidence. Sub-thought activations ar
 12. BehavioralSynthesisPhase metadata extension — depends on 11
 
 Steps 1-2 are API. Steps 3-8 are the tick-time integration (testable with in-memory stubs). Steps 9-10 are async enrichment. Steps 11-12 are CAPS integration. Each step is independently testable.
+
+## Design Trade-offs
+
+- **Two representations for sub-thought data** (D8): SubThought records in-process, attribute strings in persistence. Conversion is mechanical but adds a mapping layer. The alternative (one representation) either sacrifices type safety or breaks the memory enrichment pattern.
+- **Ephemeral sync results** (D9): Sync-extracted sub-thoughts exist only for the current tick. If an observation triggers a tick but is never recorded as an experience, its sub-thoughts are never persisted. Acceptable because non-recorded observations are inherently ephemeral.
+- **Keyword matching quality** (D5): Sync extraction has lower precision than LLM extraction. Mitigated by confidence cap (0.5), async overwrite, and downstream consumers weighting by confidence.
 
 ## References
 
