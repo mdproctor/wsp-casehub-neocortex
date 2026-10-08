@@ -1,0 +1,15 @@
+# Work Plan — issue-468-cognitive-workbench
+
+## State
+branch: issue-468-cognitive-workbench
+state: scaffolded
+project-sha: 
+date: 
+issue-repo: casehubio/neocortex
+covers: 468
+design-repo: 
+design-section-hashes: 
+flyway-next-v: 
+
+## Queue
+- [ ] casehubio/neocortex#468 — Issue #468 ← active
