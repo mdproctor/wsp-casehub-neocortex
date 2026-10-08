@@ -2,15 +2,15 @@
 
 ## State
 branch: issue-478-sub-thought-tick-integration
-state: closing:review
+state: closing:verified
 project-sha: 
 date: 
 issue-repo: casehubio/neocortex
-covers: 478
+covers: 478,487
 design-repo: 
 design-section-hashes: 
 flyway-next-v: 
-
 evidence-era: true
+
 ## Queue
 - [x] casehubio/neocortex#478 — Issue #478
