@@ -57,6 +57,7 @@ Async (outside tick):
 | Component | Module | Rationale |
 |-----------|--------|-----------|
 | SubThought record | cognition-api | Tick-time value type, consumed by cognition participants |
+| SubThoughtResult record | cognition-api | Accessor return type consumed by modulation and prompt rendering |
 | SubThoughts utility | cognition-api | Query helpers (extract from Memory, merge, filter) |
 | SubThoughtTickParticipant | cognition | FOUNDATION-phase participant, wired by CognitionCore |
 | SubThoughtModulation | cognition | Drive modulation computation, used by DriveOrchestrator |
@@ -84,6 +85,19 @@ public record SubThought(
 ```
 
 **Persistence keys:** `SubThoughtAttributeKeys` gains `confidence(int index)` → `"sub-thought-N-confidence"`. `ParsedSubThought` gains a `double confidence` field (LLM-assigned). `SubThoughtExtractor.applySubThoughts()` is extended to persist confidence alongside type/text/entity. No `source` key needed — persisted sub-thoughts are always ASYNC by definition; `SubThoughts.extract()` sets `source=ASYNC` for all reconstructed instances. Backward compatibility: missing confidence attributes default to 0.8.
+
+**SubThoughtResult** — the accessor return type consumed by drive modulation and prompt rendering:
+
+```java
+public record SubThoughtResult(
+    List<SubThought> subThoughts,
+    String observationHash
+) {
+    public static final SubThoughtResult EMPTY = new SubThoughtResult(List.of(), "");
+}
+```
+
+`observationHash` is a SHA-256 of the observation text that produced these sub-thoughts, enabling staleness detection: if the hash doesn't match the current observation, the consumer knows the sub-thoughts are from a prior tick. `EMPTY` constant avoids null checks in consumers. Module: `cognition-api` — alongside `SubThought`, since both `SubThoughtModulation` (cognition) and `SubThoughtPromptSection` (cognition) consume it.
 
 Companion utility class `SubThoughts`:
 - `extract(Memory memory)` — reconstructs `List<SubThought>` from memory attributes (sub-thought-N-type/text/entity/confidence pattern). Reads confidence from attribute, defaulting to 0.8 for pre-confidence data. Sets `source=ASYNC` for all persisted items
@@ -208,10 +222,12 @@ public final class SubThoughtModulation {
 ```
 
 **Type → axis mapping:**
-- concern count + negative-valence affect-observation count → `AFFILIATION` intensity
+- concern count + affect-observation count → `AFFILIATION` intensity
 - intention count + evaluative count → `COMPETENCE` intensity
 - association count + causal-inference count → `CURIOSITY` intensity
 - intention count + self-reflection count → `AUTONOMY` intensity
+
+Affect-observations (both positive and negative) contribute to affiliation because noticing emotional states in others — regardless of valence — signals social attention and engagement. The `concern` type already captures the specifically negative worry/anxiety signal. No valence field is needed on `SubThought` for this mapping.
 
 Intensity = `min(1.0, typeCount * 0.15)` — each matching sub-thought adds 0.15 to the axis, capped at 1.0.
 
@@ -352,6 +368,18 @@ Merging: for duplicate node IDs, take max confidence. Sub-thought activations ar
 `CognitionCore` gains:
 - `SubThoughtTickParticipant subThoughtParticipant` field
 - `configureSubThoughts(SubThoughtTickParticipant participant)` — sets the field, registers at FOUNDATION phase via `addParticipant(CognitionPhase.FOUNDATION, participant)`, calls `drives.setSubThoughtParticipant(participant)` to late-bind the participant reference (matching the `setAppraisalParticipant()` setter precedent)
+
+**Prompt section wiring** in `promptSections()`:
+
+```java
+if (config.subThoughtsEnabled() && subThoughtParticipant != null) {
+    sections.add(new SubThoughtPromptSection(subThoughtParticipant));
+}
+```
+
+Inserted after the `MentalModelPromptSection` block and before `StrategyPromptSection`. Ordering rationale: sub-thoughts represent the agent's recent cognitive reactions to observations — they provide immediate context that strategy and goal sections should build on. The agent reads its broader state first (mood, drives, narrative, user model, mental model), then its specific reactions (sub-thoughts), then its forward-looking sections (strategy, goals).
+
+`CognitionConfig` gains `subThoughtsEnabled()` (default `true`) for consistency with the existing per-feature enable pattern.
 
 **CognitionDefaultBeans** gains a `SubThoughtTickParticipant` producer:
 - Constructs with `RuleBasedSubThoughtExtractor`, `Instance<MentalModelOrchestrator>`, `Instance<SubjectResolver>`, `Instance<MindMapStore>`
