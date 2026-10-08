@@ -83,9 +83,11 @@ public record SubThought(
 }
 ```
 
+**Persistence keys:** `SubThoughtAttributeKeys` gains `confidence(int index)` → `"sub-thought-N-confidence"`. `ParsedSubThought` gains a `double confidence` field (LLM-assigned). `SubThoughtExtractor.applySubThoughts()` is extended to persist confidence alongside type/text/entity. No `source` key needed — persisted sub-thoughts are always ASYNC by definition; `SubThoughts.extract()` sets `source=ASYNC` for all reconstructed instances. Backward compatibility: missing confidence attributes default to 0.8.
+
 Companion utility class `SubThoughts`:
-- `extract(Memory memory)` — reconstructs `List<SubThought>` from memory attributes (sub-thought-N-type/text/entity pattern)
-- `merge(List<SubThought> sync, List<SubThought> async)` — combines with async-wins precedence. Overlap is determined by sentence-level text equality (normalized whitespace). When sync and async both produce a SubThought for the same sentence, the async version replaces the sync version
+- `extract(Memory memory)` — reconstructs `List<SubThought>` from memory attributes (sub-thought-N-type/text/entity/confidence pattern). Reads confidence from attribute, defaulting to 0.8 for pre-confidence data. Sets `source=ASYNC` for all persisted items
+- `merge(List<SubThought> sync, List<SubThought> async)` — combines sync-extracted sub-thoughts (current observation) with async-cached sub-thoughts (LLM enrichment of recent prior observations). In the common case, sync and async operate on different observation texts, making the merge a concatenation that carries recent enriched context forward alongside the current tick's decomposition. When the same observation triggers a tick before its async enrichment completes, sentence-level text equality (normalized whitespace) detects overlap, and the async version replaces the sync version — a correctness mechanism rather than the primary behavior
 - `ofType(List<SubThought>, String type)` — filter by sub-thought type
 - `forEntity(List<SubThought>, String entity)` — filter by entity name
 
@@ -106,8 +108,8 @@ FOUNDATION-phase `CognitionTickParticipant`. Registered via `CognitionCore.confi
 1. If `context.observation()` is null, return early
 2. Call `ruleBasedExtractor.extract(observation, agentId, tenantId)` → `List<SubThought>` (sync, confidence ≤ 0.5)
 3. Read async-cached sub-thoughts for this agent/tenant (event-driven, no store I/O)
-4. Merge: async wins for overlapping text spans
-5. Push to mental model: for each sub-thought with entity tag, check if entity ∈ `resolver.relevantSubjects(agentId, tenantId)`. If yes, call `mentalModel.record(new SubThoughtCue(subThought), agentId, entityName, tenantId)`
+4. Merge: concatenate sync + async, with async-wins for overlapping text spans
+5. Push to mental model: for each sub-thought with entity tag, check if entity ∈ `resolver.relevantSubjects(agentId, tenantId)`. If yes, call `mentalModel.record(new SubThoughtCue(subThought.type(), subThought.text(), subThought.entity(), subThought.confidence()), agentId, entityName, tenantId)`
 6. Store merged result in per-agent map
 
 **Accessor:** `currentSubThoughts(String agentId, String tenantId)` → `SubThoughtResult` (list of SubThought + observation text hash for staleness detection)
@@ -128,9 +130,9 @@ Fast sync extraction. `@ApplicationScoped` CDI bean — needs event observation 
 - `concern`: worry, concerned, afraid, fear, anxious about, troubled by, uneasy, dread, scared
 
 **Entity name cache:**
-- `ConcurrentHashMap<String, Set<String>>` keyed by tenantId
-- Populated on first access by querying MindMapStore for all node names in the tenant
-- Refreshed via `@Observes MindMapStoreWriteEvent` (or equivalent write-tracking mechanism)
+- `ConcurrentHashMap<String, CacheEntry>` keyed by tenantId, where `CacheEntry(Set<String> names, Instant loadedAt)`
+- Populated on first access by querying `MindMapStore.search()` for all node names in the tenant
+- TTL-based expiry: entries older than configurable TTL (default 2 minutes) are refreshed on next access. Staleness of a few minutes is acceptable — sync extraction is inherently approximate (confidence ≤ 0.5) and async LLM extraction is the authoritative path
 - Entity matching: case-insensitive word-boundary matching in observation text
 
 **extract() method:**
@@ -149,22 +151,48 @@ public sealed interface MentalStateSignal {
     // existing variants...
     record SubThoughtCue(
         String subThoughtType,  // SubThoughtTypes constant
-        String text,
+        String content,         // satisfies MentalStateSignal.content() contract
         String entity,
         double confidence
     ) implements MentalStateSignal {}
 }
 ```
 
-**MentalModelOrchestrator heuristic extraction** (D3):
+**MentalModelOrchestrator dispatch** (D3):
+
+`record()` gains a new `instanceof` branch:
+
+```java
+if (signal instanceof MentalStateSignal.VerbalCue vc) {
+    extractHeuristic(state, vc);
+} else if (signal instanceof MentalStateSignal.SubThoughtCue stc) {
+    extractSubThoughtHeuristic(state, stc);
+}
+state.appendSignal(signal.content());
+```
 
 New method `extractSubThoughtHeuristic(SubjectMentalState state, SubThoughtCue cue)`:
-- affect-observation, evaluative → `upsertBelief(entity + " state: " + text, confidence 0.6)`
-- concern, association → `upsertDesire(text, confidence 0.6)`
-- intention → `upsertIntention(text, confidence 0.7)`
-- causal-inference, self-reflection → `upsertBelief(text, confidence 0.5)`
 
-Confidence values are lower than VerbalCue heuristics (0.8) because sync sub-thought extraction is less reliable than direct verbal cues.
+```java
+private void extractSubThoughtHeuristic(SubjectMentalState state, SubThoughtCue cue) {
+    var now = clock.instant();
+    var key = normalizeKey(cue.content());
+    switch (cue.subThoughtType()) {
+        case SubThoughtTypes.AFFECT_OBSERVATION, SubThoughtTypes.EVALUATIVE ->
+            upsertBelief(state, key, cue.content(), 0.6);
+        case SubThoughtTypes.CONCERN, SubThoughtTypes.ASSOCIATION ->
+            upsertState(state.desires, key, cue.content(),
+                        0.6, BdiDimension.DESIRE, now);
+        case SubThoughtTypes.INTENTION ->
+            upsertState(state.intentions, key, cue.content(),
+                        0.7, BdiDimension.INTENTION, now);
+        case SubThoughtTypes.CAUSAL_INFERENCE, SubThoughtTypes.SELF_REFLECTION ->
+            upsertBelief(state, key, cue.content(), 0.5);
+    }
+}
+```
+
+Confidence values are lower than VerbalCue heuristics (0.8) because sync sub-thought extraction is less reliable than direct verbal cues. Key derivation uses the existing `normalizeKey()` to produce stable slugs.
 
 ### 5. SubThoughtModulation (cognition)
 
@@ -187,7 +215,23 @@ public final class SubThoughtModulation {
 
 Intensity = `min(1.0, typeCount * 0.15)` — each matching sub-thought adds 0.15 to the axis, capped at 1.0.
 
-**Integration:** DriveOrchestrator constructor gains `@Nullable SubThoughtTickParticipant` parameter. `DriveOrchestrator.tick()` reads `participant.currentSubThoughts(agentId, tenantId)`, calls `SubThoughtModulation.compute()`, passes result to `DriveComposer.compose()` as a new `@Nullable Map<DriveAxis, Double> subThoughtModulation` parameter. Null check: if participant is null or no sub-thoughts, modulation is skipped.
+**Integration:** DriveOrchestrator gains `void setSubThoughtParticipant(@Nullable SubThoughtTickParticipant p)` — a late-binding setter matching the `CognitionCore.setAppraisalParticipant()` precedent. Called from `CognitionCore.configureSubThoughts()` after participant construction. `DriveOrchestrator.tick()` reads `participant.currentSubThoughts(agentId, tenantId)`, calls `SubThoughtModulation.compute()`, passes result to `DriveComposer.compose()`. Null check: if participant is null or no sub-thoughts, modulation is skipped.
+
+**DriveComposer parameter consolidation:** Introduce `ModulationLayer` to replace individual nullable modulation maps:
+
+```java
+public record ModulationLayer(Map<DriveAxis, Double> modulation, double strength, String source) {}
+```
+
+`DriveComposer.compose()` signature changes from separate `@Nullable Map<DriveAxis, Double> narrativeModulation` and `@Nullable Map<DriveAxis, Double> subThoughtModulation` to a single `List<ModulationLayer> modulations` parameter. Application logic iterates the list:
+
+```java
+for (var layer : modulations) {
+    intensity += layer.modulation().getOrDefault(axis, 0.0) * layer.strength();
+}
+```
+
+Existing callers: `narrativeModulation` becomes `new ModulationLayer(narrativeMod, config.narrativeModulationStrength(), "narrative")`. Sub-thought modulation becomes `new ModulationLayer(subThoughtMod, config.subThoughtModulationStrength(), "sub-thought")`. `DriveConfig` gains `subThoughtModulationStrength()` (default 0.6).
 
 ### 6. SubThoughtPromptSection (cognition)
 
@@ -218,18 +262,36 @@ Reads from `SubThoughtTickParticipant.currentSubThoughts()`. Renders at most N s
 public class SubThoughtExtractionObserver {
     @Inject Event<SubThoughtExtractionRequested> extractionEvent;
 
+    private final ConcurrentHashMap<String, Instant> lastExtraction = new ConcurrentHashMap<>();
+    private static final Duration COOLDOWN = Duration.ofSeconds(5);
+
     void onExperienceRecorded(@Observes ExperienceRecorded event) {
+        if (!(event.event() instanceof Observation)
+                && !(event.event() instanceof FormativeExperience)) {
+            return;
+        }
+
+        var key = event.event().agentId() + ":" + event.event().tenantId();
+        var now = Instant.now();
+        var last = lastExtraction.get(key);
+        if (last != null && Duration.between(last, now).compareTo(COOLDOWN) < 0) {
+            return;
+        }
+        lastExtraction.put(key, now);
+
         extractionEvent.fireAsync(new SubThoughtExtractionRequested(
             event.memoryId(),
             event.event().tenantId(),
-            event.event().text(),
-            event.event().agentId()
+            event.event().description(),
+            PrincipalId.agent(event.event().agentId())
         ));
     }
 }
 ```
 
-Universal trigger — every `ExperienceRecorded` event fires async sub-thought extraction (D6).
+**Event type filtering:** Only `Observation` and `FormativeExperience` events trigger extraction. `Action` and `Outcome` events carry structured data (capability, result, target-agent) that doesn't benefit from LLM decomposition — their cognitive significance is already captured by `ActionAppraisalObserver`.
+
+**Rate limiting:** Per-agent cooldown (default 5 seconds, configurable) prevents LLM API saturation during high-frequency interaction bursts. The `fireAsync` dispatch provides natural backpressure via the CDI managed executor pool.
 
 ### 8. SubThoughtExtractor LLM Implementation (mindmap-intelligence)
 
@@ -274,12 +336,12 @@ public class SubThoughtSituationDecorator implements SituationClassifier {
 }
 ```
 
-**Metadata → CAPS mapping:**
-- `sub-thought-type=affect-observation` → perceived-emotional-state input nodes (confidence 0.5)
-- `sub-thought-type=causal-inference` → explanatory-attribution input nodes (confidence 0.4)
-- `sub-thought-type=concern` → threat-perception input nodes (confidence 0.6)
-- `sub-thought-type=intention` → goal-activation input nodes (confidence 0.5)
-- `sub-thought-type=self-reflection` → self-focused-attention input nodes (confidence 0.4)
+**Metadata → CAPS mapping** (key: `cognitiveKind`, matching the property stored by `SubThoughtConsolidationPhase.graduateSubThought()` and extracted by `BehavioralSynthesisPhase.nodeMetadata()`):
+- `cognitiveKind=affect-observation` → perceived-emotional-state input nodes (confidence 0.5)
+- `cognitiveKind=causal-inference` → explanatory-attribution input nodes (confidence 0.4)
+- `cognitiveKind=concern` → threat-perception input nodes (confidence 0.6)
+- `cognitiveKind=intention` → goal-activation input nodes (confidence 0.5)
+- `cognitiveKind=self-reflection` → self-focused-attention input nodes (confidence 0.4)
 
 Merging: for duplicate node IDs, take max confidence. Sub-thought activations are additive — they never reduce base classifier activations.
 
@@ -289,7 +351,7 @@ Merging: for duplicate node IDs, take max confidence. Sub-thought activations ar
 
 `CognitionCore` gains:
 - `SubThoughtTickParticipant subThoughtParticipant` field
-- `configureSubThoughts(SubThoughtTickParticipant participant)` — sets the field, registers at FOUNDATION phase via `addParticipant(CognitionPhase.FOUNDATION, participant)`, passes participant reference to DriveOrchestrator
+- `configureSubThoughts(SubThoughtTickParticipant participant)` — sets the field, registers at FOUNDATION phase via `addParticipant(CognitionPhase.FOUNDATION, participant)`, calls `drives.setSubThoughtParticipant(participant)` to late-bind the participant reference (matching the `setAppraisalParticipant()` setter precedent)
 
 **CognitionDefaultBeans** gains a `SubThoughtTickParticipant` producer:
 - Constructs with `RuleBasedSubThoughtExtractor`, `Instance<MentalModelOrchestrator>`, `Instance<SubjectResolver>`, `Instance<MindMapStore>`
@@ -338,6 +400,46 @@ Merging: for duplicate node IDs, take max confidence. Sub-thought activations ar
 12. BehavioralSynthesisPhase metadata extension — depends on 11
 
 Steps 1-2 are API. Steps 3-8 are the tick-time integration (testable with in-memory stubs). Steps 9-10 are async enrichment. Steps 11-12 are CAPS integration. Each step is independently testable.
+
+## Design Decisions
+
+### FOUNDATION vs DERIVED phase placement
+
+Issue #478 proposes SubThoughtTickParticipant at DERIVED phase. This spec places it at **FOUNDATION** phase. Rationale: sub-thoughts must be available BEFORE the subject loop (MentalModelOrchestrator.tick() processes buffered SubThoughtCue signals during the subject loop, between SOURCE and DERIVED phases) and BEFORE SOURCE phase orchestrators (narrative, strategy, reflection) that may benefit from sub-thought context. FOUNDATION phase runs after mood tick and memory hygiene but before everything else — the correct position for a shared intermediate representation that downstream phases consume.
+
+### SubThoughtModulation vs DriveSource SPI
+
+Issue #478 proposes `SubThoughtDriveSource` implementing the `DriveSource` SPI. This spec uses `SubThoughtModulation` following the `NarrativeModulation` pattern. Rationale:
+
+- `DriveSource` is a `@FunctionalInterface` returning `DriveIntensity evaluate(agentId, tenantId)` — it produces intensity for **one axis**. DriveOrchestrator has one DriveSource per axis (CuriosityDrive, CompetenceDrive, AffiliationDrive, AutonomyDrive).
+- Sub-thoughts affect **multiple axes simultaneously** from the same type distribution. Using DriveSource would require 4 separate implementations sharing state (the sub-thought list), each pretending to be independent.
+- Modulation is architecturally correct: sub-thoughts don't constitute independent drive sources — they modulate existing drives based on cognitive context. A concern sub-thought doesn't generate affiliation drive from scratch; it amplifies existing affiliation drive intensity.
+- The NarrativeModulation precedent demonstrates this pattern works cleanly with `DriveComposer.compose()`.
+
+## Attention Signal Architecture
+
+Sub-thought patterns generate attention signals via two existing extension points:
+
+**Consolidation-time signals:** `SubThoughtConsolidationPhase` implements `ConsolidationPhase`, which declares `default List<AttentionSignal> signals() {return List.of();}`. The phase can override this to emit signals when it detects cross-memory sub-thought patterns:
+
+| Pattern | SignalCategory | Trigger |
+|---------|---------------|---------|
+| Concern escalation | URGENCY_SPIKE | ≥N unresolved concern sub-thoughts about same entity |
+| Contradictions | MERGE_CANDIDATE | Opposing affect-observations about same entity |
+| Belief revision | BELIEF_REVISED | Affect polarity shift on entity over time window |
+
+These signals flow through the existing pipeline: `ConsolidationScheduler` → `CognitiveAttentionAccumulator.addSignals()` → `AttentionBriefing` → `CognitionCore.tick()` attention drain.
+
+**Tick-time signals:** Future extension — SubThoughtTickParticipant could produce `AttentionSignal` records for immediate-concern patterns detected within a single tick's sub-thought set. This would require a new signal pathway from FOUNDATION-phase participants to the attention mediator, which is out of scope for this issue.
+
+Follow-up issues filed for the 5 consolidation expansion patterns from issue #478:
+1. **Concern escalation** → URGENCY_SPIKE signals (#481)
+2. **Contradictions** → MERGE_CANDIDATE signals (#482)
+3. **Temporal affect trends** → AffectTrajectoryAnalyzer integration (#483)
+4. **Causal chains** → graduated subgraph from linked causal-inferences (#484)
+5. **Intention tracking** → GoalRecognitionPhase candidate feeding (#485)
+
+The architecture supports these via typed sub-thought signals through `SubThoughtCue` dispatch in `MentalModelOrchestrator`, the `ConsolidationPhase.signals()` SPI for consolidation-time attention, and the per-type SubThought records enabling pattern detection across memories.
 
 ## Design Trade-offs
 
