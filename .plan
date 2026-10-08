@@ -2,7 +2,7 @@
 
 ## State
 branch: issue-478-sub-thought-tick-integration
-state: active
+state: closing:review
 project-sha: 
 date: 
 issue-repo: casehubio/neocortex
@@ -11,18 +11,6 @@ design-repo:
 design-section-hashes: 
 flyway-next-v: 
 
+evidence-era: true
 ## Queue
-- [ ] casehubio/neocortex#478 — Issue #478 ← active
-  - [x] Batch 1: API Foundation
-    - [x] Task 1: SubThought value types + SubThoughtCue
-  - [x] Batch 2: Core Tick Integration
-    - [x] Task 2: RuleBasedSubThoughtExtractor
-    - [x] Task 3: SubThoughtTickParticipant + CognitionCore wiring
-  - [x] Batch 3: Downstream Consumers
-    - [x] Task 4: SubThoughtModulation + DriveComposer
-    - [x] Task 5: MentalModelOrchestrator SubThoughtCue dispatch
-    - [x] Task 6: SubThoughtPromptSection
-  - [x] Batch 4: Async Enrichment
-    - [x] Task 7: SubThoughtExtractionObserver + LLM extraction
-  - [x] Batch 5: CAPS Integration
-    - [x] Task 8: SubThoughtSituationDecorator + metadata
+- [x] casehubio/neocortex#478 — Issue #478
