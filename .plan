@@ -13,14 +13,14 @@ flyway-next-v:
 
 ## Queue
 - [ ] casehubio/neocortex#478 — Issue #478 ← active
-  - [ ] Batch 1: API Foundation
-    - [ ] Task 1: SubThought value types + SubThoughtCue
-  - [ ] Batch 2: Core Tick Integration
-    - [ ] Task 2: RuleBasedSubThoughtExtractor
-    - [ ] Task 3: SubThoughtTickParticipant + CognitionCore wiring
+  - [x] Batch 1: API Foundation
+    - [x] Task 1: SubThought value types + SubThoughtCue
+  - [x] Batch 2: Core Tick Integration
+    - [x] Task 2: RuleBasedSubThoughtExtractor
+    - [x] Task 3: SubThoughtTickParticipant + CognitionCore wiring
   - [ ] Batch 3: Downstream Consumers
-    - [ ] Task 4: SubThoughtModulation + DriveComposer
-    - [ ] Task 5: MentalModelOrchestrator SubThoughtCue dispatch
+    - [x] Task 4: SubThoughtModulation + DriveComposer
+    - [x] Task 5: MentalModelOrchestrator SubThoughtCue dispatch
     - [ ] Task 6: SubThoughtPromptSection
   - [ ] Batch 4: Async Enrichment
     - [ ] Task 7: SubThoughtExtractionObserver + LLM extraction
