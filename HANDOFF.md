@@ -2,19 +2,17 @@
 
 ## Last Session
 
-**Issue #478** — Sub-thought tick lifecycle integration.
+**#478 closed, #487 closed.** Sub-thought tick integration landed on main (2 squashed commits). Post-implementation audit found 16 findings — 4 runtime bugs (CDI observer on producer-managed bean, unguarded parseDouble, containsWord first-occurrence, hardcoded confidence), code duplication, test gaps. All fixed. `SubThoughtClassifier` extracted to memory-api as shared keyword classification utility.
 
-Full design cycle: brainstorming (9 decisions, D1 FOUNDATION phase placement was the anchor), Standard decision review (D2 revised from DriveSource to DriveComposer modulation), spec writing, Standard spec review (20 issues, ModulationLayer refactoring surfaced), implementation planning (8 tasks, 5 batches).
-
-Implementation: Batch 1 (API foundation) verified by hand — 60 cognition-api tests pass. A subagent committed Tasks 2-5 (RuleBasedSubThoughtExtractor, SubThoughtTickParticipant, CognitionCore wiring, SubThoughtModulation, MentalModelOrchestrator dispatch) — these compile clean but were NOT test-verified by the session. Next session must run cognition tests before proceeding.
+**#488 filed** — blocks must call `configureSubThoughts()` to activate the pipeline.
 
 ## Immediate Next Step
 
-Verify Tasks 2-5 (run `mvn test -pl cognition`), then implement remaining: Task 6 (SubThoughtPromptSection), Task 7 (SubThoughtExtractionObserver + LLM), Task 8 (SubThoughtSituationDecorator + CAPS metadata).
+**#468** — cognitive workbench barebones showcase in blocks-ui. This is the last child issue of epic #471. All neocortex-side model completeness work is done. This is React/TypeScript in blocks-ui, not Java.
 
 ## References
 
-- Design spec: `specs/issue-478-sub-thought-tick-integration/2026-10-08-sub-thought-tick-integration-design.md`
-- Decisions: `specs/issue-478-sub-thought-tick-integration/decisions.md`
-- Implementation plan: `plans/2026-10-08-sub-thought-tick-integration.md`
-- Journal: `JOURNAL.md`
+- Epic: casehubio/neocortex#471
+- Workbench specs: `~/claude/agents/cognition/2026-10-06-cognitive-workbench-spec.md`
+- Mockups: `~/claude/agents/cognition/mockups/`
+- Garden: GE-20261008-a8e584 (CDI observer gotcha), GE-20261008-bfdea9 (decorator tiering)
