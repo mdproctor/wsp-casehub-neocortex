@@ -401,7 +401,7 @@ Inserted after the `MentalModelPromptSection` block and before `StrategyPromptSe
 **Unit tests:**
 - `RuleBasedSubThoughtExtractor`: keyword matching accuracy per type, entity name matching, multi-sentence handling, edge cases (empty text, no matches, overlapping keywords)
 - `SubThoughtModulation.compute()`: type distribution → drive axis mapping, intensity capping, empty input
-- `SubThought.merge()`: async-wins precedence, non-overlapping combination
+- `SubThoughts.merge()`: async-wins precedence, non-overlapping combination
 - `SubThoughtSituationDecorator`: metadata → activation mapping, merge with base classifier, missing metadata handling
 
 **Integration tests:**
@@ -414,7 +414,7 @@ Inserted after the `MentalModelPromptSection` block and before `StrategyPromptSe
 
 ## Build Order
 
-1. SubThought value type + SubThoughts utility (cognition-api)
+1. SubThought value type + SubThoughtResult + SubThoughts utility (cognition-api)
 2. MentalStateSignal.SubThoughtCue (cognition-api)
 3. RuleBasedSubThoughtExtractor (cognition)
 4. SubThoughtTickParticipant (cognition) — depends on 1, 3
