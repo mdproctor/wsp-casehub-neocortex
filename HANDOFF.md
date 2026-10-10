@@ -2,14 +2,14 @@
 
 ## Last Session
 
-Implemented #500 (lifecycle event model). Three new classes in mindmap-api: `LifecycleDate` (EDTF Level 1 / ISO 8601-2:2019 partial dates with postfix qualifiers), `LifecycleEvents` (lifecycle.* property convention with standard labels per entity type), `LifecycleResolver` (derives validFrom/validUntil from lifecycle properties). Updated `NodeSnapshot` + `FieldChange` in cognitive-observability. 66 new tests. Landed as 75b9965d on main.
+Implemented #501 (extraction pipeline lifecycle events). Updated `extract_structure.py` ENTITY_SYSTEM prompt to request lifecycle events with standard labels aligned to `LifecycleEvents.java`. Updated `assemble_corpus.py` to expand lifecycle arrays into `lifecycle.*` node properties. Updated coverage checker and field registry. Committed as b6a54f3 on blocks-ui `issue-471-cognitive-workbench`.
 
 ## Immediate Next Step
 
 **Complete all modelling changes before re-running the pipeline.** The plan (in order):
 
 1. ~~**#500** — Lifecycle event model~~ ✅ Closed
-2. **#501** — Extraction pipeline: update prompts to capture lifecycle events with semantic labels
+2. ~~**#501** — Extraction pipeline: lifecycle events~~ ✅ Code done (blocks-ui b6a54f3)
 3. **Domain splitting** — importer must store memories in correct domains (experience/relationship/reflection/mood), not all as experience
 4. **Formative experience type** — childhood events need `developmental-period`, `situation-types`, `salience-multiplier` attributes
 5. **Disposition profile** — Phase 2b extraction of 5 disposition axes for primary subject
@@ -37,7 +37,7 @@ Implemented #500 (lifecycle event model). Three new classes in mindmap-api: `Lif
 | #495-497 | Gap report improvements | Code done, issues open |
 | #498 | Napoleon biography | After UI work |
 | #499 | Behavioural template extraction | Design done |
-| #501 | Pipeline lifecycle events | **Next** |
+| #501 | Pipeline lifecycle events | Code done, blocks-ui b6a54f3 |
 | #502 | Importer + UI lifecycle | Import after #501, UI deferred |
 | #503 | Avatar narrator | Design done |
 | #514 | Coverage gate / field registry | During re-run |
