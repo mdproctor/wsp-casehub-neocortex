@@ -70,11 +70,29 @@ Calibrate the extraction pipeline to maximize data richness with zero regression
 4. When done, read just the last entry in `iteration-log.md` (the score line)
 5. Decide next action based on score
 
-**Fork prompts should be SHORT.** Example:
-- "In extract_structure.py, add 'Extract at least 5 entities per passage' to ENTITY_SYSTEM before the Respond line. Commit as wip."
-- "Read the last 30 lines of iteration-log.md and report: score, regressions, recommendation in under 50 words."
+**Three reusable agent prompts in `agents/` — read and dispatch, never regenerate:**
 
-**Never re-read corpus JSON in the main context.** The scripts produce human-readable summaries. If you need deeper analysis, fork it.
+| Agent | File | Role | Invoke with |
+|-------|------|------|-------------|
+| Executor | `agents/executor.md` | Apply change + run pipeline | CHANGE + LABEL + LIMIT |
+| Evaluator | `agents/evaluator.md` | Score results + check regressions | iteration label |
+| Strategist | `agents/strategist.md` | Analyze history + propose next | (reads logs itself) |
+
+**The orchestrator loop:**
+1. Fork strategist → reads `changes-log.md` + `iteration-log.md` → writes `strategy.md` with next change
+2. Read `strategy.md` (tiny — under 150 words)
+3. Fork executor with the proposed change → applies it, runs pipeline, commits
+4. Fork evaluator → scores results, writes `evaluation.md`
+5. Read `evaluation.md` (tiny — under 100 words)
+6. Append to `changes-log.md`: what was tried, what happened
+7. If "DONE — ready for full run" → run full pipeline
+8. Otherwise → goto 1
+
+**State files (append-only, the orchestrator's memory):**
+- `changes-log.md` — what was tried and what happened (prevents loops)
+- `iteration-log.md` — quantitative scores per iteration (auto-updated by iterate.sh)
+
+**Never re-read corpus JSON in the main context.** Agents produce human-readable summaries. The orchestrator reads only strategy.md and evaluation.md — both under 150 words.
 
 ### Evaluation protocol
 
@@ -99,7 +117,22 @@ After each iteration:
 
 ### Session management
 
-If the main context fills up (completed 5+ iterations, lots of back-and-forth), **start a fresh session** via `work continue`. The HANDOFF will carry forward what worked and what didn't. Don't try to do everything in one session — fresh context reasons better than compressed context on iteration 15.
+Two modes for calibration:
+
+**Mode 1 — Single session with forks (simpler):**
+Use `iterate.sh` in background, forks for prompt changes, read `iteration-log.md` for results. Start fresh sessions via `work continue` when context fills up (~5 iterations).
+
+**Mode 2 — Parallel tmux sessions (faster):**
+```bash
+python3 scripts/calibrate.py --experiments experiments.yaml
+# Monitor:
+tmux attach -t calibrate
+python3 scripts/calibrate.py --check
+python3 scripts/calibrate.py --summarize
+```
+Each experiment gets its own Claude Code session with full context. Define variants in `experiments.yaml`, launch all at once, compare results. Add new experiments to the YAML and re-launch — completed ones are skipped.
+
+**When to use which:** Mode 1 for sequential refinement (each iteration builds on the last). Mode 2 for parallel A/B testing (independent variants tested simultaneously).
 
 ### Important paths
 
