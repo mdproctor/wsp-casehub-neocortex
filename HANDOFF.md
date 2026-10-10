@@ -138,14 +138,49 @@ Each experiment gets its own Claude Code session with full context. Define varia
 
 | Path | What |
 |------|------|
-| `blocks-ui/examples/cognitive-workbench/scripts/` | Pipeline scripts |
-| `blocks-ui/examples/cognitive-workbench/scripts/extract_structure.py` | Extraction prompts (ENTITY_SYSTEM, GOAL_SYSTEM, EDGE_SYSTEM, MEMORY_SYSTEM) |
-| `blocks-ui/examples/cognitive-workbench/scripts/chunk.py` | Chunking strategy |
-| `blocks-ui/examples/cognitive-workbench/scripts/llm_client.py` | LLM client (model selection) |
-| `blocks-ui/examples/cognitive-workbench/scripts/run_pipeline.sh` | Pipeline runner (--limit flag) |
-| `blocks-ui/examples/cognitive-workbench/output/` | Old baseline corpus |
-| `blocks-ui/examples/cognitive-workbench/output-test/` | 3-passage test (may have completed) |
-| `blocks-ui/examples/cognitive-workbench/source/frida-kahlo-biography.md` | Source biography |
+| `/Users/mdproctor/claude/agents/pipeline-calibration/` | **Orchestrator + meta-agent briefs** (create new ones here as needed) |
+| `blocks-ui/.../agents/` | Executor, evaluator, strategist briefs |
+| `blocks-ui/.../scripts/extract_structure.py` | Extraction prompts (ENTITY_SYSTEM, GOAL_SYSTEM, EDGE_SYSTEM, MEMORY_SYSTEM) |
+| `blocks-ui/.../scripts/chunk.py` | Chunking strategy |
+| `blocks-ui/.../scripts/llm_client.py` | LLM client (model selection) |
+| `blocks-ui/.../scripts/run_pipeline.sh` | Pipeline runner (--limit flag) |
+| `blocks-ui/.../scripts/iterate.sh` | Clean run + compare + log |
+| `blocks-ui/.../scripts/compare_corpus.py` | Baseline comparison |
+| `blocks-ui/.../scripts/calibrate.py` | Tmux parallel launcher |
+| `blocks-ui/.../output/` | Old baseline corpus |
+| `blocks-ui/.../output-test/` | Subset test output |
+| `blocks-ui/.../changes-log.md` | Experiment history (prevents loops) |
+| `blocks-ui/.../iteration-log.md` | Quantitative scores |
+| `blocks-ui/.../experiments.yaml` | Parallel experiment definitions |
+| `blocks-ui/.../source/frida-kahlo-biography.md` | Source biography |
+
+### Agent inventory
+
+**Meta-level** (`/Users/mdproctor/claude/agents/pipeline-calibration/`):
+- `orchestrator.md` — main loop, dispatches agents, tracks iterations
+- `dead-end-detector.md` — identifies loops, stalls, regressions
+- `results-analyst.md` — deep quality analysis (QUALITY/GAP/COMPARE modes)
+- `approach-generator.md` — brainstorms 5 novel approaches when stuck
+
+**Execution-level** (`blocks-ui/.../agents/`):
+- `evaluator.md` — scores results, checks regressions (<100 words)
+- `executor.md` — applies change, runs pipeline, commits (<50 words)
+- `strategist.md` — proposes next experiment from history (<150 words)
+
+**You can create new agent .md files as needed.** If you need a chunk-optimizer, a prompt-A/B-tester, or any other specialist, create it in the agents folder.
+
+### Tmux + Claude verified
+
+```bash
+# Tested and working:
+CLAUDE_CODE_USE_VERTEX=1 ANTHROPIC_VERTEX_PROJECT_ID=itpc-gcp-cp-pe-eng-claude CLOUD_ML_REGION=us-east5 claude --dangerously-skip-permissions -p '<prompt>'
+
+# Read tmux output:
+tmux capture-pane -t <session>:<window> -p | tail -20
+
+# Kill session:
+tmux kill-session -t <session>
+```
 
 ### Key findings from prior session
 
