@@ -2,13 +2,13 @@
 
 ## Last Session
 
-Brief session — status check and planning. No code changes. Confirmed #525 (pipeline convergence) is closed. Verified #500-502 (lifecycle event model) are still open.
+Implemented #500 (lifecycle event model). Three new classes in mindmap-api: `LifecycleDate` (EDTF Level 1 / ISO 8601-2:2019 partial dates with postfix qualifiers), `LifecycleEvents` (lifecycle.* property convention with standard labels per entity type), `LifecycleResolver` (derives validFrom/validUntil from lifecycle properties). Updated `NodeSnapshot` + `FieldChange` in cognitive-observability. 66 new tests. Landed as 75b9965d on main.
 
 ## Immediate Next Step
 
 **Complete all modelling changes before re-running the pipeline.** The plan (in order):
 
-1. **#500** — Lifecycle event model: `lifecycle.*` property convention, standard labels per entity type (born, completed, first-exhibited, etc.), date + event label not start/end range
+1. ~~**#500** — Lifecycle event model~~ ✅ Closed
 2. **#501** — Extraction pipeline: update prompts to capture lifecycle events with semantic labels
 3. **Domain splitting** — importer must store memories in correct domains (experience/relationship/reflection/mood), not all as experience
 4. **Formative experience type** — childhood events need `developmental-period`, `situation-types`, `salience-multiplier` attributes
@@ -28,6 +28,7 @@ Brief session — status check and planning. No code changes. Confirmed #525 (pi
 - CLAUDE.md now has Cognitive Corpus Coverage Protocol: 4-stage chain, 85-field registry (#514), verification agents, maintenance rules
 - Enrichment prompts updated for tendency intensities + distortion strengths but NOT re-run yet
 - The lifecycle event model was designed in detail (CIDOC-CRM research) — see #500 issue body
+- #500 landed: LifecycleDate (EDTF), LifecycleEvents, LifecycleResolver in mindmap-api; NodeSnapshot/FieldChange updated in cognitive-observability
 
 ## Open Issues
 
@@ -36,8 +37,7 @@ Brief session — status check and planning. No code changes. Confirmed #525 (pi
 | #495-497 | Gap report improvements | Code done, issues open |
 | #498 | Napoleon biography | After UI work |
 | #499 | Behavioural template extraction | Design done |
-| #500 | Lifecycle event model | **Next** |
-| #501 | Pipeline lifecycle events | After #500 |
+| #501 | Pipeline lifecycle events | **Next** |
 | #502 | Importer + UI lifecycle | Import after #501, UI deferred |
 | #503 | Avatar narrator | Design done |
 | #514 | Coverage gate / field registry | During re-run |
