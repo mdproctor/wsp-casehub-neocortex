@@ -18,7 +18,7 @@ Implemented #501 (extraction pipeline lifecycle events). Updated `extract_struct
 - Domain splitting — extraction already classifies domains correctly (importer concern → #502)
 
 ### To do
-- **#527** — Formative experience extraction (dedicated pass, stronger prompts)
+- ~~**#527** — Formative experience extraction~~ ✅ (blocks-ui b931955)
 - **#528** — Goal extraction improvements (implicit/thematic/strategic goals)
 - **#529** — Full pipeline re-run with 85-field coverage verification
 
@@ -41,7 +41,7 @@ Implemented #501 (extraction pipeline lifecycle events). Updated `extract_struct
 | Issue | Summary | Status |
 |-------|---------|--------|
 | #526 | **Epic: corpus extraction richness** | Active — 6/9 done |
-| #527 | Formative experience extraction | **Next** |
+| #527 | Formative experience extraction | ✅ blocks-ui b931955 |
 | #528 | Goal extraction improvements | Next |
 | #529 | Pipeline re-run + coverage verification | After #527, #528 |
 | #498 | Napoleon biography | After #526 epic |
