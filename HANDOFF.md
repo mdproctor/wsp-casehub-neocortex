@@ -51,21 +51,30 @@ Calibrate the extraction pipeline to maximize data richness with zero regression
 
 5. **Convergence tuning** — how many passes, what threshold for "converged"
 
-### Architecture — orchestrate with forks
+### Architecture — token-efficient orchestration
 
-**Keep the main context lean.** The main session orchestrates — it should NOT read pipeline output, parse JSON, or do heavy analysis directly. Fork sub-agents for all heavy lifting:
+**Keep the main context lean.** Reusable scripts handle all heavy lifting — forks are tiny dispatches, not repeated prompts.
 
-1. **Fork for each iteration:** "Run pipeline with --limit 3, compare results to baseline, report: entities/goals/formative/lifecycle/memories counts + regressions. Under 100 words."
-2. **Fork for brainstorming:** "Brainstorm 5 approaches to improve goal extraction yield without regressing entity count. Under 200 words."
-3. **Fork for prompt changes:** "Read ENTITY_SYSTEM in extract_structure.py, propose a revised prompt that [specific goal]. Write the change, commit."
-4. **Fork for evaluation:** "Read output-test/corpus.json and output/corpus.json, produce a before/after comparison table with regression flags."
+**Pre-built tools (do NOT regenerate — just invoke):**
 
-The main session tracks: which iteration we're on, what we tried, what worked, what to try next. It does NOT read raw JSON output — forks do that and report summaries.
+| Script | Purpose | Usage |
+|--------|---------|-------|
+| `iterate.sh` | Clean run + compare + log | `bash iterate.sh --limit 3 --label "try-X"` |
+| `compare_corpus.py` | Baseline comparison with scores | `python3 compare_corpus.py baseline.json candidate.json` |
+| `iteration-log.md` | Append-only log of all iterations | Auto-updated by iterate.sh |
 
-```bash
-# Fast test (3 passages, ~5 min)
-./run_pipeline.sh <source> output-test --limit 3 --max-passes 2
-```
+**Iteration loop — the main session does only this:**
+1. Decide what to change (prompt, chunking, call structure)
+2. Fork to make the change and commit
+3. Run `iterate.sh --limit 3 --label "description"` in background
+4. When done, read just the last entry in `iteration-log.md` (the score line)
+5. Decide next action based on score
+
+**Fork prompts should be SHORT.** Example:
+- "In extract_structure.py, add 'Extract at least 5 entities per passage' to ENTITY_SYSTEM before the Respond line. Commit as wip."
+- "Read the last 30 lines of iteration-log.md and report: score, regressions, recommendation in under 50 words."
+
+**Never re-read corpus JSON in the main context.** The scripts produce human-readable summaries. If you need deeper analysis, fork it.
 
 ### Evaluation protocol
 
