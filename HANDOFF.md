@@ -19,7 +19,7 @@ Implemented #501 (extraction pipeline lifecycle events). Updated `extract_struct
 
 ### To do
 - ~~**#527** — Formative experience extraction~~ ✅ (blocks-ui b931955)
-- **#528** — Goal extraction improvements (implicit/thematic/strategic goals)
+- ~~**#528** — Goal extraction improvements~~ ✅ (blocks-ui fc62713)
 - **#529** — Full pipeline re-run with 85-field coverage verification
 
 ### After epic
@@ -42,7 +42,7 @@ Implemented #501 (extraction pipeline lifecycle events). Updated `extract_struct
 |-------|---------|--------|
 | #526 | **Epic: corpus extraction richness** | Active — 6/9 done |
 | #527 | Formative experience extraction | ✅ blocks-ui b931955 |
-| #528 | Goal extraction improvements | Next |
+| #528 | Goal extraction improvements | ✅ blocks-ui fc62713 |
 | #529 | Pipeline re-run + coverage verification | After #527, #528 |
 | #498 | Napoleon biography | After #526 epic |
 | #499 | Behavioural template extraction | Design done |
