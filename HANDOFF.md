@@ -6,21 +6,27 @@ Implemented #501 (extraction pipeline lifecycle events). Updated `extract_struct
 
 ## Immediate Next Step
 
-**Complete all modelling changes before re-running the pipeline.** The plan (in order):
+**Epic #526 — corpus extraction richness.** Maximize data quality before import.
 
-1. ~~**#500** — Lifecycle event model~~ ✅ Closed
-2. ~~**#501** — Extraction pipeline: lifecycle events~~ ✅ Code done (blocks-ui b6a54f3)
-3. **Domain splitting** — importer must store memories in correct domains (experience/relationship/reflection/mood), not all as experience
-4. **Formative experience type** — childhood events need `developmental-period`, `situation-types`, `salience-multiplier` attributes
-5. **Disposition profile** — Phase 2b extraction of 5 disposition axes for primary subject
-6. **Goal extraction** — only 3 goals in current corpus, needs stronger prompts
-7. **#502 (import part only)** — importer updates for lifecycle + domains + formative. UI display deferred.
-8. **Close #495-497** — fuzzy matching, noise dismiss, gap classification already implemented in code
-9. **Re-run pipeline** with full coverage verification against 85-field registry (#514)
+### Done
+- ~~#500 — Lifecycle event model~~ ✅
+- ~~#501 — Lifecycle extraction~~ ✅ (blocks-ui b6a54f3)
+- ~~#495 — Fuzzy matching~~ ✅
+- ~~#496 — Noise dismiss~~ ✅
+- ~~#497 — Gap confidence~~ ✅
+- Disposition profile — already working in Phase 2b `enrich_entity.py`
+- Domain splitting — extraction already classifies domains correctly (importer concern → #502)
 
-**Then:** UI improvements (lifecycle display, timeline view, better layout, cognitive dimension polish)
+### To do
+- **#527** — Formative experience extraction (dedicated pass, stronger prompts)
+- **#528** — Goal extraction improvements (implicit/thematic/strategic goals)
+- **#529** — Full pipeline re-run with 85-field coverage verification
 
-**Then:** Napoleon (#498) to fill model coverage gaps
+### After epic
+- **#502** — Corpus importer + UI (import after extraction is rich)
+- **#498** — Napoleon biography (fill model coverage gaps)
+
+**Then:** UI improvements (lifecycle display, timeline view, cognitive dimension polish)
 
 ## Key Context
 
@@ -34,13 +40,15 @@ Implemented #501 (extraction pipeline lifecycle events). Updated `extract_struct
 
 | Issue | Summary | Status |
 |-------|---------|--------|
-| #495-497 | Gap report improvements | Code done, issues open |
-| #498 | Napoleon biography | After UI work |
+| #526 | **Epic: corpus extraction richness** | Active — 6/9 done |
+| #527 | Formative experience extraction | **Next** |
+| #528 | Goal extraction improvements | Next |
+| #529 | Pipeline re-run + coverage verification | After #527, #528 |
+| #498 | Napoleon biography | After #526 epic |
 | #499 | Behavioural template extraction | Design done |
-| #501 | Pipeline lifecycle events | Code done, blocks-ui b6a54f3 |
-| #502 | Importer + UI lifecycle | Import after #501, UI deferred |
+| #502 | Importer + UI lifecycle | After #526 epic |
 | #503 | Avatar narrator | Design done |
-| #514 | Coverage gate / field registry | During re-run |
+| #514 | Coverage gate / field registry | During #529 re-run |
 
 ## References
 
