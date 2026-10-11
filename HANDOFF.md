@@ -2,25 +2,25 @@
 
 ## Last Session
 
-Calibrated the Frida Kahlo extraction pipeline (all targets met), researched goal/motivation taxonomy (Talevich, Emmons), designed and reviewed the model extension spec, wrote the implementation plan.
+Executed Batches 1-5 of the goal/motivation taxonomy plan. Pipeline migrated, Goallike trait extended with 5 taxonomy accessors, GoalVocabulary constants added (9 domains, 4 origins, 25 subdomains), GoalEntry/Handler extended with validation, extraction prompt updated, assembler enhanced with vocabulary normalisation + lifecycle normalisation + entity dedup + cross-tier edge linking, GoalResolutionPhase hardened with content domain guard and taxonomy propagation.
 
 ## Immediate Next Step
 
-Execute Batch 1 of the implementation plan: migrate extraction pipeline from `blocks-ui` to `neocortex/extraction/`.
+Execute remaining tasks: Task 11 (LLM semantic dedup — optional) and Task 14 (full pipeline run with taxonomy fields, re-import). Then close issues #539-#546.
 
 ```
 Plan: plans/2026-10-11-goal-motivation-taxonomy.md
-Spec: specs/2026-10-11-goal-motivation-model-extension-design.md (reviewed — 63 issues resolved)
-Research: specs/2026-10-11-goal-motivation-taxonomy-rnd.md
+Spec: specs/2026-10-11-goal-motivation-model-extension-design.md (reviewed)
 Epic: #538, children: #539-#549
+Branch: issue-539-migrate-extraction-pipeline (10 commits)
 ```
 
 ## State
 
-- On `main` — no feature branch yet (work start needed)
-- Full pipeline run complete: 276 nodes, 138 goals, 57 formative, 347 memories
-- All coverage gates pass (node 77.8%, enrichment 79.2%, memory 76.5%)
-- 12 issues created under epic #538, #549 done
-- Spec reviewed: 4 dimensions × 3 rounds, 63 issues, all resolved
-- 3 garden entries submitted (LLM schema drift, two-guard dedup, coverage threshold)
-- Diary entry: `blog/2026-10-11-mdp01-you-cant-parameterise-taste.md`
+- On `issue-539-migrate-extraction-pipeline` — 10 commits ahead of main
+- Completed tasks: 1-10, 12, 13 (Tasks 8-9 combined into one commit)
+- Remaining: Task 11 (LLM semantic dedup, deferred), Task 14 (full pipeline run)
+- All Java tests pass: mindmap-api, mindmap-intelligence, memory-seeding, cognition
+- All Python tests pass: 47 extraction tests
+- Issues addressed: #539 (pipeline migration), #540 (Goallike+GoalVocabulary+GoalEntry+GoalHandler+GoalResolutionPhase), #541 (extraction prompt), #542 (cross-tier linking), #544 (vocabulary normalisation), #545 (lifecycle labels), #546 (entity dedup)
+- Not started: #543 (affinity profile, deferred), #547 (edge scaling), #548 (PAD on non-person entities), #549 (done from prior session)
