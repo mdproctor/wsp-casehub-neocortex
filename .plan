@@ -1,12 +1,13 @@
----
+# Work Plan — Work Plan —
+
+## State
 branch: issue-539-migrate-extraction-pipeline
-base: main
-repo: casehubio/neocortex
 state: active
----
+Current: none
+date: 
+current: casehubio/neocortex#550
 
 ## Queue
-
 - [x] casehubio/neocortex#539 — Migrate extraction pipeline
 - [x] casehubio/neocortex#540 — Extend Goallike trait with taxonomy
 - [x] casehubio/neocortex#541 — Update GOAL_SYSTEM extraction prompt
@@ -16,3 +17,4 @@ state: active
 - [x] casehubio/neocortex#546 — Entity name normalisation
 - [x] casehubio/neocortex#547 — Edge extraction scaling
 - [x] casehubio/neocortex#548 — PAD on non-person entities
+- [ ] casehubio/neocortex#550 — Import readiness verification
