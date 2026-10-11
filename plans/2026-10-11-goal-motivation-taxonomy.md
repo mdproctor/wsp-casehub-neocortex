@@ -7,7 +7,7 @@
 > editing. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Focal issue:** #538 — Epic: goal & motivation taxonomy model extension
-**Issue group:** #539, #540, #541, #542, #543, #544, #545, #546, #547, #548
+**Issue group:** #539, #540, #541, #542, #543, #544, #545, #546, #547, #548, #529
 
 **Goal:** Extend the neocortex cognitive model with grounded goal/motivation taxonomy (Talevich/Emmons), migrate extraction pipeline, and improve corpus quality.
 
@@ -634,21 +634,62 @@ Per spec §6.4 — propagate contentDomain and motivationOrigin from parent to s
 - [ ] **Step 3:** Run tests, verify PASS
 - [ ] **Step 4:** Commit
 
+## Batch 5b: Extraction Quality (#547, #548)
+
+### Task 14: Edge extraction scaling (#547)
+
+Edge/node ratio dropped from 1.20 to 0.76 as entity extraction improved. Edge extraction isn't keeping pace.
+
+**Files:**
+- Modify: `extraction/scripts/extract_structure.py` — EDGE_SYSTEM prompt
+
+Fix: pass extracted entity list into edge prompt as context so the LLM sees all entities when inferring relationships. Add post-extraction edge inference from entity co-occurrence in memories.
+
+- [ ] **Step 1:** Update EDGE_SYSTEM prompt to receive entity context
+- [ ] **Step 2:** Update `extract_passage()` to pass entities to edge call
+- [ ] **Step 3:** Add co-occurrence edge inference after extraction
+- [ ] **Step 4:** Commit
+
+### Task 15: PAD on non-person entities (#548)
+
+Entity PAD only on persons (7/276). Places, activities, concepts carry affective significance but no PAD.
+
+**Files:**
+- Modify: `extraction/scripts/extract_structure.py` — ENTITY_SYSTEM prompt
+- Modify: `extraction/scripts/enrich_cognitive.py` — entity PAD derivation
+
+Fix: extend extraction prompt to request PAD on all entity types. Add fallback derivation from memory PAD averages.
+
+- [ ] **Step 1:** Update ENTITY_SYSTEM prompt to request PAD on all types
+- [ ] **Step 2:** Add PAD derivation from memory averages in enrichment
+- [ ] **Step 3:** Commit
+
+### Task 16: LLM semantic dedup (#542)
+
+Near-miss goal candidates from mechanical dedup passed to LLM for DUPLICATE/RELATED/DISTINCT classification.
+
+**Files:**
+- Modify: `extraction/scripts/assemble_corpus.py`
+
+- [ ] **Step 1:** Add `llm_semantic_dedup()` function
+- [ ] **Step 2:** Wire after mechanical pre-filter, gated by `--llm-dedup` flag
+- [ ] **Step 3:** Commit
+
 ## Batch 6: Full Run + Re-Import (#529)
 
-### Task 14: Full pipeline run with taxonomy
+### Task 17: Full pipeline run with taxonomy + quality improvements
 
 - [ ] **Step 1:** Run 3-passage subset: `bash extraction/scripts/iterate.sh --limit 3 --label "taxonomy-v1"`
 - [ ] **Step 2:** Verify all new fields populated, coverage gates pass
 - [ ] **Step 3:** Run full pipeline: `bash extraction/scripts/iterate.sh --limit 0 --label "taxonomy-full"`
-- [ ] **Step 4:** Compare against previous baseline
+- [ ] **Step 4:** Compare against previous baseline — verify edge/node ratio improved
 - [ ] **Step 5:** Re-import via BiographyImportRunner
 - [ ] **Step 6:** Verify taxonomy fields appear in MindMap goal nodes
 - [ ] **Step 7:** Commit final corpus + close #529
 
 ## Batch 7: Affinity Profile (#543) — Deferred
 
-### Task 15: AffinityDefaults record + YAML schema
+### Task 18: AffinityDefaults record + YAML schema
 
 Deferred to a separate session. Depends on all prior batches landing. See spec §3.6.
 
