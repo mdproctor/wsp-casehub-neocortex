@@ -1,0 +1,18 @@
+---
+branch: issue-539-migrate-extraction-pipeline
+base: main
+repo: casehubio/neocortex
+state: active
+---
+
+## Queue
+
+- [x] casehubio/neocortex#539 — Migrate extraction pipeline
+- [x] casehubio/neocortex#540 — Extend Goallike trait with taxonomy
+- [x] casehubio/neocortex#541 — Update GOAL_SYSTEM extraction prompt
+- [x] casehubio/neocortex#542 — Two-phase goal dedup
+- [x] casehubio/neocortex#544 — OCC/goal vocabulary normalisation
+- [x] casehubio/neocortex#545 — Lifecycle event vocabulary enforcement
+- [x] casehubio/neocortex#546 — Entity name normalisation
+- [x] casehubio/neocortex#547 — Edge extraction scaling
+- [x] casehubio/neocortex#548 — PAD on non-person entities
