@@ -417,6 +417,16 @@ The current `merge()` uses Jaro-Winkler ≥ 0.85 with no content domain guard. A
 
 This prevents the runtime from re-merging goals that extraction's LLM classified as DISTINCT due to different content domains.
 
+**Null contentDomain handling:** If either node in a candidate pair lacks `contentDomain`, skip the domain guard for that pair — apply JW ≥ 0.90 only. This covers three categories of domain-less goals:
+
+- **Pre-existing goals** — created before this spec is implemented, not yet re-imported
+- **Runtime-recognized goals** — `CognitiveGoalRecognizer` returns `RecognizedGoal(description, origin, suggestedHorizon, confidence)` with no content domain field. Goals from the recognition path will always lack `contentDomain` until the recognizer SPI is extended.
+- **Decomposed sub-goals** — if §6.4 propagation fails or the parent itself lacks a domain
+
+The "skip guard on null" strategy is consistent with §5.1's extraction-time dedup null handling. It avoids both false protection (null==null matching all domain-less goals into one group) and over-constraint (null≠non-null preventing runtime-recognized duplicates of imported goals from merging).
+
+**Follow-up:** `CognitiveGoalRecognizer` and `RecognizedGoal` should be extended with optional `contentDomain` and `motivationOrigin` fields — tracked as a follow-up issue under #538 (the taxonomy epic).
+
 ## 7. Re-Process and Re-Import
 
 ### 7.1 Re-Process Frida
