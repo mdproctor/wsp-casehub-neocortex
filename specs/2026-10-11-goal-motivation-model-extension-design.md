@@ -82,7 +82,9 @@ Optional<String> evidenceBasis();
 
 All accessors return `Optional<String>` for consistency with the trait property model — `ThingProxyHandler` maps method names directly to `Thing.property(methodName)`, which always returns `Optional<String>`. Callers parse numeric values as needed (e.g., `clarity().map(Double::parseDouble).orElse(0.0)`).
 
-**Property key convention:** The method name IS the property key. `contentDomain()` resolves to `thing.property("contentDomain")`. GoalHandler, GoalResolutionPhase, and any other code storing these properties must use the exact method name as the property key (camelCase, no dots, no kebab-case).
+**Property key convention:** For properties backed by the Goallike trait interface, the method name IS the property key. `contentDomain()` resolves to `thing.property("contentDomain")` via `ThingProxyHandler`. All goal creation paths (GoalHandler, GoalRecognitionPhase, GoalResolutionPhase, DriveGoalBridgeParticipant) must use the exact method name as the property key for any property accessed via the Goallike trait.
+
+**Pre-existing non-trait property keys:** Existing properties such as `"goal-tier"`, `"need-tier"`, `"origin-drive"` use kebab-case and are accessed directly via `node.property(key)`, not through the Goallike trait proxy. These retain their current keys. If any are later promoted to Goallike trait methods, a property key migration to camelCase will be required.
 
 ### 3.2 Content Domain Values (Talevich Y-level)
 
@@ -144,9 +146,20 @@ public static final Set<String> CONTENT_DOMAINS = Set.of(
 
 public static final Set<String> MOTIVATION_ORIGINS = Set.of(
     "intrinsic", "identified", "introjected", "external");
+
+public static final Set<String> CONTENT_SUBDOMAINS = Set.of(
+    "social-values", "personal-morals", "help-others", "highly-regarded",
+    "religion-and-spirituality",
+    "wisdom-and-serenity", "self-knowledge-and-happiness", "appreciating-beauty",
+    "exploration-and-passions", "enjoy-life",
+    "avoid-stress-harm-rejection-conflict", "avoid-hassles",
+    "relate-and-belong", "intimacy", "stability", "power", "leadership",
+    "health", "family",
+    "achievement", "self-efficacy", "practical-competence", "intellectual-competence",
+    "finances", "occupational-success");
 ```
 
-GoalHandler validates at import time: reject entries with domain/origin values not in these sets. The Python extraction prompt constrains output, but validation at the import boundary catches prompt drift or manual edits to the corpus JSON.
+GoalHandler validates at import time: reject entries with domain, subdomain, or origin values not in these sets. The Python extraction prompt constrains output, but validation at the import boundary catches prompt drift or manual edits to the corpus JSON.
 
 ### 3.6 Affinity Profile (Cognitive Profile YAML)
 
@@ -338,7 +351,10 @@ Update `GoalHandler` in `memory-seeding/biography/` to wire new fields. Property
 //   status, urgency, priority, feasibility, need-tier
 // This spec wires BOTH the missing extraction fields AND the new taxonomy fields.
 
-// Wire previously-missing extraction fields (property keys match Goallike method names):
+// Wire previously-missing extraction fields:
+// status, urgency, feasibility match existing Goallike trait methods (camelCase keys)
+// priority is not a Goallike trait method but uses camelCase naturally
+// need-tier is not a Goallike trait method; retains existing kebab-case key
 if (entry.status() != null) props.put("status", entry.status());
 if (entry.urgency() != null) props.put("urgency", entry.urgency());
 if (entry.priority() != null) props.put("priority", entry.priority());
@@ -405,7 +421,7 @@ The following fields are NOT inherited:
 - `clarity` — sub-goals may have different precision than the parent
 - `evidenceBasis` — decomposed sub-goals are LLM-generated, not extracted from text
 
-Implementation: after creating sub-goal nodes, set `contentDomain` and `motivationOrigin` from the parent node's properties. This ensures cross-tier linking (§4.2) works for decomposed sub-goals.
+Implementation: after creating sub-goal nodes, set `contentDomain` and `motivationOrigin` from the parent node's properties. This ensures the §6.5 merge guard can correctly evaluate merge candidates for decomposed sub-goals — without inherited taxonomy, sub-goals would always fall through to the null-domain fallback path.
 
 ### 6.5 GoalResolutionPhase.merge() — Content Domain Guard
 
@@ -425,7 +441,37 @@ This prevents the runtime from re-merging goals that extraction's LLM classified
 
 The "skip guard on null" strategy is consistent with §5.1's extraction-time dedup null handling. It avoids both false protection (null==null matching all domain-less goals into one group) and over-constraint (null≠non-null preventing runtime-recognized duplicates of imported goals from merging).
 
-**Follow-up:** `CognitiveGoalRecognizer` and `RecognizedGoal` should be extended with optional `contentDomain` and `motivationOrigin` fields — tracked as a follow-up issue under #538 (the taxonomy epic).
+**Follow-up:** Taxonomy extension for runtime goal creation paths — tracked as a follow-up issue under #538 (the taxonomy epic). See §6.6 for the comprehensive scope.
+
+### 6.6 Goal Creation Path Alignment
+
+The codebase has four distinct code paths that create goal nodes. This section enumerates all four and specifies what changes each requires — both in this spec and in follow-up work.
+
+| # | Path | Class | Module | Property key `"origin"` → `"recognitionSource"` | Taxonomy fields |
+|---|------|-------|--------|--------------------------------------------------|----------------|
+| 1 | Biography import | `GoalHandler` | memory-seeding | **This spec** (§6.1) | **This spec** (§6.1) |
+| 2 | Runtime recognition | `GoalRecognitionPhase` | mindmap-intelligence | **This spec** | Follow-up |
+| 3 | Runtime decomposition | `GoalResolutionPhase.expand()` | mindmap-intelligence | N/A (doesn't write origin) | **This spec** (§6.4 propagation) |
+| 4 | Drive-based proposal | `DriveGoalBridgeParticipant` | cognition | **This spec** | Follow-up |
+
+#### This-spec changes (mandatory — must ship with the Goallike interface rename)
+
+The `origin()` → `recognitionSource()` rename on the Goallike trait changes the `ThingProxyHandler` lookup key. All paths that write `"origin"` must be updated atomically:
+
+- **GoalRecognitionPhase** (line 126): `props.put("origin", goal.origin())` → `props.put("recognitionSource", goal.origin())`
+- **DriveGoalBridgeParticipant** (line 117): `props.put("origin", "drive-proposal")` → `props.put("recognitionSource", "drive-proposal")`
+
+Without this, `Goallike.recognitionSource()` returns `Optional.empty()` for all runtime-created goals — the trait proxy looks up `thing.property("recognitionSource")` but finds only `"origin"`.
+
+#### Follow-up scope (tracked under #538)
+
+The follow-up issue must cover:
+
+1. **Taxonomy fields on runtime paths:** Extend `RecognizedGoal` with optional `contentDomain` and `motivationOrigin` fields. Extend `DriveGoalProposal` similarly. Wire these into `GoalRecognitionPhase` and `DriveGoalBridgeParticipant` when creating goal nodes.
+
+2. **Vocabulary validation on runtime paths:** When runtime paths start writing taxonomy fields, apply `GoalVocabulary` validation — either via a shared static validator method on `GoalVocabulary` (preferred) or inline checks. The same defense-in-depth principle that justifies import-time validation applies to all goal creation paths.
+
+3. **Content domain guard on recognition-time dedup:** `GoalRecognitionPhase.findMatch()` and `DriveGoalBridgeParticipant.findMatch()` currently use JW ≥ 0.85 with no content domain guard. Once taxonomy fields are populated on runtime goals, add a content domain guard matching §6.5's pattern (skip guard when either node lacks `contentDomain`). The lower threshold (0.85 vs §6.5's 0.90) is intentional — creation guards should be more aggressive than merge guards, since the cost of creating a duplicate (ongoing merge complexity) exceeds the cost of suppressing a redundant recognition (the recognizer will re-propose next tick).
 
 ## 7. Re-Process and Re-Import
 
@@ -494,6 +540,10 @@ See individual issues for design details.
 | D10 | Assembler owns cross-tier linking | Single canonical algorithm; importer imports edges, doesn't re-derive them |
 | D11 | GoalVocabulary enforces domain/origin values | Import-time validation via string constant sets catches prompt drift and corpus edits |
 | D12 | NeedTier and ContentDomain coexist | NeedTier is a *functional* classification (which psychological need does this goal serve?) used by DriveAdaptationPhase, NeedsPyramidPromptSection, BackstorySeeder for need satisfaction dynamics. ContentDomain is a *content* classification (what is this goal about?) from Talevich. They are orthogonal: "learn cooking" has contentDomain=mastery-and-competence but needTier could be TASKS, SOCIAL, or SELF_EXPRESSION depending on the subject's motivation. NeedTier has 58 references across the cognition system — deprecation would be a cognition redesign, not a taxonomy task |
+| D13 | Property key convention scoped to Goallike-trait-backed properties | `ThingProxyHandler` maps method names to property keys — camelCase convention is mandatory for trait-backed properties. Pre-existing kebab-case keys (`"goal-tier"`, `"need-tier"`) are not accessed via the trait and retain current form |
+| D14 | `origin` → `recognitionSource` rename must be atomic across all four goal creation paths | `ThingProxyHandler` lookup breaks if any path writes the old key. GoalHandler, GoalRecognitionPhase, and DriveGoalBridgeParticipant all updated in this spec |
+| D15 | Recognition dedup threshold (0.85) intentionally lower than merge threshold (0.90) | Creation guard should be more aggressive — cost of duplicate creation exceeds cost of suppressing redundant recognition. Content domain guard deferred until taxonomy fields are populated on runtime goals |
+| D16 | `GoalVocabulary` includes `CONTENT_SUBDOMAINS` | Defense-in-depth: subdomains validated at import boundary alongside domains and origins. Consistent with §5.3's Python-side subdomain rejection |
 
 ## 10. Issue Map
 
