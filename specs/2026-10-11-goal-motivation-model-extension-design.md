@@ -66,24 +66,23 @@ neocortex/
 
 ### 3.1 Goallike Trait — New Properties
 
-Add to `mindmap-api` `Goallike` trait interface:
+Add to `mindmap-intelligence` `Goallike` trait interface (`io.casehub.neocortex.mindmap.intelligence.Goallike`):
+
+**Rename existing accessor:** `origin()` → `recognitionSource()` — the existing method returns provenance values like `"conversation"`, `"observation"`. Renaming eliminates the collision with the SDT motivation concept and makes the provenance semantics explicit.
+
+**New accessors:**
 
 ```java
-// Content domain — Talevich Y-level (required)
-Optional<String> goalContentDomain();
-
-// Content subdomain — Talevich W-level (optional, when LLM is confident)
-Optional<String> goalContentSubdomain();
-
-// Motivation origin — Self-Determination Theory
-Optional<String> goalOrigin();
-
-// Clarity — how well-defined the goal is (0.0 = vague, 1.0 = precise)
-Optional<Double> goalClarity();
-
-// Evidence basis — one-line citation of textual support
-Optional<String> goalEvidenceBasis();
+Optional<String> contentDomain();
+Optional<String> contentSubdomain();
+Optional<String> motivationOrigin();
+Optional<String> clarity();
+Optional<String> evidenceBasis();
 ```
+
+All accessors return `Optional<String>` for consistency with the trait property model — `ThingProxyHandler` maps method names directly to `Thing.property(methodName)`, which always returns `Optional<String>`. Callers parse numeric values as needed (e.g., `clarity().map(Double::parseDouble).orElse(0.0)`).
+
+**Property key convention:** The method name IS the property key. `contentDomain()` resolves to `thing.property("contentDomain")`. GoalHandler, GoalResolutionPhase, and any other code storing these properties must use the exact method name as the property key (camelCase, no dots, no kebab-case).
 
 ### 3.2 Content Domain Values (Talevich Y-level)
 
@@ -106,7 +105,9 @@ Optional<String> goalEvidenceBasis();
 
 ### 3.3 Content Subdomain Values (Talevich W-level)
 
-25 values — used when the LLM can classify with confidence:
+25 values — used when the LLM can classify with confidence.
+
+**Granularity choice:** The research doc (§6.1) recommended X-level (14 clusters) for subdomain classification. This spec uses W-level (25 named types) instead because W-level labels are concrete, self-describing motive types (e.g., "self-efficacy", "intimacy") whereas X-level labels are statistical cluster names (e.g., "Ambition & Ability") that are less useful for matching and less intuitive for LLM classification. The 25 W-level types map 1:1 from X-level parents, so no information is lost — only gained.
 
 | Domain (Y) | Subdomains (W) |
 |------------|---------------|
@@ -131,15 +132,21 @@ external        — driven by reward/punishment from others
 
 ### 3.5 GoalVocabulary Update
 
-Add cross-tier linking edge type to `GoalVocabulary`:
+No new edge types needed — `contributes-to` and `decomposes-into` already cover cross-tier linking.
+
+Add content domain and motivation origin vocabulary constants to `GoalVocabulary` (`mindmap-api`):
 
 ```java
-// Existing: enables, blocks, requires, contributes-to, decomposes-into
-// New: none needed — "contributes-to" and "decomposes-into" already cover
-// cross-tier linking (tactical "contributes-to" thematic)
+public static final Set<String> CONTENT_DOMAINS = Set.of(
+    "morality-and-virtue", "religion-and-spirituality", "self-actualisation",
+    "avoidance", "social-relating", "health", "family",
+    "mastery-and-competence", "financial-and-occupational");
+
+public static final Set<String> MOTIVATION_ORIGINS = Set.of(
+    "intrinsic", "identified", "introjected", "external");
 ```
 
-No new edge types needed. The existing vocabulary handles cross-tier relationships.
+GoalHandler validates at import time: reject entries with domain/origin values not in these sets. The Python extraction prompt constrains output, but validation at the import boundary catches prompt drift or manual edits to the corpus JSON.
 
 ### 3.6 Affinity Profile (Cognitive Profile YAML)
 
@@ -174,7 +181,7 @@ record AffinityDefaults(
 }
 ```
 
-Wire into `CognitiveDerivationEngine` — derive affinity domain weights from disposition axes when no explicit affinities declared.
+Wire into `CognitiveDerivationEngine` — derive affinity domain weights from disposition axes when no explicit affinities declared. The derivation mapping function (disposition axes → Talevich domain weights) is specified in the affinity profile issue (#543), not here — this spec defines the `AffinityDefaults` record and YAML schema, #543 defines the derivation logic.
 
 ### 3.7 Schema Updates
 
@@ -192,7 +199,7 @@ Add fields to extraction `field-registry.yaml` under `node_fields`:
   stages: [extraction, corpus, importer]
   type_filter: goal
 - id: N26
-  name: goal_origin
+  name: goal_motivation_origin
   ref: "SDT"
   stages: [extraction, corpus, importer]
   type_filter: goal
@@ -224,7 +231,7 @@ For each goal, produce:
     Communion: avoidance, social-relating, health, family
     Agency: mastery-and-competence, financial-and-occupational
 - goal_content_subdomain: (optional, when confident) one of the 25 W-level types
-- goal_origin: classify the motivation source:
+- goal_motivation_origin: classify the motivation source:
     intrinsic — pursued for inherent interest, joy, fascination
     identified — personally valued, deliberately chosen
     introjected — driven by guilt, shame, internal "should"
@@ -271,34 +278,71 @@ After goal extraction, the assembler identifies cross-tier relationships:
 - RELATED → create `contributes-to` edge between them
 - DISTINCT → no action
 
+**Batch and failure handling:**
+- Batch pairs in groups of ≤20 per LLM call to stay within context limits
+- On LLM failure or malformed response for a batch: retry once, then classify all pairs in that batch as DISTINCT (safe default — no false merges)
+- **Transitivity:** DUPLICATE classification is transitive. Use union-find: if A≈B and B≈C, then A, B, C form one equivalence class. Merge all into the highest-confidence canonical.
+- **Convergence:** After the initial LLM pass, re-check pairs that cross equivalence class boundaries (a pair where one member was merged into a different canonical). Run at most 2 convergence rounds to catch shadowed duplicates.
+
 ### 5.2 Coverage Gate Updates
 
 Add new goal fields to `_NODE_CHECKERS`:
 
 ```python
 'goal_content_domain': lambda e: bool(e.get('goal_content_domain')),
-'goal_origin': lambda e: bool(e.get('goal_origin')),
+'goal_motivation_origin': lambda e: bool(e.get('goal_motivation_origin')),
 'goal_clarity': lambda e: e.get('goal_clarity') is not None,
 'goal_evidence_basis': lambda e: bool(e.get('goal_evidence_basis')),
 ```
 
 All with `type_filter: goal` so they only apply to goal entities.
 
+### 5.3 Goal Taxonomy Vocabulary Validation
+
+Apply the same normalisation pattern as OCC (§8.1) to prevent hallucinated vocabulary in goal taxonomy fields:
+
+**Content domain (9 canonical values):** Normalisation map for likely LLM variants:
+
+| Non-canonical | Maps to | Rationale |
+|--------------|---------|-----------|
+| career-development, professional-growth, work-success | financial-and-occupational | Occupational domain |
+| achievement-and-competence, skill-building | mastery-and-competence | Competence domain |
+| self-improvement, personal-growth, self-development | self-actualisation | Growth domain |
+| relationships, social-connection, belonging | social-relating | Social domain |
+| safety, security, harm-avoidance | avoidance | Avoidance domain |
+| faith, spirituality | religion-and-spirituality | Spiritual domain |
+| ethics, values, doing-good | morality-and-virtue | Moral domain |
+
+**Content subdomain (25 canonical values):** Reject non-canonical subdomains — set to null rather than normalise. The subdomain is optional; a wrong value is worse than missing.
+
+**Motivation origin (4 canonical values):** Normalisation map:
+
+| Non-canonical | Maps to |
+|--------------|---------|
+| self-driven, autonomous, self-motivated | intrinsic |
+| personally-valued, self-endorsed | identified |
+| guilt-driven, shame-based, obligatory | introjected |
+| socially-imposed, reward-driven, compliance | external |
+
+**Implementation:** Add `normalise_goal_vocabulary()` to the assembler, called after extraction and before dedup. Preserves `original_content_domain` / `original_motivation_origin` when normalised (same audit trail pattern as OCC).
+
 ## 6. Importer Updates
 
 ### 6.1 GoalHandler
 
-Update `GoalHandler` in `memory-seeding/biography/` to wire new fields:
+Update `GoalHandler` in `memory-seeding/biography/` to wire new fields. Property keys must match the Goallike trait method names exactly (ThingProxyHandler convention):
 
 ```java
 // Existing: name, type, horizon, priority, status, urgency, feasibility, target-date, need-tier
-// New:
-node.property("goal.content-domain", entry.contentDomain());
-node.property("goal.content-subdomain", entry.contentSubdomain());  // nullable
-node.property("goal.origin", entry.origin());
-node.property("goal.clarity", entry.clarity());
-node.property("goal.evidence-basis", entry.evidenceBasis());  // nullable
+// New — property keys = Goallike method names (camelCase):
+props.put("contentDomain", entry.contentDomain());
+if (entry.contentSubdomain() != null) props.put("contentSubdomain", entry.contentSubdomain());
+props.put("motivationOrigin", entry.motivationOrigin());
+if (entry.clarity() != null) props.put("clarity", String.valueOf(entry.clarity()));
+if (entry.evidenceBasis() != null) props.put("evidenceBasis", entry.evidenceBasis());
 ```
+
+Also rename the existing `origin` property key to `recognitionSource` to match the renamed Goallike accessor.
 
 ### 6.2 GoalEntry
 
@@ -310,17 +354,44 @@ record GoalEntry(
     // ... existing fields ...
     String contentDomain,       // NEW — Talevich Y-level
     String contentSubdomain,    // NEW — Talevich W-level (nullable)
-    String origin,              // NEW — SDT origin
+    String motivationOrigin,    // NEW — SDT motivation origin
     Double clarity,             // NEW — Emmons clarity
     String evidenceBasis        // NEW — textual citation (nullable)
-) implements BiographyEntry {}
+) {}
 ```
+
+GoalEntry remains a plain record — no interface needed. The existing GoalEntry does not implement any interface.
 
 ### 6.3 Cross-Tier Edge Creation
 
-After importing all goals, scan for cross-tier relationships:
-- Group goals by `contentDomain`
-- Within each domain, if both thematic and tactical goals exist, create `contributes-to` edges
+**Ownership model:** The assembler (§4.2) is the sole authoritative source for cross-tier `contributes-to` edges. GoalHandler imports them via the existing dependency mechanism in the corpus JSON — no additional scanning in the importer.
+
+This eliminates duplicate edge creation. If the assembler misses edges, fix the assembler's detection logic, don't add a second pass in GoalHandler.
+
+**Runtime merge guard:** `GoalResolutionPhase.merge()` creates `contributes-to` edges only when merging sub-goals (with the existing `alreadyLinked` check). This is the only runtime source and is scoped to merge-created relationships.
+
+### 6.4 Goal Decomposition — Taxonomy Propagation
+
+When `GoalResolutionPhase.expand()` creates sub-goals via `CognitiveGoalDecomposer.decompose()`, the following taxonomy fields must be propagated from parent to sub-goal:
+
+- `contentDomain` — inherited (decomposition doesn't change the domain)
+- `motivationOrigin` — inherited (sub-goals share the parent's motivation source)
+
+The following fields are NOT inherited:
+- `clarity` — sub-goals may have different precision than the parent
+- `evidenceBasis` — decomposed sub-goals are LLM-generated, not extracted from text
+
+Implementation: after creating sub-goal nodes, set `contentDomain` and `motivationOrigin` from the parent node's properties. This ensures cross-tier linking (§4.2) works for decomposed sub-goals.
+
+### 6.5 GoalResolutionPhase.merge() — Content Domain Guard
+
+The current `merge()` uses Jaro-Winkler ≥ 0.85 with no content domain guard. After this spec's changes, `merge()` must:
+
+1. Require matching `contentDomain` before considering a merge (same guard as extraction dedup §5.1)
+2. Raise the similarity threshold to ≥ 0.90 (aligned with extraction's conservative pre-filter)
+3. Preserve taxonomy fields from the surviving node (the merge target)
+
+This prevents the runtime from re-merging goals that extraction's LLM classified as DISTINCT due to different content domains.
 
 ## 7. Re-Process and Re-Import
 
@@ -336,64 +407,42 @@ bash scripts/iterate.sh --limit 0 --label "taxonomy-full"
 # Compare against previous full run
 ```
 
-### 7.2 Verify
+### 7.2 Integration Checkpoint — Migration
+
+Before Phase 3 prompt updates begin, verify the Phase 1 migration is stable:
+- All script path references (SCRIPT_DIR, WORKBENCH, etc.) resolve to `neocortex/extraction/`
+- `run_pipeline.sh` completes without path errors using the current (pre-taxonomy) prompts
+- Coverage gates pass with existing field set
+- Output matches the pre-migration baseline (same goal count, same coverage percentages)
+
+### 7.3 Verify — Post-Taxonomy
 
 Check:
 - All 138+ goals have `goal_content_domain` populated
 - `goal_content_subdomain` populated on ≥50% of goals
-- `goal_origin` populated on all goals
+- `goal_motivation_origin` populated on all goals
 - `goal_clarity` populated on all goals
 - `goal_evidence_basis` populated on STATED/INFERRED goals
+- Vocabulary normalisation ran — check `original_content_domain` fields for normalisation audit trail
 - Cross-tier `contributes-to` edges created
 - Mechanical dedup reduces goal count by 5-15%
 - LLM dedup produces DUPLICATE/RELATED/DISTINCT classifications
 
-### 7.3 Re-Import
+### 7.4 Re-Import
 
 Run `BiographyImportRunner` with updated corpus. Verify new fields appear in MindMap goal nodes.
 
-## 8. Vocabulary Enforcement (from corpus audit findings)
+## 8. Related Extraction Quality Items
 
-### 8.1 OCC Emotion Normalisation (#544)
+The following corpus audit findings are tracked as independent issues with no structural dependency on the goal taxonomy extension. They share a common origin (Frida Kahlo corpus analysis) and will be implemented in Phase 3, but their design decisions are independent of §§2-6:
 
-LLM generates 65 OCC types instead of the canonical 22 (88% canonical, 12% invented). Post-extraction normalisation maps non-canonical to nearest canonical:
+- **#544** — OCC emotion normalisation (assembler fix landed, prompt enforcement pending)
+- **#545** — Lifecycle event vocabulary normalisation
+- **#546** — Entity name normalisation/dedup
+- **#547** — Edge extraction scaling investigation
+- **#548** — Entity PAD on non-person types
 
-| Non-canonical | Maps to | Rationale |
-|--------------|---------|-----------|
-| despair, sadness, grief, disappointment, melancholy, loss, helplessness, longing | distress | Negative valence, passive |
-| frustration, indignation | anger | Negative valence, active |
-| anxiety, abandonment_anxiety | fear | Anticipatory negative |
-| betrayal, contempt | reproach | Other-directed negative judgment |
-| regret, guilt | remorse | Self-directed negative judgment |
-| sympathy | sorry-for | Empathic negative (OCC compound) |
-| satisfaction, resolve | gratification | Goal-congruent positive |
-| jealousy | resentment | Other's fortune, negative |
-| awe, inspiration | admiration | Other-directed positive |
-| defiance, courage, determination | pride/hope | Self-affirming positive |
-
-Preserves `original_type` for audit trail. Assembler fix landed.
-
-Stricter prompt enforcement: "Use ONLY these 22 types. Map to the closest if no exact fit."
-
-### 8.2 Lifecycle Event Vocabulary (#545)
-
-89 ad-hoc event types vs 20 standard labels. Problems:
-- Subject-projected events (Frida's actions on other entities' lifecycle)
-- Narrative descriptions as event names
-
-Fix: normalisation map + stricter prompt with explicit "use standard labels, ad-hoc only when no standard fits."
-
-### 8.3 Entity Name Normalisation (#546)
-
-"Frida Kahlo" and "Frida" exist as separate nodes. Entity dedup pass in assembler using Jaro-Winkler + Jaccard, same pattern as goal dedup. Merge shorter name variant into canonical full name.
-
-### 8.4 Edge Stagnation (#547)
-
-202→209 edges despite 168→276 nodes. Graph getting sparser. Edge extraction prompt may not see all entities extracted in the entity call. Investigation: pass extracted entity list into edge prompt as context.
-
-### 8.5 Entity PAD (#548)
-
-PAD only on persons (7/276). Design decision: extract PAD on all entity types where the subject has felt affect (places, activities, concepts). La Casa Azul should carry positive PAD. Derive from memory PAD as fallback.
+See individual issues for design details.
 
 ## 9. Decisions
 
@@ -407,6 +456,9 @@ PAD only on persons (7/276). Design decision: extract PAD on all entity types wh
 | D6 | OCC normalisation in assembler (done) | Maps 46 non-canonical types to canonical 22. Preserves original_type for audit |
 | D7 | Formative domain fix (done) | formative-experience is an event_type, not a domain. Domain is always experience |
 | D8 | Entity PAD on all types | Extract PAD where subject has felt affect. Derive from memory PAD as fallback |
+| D9 | W-level (25) for subdomain, not X-level (14) | W-level labels are concrete motive types; X-level labels are statistical cluster names. Better for LLM classification and domain matching |
+| D10 | Assembler owns cross-tier linking | Single canonical algorithm; importer imports edges, doesn't re-derive them |
+| D11 | GoalVocabulary enforces domain/origin values | Import-time validation via string constant sets catches prompt drift and corpus edits |
 
 ## 10. Issue Map
 
@@ -460,7 +512,7 @@ PAD only on persons (7/276). Design decision: extract PAD on all entity types wh
 - Research: `specs/2026-10-11-goal-motivation-taxonomy-rnd.md`
 - Talevich et al. (2017): https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0172279
 - Emmons (1986, 1992, 1999): Personal strivings framework + SAS
-- `mindmap-api/.../Goallike.java` — current trait interface
+- `mindmap-intelligence/.../Goallike.java` — current trait interface
 - `memory-seeding/.../biography/GoalHandler.java` — current importer
 - `memory-seeding/.../biography/GoalEntry.java` — current entry record
 - `blocks-ui/examples/cognitive-workbench/scripts/` — current pipeline location
