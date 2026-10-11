@@ -352,7 +352,50 @@ Check:
 
 Run `BiographyImportRunner` with updated corpus. Verify new fields appear in MindMap goal nodes.
 
-## 8. Decisions
+## 8. Vocabulary Enforcement (from corpus audit findings)
+
+### 8.1 OCC Emotion Normalisation (#544)
+
+LLM generates 65 OCC types instead of the canonical 22 (88% canonical, 12% invented). Post-extraction normalisation maps non-canonical to nearest canonical:
+
+| Non-canonical | Maps to | Rationale |
+|--------------|---------|-----------|
+| despair, sadness, grief, disappointment, melancholy, loss, helplessness, longing | distress | Negative valence, passive |
+| frustration, indignation | anger | Negative valence, active |
+| anxiety, abandonment_anxiety | fear | Anticipatory negative |
+| betrayal, contempt | reproach | Other-directed negative judgment |
+| regret, guilt | remorse | Self-directed negative judgment |
+| sympathy | sorry-for | Empathic negative (OCC compound) |
+| satisfaction, resolve | gratification | Goal-congruent positive |
+| jealousy | resentment | Other's fortune, negative |
+| awe, inspiration | admiration | Other-directed positive |
+| defiance, courage, determination | pride/hope | Self-affirming positive |
+
+Preserves `original_type` for audit trail. Assembler fix landed.
+
+Stricter prompt enforcement: "Use ONLY these 22 types. Map to the closest if no exact fit."
+
+### 8.2 Lifecycle Event Vocabulary (#545)
+
+89 ad-hoc event types vs 20 standard labels. Problems:
+- Subject-projected events (Frida's actions on other entities' lifecycle)
+- Narrative descriptions as event names
+
+Fix: normalisation map + stricter prompt with explicit "use standard labels, ad-hoc only when no standard fits."
+
+### 8.3 Entity Name Normalisation (#546)
+
+"Frida Kahlo" and "Frida" exist as separate nodes. Entity dedup pass in assembler using Jaro-Winkler + Jaccard, same pattern as goal dedup. Merge shorter name variant into canonical full name.
+
+### 8.4 Edge Stagnation (#547)
+
+202→209 edges despite 168→276 nodes. Graph getting sparser. Edge extraction prompt may not see all entities extracted in the entity call. Investigation: pass extracted entity list into edge prompt as context.
+
+### 8.5 Entity PAD (#548)
+
+PAD only on persons (7/276). Design decision: extract PAD on all entity types where the subject has felt affect (places, activities, concepts). La Casa Azul should carry positive PAD. Derive from memory PAD as fallback.
+
+## 9. Decisions
 
 | # | Decision | Rationale |
 |---|----------|-----------|
@@ -361,18 +404,56 @@ Run `BiographyImportRunner` with updated corpus. Verify new fields appear in Min
 | D3 | Cross-tier goals linked via edges | `contributes-to` edges preserve both abstraction levels. Don't lose tactical specificity by merging into thematic |
 | D4 | Two-phase dedup: mechanical + LLM | Mechanical reduces search space 96%. LLM handles semantic judgment. Precision-first on mechanical phase |
 | D5 | Content domain added as dedup guard | Same-domain requirement prevents merging unrelated goals with similar wording |
+| D6 | OCC normalisation in assembler (done) | Maps 46 non-canonical types to canonical 22. Preserves original_type for audit |
+| D7 | Formative domain fix (done) | formative-experience is an event_type, not a domain. Domain is always experience |
+| D8 | Entity PAD on all types | Extract PAD where subject has felt affect. Derive from memory PAD as fallback |
 
-## 9. Implementation Order
+## 10. Issue Map
 
-1. Pipeline migration (no model changes, just move + verify)
-2. Model extension (Goallike trait, GoalEntry, field registry)
-3. Extraction prompt update (GOAL_SYSTEM with new fields)
-4. Assembler + dedup (content domain guard, cross-tier linking)
-5. Coverage gate updates (new fields)
-6. Subset test (3 passages, verify new fields)
-7. Full run + compare
-8. Importer update (GoalHandler, GoalEntry)
-9. Re-import + verify
+| Issue | Title | Phase |
+|-------|-------|-------|
+| #538 | Epic: goal & motivation taxonomy | — |
+| #539 | Migrate extraction pipeline | Phase 1 |
+| #540 | Extend Goallike trait | Phase 2 |
+| #541 | Update GOAL_SYSTEM prompt | Phase 3 |
+| #542 | Two-phase goal dedup | Phase 4 |
+| #543 | Affinity profile YAML | Phase 5 |
+| #544 | OCC vocabulary enforcement | Phase 3 (prompt done, normalisation done) |
+| #545 | Lifecycle vocabulary enforcement | Phase 3 |
+| #546 | Entity name normalisation | Phase 3 |
+| #547 | Edge extraction scaling | Phase 3 |
+| #548 | PAD on non-person entities | Phase 3 |
+| #549 | Formative domain mapping | Done |
+
+## 11. Implementation Order
+
+**Phase 1 — Migration**
+1. Move scripts to `neocortex/extraction/`, update paths, verify (#539)
+
+**Phase 2 — Model**
+2. Extend Goallike trait with content domain, origin, clarity, evidence basis (#540)
+3. Update GoalEntry + GoalHandler with new fields
+4. Update field registry with new goal fields
+
+**Phase 3 — Extraction quality**
+5. Update GOAL_SYSTEM prompt with taxonomy + evidence basis (#541)
+6. Strengthen OCC prompt enforcement (#544)
+7. Lifecycle vocabulary normalisation + prompt enforcement (#545)
+8. Entity name normalisation/dedup in assembler (#546)
+9. Investigate + fix edge extraction scaling (#547)
+10. Extend entity PAD to non-person types (#548)
+
+**Phase 4 — Dedup + linking**
+11. Content domain dedup guard in mechanical pre-filter (#542)
+12. Cross-tier `contributes-to` edge linking
+13. LLM semantic dedup for near-miss candidates
+
+**Phase 5 — Affinity + verification**
+14. Affinity profile YAML schema + CognitiveDefaults extension (#543)
+15. Coverage gate updates for new fields
+16. Subset test (3 passages)
+17. Full run + compare against current baseline
+18. Re-import + verify
 
 ## References
 
