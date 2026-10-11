@@ -292,14 +292,14 @@ Add new goal fields to `_NODE_CHECKERS`:
 'goal_content_domain': lambda e: bool(e.get('goal_content_domain')),
 'goal_motivation_origin': lambda e: bool(e.get('goal_motivation_origin')),
 'goal_clarity': lambda e: e.get('goal_clarity') is not None,
-'goal_evidence_basis': lambda e: bool(e.get('goal_evidence_basis')),
+'goal_evidence_basis': lambda e: bool(e.get('goal_evidence_basis')) or e.get('confidence', {}).get('origin') == 'SPECULATED',
 ```
 
 All with `type_filter: goal` so they only apply to goal entities.
 
 ### 5.3 Goal Taxonomy Vocabulary Validation
 
-Apply the same normalisation pattern as OCC (§8.1) to prevent hallucinated vocabulary in goal taxonomy fields:
+Apply the same normalisation pattern as OCC (#544) to prevent hallucinated vocabulary in goal taxonomy fields:
 
 **Content domain (9 canonical values):** Normalisation map for likely LLM variants:
 
