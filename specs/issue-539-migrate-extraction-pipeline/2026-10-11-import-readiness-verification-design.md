@@ -215,7 +215,8 @@ Fix mode (--fix):
     - corpus-verified.json      (corrected corpus)
     - verification-report.json  (report with fix actions applied)
     - verification-report.txt   (human-readable summary)
-  Exit code: 0 = all issues resolved, 1 = unresolved CRITICAL, 2 = unresolved WARNING
+  Exit code: 0 = no CRITICAL or WARNING remaining, 1 = unresolved CRITICAL, 2 = unresolved WARNING only
+  (INFO findings do not affect the exit code)
 ```
 
 ### Report Structure
