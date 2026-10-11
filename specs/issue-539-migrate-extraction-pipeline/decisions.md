@@ -22,3 +22,27 @@
 **Sources:** GoalEntry.java field mappings, GoalVocabulary.java canonical sets, BiographyLoader validation logic
 **Exploration:** quick
 **Status:** captured
+
+## D3: Finding attribution — fix-level not just origin
+
+**Choice:** Each finding reports where the fix is most reliable, not just where the problem originates. Some issues (field prefix mismatch) have a clean upstream fix. Others (LLM naming inconsistency, PAD range) are best fixed by post-processing — the verifier's `--fix` mode or a permanent assembler step. The recommendation says "fix here" pragmatically.
+**Alternatives:**
+- Origin-only attribution — traces to pipeline stage but doesn't say where to fix; the developer still has to decide
+- Always-upstream bias — assumes LLM prompts can be fixed for everything; unrealistic for stochastic outputs
+**Rationale:** LLM inference is inherently noisy. Some categories (short entity names, out-of-range values) can't be reliably fixed at the prompt level. Post-processing is the correct production fix for these. The report should reflect that pragmatism.
+**Trade-offs:** Requires judgment about what's reliably fixable upstream vs what needs post-processing. The schema can encode this per-check-category.
+**Sources:** User clarification — "it might be that some of the LLM inference is too hard to fix directly and post processing is the correct way"
+**Exploration:** quick
+**Status:** captured
+
+## D4: Pipeline placement — standalone QA step
+
+**Choice:** `verify_corpus.py` is a standalone pipeline step that runs after `assemble_corpus.py`. It stays as the independent gate. Fixes that prove reliable over multiple runs get promoted into `assemble_corpus.py` as permanent post-processing, but the verifier remains.
+**Alternatives:**
+- Fold fixes into assembler immediately — fewer pipeline steps but loses the independent verification perspective
+- Explicit promotion path with auto-migration — elegant but over-engineered for current needs
+**Rationale:** Keeping verification separate from assembly preserves the QA gate's independence. The assembler already has normalisation logic; the verifier catches what slips through and validates the whole contract, not just individual normalisations.
+**Trade-offs:** Extra pipeline step. But it's fast (pure data checks, no LLM calls) and provides a clear pass/fail signal.
+**Sources:** Issue #550 deliverable requirements
+**Exploration:** quick
+**Status:** captured
