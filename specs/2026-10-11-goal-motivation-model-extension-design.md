@@ -211,7 +211,7 @@ Add fields to extraction `field-registry.yaml` under `node_fields`:
 - id: N28
   name: goal_evidence_basis
   ref: "§6.4"
-  stages: [extraction, corpus]
+  stages: [extraction, corpus, importer]
   type_filter: goal
 ```
 
@@ -268,7 +268,7 @@ After goal extraction, the assembler identifies cross-tier relationships:
 **Phase 1 — Mechanical pre-filter (existing, tuned):**
 - Jaro-Winkler ≥ 0.90 AND Jaccard word overlap ≥ 0.50
 - Same `goal_tier` required
-- Same `goal_content_domain` required (new guard)
+- Same `goal_content_domain` required (new guard). **Null-domain handling:** if either goal in a candidate pair lacks `goal_content_domain`, skip the domain guard for that pair — let the LLM decide. This ensures dedup works during the transition before all goals have been re-extracted with taxonomy fields, and handles goals that fail domain classification.
 - Precision-first: reduces search space ~96%
 
 **Phase 2 — LLM semantic judgment:**
@@ -333,8 +333,19 @@ Apply the same normalisation pattern as OCC (§8.1) to prevent hallucinated voca
 Update `GoalHandler` in `memory-seeding/biography/` to wire new fields. Property keys must match the Goallike trait method names exactly (ThingProxyHandler convention):
 
 ```java
-// Existing: name, type, horizon, priority, status, urgency, feasibility, target-date, need-tier
-// New — property keys = Goallike method names (camelCase):
+// GoalHandler currently writes these properties: provenance, template-ref, source-ref, tier, horizon
+// The following extraction fields exist in the corpus but are NOT currently imported:
+//   status, urgency, priority, feasibility, need-tier
+// This spec wires BOTH the missing extraction fields AND the new taxonomy fields.
+
+// Wire previously-missing extraction fields (property keys match Goallike method names):
+if (entry.status() != null) props.put("status", entry.status());
+if (entry.urgency() != null) props.put("urgency", entry.urgency());
+if (entry.priority() != null) props.put("priority", entry.priority());
+if (entry.feasibility() != null) props.put("feasibility", entry.feasibility());
+if (entry.needTier() != null) props.put("need-tier", entry.needTier());
+
+// New taxonomy fields — property keys = Goallike method names (camelCase):
 props.put("contentDomain", entry.contentDomain());
 if (entry.contentSubdomain() != null) props.put("contentSubdomain", entry.contentSubdomain());
 props.put("motivationOrigin", entry.motivationOrigin());
@@ -346,21 +357,34 @@ Also rename the existing `origin` property key to `recognitionSource` to match t
 
 ### 6.2 GoalEntry
 
-Add fields to `GoalEntry` record in biography handler:
+The existing `GoalEntry` record has: `id`, `sourceRef`, `confidenceOrigin`, `name`, `tier`, `horizon`, `dependencies`, `pad`, `subGoals`. Extend with both previously-missing extraction fields and new taxonomy fields:
 
 ```java
-record GoalEntry(
+@JsonIgnoreProperties(ignoreUnknown = true)
+public record GoalEntry(
+    String id,
+    @JsonProperty("source_ref") String sourceRef,
+    @JsonProperty("confidence_origin") String confidenceOrigin,
     String name,
-    // ... existing fields ...
-    String contentDomain,       // NEW — Talevich Y-level
-    String contentSubdomain,    // NEW — Talevich W-level (nullable)
-    String motivationOrigin,    // NEW — SDT motivation origin
-    Double clarity,             // NEW — Emmons clarity
-    String evidenceBasis        // NEW — textual citation (nullable)
+    String tier,
+    String horizon,
+    String status,                                              // WIRED — in extraction, not previously imported
+    String urgency,                                             // WIRED
+    String priority,                                            // WIRED
+    String feasibility,                                         // WIRED
+    @JsonProperty("need_tier") String needTier,                 // WIRED
+    @JsonProperty("content_domain") String contentDomain,       // NEW — Talevich Y-level
+    @JsonProperty("content_subdomain") String contentSubdomain, // NEW — Talevich W-level (nullable)
+    @JsonProperty("motivation_origin") String motivationOrigin, // NEW — SDT origin
+    Double clarity,                                             // NEW — Emmons clarity (nullable, numeric in JSON)
+    @JsonProperty("evidence_basis") String evidenceBasis,       // NEW — textual citation (nullable)
+    List<Dependency> dependencies,
+    PadValues pad,
+    @JsonProperty("sub_goals") List<SubGoal> subGoals
 ) {}
 ```
 
-GoalEntry remains a plain record — no interface needed. The existing GoalEntry does not implement any interface.
+`clarity` is `Double` in GoalEntry (matching the JSON numeric type) — GoalHandler converts to `String` via `String.valueOf()` for property storage, consistent with the `Optional<String>` trait contract.
 
 ### 6.3 Cross-Tier Edge Creation
 
@@ -459,6 +483,7 @@ See individual issues for design details.
 | D9 | W-level (25) for subdomain, not X-level (14) | W-level labels are concrete motive types; X-level labels are statistical cluster names. Better for LLM classification and domain matching |
 | D10 | Assembler owns cross-tier linking | Single canonical algorithm; importer imports edges, doesn't re-derive them |
 | D11 | GoalVocabulary enforces domain/origin values | Import-time validation via string constant sets catches prompt drift and corpus edits |
+| D12 | NeedTier and ContentDomain coexist | NeedTier is a *functional* classification (which psychological need does this goal serve?) used by DriveAdaptationPhase, NeedsPyramidPromptSection, BackstorySeeder for need satisfaction dynamics. ContentDomain is a *content* classification (what is this goal about?) from Talevich. They are orthogonal: "learn cooking" has contentDomain=mastery-and-competence but needTier could be TASKS, SOCIAL, or SELF_EXPRESSION depending on the subject's motivation. NeedTier has 58 references across the cognition system — deprecation would be a cognition redesign, not a taxonomy task |
 
 ## 10. Issue Map
 
