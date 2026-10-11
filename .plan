@@ -1,20 +1,15 @@
-# Work Plan — Work Plan —
+# Work Plan — issue-551-production-biography-pipeline
 
 ## State
-branch: issue-539-migrate-extraction-pipeline
-state: active
-Current: none
+branch: issue-551-production-biography-pipeline
+state: scaffolded
+project-sha: 
 date: 
-current: casehubio/neocortex#550
+issue-repo: casehubio/neocortex
+covers: 551
+design-repo: 
+design-section-hashes: 
+flyway-next-v: 
 
 ## Queue
-- [x] casehubio/neocortex#539 — Migrate extraction pipeline
-- [x] casehubio/neocortex#540 — Extend Goallike trait with taxonomy
-- [x] casehubio/neocortex#541 — Update GOAL_SYSTEM extraction prompt
-- [x] casehubio/neocortex#542 — Two-phase goal dedup
-- [x] casehubio/neocortex#544 — OCC/goal vocabulary normalisation
-- [x] casehubio/neocortex#545 — Lifecycle event vocabulary enforcement
-- [x] casehubio/neocortex#546 — Entity name normalisation
-- [x] casehubio/neocortex#547 — Edge extraction scaling
-- [x] casehubio/neocortex#548 — PAD on non-person entities
-- [ ] casehubio/neocortex#550 — Import readiness verification
+- [ ] casehubio/neocortex#551 — Issue #551 ← active
