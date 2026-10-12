@@ -13,16 +13,16 @@ flyway-next-v:
 
 ## Queue
 - [ ] casehubio/neocortex#551 — Issue #551 ← active
-  - [ ] Batch 1: Entry Extensions
-    - [ ] Task 1: GoalEntry taxonomy fields
-    - [ ] Task 2: Association and universal associations
-  - [ ] Batch 2: New Handlers
-    - [ ] Task 3: OrganisationHandler
-    - [ ] Task 4: EntityEnrichment and DispositionProfile
-  - [ ] Batch 3: LifeEvent Extensions
-    - [ ] Task 5: LifeEventEntry enrichment fields
-  - [ ] Batch 4: Converter
-    - [ ] Task 6: convert_corpus.py
-  - [ ] Batch 5: Integration
-    - [ ] Task 7: Import integration test
-    - [ ] Task 8: Full build verification
+  - [x] Batch 1: Entry Extensions
+    - [x] Task 1: GoalEntry taxonomy fields
+    - [x] Task 2: Association and universal associations
+  - [x] Batch 2: New Handlers
+    - [x] Task 3: OrganisationHandler
+    - [x] Task 4: EntityEnrichment and DispositionProfile
+  - [x] Batch 3: LifeEvent Extensions
+    - [x] Task 5: LifeEventEntry enrichment fields
+  - [x] Batch 4: Converter
+    - [x] Task 6: convert_corpus.py
+  - [x] Batch 5: Integration
+    - [x] Task 7: Import integration test
+    - [x] Task 8: Full build verification
