@@ -1,7 +1,7 @@
 # Work Plan — issue-551-production-biography-pipeline
 
 ## State
-branch: issue-559-ci-gate-deterministic
+branch: issue-561-wire-handler-associations
 state: active
 project-sha: 
 date: 
@@ -20,8 +20,8 @@ evidence-era: true
 - [x] casehubio/neocortex#556 — Post-import validation script
 - [x] casehubio/neocortex#557 — Pipeline reproducibility demo
 - [x] casehubio/neocortex#558 — Regression baseline golden corpus
-- [ ] casehubio/neocortex#559 — CI gate deterministic stages ← active
-- [ ] casehubio/neocortex#560 — Second biography trial run
-- [ ] casehubio/neocortex#561 — Wire handler associations
+- [x] casehubio/neocortex#559 — CI gate deterministic stages
+- [x] casehubio/neocortex#560 — Second biography trial run
+- [ ] casehubio/neocortex#561 — Wire handler associations ← active
 - [ ] casehubio/neocortex#562 — Frida quality assessment
 - [ ] casehubio/neocortex#563 — LifeEventHandler domain routing tests
