@@ -1,7 +1,7 @@
 # Work Plan — issue-551-production-biography-pipeline
 
 ## State
-branch: issue-557-pipeline-reproducibility
+branch: issue-558-regression-baseline
 state: active
 project-sha: 
 date: 
@@ -18,8 +18,8 @@ evidence-era: true
 - [x] casehubio/neocortex#554 — Update verify_schema.yaml
 - [x] casehubio/neocortex#555 — Update design spec DispositionProfile
 - [x] casehubio/neocortex#556 — Post-import validation script
-- [ ] casehubio/neocortex#557 — Pipeline reproducibility demo ← active
-- [ ] casehubio/neocortex#558 — Regression baseline golden corpus
+- [x] casehubio/neocortex#557 — Pipeline reproducibility demo
+- [ ] casehubio/neocortex#558 — Regression baseline golden corpus ← active
 - [ ] casehubio/neocortex#559 — CI gate deterministic stages
 - [ ] casehubio/neocortex#560 — Second biography trial run
 - [ ] casehubio/neocortex#561 — Wire handler associations
