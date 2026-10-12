@@ -1,7 +1,7 @@
 # Work Plan — issue-551-production-biography-pipeline
 
 ## State
-branch: main
+branch: issue-553-python-unit-tests-convert-corpus
 state: active
 project-sha: 
 date: 
@@ -13,21 +13,8 @@ flyway-next-v:
 evidence-era: true
 
 ## Queue
-- [ ] casehubio/neocortex#551 — Issue #551 ← active
-  - [x] Batch 1: Entry Extensions
-    - [x] Task 1: GoalEntry taxonomy fields
-    - [x] Task 2: Association and universal associations
-  - [x] Batch 2: New Handlers
-    - [x] Task 3: OrganisationHandler
-    - [x] Task 4: EntityEnrichment and DispositionProfile
-  - [x] Batch 3: LifeEvent Extensions
-    - [x] Task 5: LifeEventEntry enrichment fields
-  - [x] Batch 4: Converter
-    - [x] Task 6: convert_corpus.py
-  - [x] Batch 5: Integration
-    - [x] Task 7: Import integration test
-    - [x] Task 8: Full build verification
-- [ ] casehubio/neocortex#553 — Python
+- [x] casehubio/neocortex#551 — Issue #551
+- [ ] casehubio/neocortex#553 — Python ← active
 - [ ] casehubio/neocortex#554 — Update verify_schema.yaml
 - [ ] casehubio/neocortex#555 — Update design spec DispositionProfile
 - [ ] casehubio/neocortex#556 — Post-import validation script
