@@ -1,7 +1,7 @@
 # Work Plan — issue-551-production-biography-pipeline
 
 ## State
-branch: main
+branch: issue-555-update-design-spec-disposition
 state: active
 project-sha: 
 date: 
@@ -14,9 +14,9 @@ evidence-era: true
 
 ## Queue
 - [x] casehubio/neocortex#551 — Issue #551
-- [ ] casehubio/neocortex#553 — Python ← active
-- [ ] casehubio/neocortex#554 — Update verify_schema.yaml
-- [ ] casehubio/neocortex#555 — Update design spec DispositionProfile
+- [x] casehubio/neocortex#553 — Python
+- [x] casehubio/neocortex#554 — Update verify_schema.yaml
+- [ ] casehubio/neocortex#555 — Update design spec DispositionProfile ← active
 - [ ] casehubio/neocortex#556 — Post-import validation script
 - [ ] casehubio/neocortex#557 — Pipeline reproducibility demo
 - [ ] casehubio/neocortex#558 — Regression baseline golden corpus

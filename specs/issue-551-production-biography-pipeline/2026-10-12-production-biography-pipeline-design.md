@@ -301,15 +301,24 @@ type: disposition-profile
 entries:
   - id: frida-kahlo-disposition
     entity_ref: "Frida Kahlo"
-    axes:
-      socialOrient: { score: 0.7, justification: "..." }
-      ruleFollowing: { score: 0.25, justification: "..." }
-      riskAppetite: { score: 0.8, justification: "..." }
-      autonomy: { score: 0.92, justification: "..." }
-      conflictMode: { score: 0.65, justification: "..." }
+    social_orient: competitive
+    rule_following: defiant
+    risk_appetite: bold
+    autonomy: autonomous
+    conflict_mode: diplomatic
 ```
 
-`DispositionProfileHandler` writes a cognitive-profiles YAML file to the directory configured by `casehub.cognitive.profiles-dir` (watched by `CognitiveProfileWatcher`). The file follows `CognitiveDefaultsRegistry` format with the `disposition` section populated from the entry's axes. `CognitiveDerivationEngine` then derives personality weights, mood baseline, curiosity config, CBR strategy, and other cognitive defaults from the disposition profile. The handler takes the profiles directory path via config injection.
+Axes are flat categorical strings matching `DispositionAxes` and `CognitiveDerivationEngine` lookup maps. The converter applies score-to-category conversion from `corpus.json` numeric scores using `DISPOSITION_CATEGORIES`:
+
+| Axis | [0.0, 0.4) | [0.4, 0.7) | [0.7, 1.0] |
+|------|-----------|-----------|-----------|
+| socialOrient | independent | cooperative | competitive |
+| ruleFollowing | defiant | flexible | conformist |
+| riskAppetite | conservative | calculated | bold |
+| autonomy | dependent | collaborative | autonomous |
+| conflictMode | avoidant | diplomatic | confrontational |
+
+`DispositionProfileHandler` writes a cognitive-profiles YAML file to the directory configured by `casehub.cognitive.profiles-dir` (watched by `CognitiveProfileWatcher`). The file follows `CognitiveDefaultsRegistry` format with the `disposition` section populated from the entry's categorical axes. `CognitiveDerivationEngine` then derives personality weights, mood baseline, curiosity config, CBR strategy, and other cognitive defaults from the disposition profile. The handler takes the profiles directory path via config injection.
 
 ### BiographyTemplateTypes Update
 
