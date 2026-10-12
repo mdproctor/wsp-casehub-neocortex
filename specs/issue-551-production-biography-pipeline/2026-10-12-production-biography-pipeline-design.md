@@ -288,7 +288,11 @@ entries:
             period: "1928-1929"
 ```
 
-`EntityEnrichmentHandler` resolves the entity node in MindMap, stores drive baselines as properties (e.g., `drive-baseline-curiosity`, `drive-baseline-curiosity-justification`), CAPS patterns and behavioural attractors as indexed properties, and relationship stages as memories.
+`EntityEnrichmentHandler` resolves the entity node in MindMap by name across all subgraphs:
+- **Drive baselines** → node properties on the entity's MindMap node (e.g., `drive-baseline-curiosity=0.85`, `drive-baseline-curiosity-justification=...`)
+- **CAPS patterns** → indexed node properties on the entity node (e.g., `caps-pattern-count=2`, `caps-pattern-0-pattern=...`, `caps-pattern-0-frequency=0.8`)
+- **Behavioural attractors** → indexed node properties on the entity node (e.g., `behavioural-attractor-count=1`, `behavioural-attractor-0-name=defiance-through-artistic-authenticity`)
+- **Relationship stages** → CaseMemoryStore memories in the `relationship` domain, one per transition, linking source agent to `other_agent`
 
 **DispositionProfileEntry** (layer 7):
 
@@ -305,7 +309,7 @@ entries:
       conflictMode: { score: 0.65, justification: "..." }
 ```
 
-`DispositionProfileHandler` writes a cognitive-profiles YAML file for the agent, which `CognitiveDefaultsRegistry` picks up. The disposition axes feed `CognitiveDerivationEngine` to derive personality weights, mood baseline, curiosity config, etc.
+`DispositionProfileHandler` writes a cognitive-profiles YAML file to the directory configured by `casehub.cognitive.profiles-dir` (watched by `CognitiveProfileWatcher`). The file follows `CognitiveDefaultsRegistry` format with the `disposition` section populated from the entry's axes. `CognitiveDerivationEngine` then derives personality weights, mood baseline, curiosity config, CBR strategy, and other cognitive defaults from the disposition profile. The handler takes the profiles directory path via config injection.
 
 ### BiographyTemplateTypes Update
 
