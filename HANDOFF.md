@@ -2,51 +2,65 @@
 
 ## Last Session
 
-Completed #550 (import readiness verification) and #549 (formative experience domain mapping). Built `verify_corpus.py` — a schema-driven QA tool that validates `corpus.json` against the Java-side import contract. Diagnoses 11 categories of issues (dangling edges, field alignment, vocabulary violations, range violations, subject alignment, enrichment gaps, volume anomalies, edge types, sub-thought types, memory domains). `--fix` mode applies safe fixes (alias resolution, field renames, range clamping). Integrated as Step 8 in `run_pipeline.sh`. Also fixed formative experience domain scattering (19 memories in wrong domains) and updated `.gitignore` to preserve `enriched.json` and other key intermediates.
+Implemented epic #551 stages 9-11 (corpus-to-YAML converter, Java entry extensions, new handlers, integration test). Merged issue-539 extraction pipeline (25 commits) into the branch then added 7 commits for #551.
+
+**What shipped:**
+- `convert_corpus.py` — Python converter: corpus.json → 11 typed YAML files (132 nodes, 1470 edges, 261 memories on Frida corpus)
+- Shared `Association` and `PadValues` records — unified across all entry types
+- `PlaceHandler` bug fix — cross-subgraph resolution replacing phantom-node creation
+- `OrganisationHandler` — new type at layer 4 (ORGANISATION subgraph)
+- `EntityEnrichmentHandler` — layer 7 (drive baselines, CAPS patterns, behavioural attractors)
+- `DispositionProfileHandler` — layer 7 (categorical disposition axes matching CognitiveDerivationEngine)
+- `LifeEventEntry` extended with 9 enrichment types + `EnrichmentAttributeKeys` + MemoryDomain routing
+- `BiographyTemplateTypes` migrated to `Map.ofEntries()` (13 entries)
+- `BiographyImportIntegrationTest` — full round-trip verification
+
+**What did NOT ship (filed as child issues):**
 
 ## Immediate Next Step
 
-Two issues remain on epic #538: #543 (affinity profile YAML) and #549 (closed). Close #550 on GitHub. Then either start #543 or run work-end if the epic is ready to close.
+Epic #551 is reopened with 10 child issues. Recommended work order:
+
+### Quick wins (XS, can batch in one session)
+- #554 — Update verify_schema.yaml with new type entries
+- #555 — Update design spec for DispositionProfileEntry
+- #561 — Wire handler associations for Activity/Project/CulturalContext/Belief
+- #563 — LifeEventHandler MemoryDomain routing test coverage
+
+### Small (S, one per session)
+- #553 — Python unit tests for convert_corpus.py
+- #556 — Post-import validation script (validate_import.py)
+- #557 — Pipeline reproducibility demonstration
+
+### Medium (M, need brainstorming)
+- #558 — Regression baseline — golden corpus.json for Frida
+- #562 — Frida corpus quality assessment — end-to-end cognitive model review
+
+### Large (L, depends on above)
+- #559 — CI gate for deterministic stages (depends on #557)
+- #560 — Second biography trial run — generality proof (depends on #558)
 
 ```
-Plan: plans/2026-10-11-import-readiness-verification.md
-Spec: specs/issue-539-migrate-extraction-pipeline/2026-10-11-import-readiness-verification-design.md
-Epic: #538, remaining: #543
-Branch: issue-539-migrate-extraction-pipeline
+Plan: plans/2026-10-12-production-biography-pipeline.md
+Spec: specs/issue-551-production-biography-pipeline/2026-10-12-production-biography-pipeline-design.md
+Epic: #551, remaining: #553-#563 (10 child issues)
+Branch: main (issue-551 landed and stamped)
 ```
 
 ## State
 
-- On `issue-539-migrate-extraction-pipeline`
-- Issues completed this session: #550, #549
-- Issues remaining on epic: #543 (affinity profile YAML — not started, different topic)
-- All Python tests pass: 26 new tests in `test_verify_corpus.py`
-- Real corpus validation: 173 findings detected, fix mode resolves aliases + field renames
-- Key intermediate preservation: `.gitignore` updated so `enriched.json`, `nlp-baseline.json`, `corpus.json`, `manifest.json` are now tracked in git
-- Production `enriched.json` not currently in `output/` — was not preserved from the last full pipeline run. Next full run will preserve it.
+- On `main`, branch `issue-551-production-biography-pipeline` stamped as closed (landed as 037addd0)
+- Design reviews: 26 findings from decision + spec reviews, all incorporated
+- Code reviews: 0 CRITICAL, 2 WARNING (fixed), 7 NOTES (acknowledged)
+- Conformance audit: 3 findings → filed as #553, #554, #555
+- All Java tests pass (memory-seeding module)
+- Converter verified on Frida corpus: 132 nodes, 1470 edges (1157 specific + 313 association), 261 memories
+- Disposition score-to-category conversion: uses DISPOSITION_CATEGORIES lookup matching DispositionAxes/CognitiveDerivationEngine
 
-## Files Changed This Session
+## Key Design Decisions
 
-### extraction/docs/verify_schema.yaml (new)
-Java-side import contract: field mappings, vocabularies, ranges, entity aliases, edge types.
-
-### extraction/scripts/verify_corpus.py (new)
-Import readiness verification tool. 11 check categories, 4 severity levels (CRITICAL/FIXABLE/WARNING/INFO). Default mode diagnoses. `--fix` applies safe fixes.
-
-### extraction/tests/test_verify_corpus.py (new)
-26 unit tests covering all check categories, fix mode, idempotency, exit codes.
-
-### extraction/scripts/assemble_corpus.py (modified)
-Added formative-experience domain normalisation: if `event_type` is `formative-experience`, force `domain` to `experience`.
-
-### extraction/scripts/run_pipeline.sh (modified)
-Added Step 8 (verify import readiness) after Step 7 (assemble corpus). Added header comment about intermediate preservation.
-
-### .gitignore (modified)
-Changed `extraction/output/` to `extraction/output/*` with exceptions for `enriched.json`, `nlp-baseline.json`, `corpus.json`, `manifest.json`.
-
-## Known Issues
-
-- 137 CRITICAL dangling edges in corpus remain after fix mode — these are entities referenced in edges but not present as nodes (e.g. "Mexico", "Guillermo Kahlo", "Tina Modotti"). These are extraction-stage issues: the LLM mentions entities in edges that were never extracted as nodes.
-- 22 unknown edge types (e.g. `child-of`, `married-to`, `affair-with`, `depicted-in`) — extraction produces edge types not in the schema's valid set. Either extend the schema or constrain extraction.
-- Production `enriched.json` needs regeneration — next full pipeline run will produce and preserve it.
+1. **GoalEntry taxonomy fields already shipped** (from issue-539) — all String type matching Goallike trait interface
+2. **DispositionProfileEntry uses categorical strings** (cooperative/defiant/bold) — NOT numeric scores — matching CognitiveDerivationEngine lookup maps (SR-R1-01)
+3. **PlaceHandler fixed** — was creating phantom nodes in wrong subgraph; now uses AssociationProcessor for cross-subgraph resolution (SR-R1-04)
+4. **MemoryDomain routing** — LifeEventHandler resolves experience/relationship/reflection domain from entry field, not hardcoded (SR-R1-05)
+5. **Universal associations** — added to all MindMap-writing entry types, but only GoalHandler and PlaceHandler currently process them (#561 tracks the rest)

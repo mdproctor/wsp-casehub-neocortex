@@ -10,8 +10,8 @@ covers: 551
 design-repo: 
 design-section-hashes: 
 flyway-next-v: 
-
 evidence-era: true
+
 ## Queue
 - [ ] casehubio/neocortex#551 — Issue #551 ← active
   - [x] Batch 1: Entry Extensions
@@ -27,3 +27,14 @@ evidence-era: true
   - [x] Batch 5: Integration
     - [x] Task 7: Import integration test
     - [x] Task 8: Full build verification
+- [ ] casehubio/neocortex#553 — Python
+- [ ] casehubio/neocortex#554 — Update verify_schema.yaml
+- [ ] casehubio/neocortex#555 — Update design spec DispositionProfile
+- [ ] casehubio/neocortex#556 — Post-import validation script
+- [ ] casehubio/neocortex#557 — Pipeline reproducibility demo
+- [ ] casehubio/neocortex#558 — Regression baseline golden corpus
+- [ ] casehubio/neocortex#559 — CI gate deterministic stages
+- [ ] casehubio/neocortex#560 — Second biography trial run
+- [ ] casehubio/neocortex#561 — Wire handler associations
+- [ ] casehubio/neocortex#562 — Frida quality assessment
+- [ ] casehubio/neocortex#563 — LifeEventHandler domain routing tests
