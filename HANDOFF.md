@@ -2,65 +2,61 @@
 
 ## Last Session
 
-Implemented epic #551 stages 9-11 (corpus-to-YAML converter, Java entry extensions, new handlers, integration test). Merged issue-539 extraction pipeline (25 commits) into the branch then added 7 commits for #551.
+Landed 8 issues from epic #551 queue in a single session. All Python-side pipeline tooling and most XS/S child issues completed. One issue deferred (#560, needs LLM API access).
 
-**What shipped:**
-- `convert_corpus.py` — Python converter: corpus.json → 11 typed YAML files (132 nodes, 1470 edges, 261 memories on Frida corpus)
-- Shared `Association` and `PadValues` records — unified across all entry types
-- `PlaceHandler` bug fix — cross-subgraph resolution replacing phantom-node creation
-- `OrganisationHandler` — new type at layer 4 (ORGANISATION subgraph)
-- `EntityEnrichmentHandler` — layer 7 (drive baselines, CAPS patterns, behavioural attractors)
-- `DispositionProfileHandler` — layer 7 (categorical disposition axes matching CognitiveDerivationEngine)
-- `LifeEventEntry` extended with 9 enrichment types + `EnrichmentAttributeKeys` + MemoryDomain routing
-- `BiographyTemplateTypes` migrated to `Map.ofEntries()` (13 entries)
-- `BiographyImportIntegrationTest` — full round-trip verification
+**What shipped (8 issues):**
 
-**What did NOT ship (filed as child issues):**
+| # | Title | Scale | SHA |
+|---|-------|-------|-----|
+| 553 | Python unit tests for convert_corpus.py | S | `45d7ec19` |
+| 554 | Update verify_schema.yaml — org, entity-enrichment, disposition types | XS | `ac8e1121` |
+| 555 | Update design spec — DispositionProfileEntry categorical axes | XS | `ca5b9b76` |
+| 556 | Post-import validation script (validate_import.py) | S | `6832c74f` |
+| 557 | Pipeline reproducibility demonstration | S | `5b91d4c0` |
+| 558 | Regression baseline — compare_corpus.py rewrite with JSON reports | M | `3ca6286c` |
+| 559 | CI gate for deterministic pipeline stages | S | `c03f899e` |
+| 561 | Wire handler associations for Activity/Project/CulturalContext/Belief | XS | `1c8b7af1` |
+
+**Deferred:**
+- #560 — Second biography trial run (L) — needs LLM API access and source material
 
 ## Immediate Next Step
 
-Epic #551 is reopened with 10 child issues. Recommended work order:
+3 items remain in the epic #551 queue:
 
-### Quick wins (XS, can batch in one session)
-- #554 — Update verify_schema.yaml with new type entries
-- #555 — Update design spec for DispositionProfileEntry
-- #561 — Wire handler associations for Activity/Project/CulturalContext/Belief
-- #563 — LifeEventHandler MemoryDomain routing test coverage
+### Ready now
+- #562 — Frida corpus quality assessment (M) — end-to-end cognitive model review of the corpus output
+- #563 — LifeEventHandler domain routing tests (XS) — Java test coverage for MemoryDomain routing
 
-### Small (S, one per session)
-- #553 — Python unit tests for convert_corpus.py
-- #556 — Post-import validation script (validate_import.py)
-- #557 — Pipeline reproducibility demonstration
+### Deferred (needs separate session with API access)
+- #560 — Second biography trial run (L) — select second subject, create per-corpus config, run full LLM pipeline
 
-### Medium (M, need brainstorming)
-- #558 — Regression baseline — golden corpus.json for Frida
-- #562 — Frida corpus quality assessment — end-to-end cognitive model review
-
-### Large (L, depends on above)
-- #559 — CI gate for deterministic stages (depends on #557)
-- #560 — Second biography trial run — generality proof (depends on #558)
+**Recommended start:** #563 (XS, quick Java test), then #562 (M, needs corpus reading).
 
 ```
-Plan: plans/2026-10-12-production-biography-pipeline.md
-Spec: specs/issue-551-production-biography-pipeline/2026-10-12-production-biography-pipeline-design.md
-Epic: #551, remaining: #553-#563 (10 child issues)
-Branch: main (issue-551 landed and stamped)
+Plan: .plan (position 9/12, 8 done, 1 deferred, 3 remaining)
+Epic: #551, remaining: #560 (deferred), #562, #563
+Branch: main (all work landed directly)
 ```
 
 ## State
 
-- On `main`, branch `issue-551-production-biography-pipeline` stamped as closed (landed as 037addd0)
-- Design reviews: 26 findings from decision + spec reviews, all incorporated
-- Code reviews: 0 CRITICAL, 2 WARNING (fixed), 7 NOTES (acknowledged)
-- Conformance audit: 3 findings → filed as #553, #554, #555
-- All Java tests pass (memory-seeding module)
-- Converter verified on Frida corpus: 132 nodes, 1470 edges (1157 specific + 313 association), 261 memories
-- Disposition score-to-category conversion: uses DISPOSITION_CATEGORIES lookup matching DispositionAxes/CognitiveDerivationEngine
+- On `main`, all 8 issues landed as fast-forward merges with branch stamps
+- 204 Python tests passing (47 convert, 27 validate_import, 19 compare_corpus, 8 reproducibility + 103 existing)
+- 4 Java association tests passing (HandlerAssociationTest)
+- 3 pre-existing Java test failures in GoalHandlerTest/BiographyImportIntegrationTest (GoalVocabulary.CONTENT_DOMAINS field missing — not from this session)
+- CI workflow added: `.github/workflows/extraction-gate.yml` (coverage audit, verify informational, conversion smoke, pytest)
+- Golden baseline: `extraction/output/corpus.json` (132 nodes, 1570 edges, 261 memories)
+- verify_corpus.py verify gate is informational (145 pre-existing CRITICAL findings in corpus)
 
 ## Key Design Decisions
 
-1. **GoalEntry taxonomy fields already shipped** (from issue-539) — all String type matching Goallike trait interface
-2. **DispositionProfileEntry uses categorical strings** (cooperative/defiant/bold) — NOT numeric scores — matching CognitiveDerivationEngine lookup maps (SR-R1-01)
-3. **PlaceHandler fixed** — was creating phantom nodes in wrong subgraph; now uses AssociationProcessor for cross-subgraph resolution (SR-R1-04)
-4. **MemoryDomain routing** — LifeEventHandler resolves experience/relationship/reflection domain from entry field, not hardcoded (SR-R1-05)
-5. **Universal associations** — added to all MindMap-writing entry types, but only GoalHandler and PlaceHandler currently process them (#561 tracks the rest)
+1. **validate_import.py** validates converter output against corpus (pre-import), not Java store state (post-import) — Python can't query Java stores. The Java integration test handles post-import verification.
+2. **compare_corpus.py** rewrites the original (text-only, hardcoded targets) as a 3-category regression detector: structural (counts by type), field coverage (population rate drops >5%), content (removed nodes, PAD changes, missing enrichments). JSON report output.
+3. **Reproducibility** proven: only non-determinism is verify_corpus.py timestamp field. All other stages produce byte-identical output from same inputs.
+4. **CI verify gate** is informational — the current corpus has 145 CRITICAL findings from the extraction pipeline. Gate activates when corpus is cleaned.
+5. **AssociationProcessor** now wired in all 4 remaining handlers (Activity, Project, CulturalContext, Belief) — same pattern as OrganisationHandler.
+
+## Wrap orchestrator bug
+
+The `wrap_orchestrator.py` crashed with `AttributeError: 'dict' object has no attribute 'is_done'` in `shared_steps.py:70` — `ctx.progress` is a plain dict instead of a ProgressTracker object. Reproducible — happens even after removing stale progress files. Handover written manually.
