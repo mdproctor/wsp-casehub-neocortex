@@ -1,7 +1,7 @@
 # Work Plan — issue-551-production-biography-pipeline
 
 ## State
-branch: issue-558-regression-baseline
+branch: issue-559-ci-gate-deterministic
 state: active
 project-sha: 
 date: 
@@ -19,8 +19,8 @@ evidence-era: true
 - [x] casehubio/neocortex#555 — Update design spec DispositionProfile
 - [x] casehubio/neocortex#556 — Post-import validation script
 - [x] casehubio/neocortex#557 — Pipeline reproducibility demo
-- [ ] casehubio/neocortex#558 — Regression baseline golden corpus ← active
-- [ ] casehubio/neocortex#559 — CI gate deterministic stages
+- [x] casehubio/neocortex#558 — Regression baseline golden corpus
+- [ ] casehubio/neocortex#559 — CI gate deterministic stages ← active
 - [ ] casehubio/neocortex#560 — Second biography trial run
 - [ ] casehubio/neocortex#561 — Wire handler associations
 - [ ] casehubio/neocortex#562 — Frida quality assessment
