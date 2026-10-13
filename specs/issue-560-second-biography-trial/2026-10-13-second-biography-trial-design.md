@@ -12,7 +12,7 @@ Prove that the cognitive extraction pipeline generalises beyond Frida Kahlo by r
 
 Three work streams:
 
-1. **Fix pipeline generality issues** — 3 small hardcoded defaults that reference Frida
+1. **Fix pipeline generality issues** — hardcoded defaults and prompt examples that reference Frida
 2. **Write Napoleon biography source** — chronological passages covering his full life
 3. **Run pipeline, compare, and document** — full extraction pipeline run with quality comparison
 
@@ -20,22 +20,21 @@ Out of initial scope but may be recommended based on findings: pipeline restruct
 
 ## Work Stream 1: Pipeline Generality Fixes
 
-Three scripts have hardcoded Frida references that block a clean second run.
+Scripts with hardcoded Frida references that block a clean second run. These fixes must be committed separately BEFORE the Napoleon trial run to maintain a clean boundary between "making it general" and "proving it's general."
 
-### 1a. `generate_overlay.py`
+### 1a. Hardcoded defaults (functional — will break Napoleon extraction)
 
-`--subject` argument defaults to `"Frida Kahlo"`. Change to required argument (no default) so callers must specify the subject explicitly.
+- `generate_overlay.py` — `--subject` argument defaults to `"Frida Kahlo"`. Change to required argument (no default).
+- `assemble_corpus.py` — fallback subject `'frida-kahlo'` when a memory has no subject field. Replace with corpus-level subject read from `verify_schema.yaml` (`converter.subject_name`), or raise an error if not configured.
 
-### 1b. `assemble_corpus.py`
+### 1b. LLM prompt examples (will bias extraction toward Frida patterns)
 
-Fallback subject `'frida-kahlo'` when a memory has no subject field. Replace with corpus-level subject read from `verify_schema.yaml` (`converter.subject_name`), or raise an error if not configured.
-
-### 1c. LLM prompt examples
-
-- `llm_gap_sweep.py` — prompt example uses `"resolve 'the Blue House' to 'Casa Azul'"`. Replace with a generic example.
 - `extract_structure.py` — prompt examples use `"Frida Kahlo"` and `"Frida"` as canonical naming illustrations. Replace with generic examples.
+- `enrich_entity.py` — `"Diego Rivera"` as example entity in GOALS_RELATIONS_SYSTEM prompt. Replace with generic example.
 
-All fixes are small, targeted, and testable by running the pipeline on both biographies.
+### 1c. Verify after fixes
+
+Re-run the pipeline on the Frida biography after applying fixes to confirm no regression. The generality fixes must not break the existing corpus.
 
 ## Work Stream 2: Napoleon Biography Source
 
@@ -110,11 +109,15 @@ Iterative process:
 
 A comparison report covering three dimensions:
 
-**Structural comparison** (via `compare_corpus.py`):
-- Node count by type (person, place, goal, belief, activity, project, organisation, cultural_context)
-- Edge count by type
+**Structural comparison:**
+
+Note: the existing `compare_corpus.py` is regression tooling (same-biography baseline vs candidate). Cross-biography comparison needs different methodology — compare proportions and quality metrics rather than treating absolute differences as regressions.
+
+- Node count and distribution by type (person, place, goal, belief, activity, project, organisation, cultural_context) — compare proportions, not absolute counts
+- Edge count and distribution by type
 - Memory count by domain (experience, relationship, reflection, mood)
 - Entity enrichment count
+- Pipeline quality metrics from assembly: edge resolution rate, PAD distribution health, entity dedup effectiveness
 
 **Coverage comparison** (vs Frida baseline from `full-run-results.md`):
 - Memory field coverage (target: 17/17)
@@ -129,6 +132,7 @@ A comparison report covering three dimensions:
 - Verify Napoleon corpus contains gloating, happy-for, interruption (Frida's zero-count dimensions)
 - Verify Napoleon strengthens sorry-for, hate, disgust (Frida's weak dimensions)
 - Verify combined coverage across both biographies: 22/22 OCC, 9/9 tendencies, 12/12 distortions
+- Note: #498's dimension mapping is a prediction, not a measurement. The trial run is the validation. If Napoleon's corpus doesn't fill specific gaps, that's a finding to document — it may indicate the gap analysis needs revision, not that the pipeline failed
 
 ### Findings document
 
@@ -136,7 +140,7 @@ A comparison report covering three dimensions:
 1. What worked without any changes
 2. What needed per-corpus config (aliases, corrections, schema)
 3. What needed code changes (the 3 generality fixes)
-4. Recommendations for follow-up (pipeline restructuring, importer changes, third biography candidate, etc.)
+4. Recommendations for follow-up (pipeline restructuring, importer changes, third biography candidate, per-corpus directory structure, etc.)
 
 ## References
 
