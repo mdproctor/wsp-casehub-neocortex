@@ -20,7 +20,7 @@ flyway-next-v:
   - [x] Batch 2: Biography and Config
     - [x] Task 4: Write Napoleon biography
     - [x] Task 5: Create per-corpus config
-  - [ ] Batch 3: Pipeline Run
-    - [ ] Task 6: Run pipeline and iterate
-  - [ ] Batch 4: Comparison
-    - [ ] Task 7: Write findings and comparison
+  - [x] Batch 3: Pipeline Run
+    - [x] Task 6: Run pipeline and iterate
+  - [x] Batch 4: Comparison
+    - [x] Task 7: Write findings and comparison
