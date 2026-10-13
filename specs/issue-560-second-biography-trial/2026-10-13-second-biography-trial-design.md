@@ -22,19 +22,25 @@ Out of initial scope but may be recommended based on findings: pipeline restruct
 
 Scripts with hardcoded Frida references that block a clean second run. These fixes must be committed separately BEFORE the Napoleon trial run to maintain a clean boundary between "making it general" and "proving it's general."
 
-### 1a. Hardcoded defaults (functional — will break Napoleon extraction)
+### 1a. Pipeline orchestrator (`run_pipeline.sh`)
 
-- `generate_overlay.py` — `--subject` argument defaults to `"Frida Kahlo"`. Change to required argument (no default).
-- `assemble_corpus.py` — fallback subject `'frida-kahlo'` when a memory has no subject field. Replace with corpus-level subject read from `verify_schema.yaml` (`converter.subject_name`), or raise an error if not configured.
+The pipeline orchestrator needs per-corpus parameter support:
+- Add `--schema` parameter to specify per-corpus `verify_schema.yaml` location (currently hardcoded to `$SCRIPT_DIR/../docs/verify_schema.yaml`). Convention: look for `verify_schema.yaml` in the output directory first, fall back to `docs/` for backward compatibility.
+- Read `converter.subject_name` from the schema and propagate as `--subject` to `generate_overlay.py` and any other scripts that need it.
 
-### 1b. LLM prompt examples (will bias extraction toward Frida patterns)
+### 1b. Hardcoded defaults (functional — will break Napoleon extraction)
 
-- `extract_structure.py` — prompt examples use `"Frida Kahlo"` and `"Frida"` as canonical naming illustrations. Replace with generic examples.
+- `generate_overlay.py` — `--subject` argument defaults to `"Frida Kahlo"`. Change to required argument (no default). `run_pipeline.sh` passes it from schema.
+- `assemble_corpus.py` — fallback subject `'frida-kahlo'` when a memory has no subject field. Remove the fallback entirely — a memory without a subject is an extraction bug, not something to paper over. Fail loudly.
+
+### 1c. LLM prompt examples (will bias extraction toward Frida patterns)
+
+- `extract_structure.py` — two distinct Frida references: canonical naming example ("Frida Kahlo" not "Frida") and domain classification example ("Frida was furious..."). Replace both with generic examples.
 - `enrich_entity.py` — `"Diego Rivera"` as example entity in GOALS_RELATIONS_SYSTEM prompt. Replace with generic example.
 
-### 1c. Verify after fixes
+### 1d. Verify after fixes
 
-Re-run the pipeline on the Frida biography after applying fixes to confirm no regression. The generality fixes must not break the existing corpus.
+Re-run post-LLM stages (assembly and verification) on existing Frida intermediates (`enriched.json`, `nlp-baseline.json`) to confirm no regression. This is deterministic — same intermediates should produce identical output. A full LLM re-run is unnecessary and would conflate nondeterminism with regression. Compare against the #558 regression baseline via `compare_corpus.py`.
 
 ## Work Stream 2: Napoleon Biography Source
 
@@ -48,7 +54,7 @@ Same as `frida-kahlo-biography.md`: chronological passages separated by `---` di
 
 ### Estimated scale
 
-- **18 life phases**, ~20-22 passages (some phases get 2 passages, some merge)
+- **17 life phases**, ~20-22 passages (some phases get 2 passages, some merge)
 - **~10,000 words** (Frida baseline: ~7,000 words across 15 passages)
 - **Cap: 30 passages maximum** to keep pipeline run time bounded
 
@@ -95,7 +101,7 @@ Created in `extraction/output-napoleon/`:
 ### Pipeline execution
 
 ```bash
-./run_pipeline.sh sources/napoleon-biography.md output-napoleon/
+./run_pipeline.sh sources/napoleon-biography.md output-napoleon/ --schema output-napoleon/verify_schema.yaml
 ```
 
 Iterative process:
@@ -111,7 +117,7 @@ A comparison report covering three dimensions:
 
 **Structural comparison:**
 
-Note: the existing `compare_corpus.py` is regression tooling (same-biography baseline vs candidate). Cross-biography comparison needs different methodology — compare proportions and quality metrics rather than treating absolute differences as regressions.
+Note: the existing `compare_corpus.py` is regression tooling (same-biography baseline vs candidate). Cross-biography comparison is manual analysis in the findings document — compare proportions and quality metrics rather than treating absolute differences as regressions.
 
 - Node count and distribution by type (person, place, goal, belief, activity, project, organisation, cultural_context) — compare proportions, not absolute counts
 - Edge count and distribution by type
@@ -122,9 +128,9 @@ Note: the existing `compare_corpus.py` is regression tooling (same-biography bas
 **Coverage comparison** (vs Frida baseline from `full-run-results.md`):
 - Memory field coverage (target: 17/17)
 - Enrichment field coverage (target: ≥22/24)
-- OCC emotion coverage (target: 22/22 — fills Frida's gaps)
-- Action tendency coverage (target: 9/9 — fills interruption gap)
-- Cognitive distortion coverage (target: 12/12 — fills fortune_telling, should_statements, disqualifying_positive)
+- OCC emotion coverage (target: 22/22 — fills Frida's zero-count gaps: gloating, happy-for)
+- Action tendency coverage (target: 9/9 — fills Frida's zero-count gap: interruption)
+- Cognitive distortion representation strength — Frida already has 12/12 binary coverage, but fortune_telling, should_statements, disqualifying_positive are weakly represented. Napoleon should strengthen these. Compare instance counts, not just presence.
 - SEC dimension coverage (target: 8/8)
 - Sub-thought type coverage (target: 7/7)
 
@@ -140,7 +146,7 @@ Note: the existing `compare_corpus.py` is regression tooling (same-biography bas
 1. What worked without any changes
 2. What needed per-corpus config (aliases, corrections, schema)
 3. What needed code changes (the 3 generality fixes)
-4. Recommendations for follow-up (pipeline restructuring, importer changes, third biography candidate, per-corpus directory structure, etc.)
+4. Recommendations for follow-up — each recommendation becomes a GitHub issue (pipeline restructuring, importer changes, third biography candidate, per-corpus directory structure, etc.)
 
 ## References
 
