@@ -4,10 +4,26 @@
 
 **#570 — Corpus quality fixes** (follows #551). Slot 211 reactivated.
 
+## Last Session
+
+Slot hygiene sweep — no implementation work. Cleaned up 28 non-main branches accumulated across multiple epics.
+
+**What shipped:**
+- Promoted 17 spec files from 4 workspace branches to main
+- Promoted 2 blog entries to workspace main (mdp01: personality calibration, mdp02: sub-thoughts)
+- Stamped 3 previously unstamped branches (issue-470, issue-501, issue-539)
+- Verified all 23 issue branches are stamped and merged
+- Acknowledged 6 superseded Java files (FormativeGraduationClassifier/Scorer, ExpansionStrategy)
+- Filed soredium#445 for work-end orchestrator bugs (mechanical step dependencies on main, state persistence, plan advance corruption)
+
+**Branch status after cleanup:**
+- 23 issue branches: all stamped, all work verified on main
+- 5 backup branches: pre-squash snapshots, unstamped by design
+- 0 unstamped issue branches remaining
+
 ## Immediate Next Step
 
-1. **Slot hygiene first** — 29 local branches, 1198 unrecovered artifacts, 119 stale branches, 83 unstamped. Clean up before starting implementation.
-2. Then start the queue: #564 (critical — per-memory enrichments dropped during assembly).
+Start #564 — per-memory enrichments missing from assembled corpus (Critical, M).
 
 ## Queue
 
@@ -22,22 +38,19 @@
 | 569 | PAD arousal value compression | XS | Low |
 | 560 | Second biography trial run (deferred from #551) | L | Deferred |
 
-## Previous Epic (#551) Summary
-
-11/12 issues closed across 2 sessions. Quality assessment graded corpus PARTIAL — disposition profile passes, 5/6 dimensions have systematic issues. Report at `docs/quality-reports/2026-10-12-frida-quality-assessment.md`.
-
 ## State
 
-- On `main`, all #551 work landed
+- On `main`, all work landed
 - 9 Java tests passing (5 LifeEventHandlerTest + 4 HandlerAssociationTest)
 - 204 Python tests passing
 - Golden baseline corpus: `extraction/output/corpus.json` (132 nodes, 1570 edges, 261 memories)
-- GoalVocabulary stale-jar issue resolved (mindmap-api needed `mvn install` before memory-seeding compiles)
-- IntelliJ MCP unavailable during last session (JVM heap critically low at 5%) — may need IDE restart
+- Quality report: `docs/quality-reports/2026-10-12-frida-quality-assessment.md`
+- wrap_orchestrator.py still broken (`shared_steps.py:70` AttributeError) — handovers written manually
 
-## Key Context
+## Key Context for #564
 
-- The corpus exists in `extraction/output/corpus.json` but has NOT been imported into the cognitive stores yet
-- `assemble_corpus.py` is where per-memory enrichments are dropped (#564) — trace the YAML→JSON path
-- Entity naming: nodes use full/descriptive names, edges use short names — needs alias resolution in assembly (#565)
-- All nodes have `type: unknown` / `subgraph: none` — assembly should derive from traits/categories (#566)
+- The corpus exists at `extraction/output/corpus.json` but has NOT been imported into the cognitive stores yet
+- `assemble_corpus.py` is where per-memory enrichments are dropped — trace the YAML→JSON path
+- The YAML biography files in `extraction/output/biography-output/` contain enrichment data (OCC, SEC, drives, sub-thoughts, CAPS, gut feeling, habituation) but none of it appears in the assembled corpus
+- Only PAD values survive assembly — everything else is lost
+- Fix the assembly, re-run, verify enrichments appear in corpus.json
