@@ -1,0 +1,15 @@
+# Work Plan — issue-560-second-biography-trial
+
+## State
+branch: issue-560-second-biography-trial
+state: scaffolded
+project-sha: 
+date: 
+issue-repo: casehubio/neocortex
+covers: 560
+design-repo: 
+design-section-hashes: 
+flyway-next-v: 
+
+## Queue
+- [ ] casehubio/neocortex#560 — Issue #560 ← active
