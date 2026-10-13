@@ -6,22 +6,18 @@ state: active
 project-sha: 
 date: 
 issue-repo: casehubio/neocortex
-covers: 551
+covers: 570
 design-repo: 
 design-section-hashes: 
 flyway-next-v: 
 evidence-era: true
 
 ## Queue
-- [x] casehubio/neocortex#551 — Issue #551
-- [x] casehubio/neocortex#553 — Python
-- [x] casehubio/neocortex#554 — Update verify_schema.yaml
-- [x] casehubio/neocortex#555 — Update design spec DispositionProfile
-- [x] casehubio/neocortex#556 — Post-import validation script
-- [x] casehubio/neocortex#557 — Pipeline reproducibility demo
-- [x] casehubio/neocortex#558 — Regression baseline golden corpus
-- [x] casehubio/neocortex#559 — CI gate deterministic stages
-- [x] casehubio/neocortex#560 — Second biography trial run
-- [ ] casehubio/neocortex#561 — Wire handler associations ← active
-- [ ] casehubio/neocortex#562 — Frida quality assessment
-- [ ] casehubio/neocortex#563 — LifeEventHandler domain routing tests
+- [ ] casehubio/neocortex#570 — Corpus quality fixes epic
+- [ ] casehubio/neocortex#564 — Per-memory enrichments missing
+- [ ] casehubio/neocortex#565 — Entity naming inconsistency
+- [ ] casehubio/neocortex#566 — Corpus nodes missing subgraph and type assignments
+- [ ] casehubio/neocortex#567 — Contributes-to edge saturation
+- [ ] casehubio/neocortex#568 — Factual errors in extracted edges
+- [ ] casehubio/neocortex#569 — PAD arousal value compression
+- [ ] casehubio/neocortex#560 — Second biography trial run

@@ -1,45 +1,43 @@
 # HANDOFF — casehub-neocortex
 
-## Last Session
+## Current Epic
 
-Completed final 2 issues from epic #551 queue. Epic is now done (11/12, #560 deferred).
+**#570 — Corpus quality fixes** (follows #551). Slot 211 reactivated.
 
-**What shipped this session (2 issues):**
+## Immediate Next Step
 
-| # | Title | Scale | SHA |
-|---|-------|-------|-----|
-| 563 | LifeEventHandler MemoryDomain routing test coverage | XS | `a98b8f79` |
-| 562 | Frida corpus quality assessment — end-to-end cognitive model review | M | `6fe534f5` |
+1. **Slot hygiene first** — 29 local branches, 1198 unrecovered artifacts, 119 stale branches, 83 unstamped. Clean up before starting implementation.
+2. Then start the queue: #564 (critical — per-memory enrichments dropped during assembly).
 
-**Quality assessment findings (6 issues filed):**
+## Queue
 
-| # | Title | Severity | Scale |
-|---|-------|----------|-------|
-| 564 | Per-memory enrichments missing from assembled corpus | Critical | M |
-| 565 | Entity naming inconsistency causes 139 dangling edge references | High | M |
-| 566 | Corpus nodes missing subgraph and type assignments | High | S |
-| 567 | Contributes-to edge saturation reduces goal graph analytical value | Medium | S |
-| 568 | Factual errors in extracted edges need systematic verification | Medium | S |
-| 569 | PAD arousal value compression in enrichment pipeline | Low | XS |
+| # | Title | Scale | Priority |
+|---|-------|-------|----------|
+| 570 | Epic issue | — | — |
+| 564 | Per-memory enrichments missing from assembled corpus | M | Critical |
+| 565 | Entity naming inconsistency — 139 dangling edge references | M | High |
+| 566 | Corpus nodes missing subgraph and type assignments | S | High |
+| 567 | Contributes-to edge saturation | S | Medium |
+| 568 | Factual errors in extracted edges | S | Medium |
+| 569 | PAD arousal value compression | XS | Low |
+| 560 | Second biography trial run (deferred from #551) | L | Deferred |
 
-## Epic #551 Status
+## Previous Epic (#551) Summary
 
-**Complete.** 11 of 12 issues closed across 2 sessions. 1 deferred.
-
-| Session | Issues | Highlights |
-|---------|--------|-----------|
-| 1 | #551, #553-#559, #561 (8) | Python pipeline tooling, CI gate, regression detection, handler wiring |
-| 2 | #562, #563 (2) | Domain routing tests, quality assessment with 6 follow-up issues |
-
-**Deferred:** #560 — Second biography trial run (L) — needs LLM API access and source material.
-
-**Follow-up work:** 6 quality issues (#564-#569) filed from the assessment. These are pipeline improvements, not blockers for the current corpus.
+11/12 issues closed across 2 sessions. Quality assessment graded corpus PARTIAL — disposition profile passes, 5/6 dimensions have systematic issues. Report at `docs/quality-reports/2026-10-12-frida-quality-assessment.md`.
 
 ## State
 
-- On `main`, all issues landed as fast-forward merges with branch stamps
+- On `main`, all #551 work landed
 - 9 Java tests passing (5 LifeEventHandlerTest + 4 HandlerAssociationTest)
 - 204 Python tests passing
-- Quality report at `docs/quality-reports/2026-10-12-frida-quality-assessment.md`
-- Golden baseline corpus: 132 nodes, 1570 edges, 261 memories
-- Overall corpus grade: PARTIAL (disposition profile passes, 5/6 dimensions have systematic issues)
+- Golden baseline corpus: `extraction/output/corpus.json` (132 nodes, 1570 edges, 261 memories)
+- GoalVocabulary stale-jar issue resolved (mindmap-api needed `mvn install` before memory-seeding compiles)
+- IntelliJ MCP unavailable during last session (JVM heap critically low at 5%) — may need IDE restart
+
+## Key Context
+
+- The corpus exists in `extraction/output/corpus.json` but has NOT been imported into the cognitive stores yet
+- `assemble_corpus.py` is where per-memory enrichments are dropped (#564) — trace the YAML→JSON path
+- Entity naming: nodes use full/descriptive names, edges use short names — needs alias resolution in assembly (#565)
+- All nodes have `type: unknown` / `subgraph: none` — assembly should derive from traits/categories (#566)
