@@ -13,3 +13,14 @@ flyway-next-v:
 
 ## Queue
 - [ ] casehubio/neocortex#560 — Issue #560 ← active
+  - [ ] Batch 1: Generality Fixes
+    - [ ] Task 1: Fix orchestrator and defaults
+    - [ ] Task 2: Fix LLM prompt examples
+    - [ ] Task 3: Verify Frida regression
+  - [ ] Batch 2: Biography and Config
+    - [ ] Task 4: Write Napoleon biography
+    - [ ] Task 5: Create per-corpus config
+  - [ ] Batch 3: Pipeline Run
+    - [ ] Task 6: Run pipeline and iterate
+  - [ ] Batch 4: Comparison
+    - [ ] Task 7: Write findings and comparison
