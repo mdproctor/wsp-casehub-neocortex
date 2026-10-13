@@ -1,12 +1,12 @@
 # Work Plan — issue-551-production-biography-pipeline
 
 ## State
-branch: main
+branch: issue-564-per-memory-enrichments
 state: active
 project-sha: 
 date: 
 issue-repo: casehubio/neocortex
-covers: 570
+covers: 565
 design-repo: 
 design-section-hashes: 
 flyway-next-v: 

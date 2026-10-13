@@ -1,2 +1,14 @@
 delete_progress=done
 report_render=done
+lifecycle_next=done
+advance_issue=done
+tick_github=done
+context_refresh=done
+sync_main=done
+stacked_pr_detect=done
+branch_name_attempt=1
+last_yielded=branch_name
+branch_name=done
+branch_name_produced=issue-564-per-memory-enrichments
+flyway_scan=done
+create_branches_mechanical_attempt=1
