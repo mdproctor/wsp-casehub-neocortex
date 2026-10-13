@@ -1,0 +1,15 @@
+# Work Plan — issue-580-3d-ego-graph-view
+
+## State
+branch: issue-580-3d-ego-graph-view
+state: scaffolded
+project-sha: 
+date: 
+issue-repo: casehubio/neocortex
+covers: 580
+design-repo: 
+design-section-hashes: 
+flyway-next-v: 
+
+## Queue
+- [ ] casehubio/neocortex#580 — Issue #580 ← active
