@@ -1,5 +1,14 @@
 # HANDOFF — casehub-neocortex
 
+## Cross-Repo Issues Filed (2026-10-21)
+
+From platform session `issue-654-aimd-consolidation-deadlock`:
+
+- **#618** — Migrate `ParallelLlmExecutor` to platform's `agent-session-core` (delete neocortex copy, use companion admission)
+- **#619** — `BeliefRevisionPhase`: replace direct `agentProvider.invoke()` with `SessionPipeline`
+
+Both blocked by platform#654 merge (companion admission + ParallelLlmExecutor extraction).
+
 ## Last Session (2026-10-03)
 
 Closed #404 (spring-integration-test). Branch `issue-403-spring-completeness` landed as e190a88a on main.
