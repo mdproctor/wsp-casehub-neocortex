@@ -1,57 +1,20 @@
 # HANDOFF — casehub-neocortex
 
-## Cross-Repo Issues Filed (2026-10-21)
+## Last Session (2026-10-21)
 
-From platform session `issue-654-aimd-consolidation-deadlock`:
-
-- **#618** — Migrate `ParallelLlmExecutor` to platform's `agent-session-core` (delete neocortex copy, use companion admission)
-- **#619** — `BeliefRevisionPhase`: replace direct `agentProvider.invoke()` with `SessionPipeline`
-
-Both blocked by platform#654 merge (companion admission + ParallelLlmExecutor extraction).
-
-## Last Session (2026-10-03)
-
-Closed #404 (spring-integration-test). Branch `issue-403-spring-completeness` landed as e190a88a on main.
-
-**Changes:**
-- Created spring-integration-test module (POM, TestApplication, SpringBootCompositionTest)
-- Added `@ConditionalOnBean` guards to 3 auto-configs:
-  - `MemoryAutoConfiguration` → gated on `CaseMemoryStore`
-  - `CognitionAutoConfiguration` → gated on `MindMapStore`
-  - `RagAutoConfiguration` → gated on `EmbeddingModel`
-- Root cause: auto-configs failed with `UnsatisfiedDependencyException` when SPI stores weren't on classpath
-
-**Also closed:** #405 (cognitive-index POJO extraction — removed CDI annotations from 5 classes, added CognitiveIndexBeans factory). #403 epic closed.
-
-## Previous Session
-
-Completed two issues across two branches:
-
-**#345 — Goal cognition substrate** (closed, landed on main)
-- Goallike trait + GoallikeTraitRule, TypeRegistry goal hierarchy
-- GoalResolutionPhase (Prune, Expand, Merge, Revise, Sync) @Priority(35)
-- GoalAffectPhase @Priority(37), GoalPrioritizationPhase @Priority(38)
-- GoalRecognitionPhase @Priority(45), GoalRelevanceModulationFactor
-- NoOp defaults for all 3 SPIs, CognitiveLoader registers GoalVocabulary
-- CLAUDE.md + contributor guide updated
-
-**#380 — Example module + blog article** (closed, landed on main)
-- `example-goal-cognition` walkthrough: 10 phases, 4 scenarios (research, product, personal, game NPC)
-- Blog: "When your agent forgets what it wants" — ~3000 words, 7 SVG illustrations
-- Public constructors on consolidation phases for example access
-
-**#379 — Filed** (open, in .plan queue)
-- Conformance gaps from #345 branch audit: GoalPrioritizationPhase Decay step + dynamic urgency from target-date
+BJT roadmap #639: landed Tiers 1-3 (9 of 15 issues) in a single squashed commit 7d140756 on main. Converted the entire inference-bayes engine to log-space arithmetic, added sensitivity analysis (KL divergence value-of-information), temporal smoothing via TemporalEvidenceFusionEngine, hard evidence API, batch retraction, observability stats, separator normalization, and simplified the BitMask hierarchy from 10 to 3 classes. 97 tests pass (58 new). 9 issues closed on GitHub.
 
 ## Immediate Next Step
 
-Resume with `work start #379`. The issue has full acceptance criteria. Scale: S, Complexity: Med.
+`work start #639` — continue with #631 (MAP inference, M/Med), then Tier 4 scale issues (#621-#627: buffer pooling, min-fill ordering, lazy cliques, parallel propagation, incremental network modification).
+
+## Cross-Module
+
+- **#618** — Migrate `ParallelLlmExecutor` to platform's `agent-session-core` — blocked by platform#654
+- **#619** — `BeliefRevisionPhase`: replace direct `agentProvider.invoke()` with `SessionPipeline` — blocked by platform#654
 
 ## References
 
-- `docs/guides/contributor-guide.md` — goal cognition section added
-- `docs/specs/issue-345-goal-cognition/2026-09-23-goal-cognition-design.md` — design spec (in project, promoted)
-- `blog/2026-09-23-mdp02-when-your-agent-forgets-what-it-wants.md` — educational blog (in workspace)
-- `examples/example-goal-cognition/` — walkthrough example
-- neocortex#378 — follow-up epic: blocks social memory migration
-- neocortex#379 — follow-up: Decay step + dynamic urgency
+- `.plan` — queue with remaining 6 issues (#631, #621-#627)
+- `blog/2026-10-21-mdp01-bayesian-junction-tree-jvm.md` — session blog entry
+- `blog/images/bjt-star-topology.svg` — star topology diagram
