@@ -1,0 +1,130 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 520" font-family="'SF Mono', 'Fira Code', 'Consolas', monospace">
+  <defs>
+    <style>
+      .detector { fill: #2d3748; stroke: #4a5568; stroke-width: 1.5; }
+      .clique { fill: #1a365d; stroke: #2b6cb0; stroke-width: 2; }
+      .target { fill: #744210; stroke: #d69e2e; stroke-width: 2.5; }
+      .separator { stroke: #4a5568; stroke-width: 1.5; stroke-dasharray: 6,3; }
+      .message { stroke: #2b6cb0; stroke-width: 1.2; fill: none; marker-end: url(#arrow); }
+      .label { fill: #e2e8f0; font-size: 11px; text-anchor: middle; }
+      .label-sm { fill: #a0aec0; font-size: 9px; text-anchor: middle; }
+      .title { fill: #e2e8f0; font-size: 13px; text-anchor: middle; font-weight: 600; }
+      .annotation { fill: #718096; font-size: 10px; font-style: italic; }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 7" refX="9" refY="3.5" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 3.5 L 0 7 z" fill="#2b6cb0"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="720" height="520" fill="#1a1a2e" rx="8"/>
+
+  <!-- Title -->
+  <text x="360" y="30" class="title">Junction Tree — Star Topology (Quarkmind Detector Fusion)</text>
+
+  <!-- Detector evidence nodes — arranged in a ring -->
+  <!-- Top row -->
+  <rect x="90" y="55" width="100" height="36" rx="4" class="detector"/>
+  <text x="140" y="77" class="label">movement</text>
+
+  <rect x="220" y="55" width="100" height="36" rx="4" class="detector"/>
+  <text x="270" y="77" class="label">resource</text>
+
+  <rect x="350" y="55" width="100" height="36" rx="4" class="detector"/>
+  <text x="400" y="77" class="label">build-order</text>
+
+  <rect x="480" y="55" width="100" height="36" rx="4" class="detector"/>
+  <text x="530" y="77" class="label">expansion</text>
+
+  <!-- Left column -->
+  <rect x="20" y="140" width="100" height="36" rx="4" class="detector"/>
+  <text x="70" y="162" class="label">aggression</text>
+
+  <rect x="20" y="210" width="100" height="36" rx="4" class="detector"/>
+  <text x="70" y="232" class="label">scouting</text>
+
+  <rect x="20" y="280" width="100" height="36" rx="4" class="detector"/>
+  <text x="70" y="302" class="label">tech-path</text>
+
+  <rect x="20" y="350" width="100" height="36" rx="4" class="detector"/>
+  <text x="70" y="372" class="label">timing</text>
+
+  <!-- Right column -->
+  <rect x="600" y="140" width="100" height="36" rx="4" class="detector"/>
+  <text x="650" y="162" class="label">army-comp</text>
+
+  <rect x="600" y="210" width="100" height="36" rx="4" class="detector"/>
+  <text x="650" y="232" class="label">econ-ratio</text>
+
+  <rect x="600" y="280" width="100" height="36" rx="4" class="detector"/>
+  <text x="650" y="302" class="label">map-ctrl</text>
+
+  <rect x="600" y="350" width="100" height="36" rx="4" class="detector"/>
+  <text x="650" y="372" class="label">upgrades</text>
+
+  <!-- Bottom row -->
+  <rect x="130" y="420" width="100" height="36" rx="4" class="detector"/>
+  <text x="180" y="442" class="label">harassment</text>
+
+  <rect x="270" y="450" width="100" height="36" rx="4" class="detector"/>
+  <text x="320" y="472" class="label">retreat</text>
+
+  <rect x="400" y="450" width="100" height="36" rx="4" class="detector"/>
+  <text x="450" y="472" class="label">formation</text>
+
+  <rect x="530" y="420" width="100" height="36" rx="4" class="detector"/>
+  <text x="580" y="442" class="label">production</text>
+
+  <!-- "..." indicators for remaining detectors -->
+  <text x="180" y="490" class="label-sm">+ 7 more detectors</text>
+
+  <!-- Central clique (contains target + parent vars) -->
+  <rect x="250" y="195" width="220" height="130" rx="10" class="clique"/>
+  <text x="360" y="220" class="label">Central Clique</text>
+  <text x="360" y="238" class="label-sm">potentials: log-space double[]</text>
+
+  <!-- Target variable — inside the clique -->
+  <rect x="290" y="252" width="140" height="42" rx="6" class="target"/>
+  <text x="360" y="270" class="label" style="fill:#fefcbf; font-weight:600;">strategy</text>
+  <text x="360" y="284" class="label-sm" style="fill:#d69e2e;">rush | turtle | boom | harass</text>
+
+  <!-- Separator message lines from detectors to central clique -->
+  <!-- Top detectors -->
+  <line x1="140" y1="91" x2="300" y2="195" class="message"/>
+  <line x1="270" y1="91" x2="340" y2="195" class="message"/>
+  <line x1="400" y1="91" x2="380" y2="195" class="message"/>
+  <line x1="530" y1="91" x2="420" y2="195" class="message"/>
+
+  <!-- Left detectors -->
+  <line x1="120" y1="158" x2="250" y2="220" class="message"/>
+  <line x1="120" y1="228" x2="250" y2="248" class="message"/>
+  <line x1="120" y1="298" x2="250" y2="275" class="message"/>
+  <line x1="120" y1="368" x2="250" y2="305" class="message"/>
+
+  <!-- Right detectors -->
+  <line x1="600" y1="158" x2="470" y2="220" class="message"/>
+  <line x1="600" y1="228" x2="470" y2="248" class="message"/>
+  <line x1="600" y1="298" x2="470" y2="275" class="message"/>
+  <line x1="600" y1="368" x2="470" y2="305" class="message"/>
+
+  <!-- Bottom detectors -->
+  <line x1="180" y1="420" x2="300" y2="325" class="message"/>
+  <line x1="320" y1="450" x2="340" y2="325" class="message"/>
+  <line x1="450" y1="450" x2="390" y2="325" class="message"/>
+  <line x1="580" y1="420" x2="430" y2="325" class="message"/>
+
+  <!-- Annotations -->
+  <text x="170" y="130" class="annotation">ONNX evidence</text>
+  <text x="545" y="130" class="annotation">ONNX evidence</text>
+  <text x="360" y="345" class="annotation">collect → project → absorb → distribute</text>
+
+  <!-- Legend -->
+  <rect x="20" y="485" width="12" height="12" rx="2" class="detector"/>
+  <text x="38" y="496" class="label-sm" style="text-anchor:start;">Detector (ONNX inference → soft evidence)</text>
+
+  <rect x="300" y="485" width="12" height="12" rx="2" class="clique"/>
+  <text x="318" y="496" class="label-sm" style="text-anchor:start;">Clique (log-space potentials)</text>
+
+  <rect x="520" y="485" width="12" height="12" rx="2" class="target"/>
+  <text x="538" y="496" class="label-sm" style="text-anchor:start;">Target (posterior query variable)</text>
+</svg>

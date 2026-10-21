@@ -16,6 +16,8 @@ We needed a Bayesian Junction Tree engine for exactly this scenario — a real-t
 
 This is what we found fixing it, and why it matters if you're running probabilistic inference on the JVM.
 
+![BJT star topology — 23 detectors fusing through a central clique into a strategy posterior](images/bjt-star-topology.svg)
+
 ## Division by zero is silent corruption
 
 The retraction path — where old evidence is divided out of calibrated clique potentials before new evidence is multiplied in — has an obvious failure mode: if any potential is zero, the division produces Infinity or NaN. That corruption is silent. It propagates through every downstream clique during the distribute phase, and the marginals you read back look like valid probabilities. They're not.
