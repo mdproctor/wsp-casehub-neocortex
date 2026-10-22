@@ -1,0 +1,15 @@
+# Work Plan — issue-668-situation-channel-weighting
+
+## State
+branch: issue-668-situation-channel-weighting
+state: scaffolded
+project-sha: 
+date: 
+issue-repo: casehubio/neocortex
+covers: 668
+design-repo: 
+design-section-hashes: 
+flyway-next-v: none
+
+## Queue
+- [ ] casehubio/neocortex#668 — Issue #668 ← active
