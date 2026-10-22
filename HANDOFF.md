@@ -1,12 +1,12 @@
 # HANDOFF — casehub-neocortex
 
-## Last Session (2026-10-21)
+## Last Session (2026-10-22)
 
-BJT roadmap #639: landed Tiers 1-3 (9 of 15 issues) in a single squashed commit 7d140756 on main. Converted the entire inference-bayes engine to log-space arithmetic, added sensitivity analysis (KL divergence value-of-information), temporal smoothing via TemporalEvidenceFusionEngine, hard evidence API, batch retraction, observability stats, separator normalization, and simplified the BitMask hierarchy from 10 to 3 classes. 97 tests pass (58 new). 9 issues closed on GitHub.
+Landed #643 (BayesNetworkBuilder) and #644 (ParameterLearner — MLE parameter learning) in a single squashed commit 7764ffa0 on main. ParameterLearner.fit() computes maximum likelihood CPTs from tabular observations with configurable Laplace smoothing and missing value handling. BayesNetworkBuilder provides a fluent step-builder API with compile-time state machine and DAG validation. 27 new tests (12 + 15), 177 total pass. Both issues closed.
 
 ## Immediate Next Step
 
-`work start #639` — continue with #631 (MAP inference, M/Med), then Tier 4 scale issues (#621-#627: buffer pooling, min-fill ordering, lazy cliques, parallel propagation, incremental network modification).
+Queue has #642 (BJT Phase 2: model building, causal inference, typed access — L/High). Fresh session recommended for this scope.
 
 ## Cross-Module
 
@@ -15,6 +15,4 @@ BJT roadmap #639: landed Tiers 1-3 (9 of 15 issues) in a single squashed commit 
 
 ## References
 
-- `.plan` — queue with remaining 6 issues (#631, #621-#627)
-- `blog/2026-10-21-mdp01-bayesian-junction-tree-jvm.md` — session blog entry
-- `blog/images/bjt-star-topology.svg` — star topology diagram
+- `.plan` — queue with #642 remaining
