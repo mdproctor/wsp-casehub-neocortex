@@ -1,4 +1,4 @@
-_branch=issue-674-model-composition
+_branch=issue-680-multi-agent-bayes
 report_init=done
 code_review=done
 branch_audit_conformance=done
@@ -25,6 +25,7 @@ report_squash=done
 write_marker=done
 land=done
 report_land=done
-queue_decision_attempt=0
+queue_decision_attempt=1
 last_yielded=queue_decision
-queue_decision=skipped
+queue_decision=done
+queue_decision_produced=end
