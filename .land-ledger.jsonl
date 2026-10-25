@@ -1,1 +1,1 @@
-{"event":"land","repo":"neocortex","branch":"issue-644-bjt-parameter-learning-mle","base_branch":"main","landed_sha":"7764ffa047fbbf0dc7f89976c9ad473acfd29d66","push_target":"upstream","mirrored":true,"stamped":true,"timestamp":"2026-10-22T05:15:05.655273+00:00"}
+{"event":"land","repo":"neocortex","branch":"issue-674-model-composition","base_branch":"main","landed_sha":"789ca3c35a8948d88831e42c9d746aeaa3ff77cf","push_target":"origin","mirrored":false,"stamped":true,"timestamp":"2026-10-24T18:51:31.009499+00:00"}

@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 340" font-family="system-ui, -apple-system, sans-serif" font-size="13">
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="none" stroke="#555" stroke-width="1.2"/>
+    </marker>
+    <marker id="arrow-map" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="none" stroke="#b45309" stroke-width="1.2"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="260" y="24" text-anchor="middle" font-size="15" font-weight="600" fill="#1a1a1a">SC2 Decision Composition</text>
+
+  <!-- Scouting slot -->
+  <rect x="30" y="50" width="200" height="100" rx="8" fill="#f0f4ff" stroke="#6366f1" stroke-width="1.5"/>
+  <text x="130" y="72" text-anchor="middle" font-weight="600" fill="#4338ca">Scouting</text>
+  <line x1="50" y1="80" x2="210" y2="80" stroke="#6366f1" stroke-width="0.5" opacity="0.4"/>
+  <text x="130" y="98" text-anchor="middle" font-size="11" fill="#555">observed_units</text>
+  <text x="130" y="114" text-anchor="middle" font-size="11" fill="#555">  |</text>
+  <text x="130" y="130" text-anchor="middle" font-size="11" fill="#555">enemy_strategy</text>
+  <text x="130" y="145" text-anchor="middle" font-size="10" fill="#6366f1" font-style="italic">P(rush)=0.7  P(expand)=0.1</text>
+
+  <!-- Economy slot -->
+  <rect x="290" y="50" width="200" height="100" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.5"/>
+  <text x="390" y="72" text-anchor="middle" font-weight="600" fill="#15803d">Economy</text>
+  <line x1="310" y1="80" x2="470" y2="80" stroke="#16a34a" stroke-width="0.5" opacity="0.4"/>
+  <text x="390" y="98" text-anchor="middle" font-size="11" fill="#555">worker_count</text>
+  <text x="390" y="114" text-anchor="middle" font-size="11" fill="#555">  |</text>
+  <text x="390" y="130" text-anchor="middle" font-size="11" fill="#555">worker_advantage</text>
+  <text x="390" y="145" text-anchor="middle" font-size="10" fill="#16a34a" font-style="italic">P(ahead)=0.6</text>
+
+  <!-- Build Order slot -->
+  <rect x="160" y="220" width="200" height="100" rx="8" fill="#fef3c7" stroke="#d97706" stroke-width="1.5"/>
+  <text x="260" y="242" text-anchor="middle" font-weight="600" fill="#b45309">Build Order</text>
+  <line x1="180" y1="250" x2="340" y2="250" stroke="#d97706" stroke-width="0.5" opacity="0.4"/>
+  <text x="260" y="268" text-anchor="middle" font-size="11" fill="#555">enemy_strategy + economic_pressure</text>
+  <text x="260" y="284" text-anchor="middle" font-size="11" fill="#555">  |</text>
+  <text x="260" y="300" text-anchor="middle" font-size="11" fill="#555">build_choice</text>
+  <text x="260" y="315" text-anchor="middle" font-size="10" fill="#b45309" font-style="italic">P(defensive)=0.72</text>
+
+  <!-- POSTERIOR link: Scouting → Build Order -->
+  <line x1="130" y1="150" x2="230" y2="220" stroke="#555" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <rect x="110" y="178" width="80" height="18" rx="3" fill="white" stroke="#555" stroke-width="0.8"/>
+  <text x="150" y="191" text-anchor="middle" font-size="10" fill="#555">POSTERIOR</text>
+
+  <!-- MAP link: Economy → Build Order -->
+  <line x1="390" y1="150" x2="310" y2="220" stroke="#b45309" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arrow-map)"/>
+  <rect x="320" y="178" width="46" height="18" rx="3" fill="white" stroke="#b45309" stroke-width="0.8"/>
+  <text x="343" y="191" text-anchor="middle" font-size="10" fill="#b45309">MAP</text>
+
+  <!-- Legend -->
+  <line x1="30" y1="335" x2="60" y2="335" stroke="#555" stroke-width="1.5"/>
+  <text x="65" y="339" font-size="10" fill="#666">full distribution</text>
+  <line x1="170" y1="335" x2="200" y2="335" stroke="#b45309" stroke-width="1.5" stroke-dasharray="6,3"/>
+  <text x="205" y="339" font-size="10" fill="#666">argmax state only</text>
+</svg>
