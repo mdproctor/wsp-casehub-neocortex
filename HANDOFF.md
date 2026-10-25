@@ -1,43 +1,50 @@
 # Session Handover — neocortex (slot 196)
 
-**Date:** 2026-10-13
-**Branch:** `issue-115-weighted-situation-vocabulary`
+**Date:** 2026-10-25
+**Branch:** `issue-698-move-zero-dep-eval-tests`
+**Epic:** casehubio/neocortex#697 — Migrate neocortex eval tests from wacky-manor
 
 ## What was done (this session)
 
-### Layer A — Weighted Situation Vocabulary (casehubio/examples#115)
+### Move zero-dep eval tests to caps-llm-classifier (casehubio/neocortex#698)
 
-- **CapsNode API:** `keywords` (`List<String>`) → `vocabulary` (`Map<String, Double>`)
-- **CapsTopologyLoader:** parses `vocabulary:` maps; backward-compat for `keywords:` lists (default weight 0.5)
-- **RuleBasedSituationClassifier:** confidence = max matched weight + reinforcement (0.05 per additional match, capped 0.15)
-- **LlmSituationClassifier:** renders vocabulary terms in prompt
-- **caps-topology.yaml:** all 31 INPUT nodes converted to weighted vocabulary derived from construct literature (Bowlby, Gray RST, McClelland, Baumeister & Leary, Deci & Ryan, Bandura, Williams)
-- **Missing connections added:** 17 of 31 INPUT nodes had zero outgoing connections. Added 30 new connections. Priority: dominance→BAS+social_comparison, failure→self_worth+BIS, competence_recognition→self_worth+BAS, exclusion→other_safety+BIS, competition→BAS+social_comparison
-- **Topology validation test:** all INPUT nodes must have connections (regression guard)
-- **Scenario-realistic classifier tests:** rival failure, helping others, competition + recognition
+Migrated 4 LLM eval tests from `casehubio/examples` wacky-manor `experiment/` to neocortex `caps-llm-classifier/src/test/java/.../eval/`:
+
+| Test | Manor deps replaced |
+|------|-------------------|
+| ChannelWeightingEvalTest | None (direct move) |
+| ClassifierModelComparisonTest | None (direct move) |
+| SituationClassifierIntegrationTest | None (direct move) |
+| BehavioralAttractorEvalTest | AgentResponse → ThinkingDialogueResponse; CharacterAgentLoop.RESPONSE_FORMAT_INSTRUCTION → inline; LlmTestSupport removed (unused) |
+
+**Key design decision:** Tests are plain JUnit 5 (no `@QuarkusTest`) with manual infrastructure construction via `EvalTestSupport`. Library modules can't host full Quarkus applications, so CDI injection doesn't work. `EvalTestSupport` builds `ClaudeAgentClient` → `ClaudeAgentProvider` → `AgentProvider` adapter and `SessionPipeline` programmatically.
+
+**Build integration:**
+- Tests tagged `@Tag("llm-eval")`, excluded from default builds
+- `llm-eval` Maven profile enables them: `mvn test -Pllm-eval -pl caps-llm-classifier`
+- Test deps added: caps-engine, cognition, platform-agent-claude, platform-agent-gate (all test scope)
+- Parent pom: added platform-agent-claude and platform-agent-gate to dependencyManagement
 
 ### Commits
 
 ```
-989647c6 feat(casehubio/examples#115): Layer A — weighted situation vocabulary for CAPS INPUT nodes
-bb4147dd feat(casehubio/examples#115): Layer A — add missing INPUT→MEDIATING connections
+bcf93fb0 feat(#698): move zero-dep eval tests from wacky-manor to caps-llm-classifier
 ```
 
 ## What the next session must do
 
-### 1. Wire CognitionCoreFactory into wacky-manor
+### 1. Remove migrated tests from wacky-manor
 
-The factory exists. Find where wacky-manor constructs CognitionCore manually and replace with `factory.create(config)`.
+The 4 tests still exist in `casehubio/examples` wacky-manor `experiment/` package. Once #698 is reviewed and merged, delete them from examples and update wacky-manor's test counts.
 
-### 2. Enable salience in CognitionConfig
+### 2. Continue epic #697 — parallel tracks
 
-For ConcernBasedSalienceStrategy to fire, wacky-manor's CognitionConfig needs `salienceEnabled = true`.
-
-### 3. neocortex#520 — diagnostic endpoint
-
-Cognitive state dump for postmortems.
+Three tracks can proceed independently:
+- **#699** — Create neocortex eval test fixtures (unblocks #700 Phase 2)
+- **#701** — Extract CognitionObservationBuilder from CharacterCognition (unblocks #702 Phase 3)
+- **#700** — Move fixture-dep eval tests (blocked by #699)
 
 ## Test status
-- neocortex caps-engine: 32 pass (was 29)
-- neocortex full reactor: BUILD SUCCESS
-- examples wacky-manor: 581 pass, 0 failures
+
+- caps-llm-classifier unit tests: 13 pass (existing), eval tests excluded
+- caps-llm-classifier test-compile: BUILD SUCCESS (8 test files compile)
