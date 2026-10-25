@@ -1,7 +1,7 @@
-# Work Plan — main
+# Work Plan — issue-691-brain-graph-layout
 
 ## State
-branch: main
+branch: issue-691-brain-graph-layout
 state: scaffolded
 project-sha: 
 date: 
@@ -12,5 +12,4 @@ design-section-hashes:
 flyway-next-v: 
 
 ## Queue
-- [x] casehubio/neocortex#639 — Issue #639
-- [ ] casehubio/neocortex#642 — BJT-Phase-2
+- [ ] casehubio/neocortex#691 — Issue #691 ← active
