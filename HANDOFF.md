@@ -1,14 +1,14 @@
 # Session Handover — neocortex (slot 196)
 
 **Date:** 2026-10-25
-**Branch:** `issue-698-move-zero-dep-eval-tests`
+**Branches:** `issue-698-move-zero-dep-eval-tests`, `issue-699-neocortex-eval-fixtures`
 **Epic:** casehubio/neocortex#697 — Migrate neocortex eval tests from wacky-manor
 
 ## What was done (this session)
 
-### Move zero-dep eval tests to caps-llm-classifier (casehubio/neocortex#698)
+### 1. Move zero-dep eval tests (casehubio/neocortex#698) — branch `issue-698-move-zero-dep-eval-tests`
 
-Migrated 4 LLM eval tests from `casehubio/examples` wacky-manor `experiment/` to neocortex `caps-llm-classifier/src/test/java/.../eval/`:
+Migrated 4 LLM eval tests from wacky-manor `experiment/` to neocortex `caps-llm-classifier/src/test/java/.../eval/`:
 
 | Test | Manor deps replaced |
 |------|-------------------|
@@ -17,34 +17,51 @@ Migrated 4 LLM eval tests from `casehubio/examples` wacky-manor `experiment/` to
 | SituationClassifierIntegrationTest | None (direct move) |
 | BehavioralAttractorEvalTest | AgentResponse → ThinkingDialogueResponse; CharacterAgentLoop.RESPONSE_FORMAT_INSTRUCTION → inline; LlmTestSupport removed (unused) |
 
-**Key design decision:** Tests are plain JUnit 5 (no `@QuarkusTest`) with manual infrastructure construction via `EvalTestSupport`. Library modules can't host full Quarkus applications, so CDI injection doesn't work. `EvalTestSupport` builds `ClaudeAgentClient` → `ClaudeAgentProvider` → `AgentProvider` adapter and `SessionPipeline` programmatically.
+### 2. Create eval test fixtures (casehubio/neocortex#699) — branch `issue-699-neocortex-eval-fixtures`
 
-**Build integration:**
-- Tests tagged `@Tag("llm-eval")`, excluded from default builds
-- `llm-eval` Maven profile enables them: `mvn test -Pllm-eval -pl caps-llm-classifier`
-- Test deps added: caps-engine, cognition, platform-agent-claude, platform-agent-gate (all test scope)
-- Parent pom: added platform-agent-claude and platform-agent-gate to dependencyManagement
+Created test fixtures for Phase 2 eval test migration:
+
+| Fixture | Purpose |
+|---------|---------|
+| eval-characters.yaml | Baseline character data: drives + formation memories for 4 characters |
+| eval-characters-generic.yaml | Generic profile (no pop-culture refs) for same characters |
+| EvalCharacterData | Simplified SocialConfig record (drives + formation memories only) |
+| EvalCharacterLoader | YAML loader for eval character data |
+| CognitionCoreTestBuilder | Builds CognitionCore without agency deps (no-op MemoryHygiene) |
+| CognitiveDeltaCapture | Tick-level section delta tracking utility |
+
+**Key design decisions:**
+- Tests are plain JUnit 5 (no `@QuarkusTest`). Library modules can't host full Quarkus apps.
+- `EvalTestSupport` builds Claude backend + SessionPipeline programmatically (in #698).
+- `CognitionCoreTestBuilder` replaces manor's `CognitiveActivationTest.buildCore()` with no-op stubs for agency-dependent MemoryHygieneOrchestrator (avoids circular neocortex→agency dep).
+- Both branches modify parent pom (dependencyManagement) independently; merge will reconcile.
 
 ### Commits
 
 ```
+# Branch issue-698-move-zero-dep-eval-tests
 bcf93fb0 feat(#698): move zero-dep eval tests from wacky-manor to caps-llm-classifier
+
+# Branch issue-699-neocortex-eval-fixtures
+d94159a0 wip: extract character data fixtures for eval tests
+8bf4af78 feat(#699): create neocortex eval test fixtures
 ```
 
 ## What the next session must do
 
 ### 1. Remove migrated tests from wacky-manor
 
-The 4 tests still exist in `casehubio/examples` wacky-manor `experiment/` package. Once #698 is reviewed and merged, delete them from examples and update wacky-manor's test counts.
+Once #698 is reviewed and merged, delete the 4 original tests from examples.
 
-### 2. Continue epic #697 — parallel tracks
+### 2. Move Phase 2 eval tests (#700)
 
-Three tracks can proceed independently:
-- **#699** — Create neocortex eval test fixtures (unblocks #700 Phase 2)
-- **#701** — Extract CognitionObservationBuilder from CharacterCognition (unblocks #702 Phase 3)
-- **#700** — Move fixture-dep eval tests (blocked by #699)
+Blocked by #699. Once fixtures merged, migrate CognitiveEvalTest, EmergenceVerificationTest, SleepDerivationEvalTest, SomaticDescriptionEvalTest — replacing ManorSocialConfigLoader with EvalCharacterLoader and CognitiveActivationTest with CognitionCoreTestBuilder.
+
+### 3. Extract CognitionObservationBuilder (#701)
+
+Independent architectural work. Extract generic observation rendering from CharacterCognition into neocortex/cognition. Unblocks Phase 3 (#702).
 
 ## Test status
 
-- caps-llm-classifier unit tests: 13 pass (existing), eval tests excluded
-- caps-llm-classifier test-compile: BUILD SUCCESS (8 test files compile)
+- caps-llm-classifier unit tests: 13 pass on both branches
+- Both branches: BUILD SUCCESS (test-compile)
