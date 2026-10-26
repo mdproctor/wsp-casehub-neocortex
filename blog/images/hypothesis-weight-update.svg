@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 420" font-family="system-ui, -apple-system, sans-serif">
+  <!-- Title -->
+  <text x="300" y="24" font-size="14" fill="#334155" font-weight="600" text-anchor="middle">Weight update — the key insight</text>
+
+  <!-- Step 1: Read marginal BEFORE setting evidence -->
+  <rect x="30" y="45" width="540" height="80" rx="6" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.5"/>
+  <text x="50" y="68" font-size="12" fill="#1d4ed8" font-weight="600">Step 1: Read marginal before setting evidence</text>
+  <text x="50" y="88" font-size="11" fill="#475569">marginal = composition.marginalize("intel", "first_building")</text>
+  <text x="50" y="108" font-size="11" fill="#475569">→ [0.42, 0.15, 0.18, 0.25]  for gateway / hatchery / barracks / nexus</text>
+
+  <!-- Arrow -->
+  <line x1="300" y1="125" x2="300" y2="140" stroke="#94a3b8" stroke-width="1.5"/>
+  <polygon points="296,140 304,140 300,146" fill="#94a3b8"/>
+
+  <!-- Step 2: Compute likelihood -->
+  <rect x="30" y="148" width="540" height="80" rx="6" fill="#f0fdf4" stroke="#86efac" stroke-width="1.5"/>
+  <text x="50" y="171" font-size="12" fill="#16a34a" font-weight="600">Step 2: Compute P(evidence | Hᵢ)</text>
+  <text x="50" y="193" font-size="11" fill="#475569">Hard evidence "gateway" observed →  stateIndex = 0</text>
+  <text x="50" y="213" font-size="11" fill="#475569">likelihood = marginal[0] = 0.42</text>
+
+  <!-- Arrow -->
+  <line x1="300" y1="228" x2="300" y2="243" stroke="#94a3b8" stroke-width="1.5"/>
+  <polygon points="296,243 304,243 300,249" fill="#94a3b8"/>
+
+  <!-- Step 3: Bayes' rule -->
+  <rect x="30" y="251" width="540" height="80" rx="6" fill="#fef3c7" stroke="#fcd34d" stroke-width="1.5"/>
+  <text x="50" y="274" font-size="12" fill="#92400e" font-weight="600">Step 3: Bayes' rule — multiply and normalise</text>
+  <text x="50" y="296" font-size="11" fill="#475569">wᵢ  ←  wᵢ × P(evidence | Hᵢ)  =  0.25 × 0.42  =  0.105</text>
+  <text x="50" y="316" font-size="11" fill="#475569">then normalise:  wᵢ  ←  wᵢ / Σⱼ wⱼ  so all weights sum to 1.0</text>
+
+  <!-- Arrow -->
+  <line x1="300" y1="331" x2="300" y2="346" stroke="#94a3b8" stroke-width="1.5"/>
+  <polygon points="296,346 304,346 300,352" fill="#94a3b8"/>
+
+  <!-- Step 4: Set evidence and propagate -->
+  <rect x="30" y="354" width="540" height="55" rx="6" fill="#faf5ff" stroke="#c4b5fd" stroke-width="1.5"/>
+  <text x="50" y="377" font-size="12" fill="#7c3aed" font-weight="600">Step 4: Now set the evidence and propagate</text>
+  <text x="50" y="397" font-size="11" fill="#475569">composition.setHardEvidence(...)  →  composition.update()</text>
+
+  <!-- Side annotation -->
+  <text x="575" y="94" font-size="10" fill="#3b82f6" text-anchor="end" font-style="italic">order matters!</text>
+  <text x="575" y="108" font-size="10" fill="#3b82f6" text-anchor="end" font-style="italic">read first, set after</text>
+</svg>

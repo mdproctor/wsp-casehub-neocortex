@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 380" font-family="system-ui, -apple-system, sans-serif">
+  <defs>
+    <linearGradient id="rushGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ef4444" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#ef4444" stop-opacity="0.02"/>
+    </linearGradient>
+    <linearGradient id="expandGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#22c55e" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#22c55e" stop-opacity="0.02"/>
+    </linearGradient>
+    <linearGradient id="techGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#8b5cf6" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#8b5cf6" stop-opacity="0.02"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Title -->
+  <text x="320" y="24" font-size="14" fill="#334155" font-weight="600" text-anchor="middle">HypothesisTracker — one CompositionInstance per hypothesis</text>
+
+  <!-- Tracker container -->
+  <rect x="20" y="40" width="600" height="330" rx="8" fill="none" stroke="#64748b" stroke-width="1.5" stroke-dasharray="6,3"/>
+  <text x="35" y="60" font-size="11" fill="#64748b" font-weight="500">HypothesisTracker</text>
+
+  <!-- Hypothesis: Rush -->
+  <rect x="40" y="75" width="175" height="200" rx="6" fill="url(#rushGrad)" stroke="#ef4444" stroke-width="1.5"/>
+  <text x="128" y="95" font-size="12" fill="#dc2626" font-weight="600" text-anchor="middle">H₁ "proxy_rush"</text>
+  <text x="128" y="112" font-size="11" fill="#64748b" text-anchor="middle">w = 0.25</text>
+
+  <!-- Rush composition -->
+  <rect x="55" y="125" width="145" height="55" rx="4" fill="#fff" stroke="#e5e7eb" stroke-width="1"/>
+  <text x="128" y="143" font-size="10" fill="#475569" text-anchor="middle" font-weight="500">intel slot</text>
+  <text x="128" y="157" font-size="9" fill="#94a3b8" text-anchor="middle">strategy prior: [0.85, 0.05, ...]</text>
+
+  <line x1="128" y1="180" x2="128" y2="192" stroke="#94a3b8" stroke-width="1"/>
+  <polygon points="124,192 132,192 128,197" fill="#94a3b8"/>
+
+  <rect x="55" y="200" width="145" height="40" rx="4" fill="#fff" stroke="#e5e7eb" stroke-width="1"/>
+  <text x="128" y="218" font-size="10" fill="#475569" text-anchor="middle" font-weight="500">response slot</text>
+  <text x="128" y="230" font-size="9" fill="#94a3b8" text-anchor="middle">→ recommended action</text>
+
+  <!-- Hypothesis: Expand -->
+  <rect x="232" y="75" width="175" height="200" rx="6" fill="url(#expandGrad)" stroke="#22c55e" stroke-width="1.5"/>
+  <text x="320" y="95" font-size="12" fill="#16a34a" font-weight="600" text-anchor="middle">H₂ "fast_expand"</text>
+  <text x="320" y="112" font-size="11" fill="#64748b" text-anchor="middle">w = 0.25</text>
+
+  <rect x="247" y="125" width="145" height="55" rx="4" fill="#fff" stroke="#e5e7eb" stroke-width="1"/>
+  <text x="320" y="143" font-size="10" fill="#475569" text-anchor="middle" font-weight="500">intel slot</text>
+  <text x="320" y="157" font-size="9" fill="#94a3b8" text-anchor="middle">strategy prior: [0.05, 0.85, ...]</text>
+
+  <line x1="320" y1="180" x2="320" y2="192" stroke="#94a3b8" stroke-width="1"/>
+  <polygon points="316,192 324,192 320,197" fill="#94a3b8"/>
+
+  <rect x="247" y="200" width="145" height="40" rx="4" fill="#fff" stroke="#e5e7eb" stroke-width="1"/>
+  <text x="320" y="218" font-size="10" fill="#475569" text-anchor="middle" font-weight="500">response slot</text>
+  <text x="320" y="230" font-size="9" fill="#94a3b8" text-anchor="middle">→ recommended action</text>
+
+  <!-- Hypothesis: Tech -->
+  <rect x="424" y="75" width="175" height="200" rx="6" fill="url(#techGrad)" stroke="#8b5cf6" stroke-width="1.5"/>
+  <text x="512" y="95" font-size="12" fill="#7c3aed" font-weight="600" text-anchor="middle">H₃ "dt_rush"</text>
+  <text x="512" y="112" font-size="11" fill="#64748b" text-anchor="middle">w = 0.25</text>
+
+  <rect x="439" y="125" width="145" height="55" rx="4" fill="#fff" stroke="#e5e7eb" stroke-width="1"/>
+  <text x="512" y="143" font-size="10" fill="#475569" text-anchor="middle" font-weight="500">intel slot</text>
+  <text x="512" y="157" font-size="9" fill="#94a3b8" text-anchor="middle">strategy prior: [0.05, 0.05, 0.85, ...]</text>
+
+  <line x1="512" y1="180" x2="512" y2="192" stroke="#94a3b8" stroke-width="1"/>
+  <polygon points="508,192 516,192 512,197" fill="#94a3b8"/>
+
+  <rect x="439" y="200" width="145" height="40" rx="4" fill="#fff" stroke="#e5e7eb" stroke-width="1"/>
+  <text x="512" y="218" font-size="10" fill="#475569" text-anchor="middle" font-weight="500">response slot</text>
+  <text x="512" y="230" font-size="9" fill="#94a3b8" text-anchor="middle">→ recommended action</text>
+
+  <!-- Observation broadcast arrow -->
+  <text x="320" y="300" font-size="12" fill="#1d4ed8" font-weight="600" text-anchor="middle">observe("intel", "first_building", "gateway")</text>
+  <line x1="128" y1="310" x2="128" y2="275" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <polygon points="124,278 132,278 128,273" fill="#3b82f6"/>
+  <line x1="320" y1="310" x2="320" y2="275" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <polygon points="316,278 324,278 320,273" fill="#3b82f6"/>
+  <line x1="512" y1="310" x2="512" y2="275" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <polygon points="508,278 516,278 512,273" fill="#3b82f6"/>
+
+  <text x="320" y="325" font-size="11" fill="#64748b" text-anchor="middle">same observation → broadcast to every viable hypothesis</text>
+  <text x="320" y="342" font-size="11" fill="#64748b" text-anchor="middle">each computes its own P(evidence | Hᵢ) from its own marginals</text>
+
+  <!-- Weight labels at bottom -->
+  <text x="128" y="362" font-size="11" fill="#dc2626" font-weight="500" text-anchor="middle">w → 0.38</text>
+  <text x="320" y="362" font-size="11" fill="#16a34a" font-weight="500" text-anchor="middle">w → 0.11</text>
+  <text x="512" y="362" font-size="11" fill="#7c3aed" font-weight="500" text-anchor="middle">w → 0.35</text>
+</svg>
