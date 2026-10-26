@@ -202,6 +202,18 @@ observe("scouting", "observed_units", "gateway")
     └─ return ObservationResult
 ```
 
+## Evidence Semantics
+
+Repeated observations on the same variable use **overwrite semantics**:
+the new evidence replaces the previous evidence on that variable. This
+matches `BayesInstance.setLikelyhood()` behavior. The predictive
+likelihood P(e_k | H_i) is computed from the marginal *before* the new
+evidence is set, so the weight update correctly reflects the incremental
+information.
+
+Calling `observe()` on different variables accumulates evidence
+across variables (conjunction). Each observation narrows the posterior.
+
 ## Error Handling
 
 - **Unknown slot/variable:** IllegalArgumentException (same as CompositionInstance)
@@ -240,8 +252,7 @@ All in `inference-bayes/src/main/java/io/quarkmind/inference/bayes/`:
 
 | File | Type | Purpose |
 |------|------|---------|
-| `HypothesisTracker.java` | Class | Main tracker, owns compositions |
-| `HypothesisTrackerBuilder.java` | Class | Fluent builder (package-private, exposed via static factory) |
+| `HypothesisTracker.java` | Class | Main tracker, owns compositions; contains HypothesisTrackerBuilder as static inner class |
 | `HypothesisDefinition.java` | Record | Hypothesis identity and configuration |
 | `ObservationResult.java` | Record | Post-observation snapshot |
 | `TrackerSnapshot.java` | Record | Full state snapshot |
