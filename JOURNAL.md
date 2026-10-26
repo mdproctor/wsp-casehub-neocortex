@@ -1,1 +1,1 @@
-# Design Journal — issue-692-hypothesis-tracking
+# Design Journal — issue-705-hypothesis-prior-learning
