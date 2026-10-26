@@ -1,8 +1,8 @@
-# Work Plan — main
+# Work Plan — issue-703-extraction-pipeline-sync
 
 ## State
-branch: main
-state: closing:review
+branch: issue-703-extraction-pipeline-sync
+state: scaffolded
 project-sha: 
 date: 
 issue-repo: casehubio/neocortex
@@ -11,7 +11,5 @@ design-repo:
 design-section-hashes: 
 flyway-next-v: 
 
-evidence-era: true
 ## Queue
-- [x] casehubio/neocortex#639 — Issue #639
-- [ ] casehubio/neocortex#642 — BJT-Phase-2
+- [ ] casehubio/neocortex#703 — Issue #703 ← active
