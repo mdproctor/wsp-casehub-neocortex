@@ -1,23 +1,43 @@
-# HANDOFF — casehub-neocortex
+# Session Handover — neocortex (slot 196)
 
-## Last Session (2026-10-25)
+**Date:** 2026-10-13
+**Branch:** `issue-115-weighted-situation-vocabulary`
 
-Landed #687 (import relationship_stages) on this branch alongside prior #580/#581/#582 work. EntityEnrichmentHandler now stores biographical relationship stage transitions as relationship-domain memories with stage-from/to, period, trigger, and provenance metadata. Added trigger field to Transition record. 5 tests (3 existing + 2 new), 63 total pass in memory-seeding.
+## What was done (this session)
 
-Branch `issue-580-3d-ego-graph-view` closed. All 4 issues (#580, #581, #582, #687) landed on main and closed. Both repos pushed to origin and synced to local canonicals. 2 blog entries promoted and published (BJT article + "The Import That Wasn't" note).
+### Layer A — Weighted Situation Vocabulary (casehubio/examples#115)
 
-Filed #691 — 3D brain-shaped graph layout with neuroanatomical region mapping and three-layer interaction model (pill filters, node-click highlight, explicit ego-focus).
+- **CapsNode API:** `keywords` (`List<String>`) → `vocabulary` (`Map<String, Double>`)
+- **CapsTopologyLoader:** parses `vocabulary:` maps; backward-compat for `keywords:` lists (default weight 0.5)
+- **RuleBasedSituationClassifier:** confidence = max matched weight + reinforcement (0.05 per additional match, capped 0.15)
+- **LlmSituationClassifier:** renders vocabulary terms in prompt
+- **caps-topology.yaml:** all 31 INPUT nodes converted to weighted vocabulary derived from construct literature (Bowlby, Gray RST, McClelland, Baumeister & Leary, Deci & Ryan, Bandura, Williams)
+- **Missing connections added:** 17 of 31 INPUT nodes had zero outgoing connections. Added 30 new connections. Priority: dominance→BAS+social_comparison, failure→self_worth+BIS, competence_recognition→self_worth+BAS, exclusion→other_safety+BIS, competition→BAS+social_comparison
+- **Topology validation test:** all INPUT nodes must have connections (regression guard)
+- **Scenario-realistic classifier tests:** rival failure, helping others, competition + recognition
 
-## Immediate Next Step
+### Commits
 
-`work start #691` — 3D brain-shaped graph layout. Builds on #580's THREE.js graph view. Key design decisions already captured in the issue: region mapping table, highlight/darken interaction model, pill filters with dual labels (functional + anatomical).
+```
+989647c6 feat(casehubio/examples#115): Layer A — weighted situation vocabulary for CAPS INPUT nodes
+bb4147dd feat(casehubio/examples#115): Layer A — add missing INPUT→MEDIATING connections
+```
 
-## Cross-Module
+## What the next session must do
 
-- **#618** — Migrate `ParallelLlmExecutor` to platform's `agent-session-core` — blocked by platform#654
-- **#619** — `BeliefRevisionPhase`: replace direct `agentProvider.invoke()` with `SessionPipeline` — blocked by platform#654
+### 1. Wire CognitionCoreFactory into wacky-manor
 
-## References
+The factory exists. Find where wacky-manor constructs CognitionCore manually and replace with `factory.create(config)`.
 
-- #691 issue body — full region mapping table and interaction model
-- `.plan` — queue state
+### 2. Enable salience in CognitionConfig
+
+For ConcernBasedSalienceStrategy to fire, wacky-manor's CognitionConfig needs `salienceEnabled = true`.
+
+### 3. neocortex#520 — diagnostic endpoint
+
+Cognitive state dump for postmortems.
+
+## Test status
+- neocortex caps-engine: 32 pass (was 29)
+- neocortex full reactor: BUILD SUCCESS
+- examples wacky-manor: 581 pass, 0 failures

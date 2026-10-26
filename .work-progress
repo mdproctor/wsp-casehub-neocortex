@@ -1,4 +1,4 @@
-_branch=issue-680-multi-agent-bayes
+_branch=issue-681-dynamic-structure-adaptation
 report_init=done
 code_review=done
 branch_audit_conformance=done
@@ -25,7 +25,6 @@ report_squash=done
 write_marker=done
 land=done
 report_land=done
-queue_decision_attempt=1
+queue_decision_attempt=0
 last_yielded=queue_decision
-queue_decision=done
-queue_decision_produced=end
+queue_decision=skipped

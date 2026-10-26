@@ -1,2 +1,1 @@
-{"event":"land","repo":"neocortex","branch":"issue-674-model-composition","base_branch":"main","landed_sha":"789ca3c35a8948d88831e42c9d746aeaa3ff77cf","push_target":"origin","mirrored":false,"stamped":true,"timestamp":"2026-10-24T18:51:31.009499+00:00"}
-{"event":"land","repo":"neocortex","branch":"issue-680-multi-agent-bayes","base_branch":"main","landed_sha":"c924f186685ad184326bb354329092c498d3ff60","push_target":"origin","mirrored":false,"stamped":true,"timestamp":"2026-10-25T07:12:16.151939+00:00"}
+{"event":"land","repo":"neocortex","branch":"issue-681-dynamic-structure-adaptation","base_branch":"main","landed_sha":"6af1810a9823b5b590862fe018e898f5cddfc787","push_target":"origin","mirrored":false,"stamped":true,"timestamp":"2026-10-26T02:48:16.050612+00:00"}
