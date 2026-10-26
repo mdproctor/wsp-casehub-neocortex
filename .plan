@@ -2,7 +2,7 @@
 
 ## State
 branch: issue-692-hypothesis-tracking
-state: active
+state: closing:review
 project-sha: 64bfea4c
 date: 2026-10-26
 issue-repo: casehubio/neocortex
@@ -11,6 +11,7 @@ design-repo: project
 design-section-hashes: 
 flyway-next-v: unknown
 
+evidence-era: true
 ## Queue
 - [ ] casehubio/neocortex#692 — Issue #692 ← active
   - [x] Batch 1: Foundation
