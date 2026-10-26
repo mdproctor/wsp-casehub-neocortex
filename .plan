@@ -1,16 +1,15 @@
-# Work Plan — main
+# Work Plan — issue-692-hypothesis-tracking
 
 ## State
-branch: main
+branch: issue-692-hypothesis-tracking
 state: scaffolded
-project-sha: 
-date: 
+project-sha: 64bfea4c
+date: 2026-10-26
 issue-repo: casehubio/neocortex
-covers: 642
-design-repo: 
+covers: 692
+design-repo: project
 design-section-hashes: 
-flyway-next-v: 
+flyway-next-v: unknown
 
 ## Queue
-- [x] casehubio/neocortex#639 — Issue #639
-- [ ] casehubio/neocortex#642 — BJT-Phase-2
+- [ ] casehubio/neocortex#692 — Issue #692 ← active
