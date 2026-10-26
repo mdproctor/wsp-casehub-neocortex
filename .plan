@@ -13,3 +13,7 @@ flyway-next-v: unknown
 
 ## Queue
 - [ ] casehubio/neocortex#692 — Issue #692 ← active
+  - [x] Batch 1: Foundation
+    - [x] Task 1: Types builder construction
+  - [x] Batch 2: Observation
+    - [x] Task 2: observe observeHard weight-update elimination tests
