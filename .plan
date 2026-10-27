@@ -13,3 +13,13 @@ flyway-next-v:
 
 ## Queue
 - [ ] casehubio/neocortex#675 — Issue #675 ← active
+  - [ ] Batch 1: Foundation
+    - [ ] Task 1: Value types — StructuralConstraints StructureDiagnostics StructureResult
+    - [ ] Task 2: Math utilities — GammaFunction and ContingencyTable
+  - [ ] Batch 2: Independence testing
+    - [ ] Task 3: IndependenceTest — G-test Fishers exact adaptive
+  - [ ] Batch 3: PC algorithm
+    - [ ] Task 4: PcAlgorithm — skeleton v-structures Meeks rules
+  - [ ] Batch 4: Hill-climbing facade
+    - [ ] Task 5: HillClimbingSearch — decomposable BIC restarts
+    - [ ] Task 6: StructureLearner facade and integration tests
