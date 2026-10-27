@@ -1,0 +1,15 @@
+# Work Plan — issue-680-multi-agent-bayesian-networks
+
+## State
+branch: issue-680-multi-agent-bayesian-networks
+state: scaffolded
+project-sha: 
+date: 
+issue-repo: casehubio/neocortex
+covers: 680
+design-repo: 
+design-section-hashes: 
+flyway-next-v: 
+
+## Queue
+- [ ] casehubio/neocortex#680 — Issue #680 ← active
