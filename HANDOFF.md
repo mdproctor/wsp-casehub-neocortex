@@ -5,17 +5,17 @@
 
 ## This Session
 
-Completed #676 (model validation) — 4 commits landed on main: FoldSplitter, ModelValidator, ModelSelector, CalibrationDiagnostics. Blog entry written. Issue closed.
+Closed #710 (HypothesisTracker per-tick API) — 4 thin delegation methods landed on main as `2e4d2750`, issue closed, diary written. No #675 implementation work this session.
 
-Started #675 (structure learning) — brainstormed, 5 design decisions captured, spec written and reviewed (standard, no revisions). Two blog entries written. Stopped at planning transition.
+## State
 
-## Decisions (specs/issue-675-bjt-structure-learning/decisions.md)
+Project repo is on `main` — checkout `issue-675-bjt-structure-learning` before starting. Workspace is already on the correct branch.
 
-D1 StructureLearner facade, D2 standard PC + Meek's, D3 hill-climbing + restarts, D4 IndependenceTest adaptive, D5 decomposable local BIC scoring.
+#675 is at planning transition: brainstormed, spec written and reviewed, 5 design decisions captured. No implementation yet.
 
 ## Next Action
 
-Invoke `writing-plans` with spec `specs/issue-675-bjt-structure-learning/2026-10-27-structure-learning-design.md`. Pipeline state is `PLANNING`.
+Invoke `writing-plans` with spec `specs/issue-675-bjt-structure-learning/2026-10-27-structure-learning-design.md`.
 
 ## Note
 
@@ -27,5 +27,5 @@ Incomplete gamma function implementation needed for G-test p-values — pure Jav
 |----------|------|
 | Design spec | `specs/issue-675-bjt-structure-learning/2026-10-27-structure-learning-design.md` |
 | Decisions | `specs/issue-675-bjt-structure-learning/decisions.md` |
-| #676 blog | `blog/2026-10-26-mdp03-can-you-trust-the-numbers.md` |
+| #710 diary | `blog/2026-10-27-mdp02-two-kinds-of-evidence.md` |
 | #675 blog | `blog/2026-10-27-mdp01-letting-the-data-draw-the-arrows.md` |
