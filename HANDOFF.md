@@ -1,43 +1,30 @@
-# Session Handover — neocortex (slot 196)
+# Session Handover — neocortex
 
-**Date:** 2026-10-13
-**Branch:** `issue-115-weighted-situation-vocabulary`
+**Date:** 2026-10-27
+**Branch:** `issue-675-bjt-structure-learning`
 
-## What was done (this session)
+## This Session
 
-### Layer A — Weighted Situation Vocabulary (casehubio/examples#115)
+Completed #676 (model validation) — 4 commits landed on main: FoldSplitter, ModelValidator, ModelSelector, CalibrationDiagnostics. Blog entry written. Issue closed.
 
-- **CapsNode API:** `keywords` (`List<String>`) → `vocabulary` (`Map<String, Double>`)
-- **CapsTopologyLoader:** parses `vocabulary:` maps; backward-compat for `keywords:` lists (default weight 0.5)
-- **RuleBasedSituationClassifier:** confidence = max matched weight + reinforcement (0.05 per additional match, capped 0.15)
-- **LlmSituationClassifier:** renders vocabulary terms in prompt
-- **caps-topology.yaml:** all 31 INPUT nodes converted to weighted vocabulary derived from construct literature (Bowlby, Gray RST, McClelland, Baumeister & Leary, Deci & Ryan, Bandura, Williams)
-- **Missing connections added:** 17 of 31 INPUT nodes had zero outgoing connections. Added 30 new connections. Priority: dominance→BAS+social_comparison, failure→self_worth+BIS, competence_recognition→self_worth+BAS, exclusion→other_safety+BIS, competition→BAS+social_comparison
-- **Topology validation test:** all INPUT nodes must have connections (regression guard)
-- **Scenario-realistic classifier tests:** rival failure, helping others, competition + recognition
+Started #675 (structure learning) — brainstormed, 5 design decisions captured, spec written and reviewed (standard, no revisions). Stopped at planning transition.
 
-### Commits
+## Decisions (specs/issue-675-bjt-structure-learning/decisions.md)
 
-```
-989647c6 feat(casehubio/examples#115): Layer A — weighted situation vocabulary for CAPS INPUT nodes
-bb4147dd feat(casehubio/examples#115): Layer A — add missing INPUT→MEDIATING connections
-```
+D1 StructureLearner facade, D2 standard PC + Meek's, D3 hill-climbing + restarts, D4 IndependenceTest adaptive, D5 decomposable local BIC scoring.
 
-## What the next session must do
+## Next Action
 
-### 1. Wire CognitionCoreFactory into wacky-manor
+Invoke `writing-plans` with spec `specs/issue-675-bjt-structure-learning/2026-10-27-structure-learning-design.md`. Pipeline state is `PLANNING`.
 
-The factory exists. Find where wacky-manor constructs CognitionCore manually and replace with `factory.create(config)`.
+## Note
 
-### 2. Enable salience in CognitionConfig
+Incomplete gamma function implementation needed for G-test p-values — pure Java, no external stats library. Identified during review as the most substantial non-algorithmic implementation piece.
 
-For ConcernBasedSalienceStrategy to fire, wacky-manor's CognitionConfig needs `salienceEnabled = true`.
+## References
 
-### 3. neocortex#520 — diagnostic endpoint
-
-Cognitive state dump for postmortems.
-
-## Test status
-- neocortex caps-engine: 32 pass (was 29)
-- neocortex full reactor: BUILD SUCCESS
-- examples wacky-manor: 581 pass, 0 failures
+| Artifact | Path |
+|----------|------|
+| Design spec | `specs/issue-675-bjt-structure-learning/2026-10-27-structure-learning-design.md` |
+| Decisions | `specs/issue-675-bjt-structure-learning/decisions.md` |
+| #676 blog | `blog/2026-10-26-mdp03-can-you-trust-the-numbers.md` |
