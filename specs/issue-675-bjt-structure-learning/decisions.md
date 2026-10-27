@@ -44,3 +44,15 @@
 **Sources:** FoldSplitter.java from #676 — same pattern; Agresti (2002) — chi-squared and Fisher's exact for contingency tables
 **Exploration:** quick
 **Status:** captured
+
+## D5: Hill-climbing BIC scoring — decomposable local scores
+
+**Choice:** Decomposable BIC with per-variable local scoring. Compute local scores once for all variables, recompute only affected variable(s) when evaluating a candidate edge operation. Cache contingency tables (parent-config counts) per variable. ModelSelector.bic() used for whole-network verification, not inner loop.
+**Alternatives:**
+- Full refit per candidate — O(V) slower per evaluation, impractical beyond toy networks (~1140 candidates per step for 20 variables)
+**Rationale:** Decomposable local scoring is standard in all BN structure learning implementations. An add/remove/reverse touches at most 2 variables' parent sets. Each candidate evaluation is O(n × outcomes²) instead of O(n × V × outcomes²).
+**Trade-offs:** More complex implementation (local score cache, contingency table management). Worth it — makes the difference between seconds and minutes for 20+ variable networks.
+**Sources:** Koller & Friedman (2009) §18.4 — decomposable scores; Chickering (2002) — optimal search with BIC
+**Depends on:** D3 (hill-climbing operations)
+**Exploration:** quick
+**Status:** captured
