@@ -89,4 +89,4 @@ Hand-specified networks encode what the builder knows. Structure learning discov
 
 That disagreement is information. It's the signal that either the domain knowledge is wrong, or the data is too sparse to detect the relationship, or there's a confounding variable nobody modelled. Surfacing that tension — not papering over it — is the point. The `NetworkSpec` with its PROPOSED statuses, the `StructuralConstraints` with its required and forbidden edges, the BIC scores that quantify fit — they're all mechanisms for making the disagreement visible and forcing a resolution.
 
-The data draws the arrows it can justify. The human decides which ones to keep.
+The data draws the arrows it can justify. The LLM draws the ones it can reason about. And where they disagree, something interesting is happening — something neither would have found alone.
