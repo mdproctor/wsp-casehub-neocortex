@@ -33,3 +33,14 @@
 **Sources:** Heckerman, Geiger, Chickering (1995) — Learning Bayesian Networks; ModelSelector.bic() from #676
 **Exploration:** quick
 **Status:** captured
+
+## D4: Independence test — @FunctionalInterface with adaptive default
+
+**Choice:** IndependenceTest @FunctionalInterface with IndependenceResult record. Static factories gTest(alpha), fisherExact(alpha), adaptive(alpha). Adaptive selects Fisher's when expected count < 5, G-test otherwise.
+**Alternatives:**
+- Abstract class with shared contingency table logic — locks to tabular data, prevents future non-tabular tests
+**Rationale:** Same pattern as FoldSplitter. Adaptive default means callers don't need to think about sample sizes. Contingency table building is a shared utility method, not a class hierarchy.
+**Trade-offs:** FunctionalInterface can't enforce that implementations handle the conditioning set correctly — this is a usage discipline, not a type safety issue
+**Sources:** FoldSplitter.java from #676 — same pattern; Agresti (2002) — chi-squared and Fisher's exact for contingency tables
+**Exploration:** quick
+**Status:** captured
