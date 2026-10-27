@@ -1,12 +1,12 @@
 # Work Plan — issue-675-bjt-structure-learning
 
 ## State
-branch: issue-675-bjt-structure-learning
-state: scaffolded
+branch: issue-710-hypothesis-tracker-per-tick-api
+state: active
 project-sha: 
 date: 
 issue-repo: casehubio/neocortex
-covers: 675
+covers: 710
 design-repo: 
 design-section-hashes: 
 flyway-next-v: 
