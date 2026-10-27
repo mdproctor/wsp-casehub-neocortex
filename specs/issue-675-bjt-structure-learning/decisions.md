@@ -21,3 +21,15 @@
 **Sources:** Spirtes, Glymour, Scheines (2000) — Causation, Prediction, and Search; Meek (1995) — orientation rules
 **Exploration:** quick
 **Status:** captured
+
+## D3: Hill-climbing — three operations + random restarts
+
+**Choice:** Add/remove/reverse edge operations scored by BIC (via ModelSelector.bic()). Accept greatest BIC improvement per step. Random restarts (configurable count, default 5) from empty graph with shuffled operation order. StructuralConstraints gate all operations.
+**Alternatives:**
+- No restarts — simpler but vulnerable to local optima for larger networks
+- TABU search — more sophisticated escape from local optima but significantly more complex state management
+**Rationale:** Random restarts are the standard approach in BN hill-climbing (Koller & Friedman, Heckerman et al.). Simple, effective, configurable tradeoff between quality and compute time.
+**Trade-offs:** Restart count × operations per step = total BIC evaluations. Each BIC evaluation requires ParameterLearner.fit() + logLikelihood(). For large networks or many restarts, this is compute-intensive. Acceptable for the target scale (< 30 variables).
+**Sources:** Heckerman, Geiger, Chickering (1995) — Learning Bayesian Networks; ModelSelector.bic() from #676
+**Exploration:** quick
+**Status:** captured
