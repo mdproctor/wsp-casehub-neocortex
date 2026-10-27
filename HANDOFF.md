@@ -7,7 +7,7 @@
 
 Completed #676 (model validation) — 4 commits landed on main: FoldSplitter, ModelValidator, ModelSelector, CalibrationDiagnostics. Blog entry written. Issue closed.
 
-Started #675 (structure learning) — brainstormed, 5 design decisions captured, spec written and reviewed (standard, no revisions). Stopped at planning transition.
+Started #675 (structure learning) — brainstormed, 5 design decisions captured, spec written and reviewed (standard, no revisions). Two blog entries written. Stopped at planning transition.
 
 ## Decisions (specs/issue-675-bjt-structure-learning/decisions.md)
 
@@ -28,3 +28,4 @@ Incomplete gamma function implementation needed for G-test p-values — pure Jav
 | Design spec | `specs/issue-675-bjt-structure-learning/2026-10-27-structure-learning-design.md` |
 | Decisions | `specs/issue-675-bjt-structure-learning/decisions.md` |
 | #676 blog | `blog/2026-10-26-mdp03-can-you-trust-the-numbers.md` |
+| #675 blog | `blog/2026-10-27-mdp01-letting-the-data-draw-the-arrows.md` |
