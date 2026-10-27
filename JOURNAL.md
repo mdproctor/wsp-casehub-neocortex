@@ -1,1 +1,1 @@
-# Design Journal — issue-705-hypothesis-prior-learning
+# Design Journal — issue-675-bjt-structure-learning
