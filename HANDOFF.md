@@ -8,6 +8,10 @@ Designed the interpersonal relational schemas system (#477). Verified via Intell
 
 **Missing `.plan`:** Branch was created manually without full work-start scaffolding. Next session must run `work start` or create `.plan` before executing the implementation plan.
 
+**#711/#714 overlap:** PersonalityProfileHandler (#711) writes AMPD as `personality-ampd-*` MindMap properties. DriveDescriptionGenerationPhase (#714) reads `cognitiveKind=personality-facet` nodes directly from MindMap. Neither uses `AmpdFacets` Java type — so retiring `AmpdFacets` in Child 1 won't break them. The migration point is `CognitiveDerivationEngine.deriveExpressionStyles(AmpdFacets)` → `deriveExpressionStyles(List<PersonalityFacet>)` and whatever loads `DescriptorView.ampdFacets()` from MindMap nodes. No git merge conflicts — different files changed.
+
+**Barrett grounding insight (#714):** label+degree+prose prevents self-awareness drift. When implementing #717 (appraisal wiring), render `RelationalSchema.description` and `PersonalityFacet.origin` prominently in the LLM prompt — they're grounding prose, not metadata.
+
 ## Immediate Next Step
 
 Run `work continue` on branch `issue-477-relational-schemas`. This should scaffold the `.plan` with #716-#720. Then execute the implementation plan for Child 1 (#716): 3 batches / 5 tasks — PersonalityFacet, AttachmentProfile, RelationalSchema records + PersonalityProfile composite + CognitiveDefaults refactoring + RelationshipVocabulary.
