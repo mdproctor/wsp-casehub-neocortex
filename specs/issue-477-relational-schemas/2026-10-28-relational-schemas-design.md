@@ -294,9 +294,21 @@ Create `OtherModelPromptSection implements CognitionPromptRenderer`:
 
 ### Dynamic schema evolution
 
-**Separation of concerns:** Familiarity computation (`RelationshipStagePhase`, priority 18) remains unchanged — it computes an objective interaction-frequency metric using simple arithmetic.
+**Separation of concerns:** Familiarity computation (`RelationshipStagePhase`, `@Priority(18)`) remains unchanged — it computes an objective interaction-frequency metric using simple arithmetic.
 
-A new `RelationalSchemaEvolutionPhase implements ConsolidationPhase` at priority 18 (ordered after `RelationshipStagePhase` by CDI bean ordering within the same priority, or a fractional priority if needed) handles the richer, personality-modulated relational updates:
+A new `RelationalSchemaEvolutionPhase implements ConsolidationPhase` at `@Priority(19)` handles the richer, personality-modulated relational updates.
+
+**Priority ordering:**
+
+| Priority | Phase | Reads | Writes |
+|----------|-------|-------|--------|
+| 18 | `RelationshipStagePhase` | CaseMemoryStore (relationship memories) | overlay properties (familiarity-score, familiarity-stage) |
+| 19 | `RelationalSchemaEvolutionPhase` | overlay properties (familiarity), CaseMemoryStore, CognitiveDefaultsRegistry | overlay properties (rel.trust, rel.intimacy, rel.role) |
+| 19 | `BehavioralSynthesisPhase` | COGNITIVE subgraph nodes (graduated) | BEHAVIORAL subgraph nodes (attractors), CapsEngine state |
+
+`RelationalSchemaEvolutionPhase` runs after `RelationshipStagePhase` (19 > 18), guaranteeing familiarity is computed before trust/intimacy/role evolution. It shares `@Priority(19)` with `BehavioralSynthesisPhase` — their relative ordering is non-deterministic, which is correct because they are fully independent: different input sources, different output targets, no shared mutable state. This follows the existing codebase pattern where `MergeDetectionPhase` and `DriveProfileDerivationPhase` share `@Priority(20)` for the same reason.
+
+If consolidation-time CAPS biasing is added in the future (requiring `BehavioralSynthesisPhase` to read overlay `rel.*` properties), the phases would need renumbering to enforce ordering. That is future scope.
 
 #### Initial seeding
 
