@@ -2,9 +2,9 @@
 
 ## State
 branch: issue-477-relational-schemas
-state: scaffolded
-project-sha: 
-date: 
+state: active
+project-sha: a0f0a0da551b64daf739672e27d35691d8c78cfb
+date: 2026-10-28
 issue-repo: casehubio/neocortex
 covers: 477
 design-repo: 
@@ -12,4 +12,8 @@ design-section-hashes:
 flyway-next-v: 
 
 ## Queue
-- [ ] casehubio/neocortex#477 — Issue #477 ← active
+- [x] casehubio/neocortex#716 — RelationalSchema + PersonalityProfile types
+- [x] casehubio/neocortex#717 — Wire relational context into AppraisalContext
+- [ ] casehubio/neocortex#718 — OtherModelPromptSection render mental models ← active
+- [ ] casehubio/neocortex#719 — RelationalSchemaEvolutionPhase
+- [ ] casehubio/neocortex#720 — CAPS per-relationship tick-time input biasing
