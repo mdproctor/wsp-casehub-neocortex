@@ -122,10 +122,12 @@ public record AppraisalContext(
 ```
 
 `AppraisalTickParticipant.tick()` resolves the target:
-1. Extract target agent ID from the observation (via `ExperienceAttributeKeys.TARGET_AGENT` or named entity in the observation text)
+1. Read target agent ID from `CognitionTickContext.targetAgentId()` (new nullable field — the caller that records the interaction knows the target; the tick context should carry it rather than re-extracting from free text)
 2. Look up the overlay node for (observer → target) using `PerspectivalResolver`
 3. Read `RelationalSchema.fromProperties()` from the overlay
 4. Pass to `AppraisalContext`
+
+**Note:** `CognitionTickContext` is currently `(agentId, tenantId, descriptor, resolver, observation, briefing)` where `observation` is plain text. Adding `@Nullable String targetAgentId` to this record is the cleanest path — the caller (CognitionCore or the engine adapter) already knows who the agent is interacting with. Extracting the target from free-text observation would be fragile and add latency.
 
 `LlmAppraisalStrategy.buildUserMessage()` appends:
 
