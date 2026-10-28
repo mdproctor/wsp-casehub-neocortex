@@ -41,3 +41,5 @@ garden_feedback=skipped
 notes_attempt=0
 notes=skipped
 handoff_write_attempt=1
+handoff_write=done
+handoff_write_produced=1
