@@ -126,7 +126,13 @@ public record AttachmentProfile(
 ) {}
 ```
 
-Accessed via `CognitiveDefaults.personalityProfile().attachment()`. Derived by `CognitiveDerivationEngine` from formation memories or seeded explicitly in cognitive profile YAML.
+Accessed via `CognitiveDefaults.personalityProfile().attachment()`.
+
+**Derivation path:** Two sources, in priority order:
+
+1. **YAML-seeded (primary for initial implementation):** Cognitive profile YAML includes `attachment: { style: "dismissive-avoidant", anxiety: 0.2, avoidance: 0.8 }`. The existing `CognitiveDefaultsParser` (which already handles `PersonalityWeights`, `MoodBaseline`, etc.) is extended to parse this section. This is the path used by the Hooded Claw test case and all initial character definitions. Child 1 owns this.
+
+2. **Derived from `FormationPadSummary` (future):** `CognitiveDerivationEngine.derive(DescriptorView)` currently uses `FormationPadSummary` to derive `personalityDominance` from `dominanceWeightedReward / totalPositivePleasure`. `FormationPadSummary` currently carries only dominance/pleasure aggregates — it does not carry the caregiver-responsiveness or attachment-relevant dimensions needed to derive attachment style. Extending `FormationPadSummary` with attachment-relevant fields (e.g., caregiver consistency score, early rejection frequency) is deferred to the Layer 1 formation schemas work. Until then, YAML seeding is the production path.
 
 #### PersonalityFacet (AMPD)
 
@@ -149,6 +155,14 @@ public record PersonalityFacet(
 **Scale rationale:** Every numeric dimension in the cognitive pipeline uses `double` in `[0,1]` or `[-1,1]`: trust, intimacy, PAD, CAPS activations, attachment anxiety/avoidance, trustFormationRate. Using `int 0-100` would create a normalization hazard at every usage site. The eval YAML format (if it uses integer scores) normalizes during parsing — `score / 100.0`.
 
 Accessed via `CognitiveDefaults.personalityProfile().facets()`. Populated from personality profile extraction or biography seeding.
+
+**Relationship to `AmpdFacets`:** `AmpdFacets` in `cognitive-index` currently stores AMPD scores as `Map<String, Integer>` with 13 facet constants (CALLOUSNESS, MANIPULATIVENESS, GRANDIOSITY, etc.). It is loaded via `DescriptorView.ampdFacets()` and consumed by `CognitiveDerivationEngine.deriveExpressionStyles()`. `PersonalityFacet` supersedes `AmpdFacets` — it carries the same data in a normalized `[0,1]` scale with optional origin metadata. Migration:
+
+- `DescriptorView.ampdFacets()` → `DescriptorView.personalityFacets()` returning `List<PersonalityFacet>`
+- Facet constants (CALLOUSNESS, MANIPULATIVENESS, etc.) move to `PersonalityFacet`
+- `CognitiveDerivationEngine.deriveExpressionStyles(AmpdFacets)` changes signature to accept `List<PersonalityFacet>`
+- `AmpdFacets` is retired — single representation eliminates model fragmentation
+- All callers updated mechanically; `isHigh(facet)` becomes `score >= 0.7`, `isLow(facet)` becomes `score <= 0.3`
 
 #### Boundary: DispositionAxes vs PersonalityFacets
 
@@ -175,7 +189,9 @@ rel.utility = "0.2"
 rel.description = "Predictably protective. Too simple to be a real threat."
 ```
 
-`RelationalSchema.fromProperties()` reads these; `toProperties()` writes them. The `rel.` prefix namespace avoids collision with existing overlay properties (familiarity-score, familiarity-stage, etc.).
+`RelationalSchema.fromProperties()` reads these; `toProperties()` writes them. The `rel.` prefix namespace avoids collision with existing overlay properties (`familiarity-score`, `familiarity-stage`, `familiarity-interaction-count` — see `OverlayFamiliarityPropertyModel`).
+
+**Naming convention:** Existing overlay properties use dash-separated flat names (`familiarity-score`). The `rel.` prefix introduces dot-separated namespacing for related property groups — a deliberate convention choice to scope relational schema properties as a unit. The dot prefix enables `fromProperties()` to filter relevant properties by prefix match rather than checking each key individually. Both conventions coexist; `OverlayFamiliarityPropertyModel` constants remain unchanged.
 
 **Defensive parsing in `fromProperties()`:**
 - If no `rel.*` properties exist at all → return `null` (no schema — first encounter, not yet consolidated)
@@ -272,6 +288,8 @@ Create `OtherModelPromptSection implements CognitionPromptRenderer`:
 - Renders empathic_sensing + relational_understanding into the prompt
 - Gated by `CognitionConfig.otherModelEnabled()` (new boolean, default true)
 
+**`otherModelEnabled` vs `mentalModelEnabled` — semantic boundary:** `mentalModelEnabled` gates the `MentalModelOrchestrator` subsystem which extracts beliefs/desires/intentions (BDI) from conversations via `MentalModelPromptSection` — the observer's real-time model of what subjects think and want. `otherModelEnabled` gates `OtherModelPromptSection` which renders empathic sensing, inferred values, appraisal sensitivities, and relational understanding — the observer's pre-computed emotional/relational model of targets, derived during consolidation by `OtherModelDerivationPhase`. These are architecturally distinct: BDI extraction runs per-conversation (tick-time), while empathic models are derived from formation memories and relational schemas (consolidation-time). A deployment could enable conversation-time BDI modelling (`mentalModelEnabled=true`) while disabling the richer empathic model (`otherModelEnabled=false`) — or vice versa.
+
 **Target threading (eliminates duplication):** `CognitionObservationBuilder` currently constructs `CognitionRenderContext` with `null` for `subjectId` (line 355, line 370). Once `CognitionTickContext.targetAgentId()` is available, thread it through to `CognitionObservationBuilder` and populate `CognitionRenderContext.subjectId` with the resolved target. This ensures all prompt renderers — `UserModelPromptSection`, `MentalModelPromptSection`, and the new `OtherModelPromptSection` — receive the target without any re-resolution. The target is resolved once (by the caller recording the interaction) and carried through the tick → render pipeline.
 
 ### Dynamic schema evolution
@@ -280,18 +298,96 @@ Create `OtherModelPromptSection implements CognitionPromptRenderer`:
 
 A new `RelationalSchemaEvolutionPhase implements ConsolidationPhase` at priority 18 (ordered after `RelationshipStagePhase` by CDI bean ordering within the same priority, or a fractional priority if needed) handles the richer, personality-modulated relational updates:
 
-**Trust update:** After familiarity is computed, update `rel.trust` using:
-- `SocialCognitionDefaults.trustFormationRate()` as learning rate
-- Positive interactions → trust increases (scaled by personality: high Callousness dampens trust gain)
-- Negative interactions → trust decreases (scaled by `ConflictInterpretation`: DISENGAGE amplifies, REPAIR dampens)
-- `AttachmentProfile.avoidance` dampens trust ceiling (high avoidance → trust saturates below 1.0)
+#### Initial seeding
 
-**Intimacy update:** Increases with interaction count and positive PAD. `AttachmentProfile.anxiety` amplifies intimacy gain (anxious attachment seeks closeness aggressively). `AttachmentProfile.avoidance` dampens it.
+When `RelationalSchemaEvolutionPhase` encounters an overlay node with no `rel.*` properties (first consolidation for a new relationship), it seeds the initial schema:
 
-**Role evolution:** Thresholds on trust trigger role transitions:
-- trust crosses 0.5 upward → role can evolve (e.g., stranger → ally)
-- trust crosses -0.3 downward → role can degrade (e.g., ally → obstacle)
-- Role transitions are logged as MindMap edge property changes for auditability
+```
+rel.role = "stranger"
+rel.trust = 0.0
+rel.intimacy = 0.0
+rel.utility = 0.0
+rel.description = null
+```
+
+**First-interaction gap:** Between the first cognitive tick involving a target and the first consolidation run, the overlay has no `rel.*` properties. `RelationalSchema.fromProperties()` returns `null`, and `AppraisalTickParticipant` processes the interaction without relational context. This is correct — the agent has no relational history with this target yet. The schema is created at the next consolidation cycle.
+
+#### Trust update formula
+
+After familiarity is computed, update `rel.trust`:
+
+```
+// Inputs
+trustFormationRate = SocialCognitionDefaults.trustFormationRate()  // [0, 1], default 0.5
+callousness = personalityFacet("Callousness").score()             // [0, 1], or 0.0 if absent
+avoidance = attachmentProfile.avoidance()                         // [0, 1], or 0.0 if absent
+
+// Interaction valence — from PAD pleasure of relationship memories
+// Uses the same positive/negative/neutral classification as computeFamiliarity()
+interactionValence = (positive * positiveWeight - negative * negativeWeight) / total
+// Normalized to [-1, 1]
+valence = clamp(interactionValence, -1.0, 1.0)
+
+// ConflictInterpretation modulation (same multipliers as computeFamiliarity())
+conflictMultiplier = switch (conflictInterpretation) {
+    REPAIR -> 0.6       // repairs dampen negative impact
+    INFORMATION -> 0.9  // treats conflict as data
+    NEUTRAL -> 1.0      // no modulation
+    DISENGAGE -> 1.4    // withdrawal amplifies negative impact
+}
+
+// Trust delta
+if (valence >= 0) {
+    // Positive interaction: Callousness dampens trust GAIN
+    trustDelta = trustFormationRate * valence * (1.0 - callousness)
+} else {
+    // Negative interaction: ConflictInterpretation modulates negative impact
+    trustDelta = trustFormationRate * valence * conflictMultiplier
+}
+
+// Trust ceiling — avoidant attachment limits how much trust can grow
+trustCeiling = 1.0 - avoidance
+trustFloor = -1.0
+
+newTrust = clamp(currentTrust + trustDelta, trustFloor, trustCeiling)
+```
+
+**Design rationale:** The formula mirrors `UserModelOrchestrator.computeFamiliarity()` (same `conflictMultiplier` switch, same positive/negative classification from PAD pleasure) but produces a signed `[-1, 1]` value instead of a `[0, 1]` scalar. Callousness dampens positive trust formation (the agent cannot gain trust easily from kind interactions) but does NOT dampen negative trust loss (even callous agents respond to betrayal). The avoidance ceiling means a dismissive-avoidant agent (avoidance=0.8) can only reach trust=0.2 regardless of positive interactions.
+
+#### Intimacy update formula
+
+```
+// Intimacy increases with positive interactions, dampened by avoidance
+intimacyDelta = trustFormationRate * max(0, valence) * (1.0 - avoidance)
+
+// Anxiety amplifies intimacy gain (anxious attachment seeks closeness)
+intimacyDelta *= (1.0 + 0.5 * anxiety)
+
+newIntimacy = clamp(currentIntimacy + intimacyDelta, 0.0, 1.0)
+```
+
+#### Role evolution — transition table
+
+Trust thresholds trigger role RE-EVALUATION, not deterministic transitions. The current role, trust value, and personality determine the new role:
+
+| Current role | Trust ≥ 0.5 (upward crossing) | Trust ≤ -0.3 (downward crossing) |
+|---|---|---|
+| `stranger` | → `ally` (default) or `tool` (if Manipulativeness > 0.7) | → `threat` |
+| `ally` | → `mentor` (if utility > 0.5) or stays `ally` | → `obstacle` |
+| `mentor` | stays `mentor` | → `obstacle` |
+| `tool` | → `ally` (if Callousness < 0.3) or stays `tool` | → `obstacle` |
+| `prey` | → `tool` (if Manipulativeness > 0.5) or stays `prey` | → `threat` |
+| `obstacle` | → `stranger` (trust recovery, needs ≥ 0.5) | stays `obstacle` |
+| `threat` | → `stranger` (trust recovery, needs ≥ 0.5) | stays `threat` |
+| `protectee` | stays `protectee` | → `stranger` |
+
+**Personality conditioning:** A psychopathic agent (high Callousness + high Manipulativeness) experiencing positive interactions with `prey` does NOT evolve to `ally`. The pleasure signal from exploitation increases trust, but the Manipulativeness > 0.5 gate routes `prey` → `tool` instead. This prevents the semantically wrong `prey → ally` transition.
+
+**Multi-hop prevention:** Only one transition per consolidation cycle. If trust jumps from 0.0 to 0.8 in a single cycle, only the first applicable transition fires.
+
+**Mid-range behavior (trust between -0.3 and 0.5):** No role transition is triggered. The role remains whatever it was last set to. This is intentional — roles are sticky. A `stranger` at trust 0.3 is still a stranger until trust crosses the 0.5 threshold.
+
+**Role transitions are logged** as MindMap edge property changes for auditability.
 
 **Rationale for separation:** Trust, intimacy, and role evolution each have different inputs (PAD for intimacy, ConflictInterpretation for trust, threshold logic for role), different learning rates, and different ceiling behaviors. Keeping them in a separate phase from familiarity makes both independently testable and allows them to evolve without risk to the simpler familiarity pipeline.
 
@@ -299,25 +395,36 @@ A new `RelationalSchemaEvolutionPhase implements ConsolidationPhase` at priority
 
 The spec distinguishes two execution contexts with different purposes:
 
-**Tick-time biasing (primary):** When `AppraisalTickParticipant.tick()` runs the `SituationClassifier`, adjust the input activation map based on the target's `RelationalSchema` before classification. This gives per-interaction relational context to the situation classifier:
+**Tick-time biasing (primary):** When `AppraisalTickParticipant.tick()` runs the `SituationClassifier`, adjust the classified activation outputs based on the target's `RelationalSchema`. The biasing applies AFTER classification, using multiplicative scaling to preserve relative differences and avoid saturation against the `[-1, 1]` clamp:
 
 ```java
-// In AppraisalTickParticipant.tick(), after resolving RelationalSchema
-if (targetSchema != null && situationClassifier != null) {
-    var biasedActivations = new HashMap<>(baseActivations);
-    double trustBias = targetSchema.trust();  // [-1, 1]
+// In AppraisalTickParticipant.tick(), after classification and schema resolution
+if (targetSchema != null) {
+    var biased = new HashMap<>(classifiedActivations);
+    double trust = targetSchema.trust();  // [-1, 1]
 
-    // High trust → boost secure_attachment, dampen rejection/betrayal
-    biasedActivations.merge("secure_attachment", trustBias * 0.3, Double::sum);
-    biasedActivations.merge("rejection", -trustBias * 0.2, Double::sum);
-    biasedActivations.merge("betrayal", -trustBias * 0.25, Double::sum);
-
-    // Low trust → boost suspicion inputs
-    biasedActivations.merge("psychological_threat", -trustBias * 0.15, Double::sum);
-
-    activations = situationClassifier.classify(observation, biasedActivations);
+    // Multiplicative biasing — preserves relative differences at high activations
+    // Trust > 0: boost secure, dampen threat
+    // Trust < 0: boost threat, dampen secure
+    //
+    // Provenance for scaling factors (all ≤1× topology weight to avoid
+    // overwhelming situation signal):
+    //   0.30 — secure_attachment → self_worth weight is 0.30 in caps-topology.yaml
+    //          (van IJzendoorn 1995, r=.24-.32). Matched directly.
+    //   0.20 — rejection → other_reliability weight is -0.35; scaled down to avoid
+    //          double-counting (situation classifier already carries rejection signal)
+    //   0.25 — betrayal: no direct topology connection; estimated between rejection
+    //          (0.35) and abandonment (0.20). Consensus, subject to calibration.
+    //   0.15 — psychological_threat: conservative below all attachment weights.
+    //          Estimated, subject to calibration via Hooded Claw test suite (Child 5).
+    biased.computeIfPresent("secure_attachment", (k, v) -> v * (1.0 + trust * 0.3));
+    biased.computeIfPresent("rejection",         (k, v) -> v * (1.0 - trust * 0.2));
+    biased.computeIfPresent("betrayal",          (k, v) -> v * (1.0 - trust * 0.25));
+    biased.computeIfPresent("psychological_threat", (k, v) -> v * (1.0 - trust * 0.15));
 }
 ```
+
+**Why multiplicative, not additive:** Additive biasing (e.g., `activation + trust * 0.3`) creates saturation against the CAPS activation clamp `[-1, 1]`. Two agents with trust 0.7 and 1.0 both produce `secure_attachment` = 1.0 when the base activation is ≥ 0.7 — the trust difference vanishes. Multiplicative biasing (e.g., `activation * (1 + trust * 0.3)`) preserves relative differences: base 0.8 × 1.21 = 0.97 vs 0.8 × 1.30 = 1.04 (clamped to 1.0, but the gap is narrower). For inputs near zero, multiplicative biasing has minimal effect, which is correct — there's nothing to bias.
 
 **Consolidation-time biasing (secondary):** `BehavioralSynthesisPhase` (priority 19) processes graduated cognitive nodes and runs `CapsEngine.settle()`. It does NOT receive per-interaction target context — it processes batches of graduated nodes. Per-relationship biasing at consolidation time would require extending `BehavioralSynthesisPhase` to group graduated nodes by target and apply relational context per group. This is a future enhancement — tick-time biasing addresses the immediate need.
 
