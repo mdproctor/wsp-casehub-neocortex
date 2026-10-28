@@ -1,16 +1,15 @@
-# Work Plan — main
+# Work Plan — issue-714-barrett-personality-profiles
 
 ## State
-branch: main
+branch: issue-714-barrett-personality-profiles
 state: scaffolded
 project-sha: 
 date: 
 issue-repo: casehubio/neocortex
-covers: 642
+covers: 714
 design-repo: 
 design-section-hashes: 
 flyway-next-v: 
 
 ## Queue
-- [x] casehubio/neocortex#639 — Issue #639
-- [ ] casehubio/neocortex#642 — BJT-Phase-2
+- [ ] casehubio/neocortex#714 — Issue #714 ← active
