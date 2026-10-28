@@ -2,25 +2,28 @@
 
 ## Last Session
 
-Designed the interpersonal relational schemas system (#477). Verified via IntelliJ that CAPS+CARMA partially mitigate villain drift (disposition-weighted connections, behavioral attractors) but the cognitive pipeline is blind to WHO the agent interacts with — `AppraisalContext` has no target identity, no relational schema, no AMPD facets. `OtherModelDerivationPhase` creates per-pair mental models but they're disconnected from the prompt pipeline. Created 5 child GitHub issues (#716-#720), wrote and reviewed the design spec (3-dimension standard review, 46 issues raised, 35 verified), wrote the implementation plan for Child 1, and wrote a detailed blog entry. No code changes landed — this was design-only.
+Implemented Child 1 (#716) of the relational schemas epic (#477) — all 5 tasks across 3 batches. 5 commits landed on branch `issue-477-relational-schemas`:
 
-**Key design decisions:** RelationalSchema stored as `rel.*`-prefixed overlay properties. PersonalityProfile composite on CognitiveDefaults (19 → 17 fields). AmpdFacets retired in favor of PersonalityFacet with `[0,1]` scale. Multiplicative (not additive) CAPS biasing to avoid clamp saturation. Trust ceiling from attachment avoidance. RelationalSchemaEvolutionPhase separated from RelationshipStagePhase at @Priority(19). Child 5 does NOT depend on Child 4.
+1. `PersonalityFacet` record — `[0,1]` scale, 13 AMPD facet constants, `isHigh()`/`isLow()` helpers, optional grounding prose `origin` field
+2. `AttachmentProfile` record — Bowlby two-dimensional model (style, anxiety, avoidance)
+3. `RelationalSchema` record — `rel.`-prefixed overlay property serialization with defensive parsing (null for missing, defaults for partial, clamp for out-of-range)
+4. `PersonalityProfile` composite + `CognitiveDefaults` refactoring — consolidated `personality` + `personalityDominance` + `expressionStyles` into `PersonalityProfile` (19 → 17 fields). `AmpdFacets` retired. `DescriptorView.ampdFacets` → `personalityFacets` (List<PersonalityFacet>). `CognitiveDerivationEngine.deriveExpressionStyles` migrated from `AmpdFacets` to `List<PersonalityFacet>`. YAML profile format: `personality:` now nested under `personalityProfile:`.
+5. `RelationshipVocabulary` — 8 interpersonal edge types (trusts/distrusts/fears/admires/resents/protects/exploits/relies-on), registered in CognitiveLoader. `relies-on` (not `depends-on`) avoids alias conflict with GoalVocabulary.
 
-**Missing `.plan`:** Branch was created manually without full work-start scaffolding. Next session must run `work start` or create `.plan` before executing the implementation plan.
+Full build passes (all modules, all tests).
 
-**#711/#714 overlap:** PersonalityProfileHandler (#711) writes AMPD as `personality-ampd-*` MindMap properties. DriveDescriptionGenerationPhase (#714) reads `cognitiveKind=personality-facet` nodes directly from MindMap. Neither uses `AmpdFacets` Java type — so retiring `AmpdFacets` in Child 1 won't break them. The migration point is `CognitiveDerivationEngine.deriveExpressionStyles(AmpdFacets)` → `deriveExpressionStyles(List<PersonalityFacet>)` and whatever loads `DescriptorView.ampdFacets()` from MindMap nodes. No git merge conflicts — different files changed.
+**Plan scaffolded:** `.plan` now tracks #716-#720 with #716 done, #717 next.
 
 **Barrett grounding insight (#714):** label+degree+prose prevents self-awareness drift. When implementing #717 (appraisal wiring), render `RelationalSchema.description` and `PersonalityFacet.origin` prominently in the LLM prompt — they're grounding prose, not metadata.
 
 ## Immediate Next Step
 
-Run `work continue` on branch `issue-477-relational-schemas`. This should scaffold the `.plan` with #716-#720. Then execute the implementation plan for Child 1 (#716): 3 batches / 5 tasks — PersonalityFacet, AttachmentProfile, RelationalSchema records + PersonalityProfile composite + CognitiveDefaults refactoring + RelationshipVocabulary.
+Advance `.plan` to #717 (Wire relational context into AppraisalContext + LlmAppraisalStrategy). Write implementation plan for Child 2. Key work: add target identity to `AppraisalContext`, look up `RelationalSchema` from perspectival overlay, pass relational context to `LlmAppraisalStrategy` for personality-filtered emotional responses.
 
 ## References
 
 - `specs/issue-477-relational-schemas/2026-10-28-relational-schemas-design.md` — reviewed spec (authoritative)
 - `specs/issue-477-relational-schemas/decisions.md` — 4 design decisions with rationale
-- `plans/2026-10-28-relational-schema-types.md` — implementation plan for Child 1 (#716)
+- `plans/2026-10-28-relational-schema-types.md` — implementation plan for Child 1 (#716, complete)
 - `blog/2026-10-28-mdp01-the-anonymous-other.md` — detailed diary entry
-- GitHub #716-#720 — child issues with scale/complexity/dependencies
 - `~/reviews/casehub-slots/relational-schemas-{coherence,structure,robustness}-*/tracker.md` — review trackers
