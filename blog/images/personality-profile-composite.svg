@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 280" font-family="Inter, system-ui, sans-serif">
+  <defs>
+    <marker id="comp-arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#475569"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="320" y="22" text-anchor="middle" font-size="14" font-weight="600" fill="#1e293b">CognitiveDefaults: Before and After</text>
+
+  <!-- BEFORE -->
+  <text x="160" y="52" text-anchor="middle" font-size="12" font-weight="600" fill="#94a3b8">Before (19 fields)</text>
+
+  <rect x="40" y="62" width="240" height="200" rx="6" fill="#fff1f2" stroke="#e11d48" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="160" y="82" text-anchor="middle" font-size="11" font-weight="600" fill="#9f1239">CognitiveDefaults</text>
+
+  <text x="60" y="102" font-size="9" fill="#475569">agentId</text>
+  <text x="60" y="116" font-size="9" fill="#475569">tenantId</text>
+  <text x="60" y="130" font-size="9" fill="#e11d48" font-weight="600">personality ←</text>
+  <text x="60" y="144" font-size="9" fill="#475569">moodBaseline</text>
+  <text x="60" y="158" font-size="9" fill="#475569">curiosity</text>
+  <text x="60" y="172" font-size="9" fill="#475569">… 8 more …</text>
+  <text x="60" y="186" font-size="9" fill="#e11d48" font-weight="600">personalityDominance ←</text>
+  <text x="60" y="200" font-size="9" fill="#e11d48" font-weight="600">expressionStyles ←</text>
+
+  <text x="160" y="224" text-anchor="middle" font-size="9" fill="#9f1239">AmpdFacets on DescriptorView</text>
+  <text x="160" y="238" text-anchor="middle" font-size="9" fill="#9f1239">Map&lt;String, Integer&gt; scores</text>
+  <text x="160" y="252" text-anchor="middle" font-size="9" fill="#9f1239">integer scale 0–100</text>
+
+  <!-- Arrow -->
+  <line x1="290" y1="160" x2="340" y2="160" stroke="#475569" stroke-width="2" marker-end="url(#comp-arrow)"/>
+  <text x="315" y="152" text-anchor="middle" font-size="10" fill="#475569">→</text>
+
+  <!-- AFTER -->
+  <text x="480" y="52" text-anchor="middle" font-size="12" font-weight="600" fill="#16a34a">After (17 fields)</text>
+
+  <rect x="350" y="62" width="270" height="200" rx="6" fill="#f0fdf4" stroke="#16a34a" stroke-width="1"/>
+  <text x="485" y="82" text-anchor="middle" font-size="11" font-weight="600" fill="#166534">CognitiveDefaults</text>
+
+  <text x="370" y="102" font-size="9" fill="#475569">agentId</text>
+  <text x="370" y="116" font-size="9" fill="#475569">tenantId</text>
+  <text x="370" y="130" font-size="9" fill="#16a34a" font-weight="600">personalityProfile ←</text>
+  <text x="370" y="144" font-size="9" fill="#475569">moodBaseline</text>
+  <text x="370" y="158" font-size="9" fill="#475569">… 12 more unchanged …</text>
+
+  <!-- Composite box -->
+  <rect x="380" y="172" width="220" height="80" rx="4" fill="#dcfce7" stroke="#16a34a" stroke-width="1"/>
+  <text x="490" y="188" text-anchor="middle" font-size="10" font-weight="600" fill="#166534">PersonalityProfile</text>
+  <text x="400" y="204" font-size="9" fill="#475569">personality: PersonalityWeights</text>
+  <text x="400" y="218" font-size="9" fill="#475569">personalityDominance: Double</text>
+  <text x="400" y="232" font-size="9" fill="#475569">expressionStyles: ExpressionStyleDefaults</text>
+  <text x="400" y="246" font-size="9" fill="#16a34a" font-weight="600">+ attachment: AttachmentProfile</text>
+  <text x="400" y="258" font-size="9" fill="#16a34a" font-weight="600">+ facets: List&lt;PersonalityFacet&gt;</text>
+</svg>
