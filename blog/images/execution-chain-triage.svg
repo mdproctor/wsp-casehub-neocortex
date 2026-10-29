@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 260" font-family="'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace" font-size="11">
+  <style>
+    .title { font-size: 13px; font-weight: 600; fill: #1a1a2e; }
+    .subtitle { font-size: 10px; fill: #6b7280; }
+    .record-box { rx: 6; ry: 6; stroke-width: 1.5; }
+    .record-fail { fill: #fef2f2; stroke: #f87171; }
+    .record-retry { fill: #fffbeb; stroke: #fbbf24; }
+    .record-pass { fill: #f0fdf4; stroke: #4ade80; }
+    .record-standalone { fill: #f8fafc; stroke: #cbd5e1; }
+    .record-label { font-size: 10px; fill: #1f2937; font-weight: 600; }
+    .record-detail { font-size: 9px; fill: #6b7280; }
+    .chain-line { stroke: #6366f1; stroke-width: 2; fill: none; stroke-dasharray: 6,3; marker-end: url(#chain-arrow); }
+    .chain-id { font-size: 9px; fill: #6366f1; font-weight: 700; }
+    .outcome-tag { font-size: 9px; font-weight: 700; }
+    .tag-fail { fill: #dc2626; }
+    .tag-retry { fill: #d97706; }
+    .tag-pass { fill: #16a34a; }
+    .no-chain { fill: #94a3b8; stroke-dasharray: none; }
+  </style>
+  <defs>
+    <marker id="chain-arrow" markerWidth="7" markerHeight="5" refX="6" refY="2.5" orient="auto">
+      <polygon points="0 0, 7 2.5, 0 5" fill="#6366f1"/>
+    </marker>
+  </defs>
+
+  <text x="360" y="24" text-anchor="middle" class="title">executionChainId — Linking Triage Attempts</text>
+
+  <!-- Chain row -->
+  <text x="30" y="58" class="chain-id">executionChainId: "chain-7a3f"</text>
+
+  <!-- Attempt 1 -->
+  <rect x="30" y="70" width="180" height="70" class="record-box record-fail"/>
+  <text x="40" y="88" class="record-label">Attempt 1</text>
+  <text x="40" y="102" class="record-detail">playbook: escalation-v2</text>
+  <text x="40" y="114" class="record-detail">outcome: FAILURE</text>
+  <text x="40" y="128" class="outcome-tag tag-fail">step 3 timed out</text>
+
+  <!-- Arrow 1→2 -->
+  <line x1="210" y1="105" x2="250" y2="105" class="chain-line"/>
+
+  <!-- Attempt 2 -->
+  <rect x="250" y="70" width="180" height="70" class="record-box record-retry"/>
+  <text x="260" y="88" class="record-label">Attempt 2 (triage)</text>
+  <text x="260" y="102" class="record-detail">playbook: escalation-v2</text>
+  <text x="260" y="114" class="record-detail">modification: skip step 3</text>
+  <text x="260" y="128" class="outcome-tag tag-retry">PARTIAL — step 5 failed</text>
+
+  <!-- Arrow 2→3 -->
+  <line x1="430" y1="105" x2="470" y2="105" class="chain-line"/>
+
+  <!-- Attempt 3 -->
+  <rect x="470" y="70" width="180" height="70" class="record-box record-pass"/>
+  <text x="480" y="88" class="record-label">Attempt 3 (triage)</text>
+  <text x="480" y="102" class="record-detail">playbook: escalation-v2</text>
+  <text x="480" y="114" class="record-detail">modification: alt step 5</text>
+  <text x="480" y="128" class="outcome-tag tag-pass">SUCCESS</text>
+
+  <!-- Standalone record -->
+  <text x="30" y="178" class="record-detail" style="fill:#94a3b8">executionChainId: null</text>
+
+  <rect x="30" y="188" width="180" height="50" class="record-box record-standalone"/>
+  <text x="40" y="206" class="record-label">Standalone execution</text>
+  <text x="40" y="220" class="record-detail">playbook: onboarding-v1</text>
+  <text x="40" y="232" class="outcome-tag tag-pass">SUCCESS</text>
+
+  <!-- Annotation -->
+  <text x="360" y="215" class="subtitle">Standalone executions have no chain.</text>
+  <text x="360" y="230" class="subtitle">Chained records answer: "how many retries</text>
+  <text x="360" y="245" class="subtitle">did similar inputs need?"</text>
+</svg>

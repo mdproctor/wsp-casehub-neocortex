@@ -1,0 +1,161 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 520" font-family="'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace" font-size="11">
+  <style>
+    .title { font-size: 14px; font-weight: 600; fill: #1a1a2e; }
+    .subtitle { font-size: 11px; fill: #6b7280; }
+    .phase-box { rx: 4; ry: 4; stroke-width: 1.2; }
+    .phase-ok { fill: #f0fdf4; stroke: #86efac; }
+    .phase-collision { fill: #fef2f2; stroke: #fca5a5; }
+    .phase-moved { fill: #eff6ff; stroke: #93c5fd; }
+    .phase-label { font-size: 10px; fill: #1f2937; }
+    .priority-num { font-size: 10px; font-weight: 700; }
+    .priority-ok { fill: #16a34a; }
+    .priority-bad { fill: #dc2626; }
+    .priority-new { fill: #2563eb; }
+    .collision-marker { fill: #dc2626; font-size: 16px; font-weight: 700; }
+    .arrow { stroke: #9ca3af; stroke-width: 1; fill: none; marker-end: url(#arrowhead); }
+    .divider { stroke: #e5e7eb; stroke-width: 1; stroke-dasharray: 4,3; }
+    .module-tag { font-size: 9px; fill: #9ca3af; }
+  </style>
+  <defs>
+    <marker id="arrowhead" markerWidth="6" markerHeight="5" refX="5" refY="2.5" orient="auto">
+      <polygon points="0 0, 6 2.5, 0 5" fill="#9ca3af"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="410" y="28" text-anchor="middle" class="title">Consolidation Phase Priority — Before and After</text>
+  <text x="410" y="44" text-anchor="middle" class="subtitle">CDI @Priority ordering across cognition/ and mindmap-intelligence/ modules</text>
+
+  <!-- BEFORE column -->
+  <text x="200" y="72" text-anchor="middle" class="title" style="font-size:12px">BEFORE</text>
+
+  <!-- Before phases (priority 14–27 range, showing collision zone) -->
+  <rect x="40" y="88" width="320" height="22" class="phase-box phase-ok"/>
+  <text x="50" y="103" class="priority-num priority-ok">14</text>
+  <text x="75" y="103" class="phase-label">BeliefRevisionPhase</text>
+  <text x="310" y="103" class="module-tag">cognition</text>
+
+  <rect x="40" y="114" width="320" height="22" class="phase-box phase-ok"/>
+  <text x="50" y="129" class="priority-num priority-ok">15</text>
+  <text x="75" y="129" class="phase-label">ExperienceConsolidationPhase</text>
+  <text x="310" y="129" class="module-tag">mindmap</text>
+
+  <rect x="40" y="140" width="320" height="22" class="phase-box phase-ok"/>
+  <text x="50" y="155" class="priority-num priority-ok">16</text>
+  <text x="75" y="155" class="phase-label">SubThoughtConsolidationPhase</text>
+  <text x="310" y="155" class="module-tag">mindmap</text>
+
+  <rect x="40" y="166" width="320" height="22" class="phase-box phase-ok"/>
+  <text x="50" y="181" class="priority-num priority-ok">17</text>
+  <text x="75" y="181" class="phase-label">DriveAdaptationPhase</text>
+  <text x="310" y="181" class="module-tag">cognition</text>
+
+  <rect x="40" y="192" width="320" height="22" class="phase-box phase-ok"/>
+  <text x="50" y="207" class="priority-num priority-ok">18</text>
+  <text x="75" y="207" class="phase-label">RelationshipStagePhase</text>
+  <text x="310" y="207" class="module-tag">cognition</text>
+
+  <!-- Collision zone 19 -->
+  <rect x="40" y="222" width="320" height="22" class="phase-box phase-collision"/>
+  <text x="50" y="237" class="priority-num priority-bad">19</text>
+  <text x="75" y="237" class="phase-label">BehavioralSynthesisPhase</text>
+  <text x="310" y="237" class="module-tag">mindmap</text>
+
+  <rect x="40" y="248" width="320" height="22" class="phase-box phase-collision"/>
+  <text x="50" y="263" class="priority-num priority-bad">19</text>
+  <text x="75" y="263" class="phase-label">RelationalSchemaEvolutionPhase</text>
+  <text x="310" y="263" class="module-tag">cognition</text>
+
+  <text x="370" y="252" class="collision-marker">⚡</text>
+
+  <!-- Collision zone 20 -->
+  <rect x="40" y="278" width="320" height="22" class="phase-box phase-collision"/>
+  <text x="50" y="293" class="priority-num priority-bad">20</text>
+  <text x="75" y="293" class="phase-label">MergeDetectionPhase</text>
+  <text x="310" y="293" class="module-tag">mindmap</text>
+
+  <rect x="40" y="304" width="320" height="22" class="phase-box phase-collision"/>
+  <text x="50" y="319" class="priority-num priority-bad">20</text>
+  <text x="75" y="319" class="phase-label">DriveProfileDerivationPhase</text>
+  <text x="310" y="319" class="module-tag">mindmap</text>
+
+  <text x="370" y="308" class="collision-marker">⚡</text>
+
+  <rect x="40" y="334" width="320" height="22" class="phase-box phase-ok"/>
+  <text x="50" y="349" class="priority-num priority-ok">21</text>
+  <text x="75" y="349" class="phase-label">DriveDescriptionGenerationPhase</text>
+  <text x="310" y="349" class="module-tag">mindmap</text>
+
+  <rect x="40" y="360" width="320" height="22" class="phase-box phase-ok"/>
+  <text x="50" y="375" class="priority-num priority-ok">22</text>
+  <text x="75" y="375" class="phase-label">SelfStandardDerivationPhase</text>
+  <text x="310" y="375" class="module-tag">mindmap</text>
+
+  <!-- Divider -->
+  <line x1="410" y1="60" x2="410" y2="500" class="divider"/>
+
+  <!-- AFTER column -->
+  <text x="620" y="72" text-anchor="middle" class="title" style="font-size:12px">AFTER</text>
+
+  <rect x="460" y="88" width="320" height="22" class="phase-box phase-ok"/>
+  <text x="470" y="103" class="priority-num priority-ok">14</text>
+  <text x="495" y="103" class="phase-label">BeliefRevisionPhase</text>
+
+  <rect x="460" y="114" width="320" height="22" class="phase-box phase-ok"/>
+  <text x="470" y="129" class="priority-num priority-ok">15</text>
+  <text x="495" y="129" class="phase-label">ExperienceConsolidationPhase</text>
+
+  <rect x="460" y="140" width="320" height="22" class="phase-box phase-ok"/>
+  <text x="470" y="155" class="priority-num priority-ok">16</text>
+  <text x="495" y="155" class="phase-label">SubThoughtConsolidationPhase</text>
+
+  <rect x="460" y="166" width="320" height="22" class="phase-box phase-ok"/>
+  <text x="470" y="181" class="priority-num priority-ok">17</text>
+  <text x="495" y="181" class="phase-label">DriveAdaptationPhase</text>
+
+  <rect x="460" y="192" width="320" height="22" class="phase-box phase-ok"/>
+  <text x="470" y="207" class="priority-num priority-ok">18</text>
+  <text x="495" y="207" class="phase-label">RelationshipStagePhase</text>
+
+  <rect x="460" y="218" width="320" height="22" class="phase-box phase-ok"/>
+  <text x="470" y="233" class="priority-num priority-ok">19</text>
+  <text x="495" y="233" class="phase-label">BehavioralSynthesisPhase</text>
+
+  <rect x="460" y="244" width="320" height="22" class="phase-box phase-moved"/>
+  <text x="470" y="259" class="priority-num priority-new">20</text>
+  <text x="495" y="259" class="phase-label">RelationalSchemaEvolutionPhase</text>
+
+  <rect x="460" y="270" width="320" height="22" class="phase-box phase-moved"/>
+  <text x="470" y="285" class="priority-num priority-new">21</text>
+  <text x="495" y="285" class="phase-label">DriveProfileDerivationPhase</text>
+
+  <rect x="460" y="296" width="320" height="22" class="phase-box phase-moved"/>
+  <text x="470" y="311" class="priority-num priority-new">22</text>
+  <text x="495" y="311" class="phase-label">DriveDescriptionGenerationPhase</text>
+
+  <rect x="460" y="322" width="320" height="22" class="phase-box phase-moved"/>
+  <text x="470" y="337" class="priority-num priority-new">23</text>
+  <text x="495" y="337" class="phase-label">SelfStandardDerivationPhase</text>
+
+  <rect x="460" y="348" width="320" height="22" class="phase-box phase-moved"/>
+  <text x="470" y="363" class="priority-num priority-new">24</text>
+  <text x="495" y="363" class="phase-label">MergeDetectionPhase</text>
+
+  <rect x="460" y="374" width="320" height="22" class="phase-box phase-moved"/>
+  <text x="470" y="389" class="priority-num priority-new">25</text>
+  <text x="495" y="389" class="phase-label">OtherModelDerivationPhase</text>
+
+  <!-- Legend -->
+  <rect x="460" y="420" width="14" height="14" class="phase-box phase-ok"/>
+  <text x="480" y="432" class="phase-label">Unchanged</text>
+
+  <rect x="560" y="420" width="14" height="14" class="phase-box phase-collision"/>
+  <text x="580" y="432" class="phase-label">Collision</text>
+
+  <rect x="650" y="420" width="14" height="14" class="phase-box phase-moved"/>
+  <text x="670" y="432" class="phase-label">Renumbered</text>
+
+  <!-- Bottom note -->
+  <text x="410" y="470" text-anchor="middle" class="subtitle">22 phases across 2 modules share one CDI-ordered pipeline.</text>
+  <text x="410" y="486" text-anchor="middle" class="subtitle">Duplicate priorities produce undefined execution order — a latent ordering bug.</text>
+</svg>
