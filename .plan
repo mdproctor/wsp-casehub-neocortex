@@ -17,6 +17,6 @@ flyway-next-v:
 - [x] casehubio/neocortex#718 — OtherModelPromptSection render mental models
 - [x] casehubio/neocortex#719 — RelationalSchemaEvolutionPhase
 - [ ] casehubio/neocortex#720 — CAPS per-relationship tick-time input biasing ← active
-  - [ ] Batch 1: Biasing+wiring
-    - [ ] Task 1: RelationalBiasing utility
-    - [ ] Task 2: Wire into AppraisalTickParticipant
+  - [x] Batch 1: Biasing+wiring
+    - [x] Task 1: RelationalBiasing utility
+    - [x] Task 2: Wire into AppraisalTickParticipant
