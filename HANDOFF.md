@@ -2,7 +2,7 @@
 
 ## Last Session
 
-Implemented Child 1 (#716) and Child 2 (#717) of the relational schemas epic (#477). 10 commits on branch `issue-477-relational-schemas`, full build green.
+Implemented Child 1 (#716), Child 2 (#717), and Child 3 (#718) of the relational schemas epic (#477). 12 commits on branch `issue-477-relational-schemas`, full build green.
 
 ### Child 1 (#716) — Types and storage (5 commits)
 
@@ -20,11 +20,16 @@ Implemented Child 1 (#716) and Child 2 (#717) of the relational schemas epic (#4
 4. `LlmAppraisalStrategy` — updated SYSTEM_PROMPT + buildUserMessage with relationship and personality sections (Barrett grounding: label+degree+prose)
 5. `CognitionCore.tick()` — 6-arg overload threading targetAgentId through
 
-**Design verification:** Used first-principles analysis to verify the data flow before implementing. `targetAgentId` → `CognitionTickContext` → `AppraisalTickParticipant` overlay resolution → `AppraisalContext` → `LlmAppraisalStrategy` prompt rendering. Personality facets are the appraising agent's own traits (not the target's). First-interaction gap is correct (null schema before consolidation creates `rel.*` properties).
+### Child 3 (#718) — OtherModelPromptSection (2 commits)
+
+1. `OtherModelPromptSection implements CognitionPromptRenderer` — looks up `OtherModelDerived` nodes in COGNITIVE subgraph for (agent→target), renders `empathic-sensing` + `relational-understanding`. Two properties, not four — inferred-values and appraisal-sensitivities already feed the appraisal pipeline. `BlockTag.OTHER_MODEL(315)` in Tier 3 Knowledge.
+2. `CognitionConfig.otherModelEnabled()` — 24th field, default true. `CognitionCore` stores `lastTargetAgentId` (volatile, set during tick). `CognitionObservationBuilder` threads `cognitionCore.lastTargetAgentId()` into `CognitionRenderContext.subjectId` for both `renderCognitionCoreSections()` and `renderTaggedSections()`.
+
+14 new tests across 4 test files for #718. Full build green (all modules).
 
 ## Immediate Next Step
 
-Advance `.plan` to #718 (OtherModelPromptSection — render mental models into agent prompt). M scale, Med complexity.
+#719 (RelationalSchemaEvolutionPhase — trust, intimacy, role dynamics). M scale, Med complexity. Position 4/5 in queue.
 
 ## References
 
@@ -32,4 +37,5 @@ Advance `.plan` to #718 (OtherModelPromptSection — render mental models into a
 - `specs/issue-477-relational-schemas/decisions.md` — 4 design decisions with rationale
 - `plans/2026-10-28-relational-schema-types.md` — implementation plan for Child 1 (#716, complete)
 - `plans/2026-10-28-appraisal-wiring.md` — implementation plan for Child 2 (#717, complete)
-- `blog/2026-10-28-mdp01-the-anonymous-other.md` — detailed diary entry
+- `blog/2026-10-28-mdp01-the-anonymous-other.md` — diary entry covering #716 + #717
+- `blog/2026-10-29-mdp01-closing-the-loop.md` — diary entry covering #718
