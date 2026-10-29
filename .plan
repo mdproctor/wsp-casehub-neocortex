@@ -2,7 +2,7 @@
 
 ## State
 branch: issue-360-extract-cbr-algorithms
-state: active
+state: closing:review
 project-sha: e5eb0755
 date: 2026-10-29
 issue-repo: casehubio/neocortex
@@ -11,6 +11,7 @@ design-repo: project
 design-section-hashes: 
 flyway-next-v: unknown
 
+evidence-era: true
 ## Queue
 - [ ] casehubio/neocortex#360 — Issue #360 ← active
   - [x] Batch 1: Module scaffold
