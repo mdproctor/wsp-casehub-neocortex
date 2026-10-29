@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 420" font-family="Inter, system-ui, sans-serif">
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#475569"/>
+    </marker>
+    <marker id="arr-blue" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#2563eb"/>
+    </marker>
+    <marker id="arr-amber" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#d97706"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="380" y="24" text-anchor="middle" font-size="14" font-weight="600" fill="#1e293b">Two Channels, One Relationship</text>
+  <text x="380" y="42" text-anchor="middle" font-size="10" fill="#64748b">How OtherModelDerivationPhase output reaches the agent</text>
+
+  <!-- Source: OtherModelDerivationPhase -->
+  <rect x="220" y="60" width="320" height="60" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.5"/>
+  <text x="380" y="82" text-anchor="middle" font-size="12" font-weight="600" fill="#166534">OtherModelDerivationPhase</text>
+  <text x="380" y="98" text-anchor="middle" font-size="9" fill="#15803d">consolidation-time LLM derivation from formation memories</text>
+  <text x="380" y="112" text-anchor="middle" font-size="9" fill="#15803d">writes 4 properties to COGNITIVE subgraph per relationship</text>
+
+  <!-- Split arrows -->
+  <line x1="300" y1="120" x2="180" y2="165" stroke="#2563eb" stroke-width="1.5" marker-end="url(#arr-blue)"/>
+  <line x1="460" y1="120" x2="580" y2="165" stroke="#d97706" stroke-width="1.5" marker-end="url(#arr-amber)"/>
+
+  <!-- Left channel label -->
+  <text x="200" y="148" text-anchor="middle" font-size="9" font-weight="600" fill="#2563eb">phenomenological</text>
+
+  <!-- Right channel label -->
+  <text x="560" y="148" text-anchor="middle" font-size="9" font-weight="600" fill="#d97706">mechanistic</text>
+
+  <!-- Left: Properties box -->
+  <rect x="40" y="170" width="280" height="70" rx="6" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="180" y="192" text-anchor="middle" font-size="11" font-weight="600" fill="#1e40af">What the agent senses</text>
+  <text x="180" y="210" text-anchor="middle" font-size="10" fill="#3b82f6">empathic-sensing</text>
+  <text x="180" y="226" text-anchor="middle" font-size="10" fill="#3b82f6">relational-understanding</text>
+
+  <!-- Right: Properties box -->
+  <rect x="440" y="170" width="280" height="70" rx="6" fill="#fef3c7" stroke="#d97706" stroke-width="1.5"/>
+  <text x="580" y="192" text-anchor="middle" font-size="11" font-weight="600" fill="#92400e">How the agent reacts</text>
+  <text x="580" y="210" text-anchor="middle" font-size="10" fill="#b45309">inferred-values</text>
+  <text x="580" y="226" text-anchor="middle" font-size="10" fill="#b45309">appraisal-sensitivities</text>
+
+  <!-- Left arrow down -->
+  <line x1="180" y1="240" x2="180" y2="280" stroke="#2563eb" stroke-width="1.5" marker-end="url(#arr-blue)"/>
+
+  <!-- Right arrow down -->
+  <line x1="580" y1="240" x2="580" y2="280" stroke="#d97706" stroke-width="1.5" marker-end="url(#arr-amber)"/>
+
+  <!-- Left: OtherModelPromptSection -->
+  <rect x="60" y="285" width="240" height="50" rx="6" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="180" y="307" text-anchor="middle" font-size="11" font-weight="600" fill="#1e40af">OtherModelPromptSection</text>
+  <text x="180" y="322" text-anchor="middle" font-size="9" fill="#3b82f6">BlockTag.OTHER_MODEL (315)</text>
+
+  <!-- Right: LlmAppraisalStrategy -->
+  <rect x="460" y="285" width="240" height="50" rx="6" fill="#fef3c7" stroke="#d97706" stroke-width="1.5"/>
+  <text x="580" y="307" text-anchor="middle" font-size="11" font-weight="600" fill="#92400e">LlmAppraisalStrategy</text>
+  <text x="580" y="322" text-anchor="middle" font-size="9" fill="#b45309">via RelationalSchema + PersonalityFacets</text>
+
+  <!-- Left arrow to prompt -->
+  <line x1="180" y1="335" x2="180" y2="370" stroke="#2563eb" stroke-width="1.5" marker-end="url(#arr-blue)"/>
+
+  <!-- Right arrow to appraisal -->
+  <line x1="580" y1="335" x2="580" y2="370" stroke="#d97706" stroke-width="1.5" marker-end="url(#arr-amber)"/>
+
+  <!-- Left: outcome -->
+  <rect x="80" y="375" width="200" height="35" rx="6" fill="#eff6ff" stroke="#93c5fd" stroke-width="1"/>
+  <text x="180" y="396" text-anchor="middle" font-size="10" fill="#1e40af">shapes conversational tone</text>
+
+  <!-- Right: outcome -->
+  <rect x="480" y="375" width="200" height="35" rx="6" fill="#fffbeb" stroke="#fcd34d" stroke-width="1"/>
+  <text x="580" y="396" text-anchor="middle" font-size="10" fill="#92400e">modulates emotional response</text>
+</svg>

@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 340" font-family="Inter, system-ui, sans-serif">
+  <defs>
+    <marker id="a" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#94a3b8"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="300" y="22" text-anchor="middle" font-size="13" font-weight="600" fill="#1e293b">Prompt Section Tiers (BlockTag Ordinals)</text>
+  <text x="300" y="38" text-anchor="middle" font-size="9" fill="#64748b">Sections render top-down in directive mode</text>
+
+  <!-- Tier 1: Identity -->
+  <rect x="40" y="55" width="520" height="30" rx="4" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="55" y="74" font-size="9" font-weight="600" fill="#94a3b8">TIER 1</text>
+  <text x="105" y="74" font-size="10" fill="#64748b">Identity</text>
+  <text x="240" y="74" font-size="9" fill="#94a3b8">BEHAVIORAL(100)  PERSONALITY(110)  CONSTRAINTS(120)</text>
+
+  <!-- Tier 2: State -->
+  <rect x="40" y="92" width="520" height="30" rx="4" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="55" y="111" font-size="9" font-weight="600" fill="#94a3b8">TIER 2</text>
+  <text x="105" y="111" font-size="10" fill="#64748b">State</text>
+  <text x="240" y="111" font-size="9" fill="#94a3b8">MOOD(200)  DRIVES(210)  APPRAISAL(220)  NEEDS(230)</text>
+
+  <!-- Tier 3: Knowledge — highlighted -->
+  <rect x="40" y="129" width="520" height="66" rx="4" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="55" y="148" font-size="9" font-weight="600" fill="#2563eb">TIER 3</text>
+  <text x="105" y="148" font-size="10" font-weight="600" fill="#1e40af">Knowledge</text>
+
+  <text x="70" y="168" font-size="9" fill="#64748b">BELIEFS(300)</text>
+  <text x="170" y="168" font-size="9" fill="#64748b">MENTAL_MODEL(310)</text>
+
+  <!-- OTHER_MODEL highlighted -->
+  <rect x="310" y="156" width="130" height="18" rx="3" fill="#dbeafe" stroke="#2563eb" stroke-width="1"/>
+  <text x="375" y="169" text-anchor="middle" font-size="9" font-weight="700" fill="#1e40af">OTHER_MODEL(315)</text>
+
+  <text x="70" y="186" font-size="9" fill="#64748b">NARRATIVE(320)</text>
+  <text x="170" y="186" font-size="9" fill="#64748b">SOCIAL(330)</text>
+  <text x="260" y="186" font-size="9" fill="#64748b">FORMATION(340)</text>
+
+  <!-- Tier 4: Strategy -->
+  <rect x="40" y="202" width="520" height="30" rx="4" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="55" y="221" font-size="9" font-weight="600" fill="#94a3b8">TIER 4</text>
+  <text x="105" y="221" font-size="10" fill="#64748b">Strategy</text>
+  <text x="240" y="221" font-size="9" fill="#94a3b8">GOALS(400)  STRATEGY(410)  ATTENTION(420)  TEMPORAL(430)</text>
+
+  <!-- Tier 5: Signals -->
+  <rect x="40" y="239" width="520" height="30" rx="4" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="55" y="258" font-size="9" font-weight="600" fill="#94a3b8">TIER 5</text>
+  <text x="105" y="258" font-size="10" fill="#64748b">Signals</text>
+  <text x="240" y="258" font-size="9" fill="#94a3b8">MEMORY(500)  REFLECTION(510)  CONSOLIDATION(520)  QUEUE(530)</text>
+
+  <!-- Tier 6: Stimulus -->
+  <rect x="40" y="276" width="520" height="30" rx="4" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="55" y="295" font-size="9" font-weight="600" fill="#94a3b8">TIER 6</text>
+  <text x="105" y="295" font-size="10" fill="#64748b">Stimulus</text>
+  <text x="240" y="295" font-size="9" fill="#94a3b8">CHAT(900)</text>
+
+  <!-- Annotation arrow -->
+  <line x1="490" y1="165" x2="520" y2="165" stroke="#2563eb" stroke-width="1" stroke-dasharray="3,2"/>
+  <text x="525" y="161" font-size="8" fill="#2563eb">surface observation</text>
+  <text x="525" y="172" font-size="8" fill="#2563eb">before identity narrative</text>
+</svg>

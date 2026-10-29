@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 340" font-family="Inter, system-ui, sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#475569"/>
+    </marker>
+    <marker id="arrow-new" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#2563eb"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="360" y="24" text-anchor="middle" font-size="14" font-weight="600" fill="#1e293b">Relational Context Data Flow Through the Appraisal Pipeline</text>
+
+  <!-- Caller box -->
+  <rect x="20" y="50" width="120" height="50" rx="6" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="80" y="72" text-anchor="middle" font-size="11" font-weight="600" fill="#334155">Agency Layer</text>
+  <text x="80" y="87" text-anchor="middle" font-size="9" fill="#64748b">caller</text>
+
+  <!-- Arrow 1 -->
+  <line x1="140" y1="75" x2="175" y2="75" stroke="#2563eb" stroke-width="1.5" marker-end="url(#arrow-new)"/>
+  <text x="158" y="67" text-anchor="middle" font-size="8" fill="#2563eb" font-weight="600">targetAgentId</text>
+
+  <!-- CognitionCore -->
+  <rect x="180" y="50" width="130" height="50" rx="6" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="245" y="72" text-anchor="middle" font-size="11" font-weight="600" fill="#334155">CognitionCore</text>
+  <text x="245" y="87" text-anchor="middle" font-size="9" fill="#64748b">tick(…, targetAgentId)</text>
+
+  <!-- Arrow 2 -->
+  <line x1="310" y1="75" x2="345" y2="75" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- TickContext -->
+  <rect x="350" y="50" width="150" height="50" rx="6" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="425" y="72" text-anchor="middle" font-size="11" font-weight="600" fill="#1e40af">CognitionTickContext</text>
+  <text x="425" y="87" text-anchor="middle" font-size="9" fill="#3b82f6">+ targetAgentId (new)</text>
+
+  <!-- Arrow 3 down -->
+  <line x1="425" y1="100" x2="425" y2="135" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- AppraisalTickParticipant -->
+  <rect x="310" y="140" width="230" height="70" rx="6" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="425" y="162" text-anchor="middle" font-size="11" font-weight="600" fill="#334155">AppraisalTickParticipant</text>
+  <text x="425" y="178" text-anchor="middle" font-size="9" fill="#64748b">resolves overlay → RelationalSchema</text>
+  <text x="425" y="192" text-anchor="middle" font-size="9" fill="#64748b">reads CognitiveDefaults → facets</text>
+
+  <!-- MindMapStore branch -->
+  <rect x="580" y="130" width="120" height="40" rx="6" fill="#fef3c7" stroke="#d97706" stroke-width="1"/>
+  <text x="640" y="148" text-anchor="middle" font-size="10" font-weight="500" fill="#92400e">MindMapStore</text>
+  <text x="640" y="162" text-anchor="middle" font-size="8" fill="#b45309">rel.* overlay props</text>
+  <line x1="540" y1="165" x2="578" y2="155" stroke="#d97706" stroke-width="1" marker-end="url(#arrow)"/>
+
+  <!-- CognitiveDefaults branch -->
+  <rect x="580" y="180" width="120" height="40" rx="6" fill="#fef3c7" stroke="#d97706" stroke-width="1"/>
+  <text x="640" y="198" text-anchor="middle" font-size="10" font-weight="500" fill="#92400e">CognitiveDefaults</text>
+  <text x="640" y="212" text-anchor="middle" font-size="8" fill="#b45309">personalityProfile.facets</text>
+  <line x1="540" y1="185" x2="578" y2="195" stroke="#d97706" stroke-width="1" marker-end="url(#arrow)"/>
+
+  <!-- Arrow 4 down -->
+  <line x1="425" y1="210" x2="425" y2="240" stroke="#2563eb" stroke-width="1.5" marker-end="url(#arrow-new)"/>
+
+  <!-- AppraisalContext -->
+  <rect x="310" y="245" width="230" height="50" rx="6" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="425" y="267" text-anchor="middle" font-size="11" font-weight="600" fill="#1e40af">AppraisalContext</text>
+  <text x="425" y="282" text-anchor="middle" font-size="9" fill="#3b82f6">+ targetSchema + personalityFacets</text>
+
+  <!-- Arrow 5 down -->
+  <line x1="425" y1="295" x2="425" y2="310" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- LlmAppraisalStrategy -->
+  <rect x="310" y="312" width="230" height="24" rx="4" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1"/>
+  <text x="425" y="328" text-anchor="middle" font-size="10" font-weight="500" fill="#334155">LlmAppraisalStrategy → SEC dimensions</text>
+
+  <!-- Legend -->
+  <rect x="20" y="300" width="12" height="12" rx="2" fill="#dbeafe" stroke="#2563eb" stroke-width="1"/>
+  <text x="38" y="310" font-size="9" fill="#475569">New / modified</text>
+  <rect x="20" y="318" width="12" height="12" rx="2" fill="#fef3c7" stroke="#d97706" stroke-width="1"/>
+  <text x="38" y="328" font-size="9" fill="#475569">Data source</text>
+</svg>
