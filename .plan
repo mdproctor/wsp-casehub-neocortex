@@ -1,0 +1,15 @@
+# Work Plan — issue-611-routing-model-consumption
+
+## State
+branch: issue-611-routing-model-consumption
+state: scaffolded
+project-sha: 
+date: 
+issue-repo: casehubio/neocortex
+covers: 611
+design-repo: 
+design-section-hashes: 
+flyway-next-v: 
+
+## Queue
+- [ ] casehubio/neocortex#611 — Issue #611 ← active
