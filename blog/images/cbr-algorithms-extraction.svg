@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 340" font-family="system-ui, -apple-system, sans-serif">
+  <!-- Background -->
+  <rect width="780" height="340" fill="#fafafa" rx="6"/>
+
+  <!-- BEFORE -->
+  <text x="190" y="28" font-size="13" font-weight="600" fill="#374151" text-anchor="middle">Before</text>
+
+  <!-- memory-api box (large, mixed) -->
+  <rect x="40" y="42" width="300" height="180" rx="5" fill="#fff" stroke="#9ca3af" stroke-width="1.5"/>
+  <text x="190" y="64" font-size="12" font-weight="600" fill="#1f2937" text-anchor="middle">memory-api</text>
+  <text x="190" y="80" font-size="10" fill="#6b7280" text-anchor="middle">229 files</text>
+  <line x1="60" y1="90" x2="320" y2="90" stroke="#e5e7eb" stroke-width="1"/>
+
+  <!-- SPI section -->
+  <rect x="55" y="100" width="125" height="50" rx="3" fill="#dbeafe" stroke="#93c5fd" stroke-width="1"/>
+  <text x="117" y="120" font-size="10" font-weight="500" fill="#1e40af" text-anchor="middle">SPI interfaces</text>
+  <text x="117" y="134" font-size="9" fill="#3b82f6" text-anchor="middle">CbrRecordStore, etc.</text>
+
+  <!-- Value types section -->
+  <rect x="55" y="158" width="125" height="50" rx="3" fill="#dbeafe" stroke="#93c5fd" stroke-width="1"/>
+  <text x="117" y="178" font-size="10" font-weight="500" fill="#1e40af" text-anchor="middle">Value types</text>
+  <text x="117" y="192" font-size="9" fill="#3b82f6" text-anchor="middle">CbrQuery, FeatureField</text>
+
+  <!-- Algorithm section (highlighted as the problem) -->
+  <rect x="195" y="100" width="130" height="108" rx="3" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <text x="260" y="122" font-size="10" font-weight="500" fill="#92400e" text-anchor="middle">Algorithms</text>
+  <text x="260" y="138" font-size="9" fill="#b45309" text-anchor="middle">DTW, edit distance</text>
+  <text x="260" y="152" font-size="9" fill="#b45309" text-anchor="middle">scoring, validation</text>
+  <text x="260" y="166" font-size="9" fill="#b45309" text-anchor="middle">trend analysis</text>
+  <text x="260" y="186" font-size="9" font-style="italic" fill="#d97706" text-anchor="middle">not API surface</text>
+
+  <!-- Arrow -->
+  <path d="M 395 160 L 430 160" stroke="#9ca3af" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#9ca3af"/>
+    </marker>
+  </defs>
+
+  <!-- AFTER -->
+  <text x="590" y="28" font-size="13" font-weight="600" fill="#374151" text-anchor="middle">After</text>
+
+  <!-- memory-api box (smaller, clean) -->
+  <rect x="465" y="42" width="270" height="110" rx="5" fill="#fff" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="600" y="64" font-size="12" font-weight="600" fill="#1f2937" text-anchor="middle">memory-api</text>
+  <text x="600" y="80" font-size="10" fill="#6b7280" text-anchor="middle">SPI + value types only</text>
+  <line x1="480" y1="90" x2="720" y2="90" stroke="#e5e7eb" stroke-width="1"/>
+  <text x="600" y="108" font-size="9" fill="#3b82f6" text-anchor="middle">CbrRecordStore, CbrQuery, FeatureField,</text>
+  <text x="600" y="122" font-size="9" fill="#3b82f6" text-anchor="middle">SimilaritySpec, WarpingConstraint, TrendSpec</text>
+
+  <!-- cbr-algorithms box -->
+  <rect x="465" y="185" width="270" height="100" rx="5" fill="#fff" stroke="#059669" stroke-width="1.5"/>
+  <text x="600" y="207" font-size="12" font-weight="600" fill="#1f2937" text-anchor="middle">cbr-algorithms</text>
+  <text x="600" y="223" font-size="10" fill="#6b7280" text-anchor="middle">pure-Java implementations</text>
+  <line x1="480" y1="233" x2="720" y2="233" stroke="#e5e7eb" stroke-width="1"/>
+  <text x="600" y="251" font-size="9" fill="#059669" text-anchor="middle">CbrSimilarityScorer, DtwSimilarity, LbKeogh,</text>
+  <text x="600" y="265" font-size="9" fill="#059669" text-anchor="middle">EditDistanceSimilarity, TrendAnalyzer,</text>
+  <text x="600" y="279" font-size="9" fill="#059669" text-anchor="middle">CbrRecordValidator, CbrRecordFilterMatcher</text>
+
+  <!-- Dependency arrow (cbr-algorithms -> memory-api) -->
+  <path d="M 600 185 L 600 157" stroke="#6b7280" stroke-width="1.5" fill="none" marker-end="url(#depArrow)"/>
+  <defs>
+    <marker id="depArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#6b7280"/>
+    </marker>
+  </defs>
+  <text x="612" y="174" font-size="8" fill="#6b7280">depends on</text>
+
+  <!-- Consumer arrows -->
+  <text x="600" y="315" font-size="10" fill="#6b7280" text-anchor="middle">consumers depend on both</text>
+  <path d="M 600 298 L 600 305" stroke="#6b7280" stroke-width="1" stroke-dasharray="3,2" fill="none"/>
+</svg>
