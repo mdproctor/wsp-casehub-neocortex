@@ -87,7 +87,7 @@ This is correct. The `RelationalSchemaEvolutionPhase` (Child 4, not yet implemen
 
 ## What This Opens Up
 
-The pipeline now knows three things it didn't before: who the agent is talking to, how the agent views them, and what personality traits shape the agent's emotional processing. The Hooded Claw's appraisal of "Penelope escapes the trap" can now produce vigilant frustration (high utility target escaping, low trust confirmed) instead of generic negative affect. The system can distinguish power-based pleasure from connection-based warmth because the relational model tells it which register to use.
+The pipeline now knows three things it didn't before: who the agent is talking to, how the agent views them, and what personality traits shape the agent's emotional processing. Tyad of generic negative affect. The system can distinguish power-based pleasure from connection-based warmth because the relational model tells it which register to use.
 
 Three children remain. The `OtherModelPromptSection` will render mental models into the main agent prompt — not just the appraisal sub-call, but the primary reasoning pipeline. The `RelationalSchemaEvolutionPhase` will create and evolve relational schemas from interaction patterns. And the CAPS per-relationship biasing will modulate the personality dynamics topology based on who the agent is with — different people activate different behavioural attractors.
 
