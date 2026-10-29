@@ -1,0 +1,15 @@
+# Work Plan — casehub-neocortex
+
+## Queue
+- [ ] casehubio/neocortex#723 — ARC42STORIES: CbrCaseMemoryStore → CbrRecordStore naming update ← active
+- [ ] casehubio/neocortex#545 — Lifecycle event vocabulary enforcement
+- [ ] casehubio/neocortex#546 — Entity name normalisation
+- [ ] casehubio/neocortex#574 — Phase 2b memories lack passage-level provenance fields
+
+## State
+branch: casehub-neocortex
+state: active
+issue-repo: casehubio/neocortex
+covers: casehubio/neocortex#723
+Current: casehubio/neocortex#723 — ARC42STORIES: CbrCaseMemoryStore → CbrRecordStore naming update
+date: 2026-10-29
