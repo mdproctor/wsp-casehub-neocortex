@@ -2,7 +2,7 @@
 
 ## State
 branch: issue-491-batch-fixes
-state: active
+state: closing:review
 project-sha: 11c0e24f
 date: 2026-10-29
 issue-repo: casehubio/neocortex
@@ -11,5 +11,6 @@ design-repo: project
 design-section-hashes: 
 flyway-next-v: unknown
 
+evidence-era: true
 ## Queue
 - [ ] casehubio/neocortex#491 — Issue #491 ← active
