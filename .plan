@@ -13,9 +13,9 @@ flyway-next-v: unknown
 
 ## Queue
 - [ ] casehubio/neocortex#360 — Issue #360 ← active
-  - [ ] Batch 1: Module scaffold
-    - [ ] Task 1: Create cbr-algorithms and move files
-  - [ ] Batch 2: Consumer wiring
-    - [ ] Task 2: Add cbr-algorithms dep to all consumers
-  - [ ] Batch 3: Documentation
-    - [ ] Task 3: Update CLAUDE.md and close issue
+  - [x] Batch 1: Module scaffold
+    - [x] Task 1: Create cbr-algorithms and move files
+  - [x] Batch 2: Consumer wiring
+    - [x] Task 2: Add cbr-algorithms dep to all consumers
+  - [x] Batch 3: Documentation
+    - [x] Task 3: Update CLAUDE.md and close issue
