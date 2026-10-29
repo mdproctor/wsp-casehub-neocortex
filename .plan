@@ -2,7 +2,7 @@
 
 ## State
 branch: 
-state: closing:verified
+state: closing:promoted
 project-sha: a0f0a0da551b64daf739672e27d35691d8c78cfb
 date: 2026-10-28
 issue-repo: casehubio/neocortex
