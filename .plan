@@ -16,4 +16,7 @@ flyway-next-v:
 - [x] casehubio/neocortex#717 — Wire relational context into AppraisalContext
 - [x] casehubio/neocortex#718 — OtherModelPromptSection render mental models
 - [ ] casehubio/neocortex#719 — RelationalSchemaEvolutionPhase ← active
+  - [ ] Batch 1: Evolution
+    - [ ] Task 1: Trust and intimacy formulas
+    - [ ] Task 2: Role transition state machine
 - [ ] casehubio/neocortex#720 — CAPS per-relationship tick-time input biasing
