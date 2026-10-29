@@ -2,63 +2,29 @@
 
 ## Last Session
 
-<<<<<<< HEAD
-Batch of 4 XS/S maintenance fixes on branch `issue-491-batch-fixes`, all landed on main. Blog entry written with 2 SVG diagrams.
+Completed #587 — Graduated SituationClassifier. Landed 3 squashed commits on main. Set up #721 branch for next session.
 
-### #491 — Priority collision renumber (8 files)
+### #587 — Graduated SituationClassifier (L/High) — CLOSED
 
-Two `@Priority` collisions in the consolidation pipeline: `BehavioralSynthesisPhase` and `RelationalSchemaEvolutionPhase` both at 19, `MergeDetectionPhase` and `DriveProfileDerivationPhase` both at 20. Renumbered the 19–27 range so all 22 phases have unique priorities. Drive chain ordering preserved. CLAUDE.md updated to match.
+Widened `SituationClassifier` SPI with `ClassificationContext` (three-param abstract, two-param default with NONE). Created CDI producer for `LlmSituationClassifier` via `@Produces` in `caps-llm-classifier`. New `caps-situation-cbr` module with `CbrCachingSituationDecorator` (`@Decorator @Priority(60)`) — checks CBR for cached classifications via embedding similarity before delegating to LLM. Fixed session concurrency bug (per-invocation UUIDs). Wired `CognitionCoreFactory` to inject `SituationClassifier` into programmatic consumers.
 
-### #494 — Stale vocabulary in tests (2 files)
+Filed follow-up issues: #724 (progressive trust framework), #725 (classification outcome learning).
 
-Replaced `"collaborative"` with `"cooperative"` in 4 memory-seeding test sites. Tests were passing via the `default -> {}` no-op branch — the drive modulation paths they claimed to test never executed.
+## Active Branch
 
-### #713 — CognitionConfig toggle mapping (1 file)
-
-Added 24-row Javadoc table to `CognitionConfig` mapping each boolean toggle to its `CognitionDefinition` YAML section and the orchestrator/prompt section it gates.
-=======
-Issue triage and backlog hygiene. Closed 12 stale issues, transferred 2 to connectors.
-
-### Issues closed as already done
-- #611 — RoutingEmbeddingModel migration (already uses `DenseEmbedder`)
-- #613 — RoutingChatModel migration (zero LangChain4j ChatModel refs)
-- #614 — CosineSimilarity replacement (zero refs)
-- #693 — Workbench JS→TS migration (all .ts files exist)
-- #612 — DocumentSplitter decision (zero refs)
-- #22 — Extract corpus CDI to corpus-quarkus (corpus is pure Java, moot)
-- #473 — WordNetTermNormalizer general domain (already has it)
-- #696 — Migrate attractor eval tests (110+ test refs in neocortex)
-- #573 — Per-corpus directory structure (frida-kahlo/, napoleon/ exist)
-- #575 — Edge type vocabulary (RelationshipVocabulary exists)
-
-### Issues transferred to connectors
-- #414 → connectors#184 — LLM extraction from unstructured sources (closed as speculative)
-- #425 → connectors#185 — Tile38 geofencing evaluation (still open)
-
-### Abandoned branches (no work done, safe to delete after 14 days)
-- `issue-414-unstructured-extraction` — both repos
-- `issue-611-routing-model-consumption` — both repos
->>>>>>> issue-360-extract-cbr-algorithms
-
-### #715 — executionChainId on CbrPlanRecord (4 files)
-
-<<<<<<< HEAD
-Nullable `executionChainId` field for linking triage attempts into chains. Backward-compatible 8-arg constructor (27 existing call sites unchanged). Qdrant store serialises/deserialises via `_execution_chain_id` payload key. `withExecutionChainId()` convenience method. 3 new tests.
+`issue-721-unified-entity-linking` — scaffolded, no work done. Branch exists in both project and workspace repos.
 
 ## Suggested Next
 
-#587 — Graduated SituationClassifier (L/High). The priority renumbering fixed phase ordering, but `BehavioralSynthesisPhase` still depends on `RuleBasedSituationClassifier` which uses academic vocabulary that doesn't match runtime language. #587 wires the existing `LlmSituationClassifier` as a fallback and adds CBR confidence accumulation.
+**#721 — Unified entity linking** (XL/High). Bridge text corpus and knowledge graph via standoff annotation.
+
+**User direction for brainstorm:**
+- Start with scoping — this is XL, needs decomposition
+- Compact indexes — light and fast, not heavyweight infrastructure
+- Brainstorm is the first step — don't skip to implementation
 
 ## References
 
-- `blog/2026-10-29-mdp02-four-bugs-that-passed-ci.md` — diary entry with 2 SVG diagrams
-=======
-**#360 — Extract cbr-algorithms from memory-api** (M/Med). Module extraction refactor — memory-api is 144 files with substantial pure-Java algorithm code (DTW, edit distance, CbrSimilarityScorer, TrendAnalyzer) alongside SPI interfaces. Extract to `cbr-algorithms` or `cbr-core` module.
-
-Then: **#660 — Spring parity for cognition layer** (M/Med). Create `cognition-spring` module mirroring `CognitionDefaultBeans` CDI producers.
-
-## References
-
-- `specs/issue-477-relational-schemas/2026-10-28-relational-schemas-design.md` — reviewed spec (authoritative)
-- `specs/issue-477-relational-schemas/decisions.md` — 4 design decisions with rationale
->>>>>>> issue-360-extract-cbr-algorithms
+- `specs/issue-587-graduated-situation-classifier/2026-10-29-graduated-situation-classifier-design.md` — #587 spec (closed)
+- `blog/2026-10-29-mdp02-when-keywords-lie.md` — diary entry for #587
+- `docs/research/era5-relational-cognition-research.md` — context for #721
