@@ -1,0 +1,15 @@
+# Work Plan — issue-491-batch-fixes
+
+## State
+branch: issue-491-batch-fixes
+state: scaffolded
+project-sha: 11c0e24f
+date: 2026-10-29
+issue-repo: casehubio/neocortex
+covers: 494,713,715
+design-repo: project
+design-section-hashes: 
+flyway-next-v: unknown
+
+## Queue
+- [ ] casehubio/neocortex#491 — Issue #491 ← active
