@@ -1,15 +1,15 @@
 ---
 layout: post
-title: "Closing the Loop — When Mental Models Reach the Prompt and Relationships Learn"
+title: "Closing the Loop — When Mental Models Reach the Prompt, Relationships Learn, and Trust Shapes What the Agent Notices"
 date: 2026-10-29
 entry_type: article
 subtype: diary
 projects: [casehubio/neocortex]
-tags: [cognitive-architecture, prompt-rendering, mental-models, appraisal, relationships, trust, attachment-theory]
+tags: [cognitive-architecture, prompt-rendering, mental-models, appraisal, relationships, trust, attachment-theory, caps, situation-classification]
 series: issue-477-relational-schemas
 ---
 
-# Closing the Loop — When Mental Models Reach the Prompt and Relationships Learn
+# Closing the Loop — When Mental Models Reach the Prompt, Relationships Learn, and Trust Shapes What the Agent Notices
 
 [Continued from [The Anonymous Other](2026-10-28-mdp01-the-anonymous-other.md)]
 
@@ -85,15 +85,59 @@ Mid-range trust (-0.3 < t < 0.5) triggers no transition. Roles are sticky. A str
 
 Recovery is possible but hard. An `obstacle` or `threat` can recover to `stranger` — never directly to `ally`. They have to rebuild from scratch. This mirrors how real relationships work after a breakdown: you don't go from enemy to friend. You go from enemy to acquaintance, and maybe — over enough positive interactions — from acquaintance to something more.
 
-## The Architecture, Stepped Back
+## Trust Shapes What the Agent Notices
 
-What we built this session completes a pipeline that didn't exist two days ago:
+The relational schema now reaches the appraisal pipeline, shapes the prompt, and evolves with interaction. But there's a layer underneath all of that: the CAPS network — the personality processing system that translates situations into emotional activation patterns before appraisal ever runs. Until now, CAPS treated every situation identically regardless of who was involved. Kindness from prey and kindness from a trusted tool produced the same activation of `secure_attachment`. That's wrong. The agent's relationship with the source should change what the situation *is*, not just how the agent responds to it.
 
-1. **Consolidation** derives per-relationship mental models and evolves trust/intimacy/role from interaction history
-2. **Tick-time** threads the target identity through the cognitive stack
-3. **Prompt rendering** gives the agent phenomenological awareness of the other person
-4. **Appraisal** modulates emotional response based on the relational schema and personality
+The fix is `RelationalBiasing` — a pure function that sits between `SituationClassifier.classify()` and `TopologyChannelWeighter.weight()` in the tick pipeline. After classification produces raw activations, biasing adjusts four specific input nodes based on the relational schema's trust value.
 
-Four stages, each personality-conditioned, each operating at a different timescale. Consolidation runs in the background. The tick fires per conversation turn. The prompt shapes the response. The appraisal colours the emotion. A relationship is not a single value — it's a dynamic process distributed across the cognitive architecture.
+![CAPS per-relationship input biasing flow](images/caps-relational-biasing.svg)
 
-The last child of the epic — CAPS per-relationship biasing — will close the loop at the CAPS level, making the personality processing system itself respond differently depending on who the agent is interacting with. The relational schema won't just shape what the agent says and feels. It will shape what the agent *notices*.
+### Why Multiplicative, Not Additive
+
+The tempting approach is additive: `activation + trust * 0.3`. It's simpler and easier to reason about. But it creates a saturation problem. CAPS activations are clamped to [-1, 1]. An agent with trust 0.7 and another with trust 1.0 both produce `secure_attachment = 1.0` when the base activation is above 0.7. The trust difference vanishes at exactly the range where it matters most — high-trust relationships where nuance in the trust signal should produce nuance in the emotional response.
+
+Multiplicative biasing — `activation * (1.0 + trust * scale)` — preserves relative differences. Base activation 0.8 with trust 0.7 gives 0.97. With trust 1.0, it gives 1.04 (clamped to 1.0, but the gap is narrower and higher activations carry more information). For activations near zero, the biasing has minimal effect, which is correct: there's nothing to bias. The situation didn't contain the signal. Trust shouldn't inject phantom signals into nodes the classifier didn't activate.
+
+The scaling factors are grounded in topology connection weights rather than being arbitrary parameters. `secure_attachment` uses 0.30 — matching the `secure_attachment → self_worth` weight in `caps-topology.yaml`, itself grounded in van IJzendoorn's 1995 meta-analysis (r = .24–.32). Rejection uses 0.20, betrayal 0.25, psychological_threat 0.15 — all deliberately below their respective topology weights to avoid overwhelming the situation signal. The biasing *modulates*. It doesn't *replace*.
+
+### The Formula's Elegance
+
+The four scaling factors encode their direction in their sign:
+
+```
+secure_attachment    *= (1 + trust *  0.30)   // positive: boost with trust
+rejection            *= (1 + trust * -0.20)   // negative: dampen with trust
+betrayal             *= (1 + trust * -0.25)
+psychological_threat *= (1 + trust * -0.15)
+```
+
+When trust is positive, secure attachment is boosted and threats are dampened — the agent feels safer around trusted individuals. When trust is negative, the formula naturally reverses: secure attachment is dampened and threats are boosted. No conditional logic. No if-else branches for positive and negative trust. The arithmetic handles both directions because the multiplication of two signed values already encodes the relationship between trust direction and activation direction.
+
+Zero trust means zero biasing. A stranger produces the same activations as if no relational context existed. The schema's absence and the schema's presence-with-neutral-trust are behaviourally identical. This means the biasing is purely additive to the existing pipeline — it changes nothing when there's nothing to change.
+
+### The Hooded Claw Test
+
+The test that proves this matters: the Hooded Claw receives "unexpected kindness" from two different targets. The `SituationClassifier` produces identical raw activations for both — it classifies the *situation*, not the *relationship*. But the biasing diverges:
+
+From **prey** (trust = -0.5): `secure_attachment` drops from 0.70 to 0.60. The classifier detected warmth. The biasing says: *not from this person*. Rejection rises from 0.30 to 0.33. The secure signal is dampened; the threat signal is boosted. The CAPS network processes a situation closer to wariness than comfort.
+
+From **tool** (trust = +0.3): `secure_attachment` rises from 0.70 to 0.76. Rejection drops from 0.30 to 0.28. The classifier detected the same warmth. The biasing says: *from this person, the warmth is plausible*. The CAPS network processes a situation closer to genuine security.
+
+Same observation. Same classifier. Same agent personality. Different trust. Different emotional activations. Different downstream emotions, mood, and behaviour.
+
+## The Architecture, Complete
+
+What the epic built is a five-layer pipeline that didn't exist three days ago:
+
+1. **Types and storage** — `RelationalSchema`, `PersonalityProfile`, `AttachmentProfile`, and `PersonalityFacet` as production types, stored on perspectival overlays
+2. **Appraisal wiring** — relational context threaded into `AppraisalContext`, rendered in `LlmAppraisalStrategy` prompts
+3. **Prompt rendering** — `OtherModelPromptSection` carries phenomenological awareness; `lastTargetAgentId` threads through the entire render pipeline
+4. **Dynamic evolution** — trust, intimacy, and role evolve with interaction, personality-conditioned, attachment-bounded
+5. **CAPS biasing** — trust modulates what the agent *notices* before appraisal computes what the agent *feels*
+
+Five layers, five issues, five distinct timescales. The types are structural. The appraisal fires per-turn. The prompt shapes each response. Evolution runs at consolidation intervals. CAPS biasing operates at the sub-turn level — between classification and emotion.
+
+A relationship in this architecture is not a label, not a score, not a prompt injection. It's a distributed process that shapes perception, modulates emotion, evolves with interaction, and respects the structural constraints of personality. The psychopath's avoidance ceiling caps trust at 0.2. The anxious agent's intimacy accelerates at 145% of baseline. The prey-to-tool transition fires only when Manipulativeness exceeds 0.5. The CAPS biasing dampens secure attachment from distrusted sources.
+
+Every layer is independently testable, every formula is grounded in published research, and every personality interaction is a parameter — not a hardcoded rule. The system doesn't *pretend* to model relationships. It models the mechanisms that produce them.
