@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 420" font-family="'SF Mono','Fira Code',monospace" font-size="12">
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="none" stroke="#444" stroke-width="1.2"/>
+    </marker>
+    <marker id="arrow-trust" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="none" stroke="#b07030" stroke-width="1.2"/>
+    </marker>
+  </defs>
+
+  <style>
+    .box { fill: #f8f6f2; stroke: #888; stroke-width: 1.2; rx: 6; }
+    .box-accent { fill: #f0ebe0; stroke: #a08060; stroke-width: 1.5; rx: 6; }
+    .box-output { fill: #eef2e8; stroke: #6a8a50; stroke-width: 1.2; rx: 6; }
+    .label { font-size: 11px; fill: #444; font-weight: 500; }
+    .label-accent { font-size: 11px; fill: #8a6030; font-weight: 600; }
+    .title { font-size: 13px; fill: #333; font-weight: 700; }
+    .node-name { font-size: 10px; fill: #555; }
+    .value { font-size: 10px; fill: #777; font-style: italic; }
+    .formula { font-size: 10px; fill: #666; }
+    .section-label { font-size: 9px; fill: #999; text-transform: uppercase; letter-spacing: 1px; }
+  </style>
+
+  <!-- Title -->
+  <text x="360" y="24" text-anchor="middle" class="title">CAPS Per-Relationship Input Biasing</text>
+  <text x="360" y="40" text-anchor="middle" class="section-label">trust modulates what the agent notices</text>
+
+  <!-- SituationClassifier box -->
+  <rect x="30" y="60" width="200" height="50" class="box"/>
+  <text x="130" y="82" text-anchor="middle" class="label">SituationClassifier</text>
+  <text x="130" y="96" text-anchor="middle" class="value">observation + metadata</text>
+
+  <!-- Arrow: classifier → activations -->
+  <line x1="230" y1="85" x2="275" y2="85" stroke="#444" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+  <!-- Raw activations list -->
+  <rect x="280" y="55" width="160" height="110" class="box"/>
+  <text x="360" y="73" text-anchor="middle" class="label">Raw Activations</text>
+  <text x="295" y="92" class="node-name">secure_attachment</text>
+  <text x="425" y="92" text-anchor="end" class="value">0.70</text>
+  <text x="295" y="108" class="node-name">rejection</text>
+  <text x="425" y="108" text-anchor="end" class="value">0.30</text>
+  <text x="295" y="124" class="node-name">betrayal</text>
+  <text x="425" y="124" text-anchor="end" class="value">0.20</text>
+  <text x="295" y="140" class="node-name">mastery</text>
+  <text x="425" y="140" text-anchor="end" class="value">0.50</text>
+  <line x1="290" y="147" x2="430" y="147" stroke="#ddd" stroke-width="0.5"/>
+  <text x="360" y="160" text-anchor="middle" class="value">situation-derived</text>
+
+  <!-- RelationalSchema box (feeds into biasing) -->
+  <rect x="490" y="55" width="200" height="80" class="box-accent"/>
+  <text x="590" y="73" text-anchor="middle" class="label-accent">RelationalSchema</text>
+  <text x="505" y="92" class="node-name">target:</text>
+  <text x="560" y="92" class="value">prey1</text>
+  <text x="505" y="108" class="node-name">trust:</text>
+  <text x="560" y="108" class="value">-0.50</text>
+  <text x="505" y="124" class="node-name">role:</text>
+  <text x="560" y="124" class="value">prey</text>
+
+  <!-- Arrow: raw → biasing -->
+  <line x1="360" y1="165" x2="360" y2="195" stroke="#444" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+  <!-- Arrow: schema → biasing -->
+  <path d="M590,135 L590,220 L465,220" fill="none" stroke="#b07030" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arrow-trust)"/>
+  <text x="600" y="178" class="label-accent">trust</text>
+
+  <!-- RelationalBiasing box -->
+  <rect x="240" y="200" width="220" height="120" class="box-accent"/>
+  <text x="350" y="220" text-anchor="middle" class="label-accent">RelationalBiasing.apply()</text>
+  <text x="255" y="242" class="formula">secure    *= (1 + trust * 0.30)</text>
+  <text x="255" y="258" class="formula">rejection *= (1 - trust * 0.20)</text>
+  <text x="255" y="274" class="formula">betrayal  *= (1 - trust * 0.25)</text>
+  <text x="255" y="290" class="formula">psych_thr *= (1 - trust * 0.15)</text>
+  <text x="255" y="308" class="value">others pass through unchanged</text>
+
+  <!-- Arrow: biasing → biased activations -->
+  <line x1="350" y1="320" x2="350" y2="345" stroke="#444" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+  <!-- Biased activations (two columns: prey vs tool) -->
+  <rect x="80" y="350" width="180" height="60" class="box-output"/>
+  <text x="170" y="368" text-anchor="middle" class="label">Prey (trust = -0.5)</text>
+  <text x="95" y="385" class="node-name">secure: 0.60</text>
+  <text x="95" y="400" class="node-name">rejection: 0.33</text>
+
+  <rect x="290" y="350" width="180" height="60" class="box-output"/>
+  <text x="380" y="368" text-anchor="middle" class="label">Tool (trust = +0.3)</text>
+  <text x="305" y="385" class="node-name">secure: 0.76</text>
+  <text x="305" y="400" class="node-name">rejection: 0.28</text>
+
+  <!-- Divergence annotation -->
+  <rect x="500" y="350" width="190" height="60" class="box"/>
+  <text x="595" y="368" text-anchor="middle" class="label">Same observation</text>
+  <text x="595" y="385" text-anchor="middle" class="value">different CAPS inputs</text>
+  <text x="595" y="400" text-anchor="middle" class="value">→ different emotions</text>
+
+  <!-- Arrows to output boxes -->
+  <path d="M310,345 L170,350" fill="none" stroke="#6a8a50" stroke-width="1"/>
+  <path d="M390,345 L380,350" fill="none" stroke="#6a8a50" stroke-width="1"/>
+</svg>

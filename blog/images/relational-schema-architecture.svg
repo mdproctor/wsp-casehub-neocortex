@@ -1,0 +1,173 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 650" font-family="'SF Mono', 'Fira Code', 'Cascadia Code', monospace" font-size="12">
+  <defs>
+    <marker id="arrow-r" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="none" stroke="#64748b" stroke-width="1.2"/>
+    </marker>
+    <marker id="arrow-g" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="none" stroke="#22c55e" stroke-width="1.2"/>
+    </marker>
+    <marker id="arrow-y" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="none" stroke="#eab308" stroke-width="1.2"/>
+    </marker>
+  </defs>
+
+  <style>
+    .box { fill: #1e293b; stroke: #475569; stroke-width: 1.5; rx: 6; }
+    .box-exist { fill: #1e293b; stroke: #3b82f6; stroke-width: 1.5; rx: 6; }
+    .box-new { fill: #1e293b; stroke: #22c55e; stroke-width: 2; rx: 6; }
+    .box-future { fill: #1e293b; stroke: #eab308; stroke-width: 1.5; rx: 6; stroke-dasharray: 6,3; }
+    .title { fill: #f1f5f9; font-weight: 600; font-size: 12px; }
+    .field { fill: #94a3b8; font-size: 10px; }
+    .field-g { fill: #22c55e; font-size: 10px; }
+    .field-b { fill: #60a5fa; font-size: 10px; }
+    .field-y { fill: #eab308; font-size: 10px; }
+    .header { fill: #f8fafc; font-size: 16px; font-weight: 700; }
+    .subheader { fill: #94a3b8; font-size: 11px; }
+    .legend { fill: #94a3b8; font-size: 10px; }
+  </style>
+
+  <rect width="820" height="650" fill="#0f172a" rx="8"/>
+
+  <text x="410" y="28" text-anchor="middle" class="header">Relational Schema Architecture — 5 Child Issues</text>
+
+  <!-- Legend -->
+  <rect x="20" y="42" width="12" height="12" fill="none" stroke="#3b82f6" stroke-width="1.5" rx="2"/>
+  <text x="38" y="52" class="legend">Exists today</text>
+  <rect x="140" y="42" width="12" height="12" fill="none" stroke="#22c55e" stroke-width="2" rx="2"/>
+  <text x="158" y="52" class="legend">New (this epic)</text>
+  <rect x="280" y="42" width="12" height="12" fill="none" stroke="#eab308" stroke-width="1.5" rx="2" stroke-dasharray="6,3"/>
+  <text x="298" y="52" class="legend">Future (deferred)</text>
+
+  <!-- Row 1: Data Types (Child 1) -->
+  <text x="20" y="82" class="title" font-size="13" fill="#22c55e">Child 1: Types + Storage</text>
+
+  <rect x="20" y="90" width="150" height="80" class="box-new"/>
+  <text x="95" y="110" text-anchor="middle" class="title">RelationalSchema</text>
+  <text x="30" y="125" class="field-g">targetId, role</text>
+  <text x="30" y="138" class="field-g">trust [-1,1]</text>
+  <text x="30" y="151" class="field-g">intimacy, utility [0,1]</text>
+  <text x="30" y="164" class="field-g">→ overlay properties</text>
+
+  <rect x="185" y="90" width="150" height="80" class="box-new"/>
+  <text x="260" y="110" text-anchor="middle" class="title">PersonalityProfile</text>
+  <text x="195" y="125" class="field-g">PersonalityWeights</text>
+  <text x="195" y="138" class="field-g">AttachmentProfile</text>
+  <text x="195" y="151" class="field-g">List&lt;PersonalityFacet&gt;</text>
+  <text x="195" y="164" class="field-g">→ CognitiveDefaults</text>
+
+  <rect x="350" y="90" width="145" height="80" class="box-new"/>
+  <text x="422" y="110" text-anchor="middle" class="title">AttachmentProfile</text>
+  <text x="360" y="125" class="field-g">style (4 types)</text>
+  <text x="360" y="138" class="field-g">anxiety [0,1]</text>
+  <text x="360" y="151" class="field-g">avoidance [0,1]</text>
+  <text x="360" y="164" class="field-g">→ trust ceiling</text>
+
+  <rect x="510" y="90" width="145" height="80" class="box-new"/>
+  <text x="582" y="110" text-anchor="middle" class="title">PersonalityFacet</text>
+  <text x="520" y="125" class="field-g">facet (AMPD 25)</text>
+  <text x="520" y="138" class="field-g">score [0,1]</text>
+  <text x="520" y="151" class="field-g">origin (felt desc)</text>
+  <text x="520" y="164" class="field-g">replaces AmpdFacets</text>
+
+  <rect x="670" y="90" width="130" height="80" class="box-new"/>
+  <text x="735" y="110" text-anchor="middle" class="title">Relationship</text>
+  <text x="735" y="122" text-anchor="middle" class="title">Vocabulary</text>
+  <text x="680" y="138" class="field-g">trusts/distrusts</text>
+  <text x="680" y="151" class="field-g">fears/admires</text>
+  <text x="680" y="164" class="field-g">8 edge types</text>
+
+  <!-- Row 2: Wiring (Children 2 + 3) -->
+  <text x="20" y="200" class="title" font-size="13" fill="#22c55e">Children 2+3: Wiring</text>
+
+  <!-- Arrows from types to wiring -->
+  <line x1="95" y1="170" x2="95" y2="210" stroke="#22c55e" stroke-width="1" marker-end="url(#arrow-g)"/>
+  <line x1="260" y1="170" x2="260" y2="210" stroke="#22c55e" stroke-width="1" marker-end="url(#arrow-g)"/>
+
+  <rect x="20" y="215" width="195" height="100" class="box-new"/>
+  <text x="117" y="235" text-anchor="middle" class="title">Child 2: AppraisalContext</text>
+  <text x="30" y="252" class="field-g">+ targetSchema</text>
+  <text x="30" y="265" class="field-g">+ personalityFacets</text>
+  <text x="30" y="278" class="field-g">LLM prompt includes:</text>
+  <text x="30" y="291" class="field-g">  role, trust, facets</text>
+  <text x="30" y="304" class="field-g">  felt description</text>
+
+  <rect x="230" y="215" width="195" height="100" class="box-new"/>
+  <text x="327" y="235" text-anchor="middle" class="title">Child 3: OtherModel</text>
+  <text x="327" y="247" text-anchor="middle" class="title">PromptSection</text>
+  <text x="240" y="265" class="field-g">empathic_sensing</text>
+  <text x="240" y="278" class="field-g">relational_understanding</text>
+  <text x="240" y="291" class="field-g">appraisal_sensitivities</text>
+  <text x="240" y="304" class="field-g">threads via subjectId</text>
+
+  <!-- Existing boxes -->
+  <rect x="440" y="215" width="175" height="100" class="box-exist"/>
+  <text x="527" y="235" text-anchor="middle" class="title">OtherModel</text>
+  <text x="527" y="247" text-anchor="middle" class="title">DerivationPhase</text>
+  <text x="450" y="265" class="field-b">empathic_sensing ✓</text>
+  <text x="450" y="278" class="field-b">inferred_values ✓</text>
+  <text x="450" y="291" class="field-b">appraisal_sensitivities ✓</text>
+  <text x="450" y="304" class="field-b">DISCONNECTED from prompt</text>
+
+  <line x1="440" y1="265" x2="425" y2="265" stroke="#22c55e" stroke-width="1.5" marker-end="url(#arrow-g)"/>
+
+  <rect x="630" y="215" width="170" height="100" class="box-exist"/>
+  <text x="715" y="235" text-anchor="middle" class="title">CAPS Topology</text>
+  <text x="640" y="255" class="field-b">6 Bowlby inputs ✓</text>
+  <text x="640" y="268" class="field-b">self/other models ✓</text>
+  <text x="640" y="281" class="field-b">social outputs ✓</text>
+  <text x="640" y="294" class="field-b">disposition mods ✓</text>
+  <text x="640" y="307" class="field-b">NO per-person bias</text>
+
+  <!-- Row 3: Dynamic (Children 4 + 5) -->
+  <text x="20" y="345" class="title" font-size="13" fill="#22c55e">Children 4+5: Dynamics</text>
+
+  <rect x="20" y="355" width="310" height="150" class="box-new"/>
+  <text x="175" y="375" text-anchor="middle" class="title">Child 4: RelationalSchemaEvolutionPhase</text>
+  <text x="175" y="390" text-anchor="middle" class="field" style="fill:#64748b">@Priority(19), separate from familiarity</text>
+
+  <text x="30" y="410" class="field-g" font-weight="600">Trust formula:</text>
+  <text x="30" y="425" class="field">Δtrust = rate × valence × (1 − callousness)</text>
+  <text x="30" y="438" class="field">ceiling = 1.0 − avoidance</text>
+  <text x="30" y="451" class="field">ConflictInterpretation modulates negative</text>
+
+  <text x="30" y="470" class="field-g" font-weight="600">Role transitions (personality-conditioned):</text>
+  <text x="30" y="483" class="field">stranger → ally (or → tool if Manip &gt; 0.7)</text>
+  <text x="30" y="496" class="field">prey → tool (not ally — Callousness blocks)</text>
+
+  <rect x="350" y="355" width="310" height="150" class="box-new"/>
+  <text x="505" y="375" text-anchor="middle" class="title">Child 5: CAPS Per-Relationship Biasing</text>
+  <text x="505" y="390" text-anchor="middle" class="field" style="fill:#64748b">Tick-time multiplicative biasing</text>
+
+  <text x="360" y="410" class="field-g" font-weight="600">High trust → boost secure, dampen threat:</text>
+  <text x="360" y="425" class="field">secure_attachment × (1 + trust × 0.30)</text>
+  <text x="360" y="438" class="field">rejection × (1 − trust × 0.20)</text>
+  <text x="360" y="451" class="field">betrayal × (1 − trust × 0.25)</text>
+
+  <text x="360" y="470" class="field-g" font-weight="600">Why multiplicative:</text>
+  <text x="360" y="483" class="field">Additive saturates at clamp boundary</text>
+  <text x="360" y="496" class="field">trust 0.7 and 1.0 both → activation 1.0</text>
+
+  <!-- Row 4: Deferred -->
+  <text x="20" y="535" class="title" font-size="13" fill="#eab308">Deferred Layers</text>
+
+  <rect x="20" y="545" width="250" height="60" class="box-future"/>
+  <text x="145" y="565" text-anchor="middle" class="title" style="fill:#eab308">Layer 1: Formation Schemas</text>
+  <text x="30" y="580" class="field-y">Schema Therapy 18 EMS</text>
+  <text x="30" y="593" class="field-y">TA life scripts, Object Relations</text>
+
+  <rect x="285" y="545" width="250" height="60" class="box-future"/>
+  <text x="410" y="565" text-anchor="middle" class="title" style="fill:#eab308">Layer 3: Emotional Dimensions</text>
+  <text x="295" y="580" class="field-y">attraction/repulsion</text>
+  <text x="295" y="593" class="field-y">connection/disconnection, longing</text>
+
+  <rect x="550" y="545" width="250" height="60" class="box-future"/>
+  <text x="675" y="565" text-anchor="middle" class="title" style="fill:#eab308">Cross-Model Mappings</text>
+  <text x="560" y="580" class="field-y">PCL-R ↔ AMPD facets</text>
+  <text x="560" y="593" class="field-y">Dark Triad ↔ Big Five</text>
+
+  <!-- Dependency arrows -->
+  <line x1="95" y1="315" x2="95" y2="355" stroke="#22c55e" stroke-width="1" marker-end="url(#arrow-g)"/>
+  <line x1="570" y1="315" x2="505" y2="355" stroke="#22c55e" stroke-width="1" marker-end="url(#arrow-g)"/>
+
+  <text x="410" y="640" text-anchor="middle" class="legend">Arrows show data flow dependencies. Blue = exists. Green = this epic. Yellow = future.</text>
+</svg>
