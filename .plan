@@ -1,0 +1,15 @@
+# Work Plan — issue-414-unstructured-extraction
+
+## State
+branch: issue-414-unstructured-extraction
+state: scaffolded
+project-sha: 
+date: 
+issue-repo: casehubio/neocortex
+covers: 414,425
+design-repo: 
+design-section-hashes: 
+flyway-next-v: 
+
+## Queue
+- [ ] casehubio/neocortex#414 — Issue #414 ← active
