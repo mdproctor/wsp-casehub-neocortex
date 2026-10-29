@@ -2,7 +2,7 @@
 
 ## State
 branch: issue-360-extract-cbr-algorithms
-state: closing:verified
+state: closing:promoted
 project-sha: e5eb0755
 date: 2026-10-29
 issue-repo: casehubio/neocortex
