@@ -1,0 +1,15 @@
+# Work Plan — issue-731-cognitive-pipeline-wiring
+
+## State
+branch: issue-731-cognitive-pipeline-wiring
+state: scaffolded
+project-sha: 42392b56dd9ec974c5465797e13a93dca4502c8d
+date: 2026-10-30
+issue-repo: casehubio/neocortex
+covers: 731
+design-repo: project
+design-section-hashes: 
+flyway-next-v: unknown
+
+## Queue
+- [ ] casehubio/neocortex#731 — Issue #731 ← active
