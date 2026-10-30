@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 440" font-family="system-ui, -apple-system, sans-serif">
+  <style>
+    .title { font-size: 14px; font-weight: 600; fill: #1a1a2e; }
+    .box { rx: 8; stroke-width: 1.5; }
+    .box-text { font-size: 12px; font-weight: 600; }
+    .box-sub { font-size: 10px; fill: #4b5563; }
+    .label { font-size: 11px; fill: #374151; }
+    .label-sm { font-size: 10px; fill: #6b7280; }
+    .pipe { stroke-width: 2; fill: none; }
+    .phase-bg { rx: 12; }
+  </style>
+  <defs>
+    <marker id="a1" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#6b7280"/>
+    </marker>
+    <marker id="a-green" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#10b981"/>
+    </marker>
+    <marker id="a-blue" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#3b82f6"/>
+    </marker>
+    <marker id="a-purple" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#8b5cf6"/>
+    </marker>
+  </defs>
+
+  <text x="390" y="24" text-anchor="middle" class="title">How Annotations Flow Through the Cognitive Pipeline</text>
+
+  <!-- Phase 1: Ingestion -->
+  <rect x="20" y="48" width="220" height="145" class="phase-bg" fill="#f0fdf4" stroke="#86efac" stroke-width="1"/>
+  <text x="130" y="68" text-anchor="middle" font-size="11" font-weight="600" fill="#166534">1. Ingestion</text>
+
+  <rect x="40" y="80" width="180" height="34" class="box" fill="#ffffff" stroke="#10b981"/>
+  <text x="130" y="100" text-anchor="middle" class="box-text" fill="#065f46">ConversationBridge</text>
+
+  <path d="M130,114 L130,128" class="pipe" stroke="#10b981" marker-end="url(#a-green)"/>
+
+  <rect x="40" y="130" width="180" height="50" class="box" fill="#ffffff" stroke="#10b981"/>
+  <text x="130" y="150" text-anchor="middle" class="box-text" fill="#065f46">MindMapExtractor</text>
+  <text x="130" y="165" text-anchor="middle" class="box-sub">LLM → ParsedMention</text>
+
+  <!-- Phase 2: Resolution -->
+  <rect x="280" y="48" width="220" height="145" class="phase-bg" fill="#eff6ff" stroke="#93c5fd" stroke-width="1"/>
+  <text x="390" y="68" text-anchor="middle" font-size="11" font-weight="600" fill="#1e40af">2. Resolution</text>
+
+  <rect x="300" y="80" width="180" height="50" class="box" fill="#ffffff" stroke="#3b82f6"/>
+  <text x="390" y="100" text-anchor="middle" class="box-text" fill="#1e40af">AnnotationSpanResolver</text>
+  <text x="390" y="115" text-anchor="middle" class="box-sub">mention → character offsets</text>
+
+  <path d="M390,130 L390,143" class="pipe" stroke="#3b82f6" marker-end="url(#a-blue)"/>
+
+  <rect x="300" y="145" width="180" height="40" class="box" fill="#ffffff" stroke="#3b82f6"/>
+  <text x="390" y="165" text-anchor="middle" class="box-text" fill="#1e40af">EntityAnnotationIndex</text>
+
+  <!-- Phase 3: Lifecycle -->
+  <rect x="540" y="48" width="220" height="145" class="phase-bg" fill="#fef3c7" stroke="#fcd34d" stroke-width="1"/>
+  <text x="650" y="68" text-anchor="middle" font-size="11" font-weight="600" fill="#92400e">3. Lifecycle</text>
+
+  <rect x="560" y="80" width="180" height="34" class="box" fill="#ffffff" stroke="#f59e0b"/>
+  <text x="650" y="100" text-anchor="middle" class="box-text" fill="#92400e">MergeRepointObserver</text>
+
+  <rect x="560" y="125" width="180" height="34" class="box" fill="#ffffff" stroke="#f59e0b"/>
+  <text x="650" y="145" text-anchor="middle" class="box-text" fill="#92400e">ErasureObserver</text>
+
+  <!-- Connector: Ingestion → Resolution -->
+  <path d="M220,155 L300,125" class="pipe" stroke="#6b7280" marker-end="url(#a1)"/>
+  <text x="260" y="130" text-anchor="middle" class="label-sm">mentions</text>
+
+  <!-- Connector: Resolution → Lifecycle -->
+  <path d="M480,165 L560,140" class="pipe" stroke="#6b7280" marker-end="url(#a1)"/>
+  <text x="520" y="143" text-anchor="middle" class="label-sm">stored</text>
+
+  <!-- Phase 4: Cognitive Consumers -->
+  <rect x="60" y="230" width="660" height="190" class="phase-bg" fill="#faf5ff" stroke="#c4b5fd" stroke-width="1"/>
+  <text x="390" y="252" text-anchor="middle" font-size="11" font-weight="600" fill="#5b21b6">4. Cognitive Consumers — query annotations at tick time</text>
+
+  <!-- Consumer boxes -->
+  <rect x="80" y="270" width="145" height="65" class="box" fill="#ffffff" stroke="#8b5cf6"/>
+  <text x="152" y="292" text-anchor="middle" class="box-text" fill="#5b21b6">Salience</text>
+  <text x="152" y="306" text-anchor="middle" class="box-sub">entity name in</text>
+  <text x="152" y="318" text-anchor="middle" class="box-sub">observation → boost</text>
+
+  <rect x="245" y="270" width="145" height="65" class="box" fill="#ffffff" stroke="#8b5cf6"/>
+  <text x="317" y="292" text-anchor="middle" class="box-text" fill="#5b21b6">Reflection</text>
+  <text x="317" y="306" text-anchor="middle" class="box-sub">entity context in</text>
+  <text x="317" y="318" text-anchor="middle" class="box-sub">prompt → richer heuristics</text>
+
+  <rect x="410" y="270" width="145" height="65" class="box" fill="#ffffff" stroke="#8b5cf6"/>
+  <text x="482" y="292" text-anchor="middle" class="box-text" fill="#5b21b6">Belief Revision</text>
+  <text x="482" y="306" text-anchor="middle" class="box-sub">entity provenance</text>
+  <text x="482" y="318" text-anchor="middle" class="box-sub">grounds conflicts</text>
+
+  <rect x="575" y="270" width="130" height="65" class="box" fill="#ffffff" stroke="#8b5cf6"/>
+  <text x="640" y="292" text-anchor="middle" class="box-text" fill="#5b21b6">Theory of Mind</text>
+  <text x="640" y="306" text-anchor="middle" class="box-sub">all mentions of</text>
+  <text x="640" y="318" text-anchor="middle" class="box-sub">subject → complete model</text>
+
+  <!-- Retrieval Modulation -->
+  <rect x="200" y="355" width="360" height="50" class="box" fill="#ffffff" stroke="#8b5cf6"/>
+  <text x="380" y="377" text-anchor="middle" class="box-text" fill="#5b21b6">Retrieval Modulation</text>
+  <text x="380" y="393" text-anchor="middle" class="box-sub">EntityOverlapModulationFactor — shared entities boost retrieval scores</text>
+
+  <!-- Arrows from index to consumers -->
+  <path d="M390,185 L152,270" class="pipe" stroke="#8b5cf6" stroke-dasharray="5 3" marker-end="url(#a-purple)"/>
+  <path d="M390,185 L317,270" class="pipe" stroke="#8b5cf6" stroke-dasharray="5 3" marker-end="url(#a-purple)"/>
+  <path d="M390,185 L482,270" class="pipe" stroke="#8b5cf6" stroke-dasharray="5 3" marker-end="url(#a-purple)"/>
+  <path d="M390,185 L640,270" class="pipe" stroke="#8b5cf6" stroke-dasharray="5 3" marker-end="url(#a-purple)"/>
+  <path d="M390,185 L380,355" class="pipe" stroke="#8b5cf6" stroke-dasharray="5 3" marker-end="url(#a-purple)"/>
+</svg>

@@ -15,7 +15,7 @@ Ask a cognitive agent "what do you know about the key?" and you get back whateve
 
 This is the pronoun problem. And it isn't just pronouns. Definite descriptions ("the detective"), nicknames, epithets — any referring expression that isn't the canonical entity name is a gap. In a cognitive architecture where text memories and a knowledge graph are supposed to be two views of the same world model, that gap is structural.
 
-I've spent the last session designing a fix for neocortex: unified entity linking via standoff annotation. The core idea is borrowed from computational linguistics, but the application — bridging a live knowledge graph with a text memory store inside a cognitive tick loop — raises design questions that the NLP literature doesn't address.
+I designed and built a fix for neocortex: unified entity linking via standoff annotation. The core idea is borrowed from computational linguistics, but the application — bridging a live knowledge graph with a text memory store inside a cognitive tick loop — raises design questions that the NLP literature doesn't address.
 
 ## What standoff annotation actually is
 
@@ -36,25 +36,31 @@ The annotation layer bridges two worlds that are otherwise disconnected. The kno
 
 A general-purpose NLP system can get away without entity linking. Run the query, get the embedding, return the top-k results. Close enough.
 
-A cognitive architecture can't. Four subsystems depend on knowing exactly which entities appear in which text:
+A cognitive architecture can't. Five subsystems depend on knowing exactly which entities appear in which text:
 
-**Salience.** When an agent perceives something new, the salience filter decides what deserves attention. Currently that's keyword overlap between the observation and active concerns. "James" in the observation matches "James" in a concern about James. But "he" doesn't match. "The detective" doesn't match. Entity linking makes salience exact — if the observation text contains any referring expression for James, the concern fires.
+**Salience.** When an agent perceives something new, the salience filter decides what deserves attention. Keyword overlap between an observation and active concerns works for exact name matches. "James" in the observation matches "James" in a concern. But "he" doesn't. "The detective" doesn't. `EntityAwareSalienceStrategy` wraps the existing keyword-based strategy and adds a second signal: look up entity annotations on each concern memory, extract the entity names, and check whether any of those names appear in the observation text. A concern about James fires when the observation says "James" — even though the concern memory itself only refers to him as "he."
 
-**Reflection.** "What do I know about James?" should return every memory that mentions James — including the ones where he's referred to as "he" or "that man" or "the older brother." Without entity linking, reflection is keyword search. With it, it's a graph traversal: find all annotations pointing to James's node, retrieve their source memories.
+**Reflection.** "What do I know about James?" should return every memory that mentions James — including the ones where he's referred to as "he" or "that man" or "the older brother." Without entity linking, reflection is keyword search. With it, `LlmReflectionSynthesizer` gathers entity context from annotations across all source memories and includes it in the reflection prompt. The LLM sees not just the text of each trajectory, but which entities appear across multiple experiences — enabling cross-entity heuristic extraction that keyword-only prompts miss.
 
-**Belief revision.** When two memories contradict each other about the same entity, the system needs to identify the conflict. "James is trustworthy" and "He lied about the key" — these contradict, but only if you know "He" refers to James. Entity annotations provide the provenance chain: this belief was grounded in these specific spans in these specific memories.
+**Belief revision.** When two memories contradict each other about the same entity, the system needs to identify the conflict. "James is trustworthy" and "He lied about the key" — these contradict, but only if you know "He" refers to James. `BeliefRevisionPhase` now accepts an optional annotation index for entity-grounded provenance: this belief was asserted in these specific spans in these specific memories.
 
-**Theory of Mind.** Building a mental model of another agent requires gathering everything known about them. Not just memories where their name appears — everything. The pronoun problem directly undermines Theory of Mind construction.
+**Theory of Mind.** Building a mental model of another agent requires gathering everything known about them. Not just memories where their name appears — everything. `MentalModelOrchestrator` can now use entity annotations to collect all mentions of a subject — by name, by pronoun, by description — for complete model construction.
+
+**Retrieval modulation.** `EntityOverlapModulationFactor` boosts retrieval scores for memories that share entity annotations with the current query context. If you're reasoning about James and Clara, memories mentioning both get a measurable score uplift. The factor is composable — it stacks with existing modulation factors (recency, confidence, mood congruence, goal relevance) through the standard `ModulationFactor<Memory>` interface.
+
+![Cognitive integration pipeline](images/entity-linking-cognitive-pipeline.svg)
 
 ## The design decisions that shaped this
 
-We started from first principles. Where should annotations live? Memory attributes? The MindMap graph? A dedicated store?
+I started from first principles. Where should annotations live? Memory attributes? The MindMap graph? A dedicated store?
 
 The decisive factor was the query direction. The primary use case is entity→text: "given this entity, find all text that mentions it." The secondary direction is text→entity: "given this memory, what entities appear in it?" A dedicated annotation index serves both directions with proper indexes. Memory attributes would require full-scan deserialization for the primary direction. MindMap node properties would invert the natural ownership — text owns its spans, not entities.
 
 The second key decision was the coreference model. Explicit chain structures (mention→chain→entity) preserve discourse structure but add a layer of indirection that no query pattern actually needs. The flat model — every span points directly to its entity node ID — is simpler and supports every query through `GROUP BY`. The coreference chain IS the set of spans sharing an entity ID. No separate concept needed.
 
-The third was how to produce annotations. LLMs are good at semantic tasks — identifying which surface form refers to which entity. They are bad at positional tasks — reporting character offsets. We split the pipeline: the LLM identifies mentions semantically ("He" → "James Pond"), and a deterministic resolver computes the exact character positions by scanning the text. Zero hallucinated offsets.
+The third was how to produce annotations. LLMs are good at semantic tasks — identifying which surface form refers to which entity. They are bad at positional tasks — reporting character offsets. I split the pipeline: the LLM identifies mentions semantically ("He" → "James Pond"), and `AnnotationSpanResolver` computes the exact character positions by scanning the text left-to-right. Zero hallucinated offsets. The LLM reports surface forms and their text-order index; the resolver does a deterministic forward scan matching each surface form in sequence.
+
+The fourth was lifecycle consistency. When entities merge in the knowledge graph, their annotations must follow. When memories are erased, their annotations must go. Two CDI observers handle this automatically: `MergeRepointObserver` listens for `GraphMutationRecorded` events and calls `repointEntity()` to redirect annotations from the absorbed node to the survivor. `MemoryEntityErasedObserver` listens for `MemoryEntityErased` events and removes annotations by owner subject. The annotation index stays consistent without any manual intervention.
 
 ![Module architecture](images/entity-linking-architecture.svg)
 
@@ -69,6 +75,7 @@ public interface EntityAnnotationIndex {
     List<EntityAnnotation> findByEntity(String entityNodeId, String tenantId);
     List<EntityAnnotation> findByEntityPair(String id1, String id2, String tenantId);
     List<EntityAnnotation> findBySource(String sourceType, String sourceId, String tenantId);
+    Set<String> distinctEntitiesInSource(String sourceType, String sourceId, String tenantId);
     int repointEntity(String fromId, String toId, String tenantId);
     // ... write methods
 }
@@ -76,7 +83,17 @@ public interface EntityAnnotationIndex {
 
 `findByEntityPair` is the query that enables relationship-scoped retrieval — "find all memories where both James and Clara appear." The same-document constraint means it returns annotations from source documents mentioning both entities, not a cartesian product.
 
-`repointEntity` handles node merges. When two MindMap nodes are merged and one ID is retired, all annotations pointing to the retired ID are repointed to the survivor. A CDI observer on `GraphMutationRecorded` triggers this automatically.
+`distinctEntitiesInSource` is the inverse query that `EntityOverlapModulationFactor` uses — given a memory, what entities does it mention? Cheap set-membership test against the current context's entity set, returning a multiplicative score boost per shared entity.
+
+`repointEntity` handles node merges. When two MindMap nodes are merged and one ID is retired, all annotations pointing to the retired ID are repointed to the survivor, with deduplication — if both entities already annotate the same span, the duplicate is dropped. A CDI observer on `GraphMutationRecorded` triggers this automatically.
+
+## Two annotation sources: extraction and biography
+
+Annotations enter the system through two pipelines.
+
+**LLM extraction.** `ExtractionRequestedObserver` runs after every `MindMapExtractor` pass. The extractor's LLM prompt now asks for surface-form mentions alongside entities and relationships. After the extractor creates nodes in the knowledge graph, the observer maps entity names to node IDs, runs `AnnotationSpanResolver` to compute offsets, and writes annotations to the index. Every extraction pass annotates every entity mention in the source text — names, pronouns, descriptions.
+
+**Biography YAML.** Biography profiles use bracket syntax for pre-annotated text: `Guillermo[Guillermo] taught Frida[Frida] photography.` The `BiographyProfilePreprocessor` strips brackets before handlers see the text, collects the anchors, and after all handlers finish (entities now exist in MindMap), resolves aliases to node IDs and writes annotations. Clean text for handlers. Linked text for the annotation index. One preprocessing step, two outputs.
 
 ## Beyond cognition — a general-purpose knowledge store
 
@@ -86,18 +103,12 @@ What it actually is: a general-purpose linking layer between prose and a `Thing`
 
 The piece that makes it more than a wiki is the LLM annotation pipeline. A wiki requires authors to create links manually. This system can annotate existing prose automatically — the LLM resolves pronouns, definite descriptions, and implicit references that no author would manually link. You feed it a corpus of unstructured text and it weaves it into the knowledge graph without anyone touching the source.
 
-For an LLM-based agent, this is what turns flat memory storage into a world model. The agent learns things over time — through conversation, through reading, through observation. That knowledge lands as text in the memory store. Without entity linking, each memory is an island. The agent can retrieve similar text, but it can't answer "what do I know about this thing?" with any completeness. With entity linking, every memory that mentions an entity — by name, by pronoun, by description — is connected to that entity's node in the knowledge graph. The graph and the text become two views of the same understanding.
+## The density of connections IS the understanding
 
-Take that to its logical end. An agent that records everything it does for its users, everything it hears about, everything it learns — every conversation, every event, every observation — all stored with entity annotations. A conversation about a doctor's appointment mentions "Dr. Chen," "she," "the appointment," "next Thursday." Each of those becomes a linked span pointing to an entity node. Six months later, "what do I know about Dr. Chen?" doesn't require keyword search. It traverses the annotation index and reconstructs the complete picture from hundreds of scattered mentions across thousands of memories. The density of connections IS the understanding. That's not a search engine over your notes. That's a knowledge network of a life.
+For an LLM-based agent, this is what turns flat memory storage into a world model. The agent learns things over time — through conversation, through reading, through observation. That knowledge lands as text in the memory store. Without entity linking, each memory is an island. The agent can retrieve similar text, but it can't answer "what do I know about this thing?" with any completeness. With entity linking, every memory that mentions an entity — by name, by pronoun, by description — is connected to that entity's node in the knowledge graph.
 
-## What's built, what's next
+Take that to its logical end. An agent that records everything it observes for its users, everything it hears about, everything it learns. Every conversation, every event, every observation — all stored with entity annotations. A conversation about a doctor's appointment mentions "Dr. Chen," "she," "the appointment," "next Thursday." Each becomes a linked span pointing to an entity node. Six months later, "what do I know about Dr. Chen?" doesn't require keyword search. It traverses the annotation index and reconstructs the complete picture from hundreds of scattered mentions across thousands of memories.
 
-The foundation is in place: annotation-api with 14 tests for the span resolver and anchor parser, annotation-testing with 16 contract tests covering CRUD, entity queries, pair queries, merge repointing with deduplication, and tenant isolation. Both the in-memory and SQLite backends pass all contracts.
+That's not a search engine over your notes. That's a knowledge network of a life.
 
-The extraction pipeline extension is started — `ParsedMention` and the LLM prompt changes are committed, awaiting the observer wiring that writes annotations to the index after each extraction pass.
-
-Still ahead: the CDI lifecycle observers, biography YAML anchor syntax (`James[pp] examined the guest book[obj-7]`), and the four cognitive integration points. The design spec covers all of it. The implementation plan decomposes it into six batches.
-
-The deeper question this opens up is about computed knowledge. Today, "what do I know about James?" is a retrieval question — search the memory store, return matching text. With entity linking, it becomes a graph question — traverse the annotation index, collect source documents, reconstruct the complete picture from scattered mentions. That's a different kind of knowledge. Not stored anywhere as a single record. Computed from the intersection of text and structure.
-
-That's what the standoff layer enables. Not just better search — a different category of query. And not just for cognitive agents — for anything that needs to understand its own knowledge.
+And the question that now opens up is about computed knowledge. "What do I know about James?" used to be a retrieval question — search the memory store, return matching text. Now it's a graph question — traverse the annotation index, collect source documents, reconstruct the complete picture from scattered mentions. Not stored anywhere as a single record. Computed from the intersection of text and structure. A different category of query. Not just for cognitive agents — for anything that needs to understand its own knowledge.

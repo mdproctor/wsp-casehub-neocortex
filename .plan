@@ -18,13 +18,13 @@ flyway-next-v:
     - [x] Task 2: annotation-testing + annotation-inmem contract tests
   - [x] Batch 2: SQLite Persistence
     - [x] Task 3: annotation-sqlite SQLite store
-  - [ ] Batch 3: Extraction Pipeline
+  - [x] Batch 3: Extraction Pipeline
     - [x] Task 4: extend MindMapExtractor with ParsedMention
-    - [ ] Task 5: wire ExtractionRequestedObserver annotations
-  - [ ] Batch 4: CDI Lifecycle
-    - [ ] Task 6: annotation CDI lifecycle observers
-  - [ ] Batch 5: Biography Anchors
-    - [ ] Task 7: BiographyProfilePreprocessor anchor integration
-  - [ ] Batch 6: Cognitive + Retrieval
-    - [ ] Task 8: EntityAwareSalienceStrategy + ModulationFactor
-    - [ ] Task 9: entity-scoped reflection belief-revision ToM
+    - [x] Task 5: wire ExtractionRequestedObserver annotations
+  - [x] Batch 4: CDI Lifecycle
+    - [x] Task 6: annotation CDI lifecycle observers
+  - [x] Batch 5: Biography Anchors
+    - [x] Task 7: BiographyProfilePreprocessor anchor integration
+  - [x] Batch 6: Cognitive + Retrieval
+    - [x] Task 8: EntityAwareSalienceStrategy + ModulationFactor
+    - [x] Task 9: entity-scoped reflection belief-revision ToM
