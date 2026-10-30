@@ -85,7 +85,7 @@ Annotations use a `(sourceType: String, sourceId: String)` pair owned by annotat
 | `memory` | memory ID (UUID) | Experience, belief, reflection memories |
 | `mindmap-node` | node ID (UUID) | MindMap node body properties |
 | `biography` | passage ID | Biography YAML passages |
-| `conversation-turn` | turn ID | Runtime conversation segments |
+| `conversation-turn` | batchId (UUID) | Runtime conversation extraction batches |
 
 ### Annotation confidence
 
@@ -495,7 +495,7 @@ Only merge retires a node ID — handled by `MergeRepointObserver`.
 - `AnchorAnnotationParser`: bracket stripping, offset computation, nested brackets (error), unregistered aliases
 - `MergeRepointObserver`: CDI event firing → annotation repointing end-to-end
 - `MemoryEntityErasedObserver`: CDI event firing → annotation cleanup end-to-end
-- Cognitive integration: entity-aware salience with annotated observations
+- Cognitive integration: one-sided entity-aware salience with concern annotations matched against raw observation text
 
 ## References
 
