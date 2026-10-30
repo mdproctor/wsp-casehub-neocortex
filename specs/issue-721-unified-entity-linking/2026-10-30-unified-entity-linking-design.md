@@ -60,8 +60,8 @@ public record EntityAnnotation(
     String sourceType,         // "memory" | "mindmap-node" | "biography" | "conversation-turn"
     String sourceId,           // opaque — memory ID, node ID, passage ID, etc.
     String entityNodeId,       // opaque MindMap node ID
-    int startOffset,           // inclusive, 0-based character position in source text
-    int endOffset,             // exclusive
+    int startOffset,           // inclusive, 0-based Java char index (UTF-16 code unit position)
+    int endOffset,             // exclusive — String.substring(startOffset, endOffset) recovers mentionText
     String mentionText,        // surface form: "he", "the detective", "James"
     Double confidence,         // optional, 0.0–1.0, producer-assigned
     String method,             // "manual" | "llm-extraction" | "yaml-anchor"
@@ -99,6 +99,10 @@ Optional score (0.0–1.0), producer-assigned:
 
 Annotations are immutable. Correction is delete + re-create. Re-extraction produces fresh annotations with corrected links. No versioning, no optimistic locking.
 
+### Re-annotation trigger
+
+Memories in this platform are immutable once stored — experiences, beliefs, and reflections create new memory records rather than mutating existing text. Annotations therefore do not go stale from text mutation. If extraction improves (better LLM prompt, updated coreference model), re-extraction can be triggered per-source: delete existing annotations for the source via `removeBySource()`, then re-extract. This is an operational concern, not a design-time trigger.
+
 ### Tenancy
 
 Tenant-scoped per platform protocol. Every annotation carries `tenantId`. All SPI query methods require `tenantId`. The SQLite store enforces tenant isolation unconditionally.
@@ -135,6 +139,11 @@ public interface EntityAnnotationIndex {
 
     // --- Aggregate ---
     Set<String> distinctEntitiesInSource(String sourceType, String sourceId, String tenantId);
+
+    // Consumer: EntityAwareSalienceStrategy uses mention frequency as a baseline
+    // salience signal — frequently mentioned entities across the corpus are
+    // higher-salience candidates. Also used by MindMap admin views for
+    // entity importance ranking.
     Map<String, Long> entityMentionCounts(String tenantId);
 }
 ```
@@ -151,6 +160,10 @@ annotation-api/          — Tier 1 pure Java, zero CDI.
 
 annotation-sqlite/       — SqliteEntityAnnotationIndex @ApplicationScoped.
                            SQLite + HikariCP WAL + Flyway.
+                           Flyway migration path: db/annotation/migration/ (module-scoped,
+                           following neocortex convention — each module owns its own
+                           Flyway directory with independent V-numbers per
+                           flyway-version-range-allocation Rule 4).
                            Indexes: (tenant_id, entity_node_id),
                                     (tenant_id, source_type, source_id),
                                     (tenant_id, owner_subject_id).
@@ -185,13 +198,14 @@ Root Java package: `io.casehub.neocortex.annotation`
 
 ### Phase 1: Semantic (LLM)
 
-Extend `ParsedExtraction` to carry mention spans:
+Extend `ParsedExtraction` (in `mindmap-intelligence`) to carry mention spans:
 
 ```java
+// mindmap-intelligence — LLM extraction output type
 public record ParsedMention(
     String entityName,    // canonical name from ParsedEntity
     String surfaceForm,   // what appeared in text: "he", "the detective", "James"
-    int mentionIndex      // ordering within the text (for positional disambiguation)
+    int mentionIndex      // global ordering within the text (for positional disambiguation)
 ) {}
 
 public record ParsedExtraction(
@@ -210,36 +224,47 @@ The LLM reports semantic information (which surface forms refer to which entitie
 
 ### Phase 2: Positional (programmatic)
 
-`AnnotationSpanResolver` (pure Java, in annotation-api):
+`AnnotationSpanResolver` (pure Java, in annotation-api) uses its own input type `MentionInput` — not `ParsedMention` from mindmap-intelligence. This preserves the tier boundary: annotation-api (Tier 1) does not depend on mindmap-intelligence (Tier 2+). The integration point maps `ParsedMention → MentionInput`.
 
 ```java
+// annotation-api — resolver input type (Tier 1)
+public record MentionInput(
+    String entityName,    // canonical entity name
+    String surfaceForm,   // what appeared in text
+    int mentionIndex      // global text-order position
+) {}
+
 public class AnnotationSpanResolver {
-    public List<ResolvedSpan> resolve(String text, List<ParsedMention> mentions);
+    public List<ResolvedSpan> resolve(String text, List<MentionInput> mentions);
 }
 
 public record ResolvedSpan(
     String entityName,
     String surfaceForm,
-    int startOffset,    // inclusive, 0-based
+    int startOffset,    // inclusive, 0-based Java char index (UTF-16 code units)
     int endOffset,      // exclusive
     int mentionIndex
 ) {}
 ```
 
-**Resolution strategy:** Sequential scan. For each mention in order:
-1. Search text for the exact surface form starting from the last resolved position
-2. If found, record offsets and advance the scan position
-3. If not found (LLM reported a surface form that doesn't appear), skip with warning
+**Resolution strategy:** Sort-then-scan. The resolver:
+1. Sorts mentions by `mentionIndex` (ascending) to guarantee global text order regardless of LLM output grouping
+2. For each mention in sorted order: search text for the exact surface form starting from the last resolved position
+3. If found, record offsets and advance the scan position
+4. If not found (LLM reported a surface form that doesn't appear), skip with warning
 
-**Disambiguation:** When multiple occurrences of the same surface form exist (e.g., "he" appears three times), the LLM's mention ordering (which reports mentions in text order) combined with sequential scanning naturally selects the correct occurrence.
+**Disambiguation:** When multiple occurrences of the same surface form exist (e.g., "he" appears three times), the sort-by-mentionIndex + sequential scanning naturally selects the correct occurrence. Sorting defensively ensures correctness even if the LLM groups mentions by entity rather than interleaving in text order.
 
 ### Integration point
 
-`ExtractionRequestedObserver` (existing, in mindmap-intelligence) already calls `MindMapExtractor.parse()` + `apply()`. After `apply()` returns entity name→node ID mappings:
+`ExtractionRequestedObserver` (existing, in mindmap-intelligence) already calls `MindMapExtractor.parse()` + `apply()`. After `apply()` returns `ExtractionResult`:
 
-1. Call `AnnotationSpanResolver.resolve(text, mentions)` to compute offsets
-2. Map entity names to node IDs (from the extraction result's `nameToNodeId`)
-3. Write annotations to `EntityAnnotationIndex` via `addAnnotations()`
+1. Map `ParsedMention → MentionInput` (trivial record mapping across the tier boundary)
+2. Call `AnnotationSpanResolver.resolve(text, mentionInputs)` to compute offsets
+3. Reconstruct entity name → node ID mapping from `result.entities()`: `result.entities().stream().collect(toMap(ExtractedEntity::name, ExtractedEntity::nodeId))`
+4. Write annotations to `EntityAnnotationIndex` via `addAnnotations()`
+
+Note: `ExtractionResult` does not expose a `nameToNodeId` field directly — the mapping is reconstructed from `ExtractedEntity.name()` and `ExtractedEntity.nodeId()` on the `ExtractionResult.entities()` list.
 
 This path handles both:
 - **Authored corpus:** biography import pipeline → MindMapExtractor → annotations
@@ -279,6 +304,19 @@ entities:
 
 The import pipeline resolves aliases to canonical names, then resolves canonical names to MindMap node IDs via `MindMapStore.resolveNode()`. Unresolvable aliases produce warnings (entity not yet in graph).
 
+### BiographyLoader integration
+
+The existing `BiographyLoader` uses Jackson to deserialize typed YAML files, then passes the loaded `BiographyProfile` to `BiographyHandler` implementations. Annotation integration adds a new `BiographyHandler` that processes anchor-annotated passages:
+
+1. `BiographyLoader.loadAll()` loads YAML files as today — bracket syntax is transparent to Jackson (it's part of text string values)
+2. A new `AnnotatedBiographyHandler implements BiographyHandler` processes the loaded profile
+3. For each passage with bracket syntax, call `AnchorAnnotationParser.parse(text)` → returns clean text + `List<ParsedAnchor>`
+4. The handler uses clean text for memory creation (via existing `BiographyHandler.handle()` semantics) and the anchor list for annotation creation
+5. Aliases are resolved to MindMap node IDs via `MindMapStore.resolveNode(canonicalName, subgraphId, tenantId)`
+6. Annotations are written to `EntityAnnotationIndex` with `method = "yaml-anchor"` and `confidence = 1.0`
+
+This handler lives in a CDI-capable module that depends on both `memory-seeding` (for `BiographyHandler` SPI) and `annotation-api`. The existing `BiographyLoader` and handler pipeline require no modification.
+
 ## Cognitive Integration
 
 ### Salience — EntityAwareSalienceStrategy
@@ -296,18 +334,19 @@ public class EntityAwareSalienceStrategy implements SalienceStrategy {
     private final SalienceStrategy delegate; // ConcernBasedSalienceStrategy
 
     @Override
-    public PerceivedSituation filter(SalienceContext context) {
+    public PerceivedSituation perceive(SalienceContext context) {
         // 1. Get entity annotations for the observation
         // 2. Get entity references from active drives/goals
         // 3. Compute entity overlap → salience boost
         // 4. Combine with delegate's keyword-based salience
+        // Returns PerceivedSituation(narrative, salience) with entity-aware salience scores
     }
 }
 ```
 
 ### Reflection — Entity-scoped knowledge retrieval
 
-In `ReflectionService` and `LlmReflectionSynthesizer`:
+In `ReflectionSynthesizer` (SPI) and `LlmReflectionSynthesizer` (implementation):
 
 - **Current:** "what do I know?" queries experience memories by text search
 - **New:** "what do I know about X?" is `findByEntity(nodeId)` — returns ALL mentions including pronouns and definite descriptions
@@ -338,12 +377,21 @@ In `MentalModelOrchestrator`:
 ```java
 public class EntityOverlapModulationFactor implements ModulationFactor<Memory> {
     private final EntityAnnotationIndex annotationIndex;
+    private final String tenantId;
     private final Set<String> contextEntityNodeIds;
 
+    public EntityOverlapModulationFactor(EntityAnnotationIndex annotationIndex,
+                                          String tenantId,
+                                          Set<String> contextEntityNodeIds) {
+        this.annotationIndex = annotationIndex;
+        this.tenantId = tenantId;
+        this.contextEntityNodeIds = contextEntityNodeIds;
+    }
+
     @Override
-    public double apply(Memory memory, ModulationContext ctx) {
+    public double apply(Memory memory, ModulationProfile<Memory> profile) {
         Set<String> memoryEntities = annotationIndex.distinctEntitiesInSource(
-            "memory", memory.memoryId(), ctx.tenantId());
+            "memory", memory.memoryId(), tenantId);
         long overlap = memoryEntities.stream()
             .filter(contextEntityNodeIds::contains).count();
         if (overlap == 0) return 1.0;
@@ -352,19 +400,23 @@ public class EntityOverlapModulationFactor implements ModulationFactor<Memory> {
 }
 ```
 
-Constructor-injected, following `GoalRelevanceModulationFactor` precedent. Plugs into existing `RetrievalModulator` infrastructure. Entity overlap is a signal, not a gate — memories without overlap can still be retrieved via vector similarity.
+Constructor-injected `tenantId` following `GoalRelevanceModulationFactor` precedent (which also takes `MindMapStore store, String tenantId` via constructor). Plugs into existing `RetrievalModulator` infrastructure. Entity overlap is a signal, not a gate — memories without overlap can still be retrieved via vector similarity.
 
 ## Lifecycle Events
 
 | Event | Source | Observer | Action |
 |-------|--------|----------|--------|
 | `MemoryEntityErased.ByEntity` | CaseMemoryStore | `MemoryEntityErasedObserver` | Delete by `(sourceType="memory", ownerSubjectId=subject.id(), tenantId)` |
-| `MemoryEntityErased.ByRequest` | CaseMemoryStore | `MemoryEntityErasedObserver` | Same, scoped by domain |
+| `MemoryEntityErased.ByRequest` | CaseMemoryStore | `MemoryEntityErasedObserver` | Same as ByEntity — deletes all memory-source annotations for the subject. Over-deletion is accepted: annotations for non-erased domains are recreated on next extraction. The SPI has no domain parameter because adding a domain field to every annotation adds model complexity for a single lifecycle edge case. |
 | `MemoryEntityErased.CrossTenant` | CaseMemoryStore | `MemoryEntityErasedObserver` | Iterate affected tenants |
 | `GraphMutationRecorded` → `NodesMerged` | MutationTrackingDecorator | `MergeRepointObserver` | `repointEntity(absorbedId, survivorId, tenantId)` + dedup |
 | `EntityAnnotated` | EntityAnnotationIndex | (downstream) | Available for reactive consumers |
 
 ### Merge repointing detail
+
+`MergeRepointObserver` uses `@Observes` (synchronous CDI observation), not `@ObservesAsync`. This is mandatory because `MutationTrackingCdiDecorator` fires events via `event::fire` (synchronous); CDI spec: `fire()` triggers `@Observes`, `fireAsync()` triggers `@ObservesAsync` — they don't cross.
+
+**Transactional coupling:** Synchronous observation means annotation repointing happens within the merge transaction. This provides consistency (no window where annotations point to a retired node) but requires that `repointEntity()` be a lightweight SQL UPDATE, not expensive I/O that would block the merge path.
 
 When `mergeNodes(keepId, removeId, tenantId)` fires `GraphMutationRecorded` wrapping `NodesMerged(survivorId=keepId, absorbedId=removeId)`:
 
