@@ -13,13 +13,13 @@ flyway-next-v:
 
 ## Queue
 - [ ] casehubio/neocortex#721 — Issue #721 ← active
-  - [ ] Batch 1: Core API + InMem
-    - [ ] Task 1: annotation-api value types SPI utilities
-    - [ ] Task 2: annotation-testing + annotation-inmem contract tests
-  - [ ] Batch 2: SQLite Persistence
-    - [ ] Task 3: annotation-sqlite SQLite store
+  - [x] Batch 1: Core API + InMem
+    - [x] Task 1: annotation-api value types SPI utilities
+    - [x] Task 2: annotation-testing + annotation-inmem contract tests
+  - [x] Batch 2: SQLite Persistence
+    - [x] Task 3: annotation-sqlite SQLite store
   - [ ] Batch 3: Extraction Pipeline
-    - [ ] Task 4: extend MindMapExtractor with ParsedMention
+    - [x] Task 4: extend MindMapExtractor with ParsedMention
     - [ ] Task 5: wire ExtractionRequestedObserver annotations
   - [ ] Batch 4: CDI Lifecycle
     - [ ] Task 6: annotation CDI lifecycle observers
