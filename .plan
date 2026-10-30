@@ -2,7 +2,7 @@
 
 ## State
 branch: issue-721-unified-entity-linking
-state: active
+state: closing:review
 project-sha: 
 date: 
 issue-repo: casehubio/neocortex
@@ -11,20 +11,6 @@ design-repo:
 design-section-hashes: 
 flyway-next-v: 
 
+evidence-era: true
 ## Queue
-- [ ] casehubio/neocortex#721 — Issue #721 ← active
-  - [x] Batch 1: Core API + InMem
-    - [x] Task 1: annotation-api value types SPI utilities
-    - [x] Task 2: annotation-testing + annotation-inmem contract tests
-  - [x] Batch 2: SQLite Persistence
-    - [x] Task 3: annotation-sqlite SQLite store
-  - [x] Batch 3: Extraction Pipeline
-    - [x] Task 4: extend MindMapExtractor with ParsedMention
-    - [x] Task 5: wire ExtractionRequestedObserver annotations
-  - [x] Batch 4: CDI Lifecycle
-    - [x] Task 6: annotation CDI lifecycle observers
-  - [x] Batch 5: Biography Anchors
-    - [x] Task 7: BiographyProfilePreprocessor anchor integration
-  - [x] Batch 6: Cognitive + Retrieval
-    - [x] Task 8: EntityAwareSalienceStrategy + ModulationFactor
-    - [x] Task 9: entity-scoped reflection belief-revision ToM
+- [x] casehubio/neocortex#721 — Issue #721
