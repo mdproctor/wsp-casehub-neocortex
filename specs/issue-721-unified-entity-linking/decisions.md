@@ -52,16 +52,17 @@
 
 ## D5: Memory lifecycle handling
 
-**Choice:** CDI event observer on MemoryEntityErased, deleting annotations by (tenantId, sourceType, entity scope)
+**Choice:** CDI event observer on MemoryEntityErased, deleting annotations by (tenantId, sourceType, ownerSubjectId)
 **Alternatives:**
 - Decorator on CaseMemoryStore — tighter coupling, atomic but Memory shouldn't know about annotations
 - Periodic reconciliation — eventually consistent, allows stale data to linger
 - Modify erasure event to carry memory IDs — changes the event contract for a single consumer
-**Rationale:** MemoryEntityErased CDI events already fire on erase. Decoupled — annotation index is optional, Memory doesn't know about it. The event carries Subject and tenantId but not individual memory IDs (the memories are already deleted when the event fires). The observer deletes annotations by scoping: (sourceType="memory", tenantId, entity matching subject) — using the text source identity scheme (D16) and tenant scoping. No subject→memoryId mapping needed.
-**Trade-offs:** Small window where annotations reference a deleted memory. Acceptable — no consumer will find the memory to render against. Deletion is slightly broader than necessary (by subject scope rather than individual memory ID), but this is correct — all memories for that subject in that tenant have been erased.
-**Sources:** MemoryEntityErased sealed interface (ByRequest, ByEntity, CrossTenant variants), CaseMemoryStore SPI
+- Delete by entity_node_id matching resolved subject — identity mismatch (Subject.id() is an entity name, entity_node_id is a MindMap node UUID), scope incompleteness (misses annotations from subject's memories about other entities), and MindMapStore race condition (node may already be erased)
+**Rationale:** MemoryEntityErased CDI events already fire on erase. Decoupled — annotation index is optional, Memory doesn't know about it. The event carries Subject (with `id()` = entity name like "alice") and tenantId but not individual memory IDs. Each memory-sourced annotation carries an indexed `ownerSubjectId` field — the `Subject.id()` of the memory owner, set at creation time from `Memory.subject().id()`. On `MemoryEntityErased.ByEntity(tenantId, count, subject, erasedAt)`, the observer deletes all annotations where `ownerSubjectId = subject.id() AND sourceType = "memory" AND tenantId` matches. This avoids the identity mismatch (comparing entity names to entity names, not to MindMap node UUIDs), provides complete scope (deletes ALL annotations from the subject's memories regardless of which entities they reference), and requires no MindMapStore dependency at deletion time. For ByRequest: same mechanism scoped by domain. For CrossTenant: iterate affected tenants. The observer depends on annotation-api and memory-api only — no MindMapStore.
+**Trade-offs:** Small window where annotations reference a deleted memory. Acceptable — no consumer will find the memory to render against. The `ownerSubjectId` field is nullable — non-memory source types may not have a meaningful owner subject.
+**Sources:** MemoryEntityErased sealed interface (ByRequest, ByEntity, CrossTenant variants), Memory.subject(), MindMapBeans.onMemoryEntityErased() pattern (uses subject().id() directly as entity name)
 **Exploration:** quick
-**Status:** revised — R1-07: specified deletion mechanism addressing the chicken-and-egg problem with memory IDs
+**Status:** revised — R1-07 + R2-02 + R2-04: ownerSubjectId mechanism for identity-correct, scope-complete deletion
 
 ## D6: Merge handling
 
@@ -70,11 +71,11 @@
 - MindMapStore decorator — atomic but tighter coupling; annotation index is a cross-cutting concern, not a MindMap concern
 - Dedicated CDI event type for merges — new infrastructure; GraphMutationRecorded already wraps all mutation variants
 - Both decorator + event — belt-and-suspenders, over-engineered
-**Rationale:** Rename is safe (node ID unchanged). Only merge retires a node ID. MutationTrackingCdiDecorator fires GraphMutationRecorded wrapping GraphMutation.NodesMerged(survivorId, absorbedId, conflictsResolved, timestamp, source). The annotation observer lives in a CDI-capable module (e.g. annotation-cdi), not in annotation-api (Tier 1). This follows the established pattern: types in Tier 1, CDI integration in a separate module. Depends on cognitive-observability-core for the GraphMutation sealed type — acceptable, it's a Tier 1 types-only module.
+**Rationale:** Rename is safe (node ID unchanged). Only merge retires a node ID. MutationTrackingCdiDecorator fires GraphMutationRecorded wrapping GraphMutation.NodesMerged(survivorId, absorbedId, conflictsResolved, timestamp, source). The annotation observer lives in a CDI-capable module (e.g. annotation-cdi), not in annotation-api (Tier 1). This follows the established pattern: types in Tier 1, CDI integration in a separate module. Depends on cognitive-observability-core for the GraphMutation sealed type — this is a Tier 2 core module (contains MutationTrackingDecorator extending AbstractForwardingMindMapStore, with compile dependencies on mindmap-core, mindmap-intelligence, cognitive-index, jackson-databind). The transitive dependency weight is acceptable for the annotation-cdi module (CDI-capable, Tier 2+). Optional optimization: extract GraphMutation and GraphMutationRecorded types (which themselves depend only on Tier 1 modules: MergeConflict from mindmap-api, Confidence from cognitive-api) into a dedicated cognitive-observability-api Tier 1 module, following the standard three-tier split.
 **Trade-offs:** Small window where annotations reference a retired node. Needs strong TDD — merge + annotation repointing is correctness-critical. Contract tests must cover: merge repoints, merge with duplicate spans (deduplication after repointing), merge cascade.
 **Sources:** MutationTrackingDecorator.mergeNodes(), MutationTrackingCdiDecorator, GraphMutationRecorded, GraphMutation.NodesMerged
 **Exploration:** quick
-**Status:** revised — R1-03: specified exact mechanism (GraphMutationRecorded + pattern match) and observer module placement
+**Status:** revised — R1-03 + R2-03: specified exact mechanism (GraphMutationRecorded + pattern match), observer module placement, corrected cognitive-observability-core tier characterization from Tier 1 to Tier 2
 
 ## D7: Surface form storage
 
