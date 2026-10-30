@@ -20,9 +20,10 @@
 - MindMap node properties — inverts the natural direction (text owns spans, not entities)
 **Rationale:** First-principles analysis. Entity→text is the primary query direction. Annotations span multiple text sources (memories, MindMap node bodies, biography YAML, conversation turns). A dedicated index is the only option serving all sources without dual storage. Directly queryable both directions via indexed columns.
 **Trade-offs:** Another store to manage — but it's a single SQLite table following existing patterns (SqliteRetrievalTracker, SqliteCbrRetrievalTracker).
-**Sources:** Memory.java, MindMapNode.java, NodeRef.java, first-principles analysis of query directions
+**Tenancy:** The annotation index is tenant-scoped per the tenancy-repository-pattern protocol. Every annotation carries tenantId. All SPI query methods require tenantId. The SQLite store enforces tenant isolation unconditionally — no conditional filtering, no deployment-mode gates.
+**Sources:** Memory.java, MindMapNode.java, NodeRef.java, first-principles analysis of query directions, tenancy-repository-pattern protocol
 **Exploration:** deep-analysis
-**Status:** captured
+**Status:** revised — R1-12: made tenancy scoping explicit per platform protocol
 
 ## D3: Coreference model
 
@@ -38,39 +39,42 @@
 
 ## D4: Annotation production mechanism
 
-**Choice:** Extend MindMapExtractor output to include span offsets
+**Choice:** Two-phase: LLM produces surface form mentions + coreference links during extraction, programmatic code computes character offsets via deterministic string matching
 **Alternatives:**
-- Separate annotation pass — double the LLM cost, cleaner separation
+- LLM produces character offsets directly — unreliable; LLMs hallucinate positions, miscounting whitespace, multi-byte characters, and token boundaries
+- Separate annotation pass — additional LLM call adds latency and consistency risk for a task that is a natural extension of extraction output
 - Inline YAML anchors only — only works for named mentions, not pronouns
-**Rationale:** MindMapExtractor already processes text and identifies entities. The LLM already knows where entities appear — asking it to report character offsets is a prompt extension, not a new capability. No additional LLM call.
-**Trade-offs:** Couples annotation production to extraction. If extraction fails, annotations fail too. Acceptable — annotations without extracted entities are meaningless anyway.
+**Rationale:** Entity identification and coreference resolution are semantic tasks the LLM excels at. Character offset computation is a positional task the LLM does poorly. MindMapExtractor already identifies entities and resolves coreferences. Extending its output to report surface form mentions ("He" → "James Pond") is a semantic extension. A programmatic post-pass locates those surface forms in the original text and computes exact character offsets — zero hallucination risk.
+**Trade-offs:** Couples annotation production to extraction. If extraction fails, annotations fail too. Acceptable — annotations without extracted entities are meaningless anyway. Surface form matching may encounter ambiguity (multiple occurrences of the same surface form) — resolved by positional context from the LLM's mention ordering.
 **Sources:** MindMapExtractor.java (parse/apply split), ParsedExtraction.java, ParsedEntity.java
 **Exploration:** quick
-**Status:** captured
+**Status:** revised — R1-02: adopted two-phase approach separating semantic identification (LLM) from positional computation (code)
 
 ## D5: Memory lifecycle handling
 
-**Choice:** CDI event observer on MemoryEntityErased
+**Choice:** CDI event observer on MemoryEntityErased, deleting annotations by (tenantId, sourceType, entity scope)
 **Alternatives:**
 - Decorator on CaseMemoryStore — tighter coupling, atomic but Memory shouldn't know about annotations
 - Periodic reconciliation — eventually consistent, allows stale data to linger
-**Rationale:** MemoryEntityErased CDI events already fire on erase. Decoupled — annotation index is optional, Memory doesn't know about it. Consistent with existing CDI event patterns across neocortex.
-**Trade-offs:** Small window where annotations reference a deleted memory. Acceptable — no consumer will find the memory to render against.
-**Sources:** MemoryEntityErased sealed interface, CaseMemoryStore SPI
+- Modify erasure event to carry memory IDs — changes the event contract for a single consumer
+**Rationale:** MemoryEntityErased CDI events already fire on erase. Decoupled — annotation index is optional, Memory doesn't know about it. The event carries Subject and tenantId but not individual memory IDs (the memories are already deleted when the event fires). The observer deletes annotations by scoping: (sourceType="memory", tenantId, entity matching subject) — using the text source identity scheme (D16) and tenant scoping. No subject→memoryId mapping needed.
+**Trade-offs:** Small window where annotations reference a deleted memory. Acceptable — no consumer will find the memory to render against. Deletion is slightly broader than necessary (by subject scope rather than individual memory ID), but this is correct — all memories for that subject in that tenant have been erased.
+**Sources:** MemoryEntityErased sealed interface (ByRequest, ByEntity, CrossTenant variants), CaseMemoryStore SPI
 **Exploration:** quick
-**Status:** captured
+**Status:** revised — R1-07: specified deletion mechanism addressing the chicken-and-egg problem with memory IDs
 
 ## D6: Merge handling
 
-**Choice:** CDI event observer on merge (repoint removeNodeId → keepNodeId)
+**Choice:** CDI event observer on GraphMutationRecorded, pattern-matching on NodesMerged variant (repoint absorbedId → survivorId)
 **Alternatives:**
-- MindMapStore decorator — atomic but tighter coupling
+- MindMapStore decorator — atomic but tighter coupling; annotation index is a cross-cutting concern, not a MindMap concern
+- Dedicated CDI event type for merges — new infrastructure; GraphMutationRecorded already wraps all mutation variants
 - Both decorator + event — belt-and-suspenders, over-engineered
-**Rationale:** Rename is safe (node ID unchanged). Only merge retires a node ID. CDI event observer repoints annotations from removed node to surviving node. Decoupled and testable.
-**Trade-offs:** Small window where annotations reference a retired node. Needs strong TDD — merge + annotation repointing is correctness-critical. Contract tests must cover: merge repoints, merge with duplicate spans (same entity mentioned via both merged nodes), merge cascade.
-**Sources:** MindMapStore.mergeNodes(), MergeResult.java
+**Rationale:** Rename is safe (node ID unchanged). Only merge retires a node ID. MutationTrackingCdiDecorator fires GraphMutationRecorded wrapping GraphMutation.NodesMerged(survivorId, absorbedId, conflictsResolved, timestamp, source). The annotation observer lives in a CDI-capable module (e.g. annotation-cdi), not in annotation-api (Tier 1). This follows the established pattern: types in Tier 1, CDI integration in a separate module. Depends on cognitive-observability-core for the GraphMutation sealed type — acceptable, it's a Tier 1 types-only module.
+**Trade-offs:** Small window where annotations reference a retired node. Needs strong TDD — merge + annotation repointing is correctness-critical. Contract tests must cover: merge repoints, merge with duplicate spans (deduplication after repointing), merge cascade.
+**Sources:** MutationTrackingDecorator.mergeNodes(), MutationTrackingCdiDecorator, GraphMutationRecorded, GraphMutation.NodesMerged
 **Exploration:** quick
-**Status:** captured
+**Status:** revised — R1-03: specified exact mechanism (GraphMutationRecorded + pattern match) and observer module placement
 
 ## D7: Surface form storage
 
@@ -137,11 +141,12 @@
 **Alternatives:**
 - In mindmap-api — adds text-centric concern to graph-centric module
 - In cognitive-api — annotations more fundamental than cognition
-**Rationale:** Annotations bridge text and graph — orthogonal to both. Follows existing Tier 1 module patterns (fusion-api, corpus-api, thing-api). SPI + value types in annotation-api. SQLite impl in annotation-sqlite. In-memory in annotation-inmem. Contract tests in annotation-testing.
+**Rationale:** Annotations bridge text and graph — orthogonal to both. Follows existing Tier 1 module patterns (fusion-api, corpus-api, thing-api). SPI + value types in annotation-api. SQLite impl in annotation-sqlite. In-memory in annotation-inmem. Contract tests in annotation-testing. CDI event observers (for merge handling D6, memory lifecycle D5) live in a separate CDI-capable module (annotation-cdi), not in annotation-api.
+**Dependency boundary:** annotation-api does NOT depend on mindmap-api. Entity node IDs are opaque `String` identifiers per the platform's cross-module identifier convention. Resolution from entity name → node ID (via `MindMapStore.resolveNode()`) happens in the annotation-producing code, which lives in a higher-tier CDI-capable module. annotation-api defines its own text source identity type (D16) rather than importing `NodeRef` from mindmap-api.
 **Trade-offs:** More modules. Acceptable — clean boundaries pay for themselves in test isolation.
-**Sources:** fusion-api, corpus-api, thing-api module patterns
+**Sources:** fusion-api, corpus-api, thing-api module patterns, module-tier-structure protocol
 **Exploration:** quick
-**Status:** captured
+**Status:** revised — R1-09: made dependency boundary and opaque identifier convention explicit
 
 ## D13: Architecture coupling
 
@@ -178,4 +183,42 @@
 **Trade-offs:** Registry must be maintained alongside YAML content. Acceptable — it's a manifest, consistent with existing corpus patterns.
 **Sources:** Issue #721, existing biography YAML structure
 **Exploration:** quick
+**Status:** captured
+
+## D16: Text source identity scheme
+
+**Choice:** Tagged union — `(sourceType: String, sourceId: String)` pair owned by annotation-api
+**Alternatives:**
+- Reuse NodeRef(scheme, id, qualifier) from mindmap-api — creates forbidden cross-module dependency (D12)
+- URI scheme (e.g., `memory:abc123`, `mindmap:node-456`) — overengineered string parsing for a simple identity problem
+- Untyped string ID — loses source-type information needed for scoped deletion (D5) and cross-source queries
+**Rationale:** Annotations span multiple text sources: memories, MindMap node bodies, biography YAML, conversation turns. Each annotation needs to identify its source for two operations: querying by source ("all annotations on this memory") and scoped deletion ("delete all memory-source annotations for this tenant"). A simple (sourceType, sourceId) pair provides both. Source types are well-known strings: "memory", "mindmap-node", "biography", "conversation-turn". Source IDs are opaque — the annotation index stores and indexes them without resolving them. This follows the same opaque identifier convention as NodeRef but without the mindmap-api dependency.
+**Trade-offs:** Adding new source types requires updating consumers that switch on sourceType. Acceptable — new text sources are infrequent and each requires integration work regardless.
+**Sources:** NodeRef pattern, D2 (multiple text sources), D5 (scoped deletion), D12 (dependency boundary)
+**Exploration:** quick — surfaced by R1-10 reviewer challenge
+**Status:** captured
+
+## D17: Annotation confidence model
+
+**Choice:** Optional confidence score (0.0–1.0) per annotation, producer-assigned
+**Alternatives:**
+- No confidence — all annotations equally authoritative regardless of source
+- Post-hoc calibration step — adds pipeline complexity for uncertain accuracy improvement
+- Hardcoded heuristic (named=1.0, pronoun=0.7, implicit=0.5) — ignores context-specific ambiguity
+**Rationale:** LLM-produced annotations have varying accuracy: named entity mentions are high-confidence, pronoun coreferences depend on antecedent ambiguity, implicit references are lowest. The LLM is the best judge of its own uncertainty for a given resolution. Authored YAML annotations (D1) default to 1.0 — human-authored annotations are correct by definition. Downstream consumers (salience, reflection, belief revision, ToM per D11) can weight annotations by confidence.
+**Trade-offs:** Confidence scores are LLM-dependent and may not be well-calibrated. Acceptable — even approximate confidence is better than treating all annotations as equal. Consumers can ignore confidence if they prefer uniform treatment.
+**Sources:** R1-06, R1-11 reviewer challenges, D4 (LLM production), D11 (cognitive integration)
+**Exploration:** quick — surfaced by R1-11 reviewer challenge
+**Status:** captured
+
+## D18: Annotation correctability
+
+**Choice:** Immutable — correction is delete + re-create
+**Alternatives:**
+- Mutable update path — adds complexity (optimistic locking, partial update semantics) for marginal benefit
+- Versioned annotations — tracks correction history, over-engineered for the use case
+**Rationale:** Annotations are lightweight standoff records. Re-extraction naturally produces fresh annotations with corrected links. An update path would require conflict resolution semantics (what if the original annotation was modified by merge repointing D6 between creation and correction?) that add complexity without benefit. Delete + re-create is atomic and idempotent.
+**Trade-offs:** No correction history. Acceptable — annotations are derived data, not primary records. The source (extraction or YAML) is the authoritative record.
+**Sources:** R1-11 reviewer challenge, platform event-sourcing patterns
+**Exploration:** quick — surfaced by R1-11 reviewer challenge
 **Status:** captured
