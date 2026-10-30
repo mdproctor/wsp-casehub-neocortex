@@ -2,29 +2,28 @@
 
 ## Last Session
 
-Completed #587 — Graduated SituationClassifier. Landed 3 squashed commits on main. Set up #721 branch for next session.
+Designed and began implementing #721 — unified entity linking. Full brainstorming → 18 decisions (reviewed) → spec (reviewed) → implementation plan → 4 of 9 tasks complete (Batches 1-2 + Task 4).
 
-### #587 — Graduated SituationClassifier (L/High) — CLOSED
+### #721 — Unified Entity Linking (XL/High) — IN PROGRESS
 
-Widened `SituationClassifier` SPI with `ClassificationContext` (three-param abstract, two-param default with NONE). Created CDI producer for `LlmSituationClassifier` via `@Produces` in `caps-llm-classifier`. New `caps-situation-cbr` module with `CbrCachingSituationDecorator` (`@Decorator @Priority(60)`) — checks CBR for cached classifications via embedding similarity before delegating to LLM. Fixed session concurrency bug (per-invocation UUIDs). Wired `CognitionCoreFactory` to inject `SituationClassifier` into programmatic consumers.
+**Completed:** annotation-api (SPI + value types + AnnotationSpanResolver + AnchorAnnotationParser, 14 tests), annotation-testing (16 contract tests), annotation-inmem (passes all contracts), annotation-sqlite (passes all contracts), ParsedMention + MindMapExtractor prompt extension.
 
-Filed follow-up issues: #724 (progressive trust framework), #725 (classification outcome learning).
+**Blocker:** Pre-existing compilation errors in mindmap-intelligence (`BehavioralSynthesisPhase` + `DriveProfileDerivationPhase` — `ClassificationResult` type mismatch from prior refactor). Blocks test execution for Tasks 5, 7 and anything else in mindmap-intelligence. Fix this first before continuing.
+
+**Follow-up issues filed:** #727 (extract GraphMutation types to Tier 1), #728 (ARC42STORIES entries), #729 (annotation pagination), #730 (EntityAnnotated CDI event).
 
 ## Active Branch
 
-`issue-721-unified-entity-linking` — scaffolded, no work done. Branch exists in both project and workspace repos.
+`issue-721-unified-entity-linking` — 4 commits on project repo, design artifacts in workspace.
 
 ## Suggested Next
 
-**#721 — Unified entity linking** (XL/High). Bridge text corpus and knowledge graph via standoff annotation.
-
-**User direction for brainstorm:**
-- Start with scoping — this is XL, needs decomposition
-- Compact indexes — light and fast, not heavyweight infrastructure
-- Brainstorm is the first step — don't skip to implementation
+1. **Fix ClassificationResult mismatch** in mindmap-intelligence (pre-existing, unrelated to #721)
+2. **Continue #721** Tasks 5-9: wire observer, CDI lifecycle, biography anchors, cognitive integration
 
 ## References
 
-- `specs/issue-587-graduated-situation-classifier/2026-10-29-graduated-situation-classifier-design.md` — #587 spec (closed)
-- `blog/2026-10-29-mdp02-when-keywords-lie.md` — diary entry for #587
-- `docs/research/era5-relational-cognition-research.md` — context for #721
+- `specs/issue-721-unified-entity-linking/2026-10-30-unified-entity-linking-design.md` — full spec
+- `specs/issue-721-unified-entity-linking/decisions.md` — 18 reviewed decisions
+- `plans/2026-10-30-unified-entity-linking.md` — implementation plan (6 batches, 9 tasks)
+- `blog/2026-10-30-mdp01-the-pronoun-problem.md` — diary entry
