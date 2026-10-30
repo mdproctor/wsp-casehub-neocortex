@@ -122,7 +122,12 @@ public interface EntityAnnotationIndex {
 
     // --- Query: entity → text (primary direction) ---
     List<EntityAnnotation> findByEntity(String entityNodeId, String tenantId);
+
+    // Returns annotations from source documents that mention BOTH entities.
+    // Same-document constraint: only returns annotations from (sourceType, sourceId) pairs
+    // where both entityNodeId1 and entityNodeId2 have at least one annotation.
     List<EntityAnnotation> findByEntityPair(String entityNodeId1, String entityNodeId2, String tenantId);
+
     List<EntityAnnotation> findByEntities(Set<String> entityNodeIds, String tenantId);
 
     // --- Query: text → entity (secondary direction) ---
