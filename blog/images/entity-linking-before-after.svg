@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 420" font-family="system-ui, -apple-system, sans-serif">
+  <style>
+    .title { font-size: 14px; font-weight: 600; fill: #1a1a2e; }
+    .label { font-size: 12px; fill: #374151; }
+    .label-sm { font-size: 11px; fill: #6b7280; }
+    .node { fill: #f0f9ff; stroke: #3b82f6; stroke-width: 1.5; rx: 6; }
+    .node-text { fill: #1e40af; stroke: #93c5fd; }
+    .memory { fill: #fefce8; stroke: #eab308; stroke-width: 1.5; rx: 6; }
+    .memory-text { fill: #854d0e; stroke: #fde047; }
+    .span { fill: #ecfdf5; stroke: #10b981; stroke-width: 1.5; rx: 4; }
+    .span-text { fill: #065f46; }
+    .arrow { stroke: #9ca3af; stroke-width: 1.2; fill: none; marker-end: url(#arrowhead); }
+    .link { stroke: #10b981; stroke-width: 1.5; stroke-dasharray: 4 3; fill: none; marker-end: url(#greenarrow); }
+    .dim { fill: #d1d5db; stroke: #9ca3af; stroke-width: 1; rx: 6; }
+    .dim-text { fill: #6b7280; }
+    .divider { stroke: #e5e7eb; stroke-width: 1; stroke-dasharray: 6 4; }
+    .section-bg-left { fill: #fafafa; }
+    .section-bg-right { fill: #f0fdf4; }
+  </style>
+  <defs>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#9ca3af"/>
+    </marker>
+    <marker id="greenarrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#10b981"/>
+    </marker>
+  </defs>
+
+  <!-- Background sections -->
+  <rect x="0" y="0" width="390" height="420" class="section-bg-left"/>
+  <rect x="410" y="0" width="390" height="420" class="section-bg-right"/>
+  <line x1="400" y1="0" x2="400" y2="420" class="divider"/>
+
+  <!-- BEFORE: Left side -->
+  <text x="195" y="28" text-anchor="middle" class="title">Before: Three Disconnected Systems</text>
+
+  <!-- Graph nodes -->
+  <text x="80" y="60" class="label-sm">Knowledge Graph</text>
+  <rect x="30" y="70" width="100" height="30" class="node"/>
+  <text x="80" y="90" text-anchor="middle" class="label">James</text>
+  <rect x="160" y="70" width="100" height="30" class="node"/>
+  <text x="210" y="90" text-anchor="middle" class="label">Clara</text>
+  <rect x="280" y="70" width="80" height="30" class="node"/>
+  <text x="320" y="90" text-anchor="middle" class="label">Key</text>
+  <path d="M130,85 L160,85" class="arrow"/>
+
+  <!-- Memory text -->
+  <text x="30" y="140" class="label-sm">Memory Store</text>
+  <rect x="30" y="150" width="340" height="45" class="memory"/>
+  <text x="40" y="168" class="label">"James examined the guest book.</text>
+  <text x="46" y="183" class="label">He opened it carefully."</text>
+
+  <!-- Vector search -->
+  <text x="30" y="225" class="label-sm">Vector Search</text>
+  <rect x="30" y="235" width="150" height="28" class="dim"/>
+  <text x="105" y="254" text-anchor="middle" class="dim-text">embedding similarity</text>
+  <rect x="200" y="235" width="170" height="28" class="dim"/>
+  <text x="285" y="254" text-anchor="middle" class="dim-text">misses "He", "it"</text>
+
+  <!-- Problem callout -->
+  <rect x="50" y="290" width="300" height="55" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="1"/>
+  <text x="200" y="310" text-anchor="middle" font-size="12" fill="#991b1b" font-weight="600">No connection between layers</text>
+  <text x="200" y="328" text-anchor="middle" font-size="11" fill="#991b1b">"What do I know about the key?" → fuzzy results</text>
+
+  <!-- AFTER: Right side -->
+  <text x="600" y="28" text-anchor="middle" class="title">After: Standoff Annotations Bridge Both</text>
+
+  <!-- Graph nodes -->
+  <text x="480" y="60" class="label-sm">Knowledge Graph</text>
+  <rect x="430" y="70" width="100" height="30" class="node"/>
+  <text x="480" y="90" text-anchor="middle" class="label">James</text>
+  <rect x="560" y="70" width="100" height="30" class="node"/>
+  <text x="610" y="90" text-anchor="middle" class="label">Clara</text>
+  <rect x="690" y="70" width="80" height="30" class="node"/>
+  <text x="730" y="90" text-anchor="middle" class="label">Key</text>
+  <path d="M530,85 L560,85" class="arrow"/>
+
+  <!-- Annotation spans -->
+  <text x="430" y="130" class="label-sm">Standoff Annotations</text>
+  <rect x="430" y="140" width="55" height="22" class="span"/>
+  <text x="457" y="155" text-anchor="middle" font-size="10" class="span-text">James</text>
+  <rect x="500" y="140" width="80" height="22" class="span"/>
+  <text x="540" y="155" text-anchor="middle" font-size="10" class="span-text">guest book</text>
+  <rect x="600" y="140" width="30" height="22" class="span"/>
+  <text x="615" y="155" text-anchor="middle" font-size="10" class="span-text">He</text>
+  <rect x="650" y="140" width="22" height="22" class="span"/>
+  <text x="661" y="155" text-anchor="middle" font-size="10" class="span-text">it</text>
+
+  <!-- Links from spans to nodes -->
+  <path d="M457,140 L480,100" class="link"/>
+  <path d="M615,140 L485,100" class="link"/>
+  <path d="M540,140 L730,100" class="link"/>
+  <path d="M661,140 L735,100" class="link"/>
+
+  <!-- Memory text -->
+  <text x="430" y="190" class="label-sm">Memory Store (text unchanged)</text>
+  <rect x="430" y="200" width="340" height="45" class="memory"/>
+  <text x="440" y="218" class="label">"James examined the guest book.</text>
+  <text x="446" y="233" class="label">He opened it carefully."</text>
+
+  <!-- Result callout -->
+  <rect x="450" y="275" width="300" height="70" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1"/>
+  <text x="600" y="295" text-anchor="middle" font-size="12" fill="#065f46" font-weight="600">Every mention linked to its entity</text>
+  <text x="600" y="313" text-anchor="middle" font-size="11" fill="#065f46">"What do I know about the key?"</text>
+  <text x="600" y="328" text-anchor="middle" font-size="11" fill="#065f46">→ finds "guest book" AND "it" — exact, complete</text>
+
+  <!-- Footer -->
+  <text x="400" y="400" text-anchor="middle" font-size="11" fill="#9ca3af">Text stays clean. Annotations are a parallel structure. Pronouns resolved.</text>
+</svg>
