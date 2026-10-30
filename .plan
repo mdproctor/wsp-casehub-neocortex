@@ -2,7 +2,7 @@
 
 ## State
 branch: issue-731-cognitive-pipeline-wiring
-state: closing:review
+state: closing:verified
 project-sha: 42392b56dd9ec974c5465797e13a93dca4502c8d
 date: 2026-10-30
 issue-repo: casehubio/neocortex
