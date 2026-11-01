@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 260" font-family="'Inter', 'Segoe UI', system-ui, sans-serif" font-size="13">
+  <style>
+    .box { rx: 6; ry: 6; stroke-width: 1.5; }
+    .input { fill: #e3f2fd; stroke: #42a5f5; }
+    .strategy { fill: #e8f5e9; stroke: #66bb6a; }
+    .decorator { fill: #fff3e0; stroke: #ffa726; }
+    .output { fill: #f3e5f5; stroke: #ab47bc; }
+    .fallback { fill: #eceff1; stroke: #90a4ae; }
+    .label { font-weight: 600; fill: #263238; }
+    .sublabel { fill: #546e7a; font-size: 11px; }
+    .detail { fill: #78909c; font-size: 10.5px; font-style: italic; }
+    .arrow { stroke: #546e7a; stroke-width: 1.5; fill: none; marker-end: url(#arrow2); }
+    .arrow-alt { stroke: #90a4ae; stroke-width: 1.2; fill: none; stroke-dasharray: 5 3; marker-end: url(#arrow2g); }
+    .decision { fill: #fff9c4; stroke: #f9a825; rx: 4; ry: 4; }
+  </style>
+  <defs>
+    <marker id="arrow2" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#546e7a"/>
+    </marker>
+    <marker id="arrow2g" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#90a4ae"/>
+    </marker>
+  </defs>
+
+  <text x="360" y="22" text-anchor="middle" font-size="15" font-weight="700" fill="#37474f">Salience pipeline: layered composition via CDI</text>
+
+  <!-- Observation input -->
+  <rect x="20" y="50" width="120" height="50" class="box input"/>
+  <text x="80" y="72" text-anchor="middle" class="label">Observation</text>
+  <text x="80" y="88" text-anchor="middle" class="sublabel">"Frida painted today"</text>
+
+  <path d="M140,75 L175,75" class="arrow"/>
+
+  <!-- CDI decision -->
+  <rect x="178" y="44" width="130" height="62" class="box decision"/>
+  <text x="243" y="66" text-anchor="middle" class="label">CDI Producer</text>
+  <text x="243" y="82" text-anchor="middle" class="sublabel">MindMapStore</text>
+  <text x="243" y="96" text-anchor="middle" class="sublabel">available?</text>
+
+  <!-- Yes path -->
+  <path d="M308,65 L345,65" class="arrow"/>
+  <text x="326" y="60" class="sublabel">yes</text>
+
+  <rect x="348" y="42" width="160" height="50" class="box strategy"/>
+  <text x="428" y="62" text-anchor="middle" class="label">ConcernBased</text>
+  <text x="428" y="78" text-anchor="middle" class="sublabel">drives + goals filter salience</text>
+
+  <!-- No path -->
+  <path d="M243,106 L243,155 L348,155" class="arrow-alt"/>
+  <text x="250" y="130" class="sublabel">no</text>
+
+  <rect x="348" y="132" width="160" height="44" class="box fallback"/>
+  <text x="428" y="152" text-anchor="middle" class="label">NoOp</text>
+  <text x="428" y="168" text-anchor="middle" class="sublabel">everything passes through</text>
+
+  <!-- Decorator layer -->
+  <path d="M508,67 L540,67 L540,112 L545,112" class="arrow"/>
+  <path d="M508,154 L540,154 L540,112 L545,112" class="arrow-alt"/>
+
+  <rect x="548" y="84" width="155" height="56" class="box decorator"/>
+  <text x="625" y="104" text-anchor="middle" class="label">EntityAware</text>
+  <text x="625" y="118" text-anchor="middle" class="sublabel">@Decorator @Priority(55)</text>
+  <text x="625" y="132" text-anchor="middle" class="detail">boosts known entities</text>
+
+  <!-- Output -->
+  <rect x="260" y="204" width="200" height="44" class="box output"/>
+  <text x="360" y="224" text-anchor="middle" class="label">PerceivedSituation</text>
+  <text x="360" y="239" text-anchor="middle" class="sublabel">salience score for appraisal pipeline</text>
+
+  <path d="M625,140 L625,226 L460,226" class="arrow"/>
+</svg>

@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 380" font-family="'Inter', 'Segoe UI', system-ui, sans-serif" font-size="13">
+  <style>
+    .box { rx: 6; ry: 6; stroke-width: 1.5; }
+    .store { fill: #e3f2fd; stroke: #42a5f5; }
+    .factor { fill: #e8f5e9; stroke: #66bb6a; }
+    .factor-off { fill: #eceff1; stroke: #b0bec5; stroke-dasharray: 5 3; }
+    .retriever { fill: #fff3e0; stroke: #ffa726; }
+    .config { fill: #fce4ec; stroke: #ef5350; }
+    .output { fill: #f3e5f5; stroke: #ab47bc; }
+    .label { font-weight: 600; fill: #263238; }
+    .sublabel { fill: #546e7a; font-size: 11px; }
+    .detail { fill: #78909c; font-size: 10.5px; }
+    .arrow { stroke: #546e7a; stroke-width: 1.5; fill: none; marker-end: url(#arrow3); }
+    .arrow-config { stroke: #ef5350; stroke-width: 1; fill: none; stroke-dasharray: 4 3; marker-end: url(#arrow3r); }
+    .section { fill: none; stroke: #cfd8dc; stroke-width: 1; stroke-dasharray: 6 3; rx: 8; ry: 8; }
+    .section-label { fill: #90a4ae; font-size: 10px; font-weight: 600; letter-spacing: 0.8px; }
+  </style>
+  <defs>
+    <marker id="arrow3" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#546e7a"/>
+    </marker>
+    <marker id="arrow3r" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#ef5350"/>
+    </marker>
+  </defs>
+
+  <text x="360" y="22" text-anchor="middle" font-size="15" font-weight="700" fill="#37474f">Retrieval modulation: personality-shaped memory recall</text>
+
+  <!-- Memory store -->
+  <rect x="30" y="120" width="130" height="56" class="box store"/>
+  <text x="95" y="143" text-anchor="middle" class="label">CaseMemoryStore</text>
+  <text x="95" y="158" text-anchor="middle" class="sublabel">raw query results</text>
+  <text x="95" y="170" text-anchor="middle" class="detail">unmodulated</text>
+
+  <path d="M160,148 L200,148" class="arrow"/>
+
+  <!-- CognitiveMemoryRetriever -->
+  <rect x="203" y="96" width="180" height="106" class="box retriever"/>
+  <text x="293" y="118" text-anchor="middle" class="label">CognitiveMemoryRetriever</text>
+  <text x="293" y="136" text-anchor="middle" class="sublabel">wraps store with factors</text>
+  <line x1="213" y1="146" x2="373" y2="146" stroke="#ffa726" stroke-width="0.8"/>
+  <text x="293" y="162" text-anchor="middle" class="detail">query() &#x2192; modulate &#x2192; re-sort</text>
+  <text x="293" y="178" text-anchor="middle" class="detail">all disabled = pass-through</text>
+  <text x="293" y="192" text-anchor="middle" class="detail">consolidation stays unmodulated</text>
+
+  <path d="M383,148 L415,148" class="arrow"/>
+
+  <!-- Factor assembly section -->
+  <rect x="413" y="36" width="290" height="300" class="section"/>
+  <text x="558" y="52" text-anchor="middle" class="section-label">FACTORS (assembled by CDI producer)</text>
+
+  <!-- Individual factors -->
+  <rect x="428" y="62" width="260" height="34" class="box factor"/>
+  <text x="558" y="78" text-anchor="middle" class="label">recencyDecay</text>
+  <text x="558" y="90" text-anchor="middle" class="sublabel">half-life: 30 days default</text>
+
+  <rect x="428" y="104" width="260" height="34" class="box factor"/>
+  <text x="558" y="120" text-anchor="middle" class="label">confidenceWeight</text>
+  <text x="558" y="132" text-anchor="middle" class="sublabel">higher confidence &#x2192; stronger signal</text>
+
+  <rect x="428" y="146" width="260" height="34" class="box factor"/>
+  <text x="558" y="162" text-anchor="middle" class="label">moodCongruence</text>
+  <text x="558" y="174" text-anchor="middle" class="sublabel">current PAD &#x2192; mood-aligned memories surface</text>
+
+  <rect x="428" y="188" width="260" height="34" class="box factor-off"/>
+  <text x="558" y="204" text-anchor="middle" class="label" fill="#90a4ae">goalRelevance</text>
+  <text x="558" y="216" text-anchor="middle" class="sublabel" style="fill:#b0bec5">BFS proximity to active goals</text>
+
+  <rect x="428" y="230" width="260" height="34" class="box factor-off"/>
+  <text x="558" y="246" text-anchor="middle" class="label" fill="#90a4ae">domainWeight</text>
+  <text x="558" y="258" text-anchor="middle" class="sublabel" style="fill:#b0bec5">personality &#x2192; domain multipliers</text>
+
+  <rect x="428" y="272" width="260" height="34" class="box factor-off"/>
+  <text x="558" y="288" text-anchor="middle" class="label" fill="#90a4ae">entityOverlap</text>
+  <text x="558" y="300" text-anchor="middle" class="sublabel" style="fill:#b0bec5">annotation index entity matching</text>
+
+  <!-- Config -->
+  <rect x="30" y="260" width="150" height="66" class="box config"/>
+  <text x="105" y="280" text-anchor="middle" class="label">ModulationConfig</text>
+  <text x="105" y="296" text-anchor="middle" class="sublabel">per-factor boolean flags</text>
+  <text x="105" y="312" text-anchor="middle" class="detail">all disabled by default</text>
+
+  <path d="M180,290 L293,290 L293,202" class="arrow-config"/>
+
+  <!-- Output -->
+  <rect x="150" y="344" width="220" height="34" class="box output"/>
+  <text x="260" y="366" text-anchor="middle" class="label">modulated results &#x2192; orchestrators</text>
+
+  <path d="M293,202 L293,344" class="arrow"/>
+</svg>

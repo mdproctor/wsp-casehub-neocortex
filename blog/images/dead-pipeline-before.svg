@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 340" font-family="'Inter', 'Segoe UI', system-ui, sans-serif" font-size="13">
+  <style>
+    .box { rx: 6; ry: 6; stroke-width: 1.5; }
+    .alive { fill: #e8f5e9; stroke: #4caf50; }
+    .dead { fill: #ffebee; stroke: #ef5350; stroke-dasharray: 6 3; }
+    .label { font-weight: 600; fill: #263238; }
+    .sublabel { fill: #546e7a; font-size: 11px; }
+    .arrow { stroke: #90a4ae; stroke-width: 1.5; fill: none; marker-end: url(#arrowhead); }
+    .arrow-dead { stroke: #ef5350; stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; }
+    .phase { fill: #eceff1; rx: 4; ry: 4; stroke: #b0bec5; stroke-width: 1; }
+    .phase-label { fill: #78909c; font-size: 11px; font-weight: 600; letter-spacing: 0.5px; }
+    .x-mark { fill: #ef5350; font-size: 18px; font-weight: 700; }
+  </style>
+  <defs>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#90a4ae"/>
+    </marker>
+  </defs>
+
+  <text x="360" y="24" text-anchor="middle" font-size="15" font-weight="700" fill="#37474f">Before: capabilities exist but cannot be reached</text>
+
+  <!-- Phase labels -->
+  <rect x="20" y="40" width="680" height="26" class="phase"/>
+  <text x="80" y="57" class="phase-label">FOUNDATION</text>
+  <text x="240" y="57" class="phase-label">SOURCE</text>
+  <text x="420" y="57" class="phase-label">DERIVED</text>
+  <text x="590" y="57" class="phase-label">TERMINAL</text>
+
+  <!-- Alive components -->
+  <rect x="30" y="80" width="130" height="44" class="box alive"/>
+  <text x="95" y="100" text-anchor="middle" class="label">MoodOrchestrator</text>
+  <text x="95" y="115" text-anchor="middle" class="sublabel">PAD tracking</text>
+
+  <rect x="30" y="140" width="130" height="44" class="box alive"/>
+  <text x="95" y="160" text-anchor="middle" class="label">DriveOrchestrator</text>
+  <text x="95" y="175" text-anchor="middle" class="sublabel">4-axis motivation</text>
+
+  <rect x="200" y="80" width="150" height="44" class="box alive"/>
+  <text x="275" y="100" text-anchor="middle" class="label">GoalProposalOrch.</text>
+  <text x="275" y="115" text-anchor="middle" class="sublabel">drive→goal formation</text>
+
+  <!-- Dead components -->
+  <rect x="200" y="140" width="150" height="44" class="box dead"/>
+  <text x="275" y="160" text-anchor="middle" class="label">SalienceStrategy</text>
+  <text x="275" y="175" text-anchor="middle" class="sublabel">always NoOp</text>
+  <text x="338" y="152" class="x-mark">&#x2717;</text>
+
+  <rect x="390" y="80" width="150" height="44" class="box dead"/>
+  <text x="465" y="100" text-anchor="middle" class="label">ConcernBased</text>
+  <text x="465" y="115" text-anchor="middle" class="sublabel">Klinger concerns &#x2014; dead</text>
+  <text x="528" y="92" class="x-mark">&#x2717;</text>
+
+  <rect x="390" y="140" width="150" height="44" class="box dead"/>
+  <text x="465" y="160" text-anchor="middle" class="label">EntityAware</text>
+  <text x="465" y="175" text-anchor="middle" class="sublabel">entity salience &#x2014; dead</text>
+  <text x="528" y="152" class="x-mark">&#x2717;</text>
+
+  <rect x="560" y="80" width="140" height="44" class="box dead"/>
+  <text x="630" y="100" text-anchor="middle" class="label">GoalEmotionBridge</text>
+  <text x="630" y="115" text-anchor="middle" class="sublabel">goal→mood &#x2014; dead</text>
+  <text x="688" y="92" class="x-mark">&#x2717;</text>
+
+  <rect x="560" y="140" width="140" height="44" class="box dead"/>
+  <text x="630" y="160" text-anchor="middle" class="label">CognitiveGoalOrch.</text>
+  <text x="630" y="175" text-anchor="middle" class="sublabel">MindMap goals &#x2014; dead</text>
+  <text x="688" y="152" class="x-mark">&#x2717;</text>
+
+  <!-- Dead retrieval modulation -->
+  <rect x="140" y="220" width="440" height="50" class="box dead"/>
+  <text x="360" y="243" text-anchor="middle" class="label">RetrievalModulator + ModulationFactors</text>
+  <text x="360" y="258" text-anchor="middle" class="sublabel">recency &#x2022; confidence &#x2022; mood congruence &#x2022; goal relevance &#x2022; domain weight &#x2014; zero callers</text>
+  <text x="568" y="232" class="x-mark">&#x2717;</text>
+
+  <!-- Config flag -->
+  <rect x="140" y="286" width="440" height="36" class="box dead"/>
+  <text x="360" y="309" text-anchor="middle" class="label">innerLifeEnabled = true</text>
+  <text x="510" y="309" class="sublabel">(flag exists, never checked)</text>
+  <text x="568" y="298" class="x-mark">&#x2717;</text>
+</svg>
