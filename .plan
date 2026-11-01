@@ -2,7 +2,7 @@
 
 ## State
 branch: issue-750-integrate-cognitive-memory-retriever
-state: active
+state: closing:review
 project-sha: 5ea76cd25cba9ef70569788c8d1d014f7fbe5978
 date: 2026-11-01
 issue-repo: casehubio/neocortex
@@ -11,6 +11,7 @@ design-repo: project
 design-section-hashes: 
 flyway-next-v: unknown
 
+evidence-era: true
 ## Queue
 - [ ] casehubio/neocortex#750 — Issue #750 ← active
   - [x] Batch 1: Tick-Scoped Context
