@@ -1,0 +1,15 @@
+# Work Plan — issue-750-integrate-cognitive-memory-retriever
+
+## State
+branch: issue-750-integrate-cognitive-memory-retriever
+state: scaffolded
+project-sha: 5ea76cd25cba9ef70569788c8d1d014f7fbe5978
+date: 2026-11-01
+issue-repo: casehubio/neocortex
+covers: 750
+design-repo: project
+design-section-hashes: 
+flyway-next-v: unknown
+
+## Queue
+- [ ] casehubio/neocortex#750 — Issue #750 ← active
