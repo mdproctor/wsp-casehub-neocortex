@@ -123,17 +123,25 @@ if (retriever != null) {
 
 **MentalModelOrchestrator** — BDI extraction LLM call
 
-Query: `ExperienceQuery.search(agentId, tenantId, subjectId)` with limit 3.
-Include in the BDI extraction prompt as prior context about the subject. The
-agent's mood biases how it interprets others' mental states — this is
+Query: `ExperienceQuery.forAgent(agentId, tenantId).withLimit(5)` — retrieves
+the agent's recent experience memories. Text search by `subjectId` is unreliable
+because subject identifiers may be UUIDs rather than names. Instead, retrieve
+the agent's general experience memories and let modulation (recency, mood
+congruence) determine which surface. The LLM prompt already contains the
+current `userMessage` identifying the subject — supplementary memories provide
+broader experiential context for BDI inference.
+
+The agent's mood biases how it interprets others' mental states — this is
 psychologically grounded (anxious perceivers attribute more negative intent,
 confident perceivers read interactions more favorably).
 
 **UserModelOrchestrator** — profile synthesis LLM call
 
-Query: `ExperienceQuery.search(agentId, tenantId, subjectId)` with limit 3.
-Include in the synthesis prompt as supplementary interaction context.
-Recency-weighted memories foreground recent behavioral changes in the user.
+Query: `ExperienceQuery.forAgent(agentId, tenantId).withLimit(5)` — same
+rationale as MentalModel. The agent's modulated recent experiences provide
+context for profile synthesis. Recency-weighted memories foreground recent
+interactions; mood congruence biases which interaction qualities the agent
+attends to.
 
 ### Wiring (D3)
 
