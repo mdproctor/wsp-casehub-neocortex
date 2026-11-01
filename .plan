@@ -13,14 +13,14 @@ flyway-next-v: unknown
 
 ## Queue
 - [ ] casehubio/neocortex#750 — Issue #750 ← active
-  - [ ] Batch 1: Tick-Scoped Context
-    - [ ] Task 1: Add tick context to retriever
-    - [ ] Task 2: Wire tick context in CognitionCore
-  - [ ] Batch 2: GutFeeling Integration
-    - [ ] Task 3: Switch GutFeeling Layer 1
-  - [ ] Batch 3: Orchestrator LLM Prompts
-    - [ ] Task 4: Strategy reflection memories
-    - [ ] Task 5: MentalModel BDI memories
-    - [ ] Task 6: UserModel synthesis memories
-  - [ ] Batch 4: Verification
-    - [ ] Task 7: Full build and issue update
+  - [x] Batch 1: Tick-Scoped Context
+    - [x] Task 1: Add tick context to retriever
+    - [x] Task 2: Wire tick context in CognitionCore
+  - [x] Batch 2: GutFeeling Integration
+    - [x] Task 3: Switch GutFeeling Layer 1
+  - [x] Batch 3: Orchestrator LLM Prompts
+    - [x] Task 4: Strategy reflection memories
+    - [x] Task 5: MentalModel BDI memories
+    - [x] Task 6: UserModel synthesis memories
+  - [x] Batch 4: Verification
+    - [x] Task 7: Full build and issue update
