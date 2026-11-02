@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 420" font-family="system-ui, -apple-system, sans-serif">
+  <style>
+    .title { font-size: 14px; font-weight: 600; fill: #1a1a2e; }
+    .label { font-size: 11px; fill: #16213e; font-weight: 500; }
+    .small { font-size: 10px; fill: #555; }
+    .phase { font-size: 10px; fill: #888; font-style: italic; }
+    .pathway { font-size: 9px; fill: #2d6a4f; }
+    .box { rx: 6; ry: 6; }
+    .arrow { stroke: #555; stroke-width: 1.5; fill: none; marker-end: url(#arr); }
+    .arrow-derive { stroke: #2d6a4f; stroke-width: 1.2; fill: none; marker-end: url(#arr-g); }
+  </style>
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#555"/>
+    </marker>
+    <marker id="arr-g" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#2d6a4f"/>
+    </marker>
+  </defs>
+
+  <text x="410" y="22" class="title" text-anchor="middle">Eidos → Cognitive Derivation Pipeline</text>
+
+  <!-- Eidos Descriptor -->
+  <text x="90" y="52" class="phase" text-anchor="middle">Eidos Identity</text>
+
+  <rect x="15" y="62" width="150" height="34" class="box" fill="#fff3e0" stroke="#e65100"/>
+  <text x="90" y="78" class="label" text-anchor="middle">AgentDisposition</text>
+  <text x="90" y="90" class="small" text-anchor="middle">5 disposition axes</text>
+
+  <rect x="15" y="104" width="150" height="34" class="box" fill="#fff3e0" stroke="#e65100"/>
+  <text x="90" y="120" class="label" text-anchor="middle">Disposition Profile</text>
+  <text x="90" y="132" class="small" text-anchor="middle">Jungian function weights</text>
+
+  <rect x="15" y="146" width="150" height="34" class="box" fill="#fff3e0" stroke="#e65100"/>
+  <text x="90" y="162" class="label" text-anchor="middle">AgentGoal[]</text>
+  <text x="90" y="174" class="small" text-anchor="middle">character goals</text>
+
+  <!-- Bridge -->
+  <text x="270" y="52" class="phase" text-anchor="middle">Bridge (cognitive-eidos)</text>
+
+  <rect x="195" y="80" width="150" height="80" class="box" fill="#e3f2fd" stroke="#1565c0"/>
+  <text x="270" y="108" class="label" text-anchor="middle">EidosCognitive</text>
+  <text x="270" y="122" class="label" text-anchor="middle">ProfileBridge</text>
+  <text x="270" y="142" class="small" text-anchor="middle">→ DescriptorView</text>
+
+  <path d="M165,80 L195,100" class="arrow"/>
+  <path d="M165,120 L195,120" class="arrow"/>
+  <path d="M165,162 L195,140" class="arrow"/>
+
+  <!-- Derivation Engine -->
+  <text x="470" y="52" class="phase" text-anchor="middle">Derivation</text>
+
+  <rect x="380" y="68" width="180" height="100" class="box" fill="#e8f5e9" stroke="#2d6a4f"/>
+  <text x="470" y="95" class="label" text-anchor="middle">CognitiveDerivation</text>
+  <text x="470" y="110" class="label" text-anchor="middle">Engine</text>
+  <text x="470" y="132" class="small" text-anchor="middle">deriveAndMerge()</text>
+  <text x="470" y="148" class="small" text-anchor="middle">10 pathways</text>
+
+  <path d="M345,120 L380,118" class="arrow"/>
+
+  <!-- Output pathways -->
+  <text x="700" y="42" class="phase" text-anchor="middle">CognitiveDefaults</text>
+
+  <rect x="600" y="52" width="200" height="30" class="box" fill="#fce4ec" stroke="#c62828"/>
+  <text x="700" y="72" class="pathway" text-anchor="middle">personalityWeights (memory domain bias)</text>
+
+  <rect x="600" y="88" width="200" height="30" class="box" fill="#fce4ec" stroke="#c62828"/>
+  <text x="700" y="108" class="pathway" text-anchor="middle">moodBaseline (PAD resting point)</text>
+
+  <rect x="600" y="124" width="200" height="30" class="box" fill="#fce4ec" stroke="#c62828"/>
+  <text x="700" y="144" class="pathway" text-anchor="middle">curiosityConfig (what's interesting)</text>
+
+  <rect x="600" y="160" width="200" height="30" class="box" fill="#fce4ec" stroke="#c62828"/>
+  <text x="700" y="180" class="pathway" text-anchor="middle">temporalFocus (attention horizon)</text>
+
+  <rect x="600" y="196" width="200" height="30" class="box" fill="#fce4ec" stroke="#c62828"/>
+  <text x="700" y="216" class="pathway" text-anchor="middle">cbrStrategy (similarity threshold)</text>
+
+  <rect x="600" y="232" width="200" height="30" class="box" fill="#fce4ec" stroke="#c62828"/>
+  <text x="700" y="252" class="pathway" text-anchor="middle">socialCognition (trust formation)</text>
+
+  <rect x="600" y="268" width="200" height="30" class="box" fill="#fce4ec" stroke="#c62828"/>
+  <text x="700" y="288" class="pathway" text-anchor="middle">graphStructure (knowledge style)</text>
+
+  <rect x="600" y="304" width="200" height="30" class="box" fill="#fce4ec" stroke="#c62828"/>
+  <text x="700" y="324" class="pathway" text-anchor="middle">extractionBias (what gets noticed)</text>
+
+  <rect x="600" y="340" width="200" height="30" class="box" fill="#fce4ec" stroke="#c62828"/>
+  <text x="700" y="360" class="pathway" text-anchor="middle">appraisalWeights (emotional reactivity)</text>
+
+  <rect x="600" y="376" width="200" height="30" class="box" fill="#fce4ec" stroke="#c62828"/>
+  <text x="700" y="396" class="pathway" text-anchor="middle">habituationConfig (novelty decay)</text>
+
+  <!-- Arrows from engine to outputs -->
+  <path d="M560,90 L600,67" class="arrow-derive"/>
+  <path d="M560,95 L600,103" class="arrow-derive"/>
+  <path d="M560,100 L600,139" class="arrow-derive"/>
+  <path d="M560,108 L600,175" class="arrow-derive"/>
+  <path d="M560,116 L600,211" class="arrow-derive"/>
+  <path d="M560,124 L600,247" class="arrow-derive"/>
+  <path d="M560,132 L600,283" class="arrow-derive"/>
+  <path d="M560,140 L600,319" class="arrow-derive"/>
+  <path d="M560,148 L600,355" class="arrow-derive"/>
+  <path d="M560,156 L600,391" class="arrow-derive"/>
+</svg>

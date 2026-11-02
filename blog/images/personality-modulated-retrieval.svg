@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 380" font-family="system-ui, -apple-system, sans-serif">
+  <style>
+    .title { font-size: 14px; font-weight: 600; fill: #1a1a2e; }
+    .label { font-size: 11px; fill: #16213e; font-weight: 500; }
+    .small { font-size: 10px; fill: #555; }
+    .phase { font-size: 10px; fill: #888; font-style: italic; }
+    .char-name { font-size: 12px; font-weight: 600; fill: #1a1a2e; }
+    .weight-hi { font-size: 10px; fill: #2d6a4f; font-weight: 600; }
+    .weight-lo { font-size: 10px; fill: #999; }
+    .mem-hi { font-size: 10px; fill: #1a1a2e; font-weight: 500; }
+    .mem-lo { font-size: 10px; fill: #bbb; }
+    .box { rx: 6; ry: 6; }
+    .arrow { stroke: #555; stroke-width: 1.5; fill: none; marker-end: url(#arr); }
+  </style>
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#555"/>
+    </marker>
+  </defs>
+
+  <text x="390" y="22" class="title" text-anchor="middle">Same Memories, Different Minds</text>
+
+  <!-- Shared memory pool -->
+  <text x="390" y="52" class="phase" text-anchor="middle">Shared Memory Pool</text>
+
+  <rect x="260" y="60" width="260" height="80" class="box" fill="#f5f5f5" stroke="#ccc"/>
+  <text x="390" y="82" class="small" text-anchor="middle">experience: "the prank in the hallway"</text>
+  <text x="390" y="96" class="small" text-anchor="middle">relationship: "warmth from yesterday's garden"</text>
+  <text x="390" y="110" class="small" text-anchor="middle">reflection: "I think she trusts me"</text>
+  <text x="390" y="124" class="small" text-anchor="middle">experience: "the chase through the kitchen"</text>
+
+  <!-- Character A: Muttley -->
+  <rect x="30" y="175" width="320" height="185" class="box" fill="#fff8e1" stroke="#f9a825"/>
+
+  <text x="190" y="198" class="char-name" text-anchor="middle">Muttley</text>
+  <text x="190" y="213" class="phase" text-anchor="middle">high experience / low relationship</text>
+
+  <text x="60" y="235" class="label">Personality Weights:</text>
+  <text x="60" y="252" class="weight-hi">experience:  1.8</text>
+  <text x="60" y="266" class="weight-lo">relationship: 0.4</text>
+  <text x="60" y="280" class="weight-lo">reflection:  0.5</text>
+
+  <text x="210" y="235" class="label">Retrieval Order:</text>
+  <rect x="210" y="242" width="125" height="20" class="box" fill="#e8f5e9" stroke="#2d6a4f"/>
+  <text x="272" y="256" class="mem-hi" text-anchor="middle">1. the prank (0.94)</text>
+  <rect x="210" y="266" width="125" height="20" class="box" fill="#e8f5e9" stroke="#2d6a4f"/>
+  <text x="272" y="280" class="mem-hi" text-anchor="middle">2. the chase (0.91)</text>
+  <rect x="210" y="290" width="125" height="20" class="box" fill="#fafafa" stroke="#ddd"/>
+  <text x="272" y="304" class="mem-lo" text-anchor="middle">3. garden (0.52)</text>
+  <rect x="210" y="314" width="125" height="20" class="box" fill="#fafafa" stroke="#ddd"/>
+  <text x="272" y="328" class="mem-lo" text-anchor="middle">4. trusts me (0.41)</text>
+
+  <!-- Character B: Penelope -->
+  <rect x="430" y="175" width="320" height="185" class="box" fill="#e8eaf6" stroke="#3f51b5"/>
+
+  <text x="590" y="198" class="char-name" text-anchor="middle">Penelope Pitstop</text>
+  <text x="590" y="213" class="phase" text-anchor="middle">high relationship / moderate experience</text>
+
+  <text x="460" y="235" class="label">Personality Weights:</text>
+  <text x="460" y="252" class="weight-lo">experience:  0.7</text>
+  <text x="460" y="266" class="weight-hi">relationship: 1.6</text>
+  <text x="460" y="280" class="weight-hi">reflection:  1.3</text>
+
+  <text x="610" y="235" class="label">Retrieval Order:</text>
+  <rect x="610" y="242" width="125" height="20" class="box" fill="#e8f5e9" stroke="#2d6a4f"/>
+  <text x="672" y="256" class="mem-hi" text-anchor="middle">1. garden (0.92)</text>
+  <rect x="610" y="266" width="125" height="20" class="box" fill="#e8f5e9" stroke="#2d6a4f"/>
+  <text x="672" y="280" class="mem-hi" text-anchor="middle">2. trusts me (0.88)</text>
+  <rect x="610" y="290" width="125" height="20" class="box" fill="#fafafa" stroke="#ddd"/>
+  <text x="672" y="304" class="mem-lo" text-anchor="middle">3. the prank (0.61)</text>
+  <rect x="610" y="314" width="125" height="20" class="box" fill="#fafafa" stroke="#ddd"/>
+  <text x="672" y="328" class="mem-lo" text-anchor="middle">4. the chase (0.58)</text>
+
+  <!-- Arrows from pool to characters -->
+  <path d="M330,140 L190,175" class="arrow"/>
+  <path d="M450,140 L590,175" class="arrow"/>
+</svg>
