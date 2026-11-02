@@ -1,7 +1,7 @@
 # Work Plan — issue-758-pipeline-wiring-and-corpus
 
 ## State
-branch: issue-758-pipeline-wiring-and-corpus
+branch: 
 state: scaffolded
 project-sha: 
 date: 
@@ -12,8 +12,8 @@ design-section-hashes:
 flyway-next-v: unknown
 
 ## Queue
-- [ ] casehubio/neocortex#758 — Issue #758 ← active
-- [ ] casehubio/neocortex#759 — narrative-pipeline-retriever-integration
+- [x] casehubio/neocortex#758 — Issue #758
+- [ ] casehubio/neocortex#759 — narrative-pipeline-retriever-integration ← active
 - [ ] casehubio/neocortex#755 — stamp-obsolete-agency-branches
 - [ ] casehubio/neocortex#767 — corpus-management-api-spis
 - [ ] casehubio/neocortex#768 — sqlite-corpus-catalogue
