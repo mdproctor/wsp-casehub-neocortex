@@ -1,4 +1,4 @@
-# Work Plan — issue-758-pipeline-wiring-and-corpus
+# Work Plan — Work Plan —
 
 ## State
 branch: 
@@ -12,9 +12,9 @@ design-section-hashes:
 flyway-next-v: unknown
 
 ## Queue
-- [ ] casehubio/neocortex#758 — Issue #758
-- [ ] casehubio/neocortex#759 — narrative-pipeline-retriever-integration
-- [ ] casehubio/neocortex#755 — stamp-obsolete-agency-branches
+- [x] casehubio/neocortex#758 — Issue #758
+- [x] casehubio/neocortex#759 — narrative-pipeline-retriever-integration
+- [ ] casehubio/neocortex#755 — stamp-obsolete-agency-branches ← active
 - [ ] casehubio/neocortex#733 — entity-enriched-drive-descriptions
 - [ ] casehubio/neocortex#732 — drive-first-prompt-architecture
 - [ ] casehubio/neocortex#753 — charactercognition-pipeline-wiring
