@@ -14,6 +14,12 @@ flyway-next-v: unknown
 ## Queue
 - [x] casehubio/neocortex#732 — drive-first-prompt-architecture
 - [ ] casehubio/neocortex#733 — entity-enriched-drive-descriptions ← active
+  - [ ] Batch 1: SPI
+    - [ ] Task 1: Create MentalModelLookup SPI
+  - [ ] Batch 2: Enrichment
+    - [ ] Task 2: Expand buildRelationalContext with all entity data
+  - [ ] Batch 3: Verification
+    - [ ] Task 3: Cross-module build and test
 - [ ] casehubio/neocortex#753 — charactercognition-pipeline-wiring
 - [x] casehubio/neocortex#758 — Issue #758
 - [x] casehubio/neocortex#759 — narrative-pipeline-retriever-integration
