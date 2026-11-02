@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 340" font-family="system-ui, -apple-system, sans-serif">
+  <style>
+    .title { font-size: 14px; font-weight: 600; fill: #1a1a2e; }
+    .label { font-size: 11px; fill: #16213e; font-weight: 500; }
+    .small { font-size: 10px; fill: #555; }
+    .phase { font-size: 10px; fill: #888; font-style: italic; }
+    .box { rx: 6; ry: 6; }
+    .arrow { stroke: #555; stroke-width: 1.5; fill: none; marker-end: url(#arr); }
+    .arrow-thick { stroke: #2d6a4f; stroke-width: 2; fill: none; marker-end: url(#arr-g); }
+  </style>
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#555"/>
+    </marker>
+    <marker id="arr-g" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#2d6a4f"/>
+    </marker>
+  </defs>
+
+  <text x="390" y="22" class="title" text-anchor="middle">Consolidation-Time Entity Enrichment</text>
+
+  <!-- Data sources -->
+  <text x="100" y="52" class="phase" text-anchor="middle">Data Sources</text>
+
+  <rect x="20" y="60" width="160" height="36" class="box" fill="#fff3e0" stroke="#e65100"/>
+  <text x="100" y="82" class="label" text-anchor="middle">CognitiveProfile</text>
+
+  <rect x="20" y="106" width="160" height="36" class="box" fill="#fff3e0" stroke="#e65100"/>
+  <text x="100" y="128" class="label" text-anchor="middle">MentalModelLookup</text>
+
+  <rect x="20" y="152" width="160" height="36" class="box" fill="#fff3e0" stroke="#e65100"/>
+  <text x="100" y="174" class="label" text-anchor="middle">DomainActivation</text>
+
+  <!-- What each provides -->
+  <text x="290" y="52" class="phase" text-anchor="middle">Per-Entity Data</text>
+
+  <rect x="210" y="60" width="160" height="36" class="box" fill="#f3e5f5" stroke="#7b1fa2"/>
+  <text x="290" y="75" class="small" text-anchor="middle">Experience memories</text>
+  <text x="290" y="88" class="small" text-anchor="middle">Relationship + reflection</text>
+
+  <rect x="210" y="106" width="160" height="36" class="box" fill="#f3e5f5" stroke="#7b1fa2"/>
+  <text x="290" y="122" class="small" text-anchor="middle">Beliefs, desires,</text>
+  <text x="290" y="135" class="small" text-anchor="middle">intentions per entity</text>
+
+  <rect x="210" y="152" width="160" height="36" class="box" fill="#f3e5f5" stroke="#7b1fa2"/>
+  <text x="290" y="168" class="small" text-anchor="middle">Cross-domain affect</text>
+  <text x="290" y="181" class="small" text-anchor="middle">correlations (DTW)</text>
+
+  <!-- Arrows from sources to data -->
+  <path d="M180,78 L210,78" class="arrow"/>
+  <path d="M180,124 L210,124" class="arrow"/>
+  <path d="M180,170 L210,170" class="arrow"/>
+
+  <!-- P22 -->
+  <text x="490" y="52" class="phase" text-anchor="middle">Consolidation (P22)</text>
+
+  <rect x="400" y="60" width="180" height="128" class="box" fill="#e8f5e9" stroke="#2d6a4f"/>
+  <text x="490" y="85" class="label" text-anchor="middle">DriveDescription</text>
+  <text x="490" y="100" class="label" text-anchor="middle">GenerationPhase</text>
+  <text x="490" y="125" class="small" text-anchor="middle">LLM call with unified</text>
+  <text x="490" y="140" class="small" text-anchor="middle">relational context</text>
+  <text x="490" y="160" class="small" text-anchor="middle">→ somatic prose output</text>
+
+  <!-- Arrows from data to P22 -->
+  <path d="M370,78 L400,100" class="arrow"/>
+  <path d="M370,124 L400,124" class="arrow"/>
+  <path d="M370,170 L400,148" class="arrow"/>
+
+  <!-- Output -->
+  <text x="690" y="52" class="phase" text-anchor="middle">Render Time</text>
+
+  <rect x="620" y="60" width="140" height="60" class="box" fill="#e8f4f8" stroke="#4a90d9"/>
+  <text x="690" y="82" class="label" text-anchor="middle">Character</text>
+  <text x="690" y="97" class="label" text-anchor="middle">DrivePromptSection</text>
+
+  <path d="M580,110 L620,90" class="arrow-thick"/>
+
+  <rect x="620" y="130" width="140" height="60" class="box" fill="#e8f4f8" stroke="#4a90d9"/>
+  <text x="690" y="155" class="label" text-anchor="middle">MindMap node</text>
+  <text x="690" y="170" class="small" text-anchor="middle">(stored description)</text>
+
+  <path d="M580,130 L620,155" class="arrow-thick"/>
+
+  <!-- Bottom: what the LLM sees -->
+  <rect x="20" y="230" width="740" height="90" class="box" fill="#fafafa" stroke="#ddd"/>
+  <text x="390" y="252" class="label" text-anchor="middle">What the LLM sees at render time (single prompt section):</text>
+  <text x="390" y="275" class="small" text-anchor="middle">"GALLANTRY (0.9) — Warmth pools behind your sternum when she enters the room.</text>
+  <text x="390" y="290" class="small" text-anchor="middle">The same spreading heat from the garden last Tuesday, because you believe she still trusts you.</text>
+  <text x="390" y="305" class="small" text-anchor="middle">Your hands want to reach before you decide. Not the jaw. Not the shoulders. Here, centre-chest."</text>
+</svg>

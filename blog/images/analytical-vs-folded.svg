@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 420" font-family="system-ui, -apple-system, sans-serif">
+  <style>
+    .title { font-size: 14px; font-weight: 600; fill: #1a1a2e; }
+    .label { font-size: 11px; fill: #16213e; }
+    .small { font-size: 10px; fill: #666; }
+    .metric { font-size: 10px; fill: #e63946; font-weight: 600; }
+    .metric-good { font-size: 10px; fill: #2d6a4f; font-weight: 600; }
+    .box { rx: 6; ry: 6; }
+    .arrow { stroke: #555; stroke-width: 1.5; fill: none; marker-end: url(#arrowhead); }
+  </style>
+  <defs>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#555"/>
+    </marker>
+  </defs>
+
+  <!-- Before side -->
+  <text x="190" y="24" class="title" text-anchor="middle">Before: Analytical Sections</text>
+
+  <rect x="30" y="40" width="320" height="50" class="box" fill="#e8f4f8" stroke="#4a90d9"/>
+  <text x="190" y="60" class="label" text-anchor="middle">Barrett Instruction</text>
+  <text x="190" y="75" class="small" text-anchor="middle">"Feel, don't think — notice your body"</text>
+
+  <rect x="30" y="100" width="320" height="50" class="box" fill="#e8f4f8" stroke="#4a90d9"/>
+  <text x="190" y="120" class="label" text-anchor="middle">Drive Descriptions (P22)</text>
+  <text x="190" y="135" class="small" text-anchor="middle">"Warmth rises through your chest..."</text>
+
+  <rect x="30" y="160" width="320" height="50" class="box" fill="#fce4ec" stroke="#e63946"/>
+  <text x="190" y="180" class="label" text-anchor="middle">EntityKnowledgePromptSection</text>
+  <text x="190" y="195" class="small" text-anchor="middle">"Entity knowledge: About Alice (person)..."</text>
+
+  <rect x="30" y="220" width="320" height="50" class="box" fill="#fce4ec" stroke="#e63946"/>
+  <text x="190" y="240" class="label" text-anchor="middle">SocialComparisonPromptSection</text>
+  <text x="190" y="255" class="small" text-anchor="middle">"Social divergence: distance 0.65..."</text>
+
+  <rect x="30" y="280" width="320" height="50" class="box" fill="#fce4ec" stroke="#e63946"/>
+  <text x="190" y="300" class="label" text-anchor="middle">DomainActivationPromptSection</text>
+  <text x="190" y="315" class="small" text-anchor="middle">"Cross-domain DTW correlation: 0.85..."</text>
+
+  <text x="190" y="355" class="metric" text-anchor="middle">Register: 3.13 — analytical labels</text>
+  <text x="190" y="370" class="metric" text-anchor="middle">compete with somatic instruction</text>
+
+  <!-- After side -->
+  <text x="600" y="24" class="title" text-anchor="middle">After: Folded Into Drives</text>
+
+  <rect x="440" y="40" width="320" height="50" class="box" fill="#e8f4f8" stroke="#4a90d9"/>
+  <text x="600" y="60" class="label" text-anchor="middle">Barrett Instruction</text>
+  <text x="600" y="75" class="small" text-anchor="middle">"Feel, don't think — notice your body"</text>
+
+  <rect x="440" y="100" width="320" height="190" class="box" fill="#e8f5e9" stroke="#2d6a4f"/>
+  <text x="600" y="125" class="label" text-anchor="middle">Enriched Drive Descriptions (P22)</text>
+  <text x="600" y="145" class="small" text-anchor="middle">"Warmth rises through your chest when she</text>
+  <text x="600" y="160" class="small" text-anchor="middle">is near — the same heat from the garden</text>
+  <text x="600" y="175" class="small" text-anchor="middle">last Tuesday, because you believe she</text>
+  <text x="600" y="190" class="small" text-anchor="middle">still trusts you..."</text>
+
+  <text x="475" y="215" class="small">+ entity memories</text>
+  <text x="475" y="230" class="small">+ relationship history</text>
+  <text x="475" y="245" class="small">+ beliefs / desires / intentions</text>
+  <text x="475" y="260" class="small">+ cross-domain affect</text>
+  <text x="475" y="275" class="small">+ affect trajectory</text>
+
+  <text x="600" y="320" class="metric-good" text-anchor="middle">Register: 3.74+ — somatic instruction</text>
+  <text x="600" y="335" class="metric-good" text-anchor="middle">uncontested, entity-grounded</text>
+
+  <!-- Divider -->
+  <line x1="390" y1="30" x2="390" y2="390" stroke="#ccc" stroke-width="1" stroke-dasharray="4,4"/>
+
+  <!-- Bottom label -->
+  <text x="400" y="410" class="small" text-anchor="middle" fill="#999">Era 5 finding: separate analytical sections degraded Barrett somatic register by 0.61 points</text>
+</svg>
