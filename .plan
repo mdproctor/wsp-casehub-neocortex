@@ -2,7 +2,7 @@
 
 ## State
 branch: 
-state: active
+state: closing:review
 project-sha: 
 date: 
 issue-repo: casehubio/neocortex
@@ -11,6 +11,7 @@ design-repo: project
 design-section-hashes: 
 flyway-next-v: unknown
 
+evidence-era: true
 ## Queue
 - [x] casehubio/neocortex#732 — drive-first-prompt-architecture
 - [x] casehubio/neocortex#733 — entity-enriched-drive-descriptions
