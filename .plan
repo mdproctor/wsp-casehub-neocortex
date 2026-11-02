@@ -14,7 +14,7 @@ flyway-next-v: unknown
 ## Queue
 - [x] casehubio/neocortex#758 — Issue #758
 - [x] casehubio/neocortex#759 — narrative-pipeline-retriever-integration
-- [ ] casehubio/neocortex#755 — stamp-obsolete-agency-branches ← active
-- [ ] casehubio/neocortex#733 — entity-enriched-drive-descriptions
+- [x] casehubio/neocortex#755 — stamp-obsolete-agency-branches
+- [ ] casehubio/neocortex#733 — entity-enriched-drive-descriptions ← active
 - [ ] casehubio/neocortex#732 — drive-first-prompt-architecture
 - [ ] casehubio/neocortex#753 — charactercognition-pipeline-wiring
