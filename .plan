@@ -6,15 +6,15 @@ state: scaffolded
 project-sha: 
 date: 
 issue-repo: casehubio/neocortex
-covers: 758,759,755,767,768,770
+covers: 758,759,755,733,732,753
 design-repo: project
 design-section-hashes: 
 flyway-next-v: unknown
 
 ## Queue
-- [x] casehubio/neocortex#758 — Issue #758
-- [x] casehubio/neocortex#759 — narrative-pipeline-retriever-integration
-- [x] casehubio/neocortex#755 — stamp-obsolete-agency-branches
-- [ ] casehubio/neocortex#767 — corpus-management-api-spis ← active
-- [ ] casehubio/neocortex#768 — sqlite-corpus-catalogue
-- [ ] casehubio/neocortex#770 — qdrant-corpus-search
+- [ ] casehubio/neocortex#758 — Issue #758
+- [ ] casehubio/neocortex#759 — narrative-pipeline-retriever-integration
+- [ ] casehubio/neocortex#755 — stamp-obsolete-agency-branches
+- [ ] casehubio/neocortex#733 — entity-enriched-drive-descriptions
+- [ ] casehubio/neocortex#732 — drive-first-prompt-architecture
+- [ ] casehubio/neocortex#753 — charactercognition-pipeline-wiring
