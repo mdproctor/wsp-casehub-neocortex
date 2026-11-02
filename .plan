@@ -1,8 +1,8 @@
 # Work Plan — issue-738-cognitive-bug-sweep
 
 ## State
-branch: issue-738-cognitive-bug-sweep
-state: active
+branch: 
+state: closing:review
 project-sha: 946b2d493147645bed34968b2e65980e483a2bad
 date: 2026-11-02
 issue-repo: casehubio/neocortex
@@ -11,8 +11,9 @@ design-repo: project
 design-section-hashes: 
 flyway-next-v: unknown
 
+evidence-era: true
 ## Queue
-- [ ] casehubio/neocortex#738 — Issue #738 ← active
-- [ ] casehubio/neocortex#766 — drive-description-test-failure
-- [ ] casehubio/neocortex#492 — subthought-consolidation-bugs
-- [ ] casehubio/neocortex#493 — belief-revision-cursor-gap
+- [x] casehubio/neocortex#738 — Issue #738
+- [x] casehubio/neocortex#766 — drive-description-test-failure
+- [x] casehubio/neocortex#492 — subthought-consolidation-bugs
+- [x] casehubio/neocortex#493 — belief-revision-cursor-gap
