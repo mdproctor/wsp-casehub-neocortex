@@ -13,8 +13,8 @@ flyway-next-v: unknown
 
 ## Queue
 - [x] casehubio/neocortex#758 — Issue #758
-- [ ] casehubio/neocortex#759 — narrative-pipeline-retriever-integration ← active
-- [ ] casehubio/neocortex#755 — stamp-obsolete-agency-branches
+- [x] casehubio/neocortex#759 — narrative-pipeline-retriever-integration
+- [ ] casehubio/neocortex#755 — stamp-obsolete-agency-branches ← active
 - [ ] casehubio/neocortex#767 — corpus-management-api-spis
 - [ ] casehubio/neocortex#768 — sqlite-corpus-catalogue
 - [ ] casehubio/neocortex#770 — qdrant-corpus-search
