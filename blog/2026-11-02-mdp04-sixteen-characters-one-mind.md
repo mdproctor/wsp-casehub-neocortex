@@ -40,13 +40,19 @@ The eidos descriptors map one-to-one onto the inputs. `AgentDisposition` carries
 
 ![Eidos to cognitive derivation pipeline](images/eidos-cognitive-derivation.svg)
 
-## One module, one bridge
+## Why a bridge, not a config file
 
-The bridge is a single CDI bean in a new `cognitive-eidos` module. At startup, it reads each character's eidos `AgentDescriptor`, converts it to a `DescriptorView`, and calls `deriveAndMerge()`. The resulting `CognitiveDefaults` are registered with `CognitiveDefaultsRegistry.register()` — a method that already existed but had no callers outside test fixtures.
+The obvious solution is YAML. Write sixteen `cognitive-profiles/*.yaml` files, one per character, with hand-authored personality weights and mood baselines. The cognitive engine already loads them. Ship it.
 
-Each character now gets unique cognitive parameters derived from the same personality data that drives their dialogue and decisions. Not hand-authored in a YAML file that drifts from the identity data. Derived.
+The problem is drift. The personality data already lives in eidos — disposition axes, function profiles, goals. A YAML cognitive profile is a second source of truth for the same character. Change a character's risk appetite in eidos and forget to update the YAML? The character's dialogue shifts but its cognitive parameters don't. It says bold things and then retrieves memories like a conservative. The inconsistency is silent — no test catches it, no compile error flags it, because the two files never reference each other.
 
-`deriveAndMerge()` overlays explicit values on the derived base. A character who needs a hand-tuned curiosity config can still get one — a YAML override wins. The defaults are calculated, not imposed.
+The alternative is making eidos depend on neocortex directly. Then eidos could produce cognitive profiles itself. But that inverts the dependency — identity should not know about cognition. Eidos defines who a character is. Cognition defines how a character thinks. Those are different concerns with different change rates.
+
+A bridge module sits between them. `cognitive-eidos` depends on both `casehub-eidos-api` and `casehub-neocortex-cognitive-index`, but neither depends on the bridge or on each other. It's a single CDI bean. At startup, it reads each character's eidos `AgentDescriptor`, converts it to a `DescriptorView`, and calls `CognitiveDerivationEngine.derive()`. The resulting `CognitiveDefaults` are registered with `CognitiveDefaultsRegistry.register()` — a method that already existed but had no callers outside test fixtures.
+
+The bridge is pure mapping. No business logic, no state. It converts types from one system into types the other system expects. Any project that has eidos on its classpath can add `cognitive-eidos` and get derived cognitive profiles for free — no YAML authoring, no maintenance, no drift.
+
+`deriveAndMerge()` overlays explicit values on the derived base. A character who needs a hand-tuned curiosity config that diverges from what derivation produces can still get one — a YAML override wins. The defaults are calculated, not imposed.
 
 ## What changes when characters remember differently
 
@@ -64,10 +70,10 @@ Neither is filtering. The modulation changes scores, not availability. But the d
 
 This is the practical difference between a reskinned agent — same prompt, different name — and one whose personality runs deep enough to change what it notices.
 
-## The pattern generalises
+## Identity as cognition
 
-Any multi-agent system with structured identity descriptors can derive cognitive parameters rather than defining them separately. The identity IS the cognition. Change a character's risk appetite in eidos, and its CBR similarity threshold adjusts. Change its social orientation, and trust formation speed follows. No second configuration to keep in sync. No drift.
+Most multi-agent systems treat personality and cognition as separate configurations. A character sheet says "bold and impulsive." A retrieval config somewhere else says "similarity threshold: 0.85, temporal decay: moderate." Nobody checks whether those two descriptions of the same character agree. When they don't — and they will, because they're maintained by different people at different times — the character contradicts itself in ways that are hard to diagnose. The dialogue sounds bold. The memory retrieval acts cautious. The agent feels incoherent and nobody knows why, because the inconsistency lives across two files that never reference each other.
 
-The alternative — hand-authoring cognitive profiles for each agent, maintaining them alongside but independently from identity data — scales badly and drifts silently. When the personality says risk-taking but the cognitive profile says conservative, the character contradicts itself in ways that are hard to diagnose because the inconsistency lives across two configuration files that nobody compares.
+Derivation eliminates the category. There is no "cognitive config" to maintain. There is identity, and everything else follows. Change a character's risk appetite in eidos, and its CBR similarity threshold adjusts. Change its social orientation, and trust formation rate follows. The mapping is deterministic, auditable, and — importantly — reversible: given a character's cognitive parameters, you can trace every value back to the specific disposition axis or function weight that produced it.
 
-Derivation makes personality and cognition one thing. The mapping is deterministic and auditable. That matters when you're trying to understand why a character did something unexpected — was it the personality, or was it a stale config?
+That traceability matters when you're debugging behaviour. "Why did this character retrieve relationship memories first?" Because its disposition profile weights Fe at 0.9, which the derivation engine maps to high relationship domain weight. Not because someone typed `relationship: 1.6` into a YAML file six months ago and forgot why.
