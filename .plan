@@ -12,9 +12,9 @@ design-section-hashes:
 flyway-next-v: unknown
 
 ## Queue
+- [ ] casehubio/neocortex#732 — drive-first-prompt-architecture ← active
+- [ ] casehubio/neocortex#733 — entity-enriched-drive-descriptions
+- [ ] casehubio/neocortex#753 — charactercognition-pipeline-wiring
 - [x] casehubio/neocortex#758 — Issue #758
 - [x] casehubio/neocortex#759 — narrative-pipeline-retriever-integration
 - [x] casehubio/neocortex#755 — stamp-obsolete-agency-branches
-- [ ] casehubio/neocortex#733 — entity-enriched-drive-descriptions ← active
-- [ ] casehubio/neocortex#732 — drive-first-prompt-architecture
-- [ ] casehubio/neocortex#753 — charactercognition-pipeline-wiring
