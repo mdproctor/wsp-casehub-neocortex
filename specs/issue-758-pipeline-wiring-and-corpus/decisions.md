@@ -60,3 +60,52 @@
 **Exploration:** quick
 **Depends on:** D4 (P22 queries services directly)
 **Status:** captured
+
+## D6: Reusable cognitive-eidos/ bridge module in neocortex
+
+**Choice:** New `cognitive-eidos/` module in neocortex that bridges eidos descriptors to cognitive profiles. Dependencies: `casehub-eidos-api` + `cognitive-index`. Any eidos-consuming project gets cognitive profile derivation by adding this module to classpath.
+**Alternatives:**
+- App-level wiring in casehub-mosaic — faster but duplicated if other eidos projects need cognition
+- Eidos-side adapter — adds neocortex dependency to eidos, wrong dependency direction
+**Rationale:** Clean dependency direction (neocortex → eidos-api). Reusable across projects. Follows existing module pattern (cognitive-index, caps-engine).
+**Trade-offs:** One more module in neocortex. Acceptable given clear single responsibility.
+**Sources:** CognitiveDefaultsRegistry.java, CognitiveDerivationEngine.java, casehub-eidos-api (AgentDescriptor, AgentDisposition)
+**Exploration:** quick
+**Status:** captured
+
+## D7: Runtime derivation — eidos descriptors → CognitiveDefaults at startup
+
+**Choice:** `EidosCognitiveProfileBridge` (@ApplicationScoped) converts eidos `AgentDescriptor` instances to `DescriptorView` at startup, calls `CognitiveDerivationEngine.deriveAndMerge()`, registers results via `CognitiveDefaultsRegistry.register()`. All 10 derivation pathways fire automatically.
+**Alternatives:**
+- YAML generation tool — CLI reads eidos YAMLs, generates cognitive-profiles/*.yaml. Static, requires re-run on eidos changes.
+**Rationale:** Profiles stay in sync with eidos changes automatically. No YAML file management. CognitiveDefaultsRegistry already has register() for runtime addition. `deriveAndMerge()` overlays any explicit YAML overrides on derived base — characters can still have hand-tuned overrides.
+**Trade-offs:** Runtime dependency on eidos-api. Derivation runs at startup (lightweight — pure computation, no IO).
+**Sources:** CognitiveDefaultsRegistry.register() (line 78), CognitiveDerivationEngine.deriveAndMerge(), DescriptorView
+**Exploration:** quick
+**Depends on:** D6 (reusable module)
+**Status:** captured
+
+## D8: All recall methods modulated through CognitiveMemoryRetriever
+
+**Choice:** Route all three `AgentExperienceService` recall methods (recall, recallRelationships, recallReflections) through `CognitiveMemoryRetriever` using `query(query, modulationContext)`. ModulationContext constructed from CognitiveDefaults personality weights + current mood state.
+**Alternatives:**
+- Experience recall only — simpler but inconsistent personality-weighted retrieval across memory domains
+**Rationale:** Personality weights should modulate all memory domains consistently. A character with high relationship weight should surface relationship memories more prominently everywhere, not just in experience recall.
+**Trade-offs:** All recall paths gain modulation overhead (lightweight — re-scoring existing results).
+**Sources:** AgentExperienceService.recall() (line 111), CognitiveMemoryRetriever.query(MemoryQuery, ModulationContext), ModulationContext
+**Exploration:** quick
+**Depends on:** D7 (runtime derivation provides PersonalityWeights)
+**Status:** captured
+
+## D9: Inject eidos descriptor provider directly via CDI
+
+**Choice:** `EidosCognitiveProfileBridge` injects eidos's descriptor registry/provider directly via CDI (`Instance<>` for graceful degradation). Depends on `casehub-eidos-api` at compile time.
+**Alternatives:**
+- Define DescriptorSource SPI — more decoupled but adds an interface for one implementation
+- CDI event observation — requires eidos to fire descriptor-loaded events (eidos change needed)
+**Rationale:** Simplest approach. eidos-api already provides the descriptor beans. No new SPIs or events needed. Instance<> handles the case where eidos isn't on classpath gracefully.
+**Trade-offs:** Compile dependency on eidos-api. Acceptable — eidos-api is a stable, published API module.
+**Sources:** casehub-eidos-api (AgentDescriptor, AgentDisposition), CDI Instance<> pattern used throughout neocortex
+**Exploration:** quick
+**Depends on:** D6 (reusable module)
+**Status:** captured
