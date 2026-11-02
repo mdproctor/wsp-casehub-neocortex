@@ -46,3 +46,17 @@
 **Exploration:** quick
 **Depends on:** D1 (consolidation-time enrichment), D2 (unified context block)
 **Status:** captured
+
+## D5: Full entity enrichment — memory domains + edges + ToM via SPI
+
+**Choice:** Expand buildRelationalContext to include relationship and reflection domain memories, MindMap edges, and per-entity Theory of Mind via a new MentalModelLookup SPI in cognition-api. P22 injects Instance<MentalModelLookup> for graceful degradation.
+**Alternatives:**
+- Memory domains + edges only (no ToM) — misses BDI data that grounds drive descriptions in specific beliefs about entities ("you believe she trusts you" vs generic "warmth when someone you protect is near")
+- Move MentalModelMemory to cognition-api — cleaner long-term but more code movement for same result
+- Query CbrRecordStore directly — fragile, duplicates schema knowledge
+**Rationale:** No dependency cycle (verified: cognition-api does not depend on mindmap-intelligence). The SPI pattern is established (Instance<CognitiveProfile>, Instance<DomainActivation>). MentalModelSnapshot value type is already in cognition-api. One interface, one method — minimal surface area.
+**Trade-offs:** New SPI in cognition-api. MentalModelMemory in cognition must implement it. Adds cognition-api as a dependency of mindmap-intelligence.
+**Sources:** cognition-api/pom.xml (no cycle), cognition/pom.xml (depends on mindmap-intelligence but cognition-api does not), MentalModelSnapshot.java (value type in cognition-api), MentalModelMemory.java (impl in cognition)
+**Exploration:** quick
+**Depends on:** D4 (P22 queries services directly)
+**Status:** captured
