@@ -17,8 +17,8 @@ flyway-next-v: unknown
 - [ ] casehubio/neocortex#753 — charactercognition-pipeline-wiring ← active
   - [x] Batch 1: cognitive-eidos module
     - [x] Task 1: Create EidosCognitiveProfileBridge
-  - [ ] Batch 2: Modulated recall
-    - [ ] Task 2: Route AgentExperienceService through CognitiveMemoryRetriever
+  - [x] Batch 2: Modulated recall
+    - [x] Task 2: Route AgentExperienceService through CognitiveMemoryRetriever
   - [x] Batch 3: Verification
     - [x] Task 3: Personality differentiation tests
 - [x] casehubio/neocortex#758 — Issue #758
