@@ -13,13 +13,13 @@ flyway-next-v: unknown
 
 ## Queue
 - [ ] casehubio/neocortex#732 — drive-first-prompt-architecture ← active
-  - [ ] Batch 1: P22 enrichment
-    - [ ] Task 1: Inject CognitiveProfile into P22
-    - [ ] Task 2: Add domain activation to P22
-  - [ ] Batch 2: Config and hash
-    - [ ] Task 3: Disable entityKnowledge and add context hash
-  - [ ] Batch 3: Verification
-    - [ ] Task 4: Cross-module build and test
+  - [x] Batch 1: P22 enrichment
+    - [x] Task 1: Inject CognitiveProfile into P22
+    - [x] Task 2: Add domain activation to P22
+  - [x] Batch 2: Config and hash
+    - [x] Task 3: Disable entityKnowledge and add context hash
+  - [x] Batch 3: Verification
+    - [x] Task 4: Cross-module build and test
 - [ ] casehubio/neocortex#733 — entity-enriched-drive-descriptions
 - [ ] casehubio/neocortex#753 — charactercognition-pipeline-wiring
 - [x] casehubio/neocortex#758 — Issue #758
