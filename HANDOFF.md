@@ -2,18 +2,28 @@
 
 ## Last Session (2026-11-02)
 
-Completed 5 issues on branch `issue-758-pipeline-wiring-and-corpus`. Major work: #732 folded EntityKnowledge/SocialComparison/DomainActivation prompt sections into consolidation-time drive descriptions (P22), eliminating register-degrading analytical sections. #733 expanded this with relationship/reflection memories, MindMap edges, and per-entity Theory of Mind via new `MentalModelLookup` SPI in cognition-api. Also advanced past #758 (tests, pre-existing), #759 (NarrativePipeline, pre-existing), #755 (agency branch stamps, pre-existing).
+Designed #753 (cognitive-eidos bridge). Full brainstorming → spec → plan cycle completed. No implementation yet — plan is ready to execute.
 
-Key design decision: dependency analysis proved cognition-api → mindmap-intelligence has no cycle (cognition-api ≠ cognition). This unblocked full ToM integration without architectural compromise.
+**Design:** New `cognitive-eidos/` module in neocortex. `EidosCognitiveProfileBridge` (@ApplicationScoped) reads eidos `AgentDescriptor` instances at startup, converts to `DescriptorView`, calls `CognitiveDerivationEngine.derive()`, registers with `CognitiveDefaultsRegistry.register()`. All 10 derivation pathways fire automatically — personality weights, mood baseline, curiosity, CBR strategy, social cognition, graph structure, extraction bias, appraisal weights, habituation, temporal focus.
+
+**Memory modulation:** Route `AgentExperienceService.recall()`, `recallRelationships()`, `recallReflections()` through `CognitiveMemoryRetriever` (cross-repo in casehub-mosaic slot 207). Personality weights modulate domain scoring.
+
+**Key decisions (D6-D9):** Reusable module (not app-level wiring), runtime derivation (not YAML generation), all recall modulated, inject eidos provider directly via CDI.
 
 ## Immediate Next Step
 
-#753 — Manor CharacterCognition pipeline wiring. Cross-repo in casehub-mosaic. Cognitive profiles per Manor character + modulated memory retrieval routing. Start fresh session in this slot.
+Execute the implementation plan: `plans/2026-11-02-cognitive-eidos-bridge.md`. Three batches:
+1. Create `cognitive-eidos/` module with `EidosCognitiveProfileBridge` + tests (neocortex)
+2. Route recall through `CognitiveMemoryRetriever` (casehub-mosaic slot 207)
+3. Verification — personality differentiation across derivation pathways
+
+Use `executing-plans` (sequential, not SDD).
+
+**Note:** `AgentQuery.all()` API needs confirmation at implementation time — eidos-api discovery method may differ. Check `AgentQuery` for the correct broad-query factory.
 
 ## References
 
-- `specs/issue-758-pipeline-wiring-and-corpus/2026-11-02-drive-first-folding-design.md` — #732 spec
-- `specs/issue-758-pipeline-wiring-and-corpus/2026-11-02-entity-enriched-drive-descriptions-design.md` — #733 spec
-- `specs/issue-758-pipeline-wiring-and-corpus/decisions.md` — D1-D5 decisions
-- `plans/2026-11-02-drive-first-folding.md` — #732 plan
-- `plans/2026-11-02-entity-enriched-drive-descriptions.md` — #733 plan
+- `specs/issue-758-pipeline-wiring-and-corpus/2026-11-02-cognitive-eidos-bridge-design.md` — design spec
+- `specs/issue-758-pipeline-wiring-and-corpus/decisions.md` — D6-D9 decisions
+- `plans/2026-11-02-cognitive-eidos-bridge.md` — implementation plan
+- `blog/2026-11-02-mdp04-sixteen-characters-one-mind.md` — diary entry
