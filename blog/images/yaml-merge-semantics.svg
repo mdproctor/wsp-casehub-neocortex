@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 300" font-family="system-ui, -apple-system, sans-serif">
+  <style>
+    .title { font-size: 14px; font-weight: 600; fill: #1a1a2e; }
+    .label { font-size: 11px; fill: #16213e; font-weight: 500; }
+    .small { font-size: 10px; fill: #555; }
+    .phase { font-size: 10px; fill: #888; font-style: italic; }
+    .val-yaml { font-size: 10px; fill: #1565c0; font-weight: 600; }
+    .val-derived { font-size: 10px; fill: #2d6a4f; }
+    .val-null { font-size: 10px; fill: #bbb; font-style: italic; }
+    .box { rx: 6; ry: 6; }
+    .arrow { stroke: #555; stroke-width: 1.5; fill: none; marker-end: url(#arr); }
+    .arrow-win { stroke: #1565c0; stroke-width: 2; fill: none; marker-end: url(#arr-b); }
+    .arrow-fill { stroke: #2d6a4f; stroke-width: 1.5; stroke-dasharray: 4 3; fill: none; marker-end: url(#arr-g); }
+  </style>
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#555"/>
+    </marker>
+    <marker id="arr-b" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#1565c0"/>
+    </marker>
+    <marker id="arr-g" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#2d6a4f"/>
+    </marker>
+  </defs>
+
+  <text x="360" y="22" class="title" text-anchor="middle">deriveAndMerge: YAML Overrides Win, Derivation Fills Gaps</text>
+
+  <!-- YAML Profile (partial) -->
+  <text x="100" y="52" class="phase" text-anchor="middle">YAML Profile (partial)</text>
+  <rect x="15" y="60" width="170" height="170" class="box" fill="#e3f2fd" stroke="#1565c0"/>
+  <text x="100" y="82" class="label" text-anchor="middle">muttley.yaml</text>
+  <text x="30" y="105" class="val-yaml">moodBaseline: 0.9, -0.5, 0.3</text>
+  <text x="30" y="125" class="val-null">curiosity: null</text>
+  <text x="30" y="145" class="val-null">cbrStrategy: null</text>
+  <text x="30" y="165" class="val-null">socialCognition: null</text>
+  <text x="30" y="185" class="val-null">graphStructure: null</text>
+  <text x="30" y="205" class="val-null">appraisalWeights: null</text>
+  <text x="30" y="218" class="small">(6 more fields null)</text>
+
+  <!-- Derived defaults -->
+  <text x="360" y="52" class="phase" text-anchor="middle">Derived from Eidos</text>
+  <rect x="275" y="60" width="170" height="170" class="box" fill="#e8f5e9" stroke="#2d6a4f"/>
+  <text x="360" y="82" class="label" text-anchor="middle">derive(descriptorView)</text>
+  <text x="290" y="105" class="val-derived">moodBaseline: 0.3, 0.2, 0.4</text>
+  <text x="290" y="125" class="val-derived">curiosity: {Se→1.5, Te→1.3}</text>
+  <text x="290" y="145" class="val-derived">cbrStrategy: 0.35, 180d</text>
+  <text x="290" y="165" class="val-derived">socialCognition: 0.4, INFO</text>
+  <text x="290" y="185" class="val-derived">graphStructure: CATEGORICAL</text>
+  <text x="290" y="205" class="val-derived">appraisalWeights: {0.8, 1.2}</text>
+  <text x="290" y="218" class="small">(all 10 pathways populated)</text>
+
+  <!-- Merged result -->
+  <text x="620" y="52" class="phase" text-anchor="middle">Merged Result</text>
+  <rect x="535" y="60" width="170" height="170" class="box" fill="#fce4ec" stroke="#c62828"/>
+  <text x="620" y="82" class="label" text-anchor="middle">CognitiveDefaults</text>
+  <text x="550" y="105" class="val-yaml">moodBaseline: 0.9, -0.5, 0.3</text>
+  <text x="550" y="125" class="val-derived">curiosity: {Se→1.5, Te→1.3}</text>
+  <text x="550" y="145" class="val-derived">cbrStrategy: 0.35, 180d</text>
+  <text x="550" y="165" class="val-derived">socialCognition: 0.4, INFO</text>
+  <text x="550" y="185" class="val-derived">graphStructure: CATEGORICAL</text>
+  <text x="550" y="205" class="val-derived">appraisalWeights: {0.8, 1.2}</text>
+
+  <!-- Arrows -->
+  <path d="M185,105 L535,105" class="arrow-win"/>
+  <path d="M445,125 L535,125" class="arrow-fill"/>
+  <path d="M445,145 L535,145" class="arrow-fill"/>
+  <path d="M445,165 L535,165" class="arrow-fill"/>
+  <path d="M445,185 L535,185" class="arrow-fill"/>
+  <path d="M445,205 L535,205" class="arrow-fill"/>
+
+  <!-- Legend -->
+  <line x1="200" y1="260" x2="240" y2="260" stroke="#1565c0" stroke-width="2"/>
+  <text x="248" y="264" class="small">YAML override wins (explicit non-null)</text>
+  <line x1="200" y1="280" x2="240" y2="280" stroke="#2d6a4f" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <text x="248" y="284" class="small">Derived value fills gap (YAML was null)</text>
+</svg>
