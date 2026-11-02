@@ -15,12 +15,15 @@ flyway-next-v: unknown
 - [x] casehubio/neocortex#732 — drive-first-prompt-architecture
 - [x] casehubio/neocortex#733 — entity-enriched-drive-descriptions
 - [ ] casehubio/neocortex#753 — charactercognition-pipeline-wiring ← active
-  - [ ] Batch 1: cognitive-eidos module
-    - [ ] Task 1: Create EidosCognitiveProfileBridge
+  - [x] Batch 1: cognitive-eidos module
+    - [x] Task 1: Create EidosCognitiveProfileBridge
   - [ ] Batch 2: Modulated recall
     - [ ] Task 2: Route AgentExperienceService through CognitiveMemoryRetriever
-  - [ ] Batch 3: Verification
-    - [ ] Task 3: Personality differentiation tests
+  - [x] Batch 3: Verification
+    - [x] Task 3: Personality differentiation tests
 - [x] casehubio/neocortex#758 — Issue #758
 - [x] casehubio/neocortex#759 — narrative-pipeline-retriever-integration
 - [x] casehubio/neocortex#755 — stamp-obsolete-agency-branches
+
+## Deferred
+- [ ] Route AgentExperienceService through CognitiveMemoryRetriever (S / Med) [casehub-mosaic] — wacky-manor example not present in slot 211 casehub-mosaic — requires slot 207 or a mosaic checkout that includes the wacky-manor example
