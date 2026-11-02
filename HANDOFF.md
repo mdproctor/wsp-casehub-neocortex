@@ -61,6 +61,10 @@ Landed 6 commits on main. CognitiveMemoryRetriever now actively shapes agent mem
 
 Start next session in this slot (`slots/211/neocortex`), run `work`. Bug sweep branch picks up at #738. All 4 bugs should fit in one session. Then either continue with #757 children or switch to slot 221 for #763.
 
+## Era docs
+
+`docs/research/` has eras 1, 3, 4, 5 in this clone. Era 2 and era 6 may exist in another slot that hasn't synced. Check before creating era 6 — this session's work (#750 modulated retrieval, #763 autonomous knowledge, #765 cognitive richness) is era 6 material if it doesn't already exist.
+
 ## References
 
 - `specs/issue-750-integrate-cognitive-memory-retriever/2026-11-01-cognitive-memory-retriever-integration-design.md` — design spec
