@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 340" font-family="'Inter', 'Segoe UI', system-ui, sans-serif">
+  <defs>
+    <linearGradient id="goodBar" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#4285f4"/>
+      <stop offset="100%" stop-color="#669df6"/>
+    </linearGradient>
+    <linearGradient id="badBar" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#d93025"/>
+      <stop offset="100%" stop-color="#ea8686"/>
+    </linearGradient>
+    <linearGradient id="okBar" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#34a853"/>
+      <stop offset="100%" stop-color="#81c995"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Left panel: Pipeline-scored -->
+  <text x="190" y="28" text-anchor="middle" font-size="14" font-weight="700" fill="#1a73e8">Pipeline-scored results</text>
+  <text x="190" y="46" text-anchor="middle" font-size="11" fill="#5f6368">Relevance × cross-encoder × version</text>
+
+  <!-- Result 1 -->
+  <rect x="20" y="64" width="340" height="56" rx="6" fill="#f8f9fa" stroke="#dadce0" stroke-width="1"/>
+  <text x="36" y="82" font-size="11" font-weight="600" fill="#1a73e8">#1</text>
+  <text x="56" y="82" font-size="12" font-weight="500" fill="#202124">Quarkus reactive gotcha</text>
+  <text x="56" y="100" font-size="10" fill="#80868b">2 months old · high relevance confirmed by cross-encoder</text>
+  <rect x="290" y="74" width="56" height="22" rx="4" fill="url(#goodBar)"/>
+  <text x="318" y="89" text-anchor="middle" font-size="11" font-weight="700" fill="white">0.95</text>
+
+  <!-- Result 2 -->
+  <rect x="20" y="128" width="340" height="56" rx="6" fill="#f8f9fa" stroke="#dadce0" stroke-width="1"/>
+  <text x="36" y="146" font-size="11" font-weight="600" fill="#1a73e8">#2</text>
+  <text x="56" y="146" font-size="12" font-weight="500" fill="#202124">Build cache pattern</text>
+  <text x="56" y="164" font-size="10" fill="#80868b">1 day old · moderate relevance</text>
+  <rect x="290" y="138" width="56" height="22" rx="4" fill="url(#goodBar)"/>
+  <text x="318" y="153" text-anchor="middle" font-size="11" font-weight="700" fill="white">0.82</text>
+
+  <!-- Result 3 -->
+  <rect x="20" y="192" width="340" height="56" rx="6" fill="#f8f9fa" stroke="#dadce0" stroke-width="1"/>
+  <text x="36" y="210" font-size="11" font-weight="600" fill="#1a73e8">#3</text>
+  <text x="56" y="210" font-size="12" font-weight="500" fill="#202124">API design patterns paper</text>
+  <text x="56" y="228" font-size="10" fill="#80868b">6 months old · relevant to the query</text>
+  <rect x="290" y="202" width="56" height="22" rx="4" fill="url(#goodBar)"/>
+  <text x="318" y="217" text-anchor="middle" font-size="11" font-weight="700" fill="white">0.78</text>
+
+  <!-- Arrow between panels -->
+  <text x="390" y="145" text-anchor="middle" font-size="20" fill="#d93025">→</text>
+  <text x="390" y="168" text-anchor="middle" font-size="9" fill="#d93025" font-weight="600">+ 30-day</text>
+  <text x="390" y="180" text-anchor="middle" font-size="9" fill="#d93025" font-weight="600">decay</text>
+
+  <!-- Right panel: After consumer decay -->
+  <text x="580" y="28" text-anchor="middle" font-size="14" font-weight="700" fill="#d93025">After consumer-layer decay</text>
+  <text x="580" y="46" text-anchor="middle" font-size="11" fill="#5f6368">Same results, second decay applied</text>
+
+  <!-- Result 1 (was #2, now #1 — reordered) -->
+  <rect x="410" y="64" width="340" height="56" rx="6" fill="#f8f9fa" stroke="#dadce0" stroke-width="1"/>
+  <text x="426" y="82" font-size="11" font-weight="600" fill="#d93025">#1</text>
+  <text x="446" y="82" font-size="12" font-weight="500" fill="#202124">Build cache pattern</text>
+  <text x="446" y="100" font-size="10" fill="#80868b">1 day old · barely changed</text>
+  <rect x="680" y="74" width="56" height="22" rx="4" fill="url(#okBar)"/>
+  <text x="708" y="89" text-anchor="middle" font-size="11" font-weight="700" fill="white">0.81</text>
+  <text x="670" y="89" text-anchor="end" font-size="9" fill="#34a853">−1%</text>
+
+  <!-- Result 2 (was #1, demoted) -->
+  <rect x="410" y="128" width="340" height="56" rx="6" fill="#fce8e6" stroke="#d93025" stroke-width="1"/>
+  <text x="426" y="146" font-size="11" font-weight="600" fill="#d93025">#2</text>
+  <text x="446" y="146" font-size="12" font-weight="500" fill="#202124">Quarkus reactive gotcha</text>
+  <text x="446" y="164" font-size="10" fill="#80271c">2 months old · penalised by ×0.25 decay</text>
+  <rect x="680" y="138" width="56" height="22" rx="4" fill="url(#badBar)"/>
+  <text x="708" y="153" text-anchor="middle" font-size="11" font-weight="700" fill="white">0.24</text>
+  <text x="670" y="153" text-anchor="end" font-size="9" fill="#d93025">−75%</text>
+
+  <!-- Result 3 (destroyed) -->
+  <rect x="410" y="192" width="340" height="56" rx="6" fill="#fce8e6" stroke="#d93025" stroke-width="1"/>
+  <text x="426" y="210" font-size="11" font-weight="600" fill="#d93025">#3</text>
+  <text x="446" y="210" font-size="12" font-weight="500" fill="#202124">API design patterns paper</text>
+  <text x="446" y="228" font-size="10" fill="#80271c">6 months old · effectively eliminated</text>
+  <rect x="680" y="202" width="56" height="22" rx="4" fill="url(#badBar)"/>
+  <text x="708" y="217" text-anchor="middle" font-size="11" font-weight="700" fill="white">0.03</text>
+  <text x="670" y="217" text-anchor="end" font-size="9" fill="#d93025">−96%</text>
+
+  <!-- Annotation -->
+  <rect x="410" y="270" width="340" height="52" rx="6" fill="#fff3e0" stroke="#e8710a" stroke-width="1"/>
+  <text x="580" y="291" text-anchor="middle" font-size="12" font-weight="600" fill="#b06000">The pipeline ranked them correctly.</text>
+  <text x="580" y="309" text-anchor="middle" font-size="11" fill="#b06000">The second decay inverted the ranking.</text>
+</svg>
