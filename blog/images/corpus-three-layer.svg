@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 340" font-family="Inter, -apple-system, sans-serif">
+  <style>
+    .layer-box { rx: 8; ry: 8; stroke-width: 1.5; }
+    .label { font-size: 13px; font-weight: 600; fill: #1e293b; }
+    .desc { font-size: 11px; fill: #64748b; }
+    .format { font-size: 10px; fill: #94a3b8; font-style: italic; }
+    .arrow { stroke: #94a3b8; stroke-width: 1.5; fill: none; marker-end: url(#arrowhead); }
+    .note { font-size: 10px; fill: #475569; }
+  </style>
+  <defs>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#94a3b8"/>
+    </marker>
+  </defs>
+
+  <!-- Layer 1: Original Artifact -->
+  <rect x="40" y="30" width="600" height="76" class="layer-box" fill="#fef3c7" stroke="#f59e0b"/>
+  <text x="60" y="55" class="label">Original Artifact</text>
+  <text x="60" y="73" class="desc">Source document in native format — PDF, HTML, scan, transcript JSON</text>
+  <text x="60" y="90" class="format">Storage: CorpusStore (ZIP archives) · Optional — curated entries have no separate original</text>
+
+  <!-- Arrow down -->
+  <path d="M 340 106 L 340 130" class="arrow"/>
+  <text x="355" y="122" class="note">wraps</text>
+
+  <!-- Layer 2: Cover Document -->
+  <rect x="40" y="130" width="600" height="76" class="layer-box" fill="#dbeafe" stroke="#3b82f6"/>
+  <text x="60" y="155" class="label">Cover Document</text>
+  <text x="60" y="173" class="desc">Metadata + summary + annotations — markdown + YAML frontmatter (garden entry format)</text>
+  <text x="60" y="190" class="format">The agent's understanding of the material · Human-readable · Git-friendly</text>
+
+  <!-- Arrow down -->
+  <path d="M 340 206 L 340 230" class="arrow"/>
+  <text x="355" y="222" class="note">derives</text>
+
+  <!-- Layer 3: Index Record -->
+  <rect x="40" y="230" width="600" height="76" class="layer-box" fill="#dcfce7" stroke="#22c55e"/>
+  <text x="60" y="255" class="label">Index Record</text>
+  <text x="60" y="273" class="desc">Embedded vectors derived from cover — dense + sparse (SPLADE) + BM25</text>
+  <text x="60" y="290" class="format">Storage: Qdrant collection · Search returns understanding, not raw text</text>
+</svg>

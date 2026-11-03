@@ -1,0 +1,22 @@
+# Work Plan — issue-763-cognitive-knowledge-management
+
+## State
+branch: 
+state: closing:merged
+project-sha: slot-creation
+date: 2026-11-01
+issue-repo: casehubio/neocortex
+covers: 763,764
+design-repo: project
+design-section-hashes: 
+flyway-next-v: unknown
+
+evidence-era: true
+## Queue
+- [x] casehubio/neocortex#763 — Issue #763
+- [x] casehubio/neocortex#775 — Move remaining Hortora services to corpus-management
+- [x] casehubio/neocortex#776 — McpDomain corpus auto-generated endpoints
+- [ ] casehubio/neocortex#779 — CorpusApi correctness bugs
+- [ ] casehubio/neocortex#780 — CorpusApi design gaps
+- [ ] casehubio/neocortex#781 — CorpusApi test coverage gaps
+- [ ] casehubio/neocortex#782 — corpus-management code hygiene

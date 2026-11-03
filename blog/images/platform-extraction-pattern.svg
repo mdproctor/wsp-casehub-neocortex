@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 320" font-family="Inter, -apple-system, sans-serif">
+  <style>
+    .box { rx: 8; ry: 8; stroke-width: 1.5; }
+    .label { font-size: 11px; font-weight: 600; fill: #1e293b; text-anchor: middle; }
+    .sublabel { font-size: 9px; fill: #64748b; text-anchor: middle; }
+    .phase-label { font-size: 13px; font-weight: 700; fill: #334155; text-anchor: middle; }
+    .step-num { font-size: 18px; font-weight: 800; fill: #cbd5e1; }
+    .arrow { stroke: #94a3b8; stroke-width: 2; fill: none; marker-end: url(#step-arrow); }
+  </style>
+  <defs>
+    <marker id="step-arrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8"/>
+    </marker>
+  </defs>
+
+  <!-- Step 1 -->
+  <text x="30" y="30" class="step-num">1</text>
+  <text x="110" y="30" class="phase-label">Build the specific thing</text>
+  <rect x="30" y="45" width="180" height="120" class="box" fill="#fef2f2" stroke="#ef4444" stroke-dasharray="4,3"/>
+  <rect x="50" y="65" width="140" height="28" class="box" fill="#fee2e2" stroke="#fca5a5"/>
+  <text x="120" y="83" class="label">Domain logic</text>
+  <rect x="50" y="103" width="140" height="28" class="box" fill="#fee2e2" stroke="#fca5a5"/>
+  <text x="120" y="121" class="label">REST/MCP</text>
+  <rect x="50" y="141" width="140" height="28" class="box" fill="#fde68a" stroke="#f59e0b"/>
+  <text x="120" y="159" class="label">Config</text>
+  <text x="120" y="185" class="sublabel">monolith — one domain</text>
+
+  <path d="M 220 105 L 260 105" class="arrow"/>
+
+  <!-- Step 2 -->
+  <text x="270" y="30" class="step-num">2</text>
+  <text x="380" y="30" class="phase-label">Extract the general platform</text>
+  <rect x="270" y="45" width="200" height="80" class="box" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="370" y="72" class="label" style="fill:#16a34a">Platform module</text>
+  <text x="370" y="88" class="sublabel">generified, pure Java</text>
+  <text x="370" y="102" class="sublabel">constructor injection</text>
+
+  <rect x="270" y="140" width="200" height="50" class="box" fill="#fef2f2" stroke="#ef4444"/>
+  <text x="370" y="163" class="label" style="fill:#dc2626">App (thin)</text>
+  <text x="370" y="178" class="sublabel">CDI wiring + config</text>
+
+  <path d="M 370 140 L 370 125" class="arrow"/>
+
+  <path d="M 480 105 L 520 105" class="arrow"/>
+
+  <!-- Step 3 -->
+  <text x="530" y="30" class="step-num">3</text>
+  <text x="620" y="30" class="phase-label">New domains for free</text>
+  <rect x="530" y="45" width="170" height="60" class="box" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="615" y="72" class="label" style="fill:#16a34a">Platform</text>
+  <text x="615" y="88" class="sublabel">shared</text>
+
+  <rect x="530" y="120" width="75" height="40" class="box" fill="#fef2f2" stroke="#ef4444"/>
+  <text x="567" y="140" class="sublabel">App A</text>
+  <text x="567" y="152" class="sublabel" style="font-size:8px">config</text>
+
+  <rect x="617" y="120" width="75" height="40" class="box" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="654" y="140" class="sublabel">App B</text>
+  <text x="654" y="152" class="sublabel" style="font-size:8px">config</text>
+
+  <path d="M 567 120 L 580 105" class="arrow"/>
+  <path d="M 654 120 L 640 105" class="arrow"/>
+
+  <!-- Runtime creation note -->
+  <rect x="530" y="180" width="170" height="50" class="box" fill="#f5f3ff" stroke="#a78bfa" stroke-dasharray="4,3"/>
+  <text x="615" y="200" class="sublabel" style="fill:#7c3aed">or: runtime-created</text>
+  <text x="615" y="215" class="sublabel" style="fill:#7c3aed">no app needed at all</text>
+
+  <!-- Bottom annotation -->
+  <text x="360" y="260" class="sublabel" style="font-size:11px; fill:#475569">The pattern: build specific → extract general → new domains are configuration, not code</text>
+</svg>
