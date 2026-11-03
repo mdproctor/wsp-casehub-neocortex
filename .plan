@@ -1,0 +1,15 @@
+# Work Plan — issue-757-cognitive-pipeline-wiring
+
+## State
+branch: issue-757-cognitive-pipeline-wiring
+state: scaffolded
+project-sha: 
+date: 
+issue-repo: casehubio/neocortex
+covers: 757
+design-repo: 
+design-section-hashes: 
+flyway-next-v: 
+
+## Queue
+- [ ] casehubio/neocortex#757 — Issue #757 ← active
