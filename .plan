@@ -2,7 +2,7 @@
 
 ## State
 branch: 
-state: closing:stamped
+state: drained
 project-sha: slot-creation
 date: 2026-11-01
 issue-repo: casehubio/neocortex
