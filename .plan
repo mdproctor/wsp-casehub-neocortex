@@ -1,16 +1,15 @@
-# Work Plan — issue-763-cognitive-knowledge-management
+# Work Plan — issue-785-audit-corpus-domain-abstraction
 
 ## State
-branch: main
+branch: issue-785-audit-corpus-domain-abstraction
 state: scaffolded
-project-sha: slot-creation
-date: 2026-11-03
+project-sha: 
+date: 
 issue-repo: casehubio/neocortex
 covers: 789
 design-repo: project
 design-section-hashes: 
 flyway-next-v: unknown
-evidence-era: true
 
 ## Queue
-- [ ] casehubio/neocortex#785 — Audit corpus-management for domain abstraction ← active
+- [ ] casehubio/neocortex#785 — Issue #785 ← active
