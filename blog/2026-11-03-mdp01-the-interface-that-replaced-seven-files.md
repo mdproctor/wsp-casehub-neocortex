@@ -96,4 +96,4 @@ After the previous session, Hortora was 1465 lines and twenty files — CDI prod
 
 The application that started as 4000 lines of Java is converging on its natural endpoint: a deployment descriptor.
 
-No Java source code that does anything. Just configuration that says what this particular knowledge garden is, and a platform that knows how to run one.
+No Java source code that does anything. Just configuration that says what this particular knowledge garden is, and a platform that knows how to run one.fr
