@@ -1,26 +1,41 @@
-# Session Handover — 2026-11-02 (updated session 3)
+# Session Handover — 2026-11-03 (session 4)
 
 ## What happened
 
-Three phases of work on **corpus management** (#763 + #764 + #775):
+Completed the corpus management epic (#763) — designed, implemented, reviewed, and landed the `@McpDomain("corpus")` auto-generated endpoint layer (#776), plus comprehensive code review fixes (#779-#782).
 
-**Phase 1 (session 1):** Designed the corpus management abstraction — 16 decisions, reviewed spec, 8-task implementation plan. Built corpus-management-api (SPIs, value types) and corpus-management (catalogue, cover parser, entry store, in-process federation). Also built cognitive integration (CognitiveMemoryRetriever extension, CorpusKnowledgePromptSection, CorpusEntryPromoter) and transcript support (CoverDocumentGenerator, TranscriptCorpusInitializer).
+**Implementation:** Created `CorpusApi` interface with 19 operations (`@McpDomain("neocortex/corpus")`), `CorpusApiBean` (thin delegator), `CorpusIndexService` (wraps RAG SPIs for index management). Three result types: `CorpusStatus`, `UnretrievedReport`, `EntryDetail`.
 
-**Phase 2 (session 2):** Discovered the original plan's IntelliJ migration was skipped — Hortora's 9-month-mature engine code was rewritten from scratch instead of moved. Remediated: deleted the reimplementations, IntelliJ-moved 12 files from Hortora to corpus-management preserving all mature code, generified (stripped CDI/JAX-RS, constructor injection), created CDI producer in Hortora as thin deployment layer. Both projects compile clean.
+**Code review:** 4-dimension parallel review found 11 issues — 3 correctness bugs (search() delegating to searchAdaptive(), null guards for gardenRoot and entryIds), test coverage gaps (reindexEntry and unretrieved untested, 12/19 CorpusApiBean operations untested), and hygiene (SearchScoringConfig still had Quarkus annotations, missing POM dep, unused import). All fixed. Tests: 105 → 123.
 
-**Phase 3 (session 3):** Completed #775 — moved ALL remaining Hortora domain logic to neocortex. Created 3 new issues (#775, #776, Hortora/engine#96) for the config-only deployment vision. Migrated 5 services (HttpFederationWalker, FederationConfigParser, CorpusOutcomeService, CorpusCollectionMigration, RemoteCorpusClient) with full TDD (38 tests). Deleted 7 source + 6 test files + 9 fixtures from Hortora (1937 lines removed). Hortora now at 1465 lines / 20 files — CDI producers, REST endpoints, MCP tools, and config.
+**Branch close:** Rebased onto canonical main (25 new commits from other slots, 1 conflict in CognitiveMemoryRetriever resolved — merged observers + corpus search). Squashed 25 commits into 1 semantic commit. Merged to main, stamped, pushed to canonical. 14 issues closed.
 
-## Next steps
+**Blog:** "The Interface That Replaced Seven Files" — revised with code review findings section. 4 entries total in the series, all indexed.
 
-| Issue | What | Status |
-|-------|------|--------|
-| #776 | @McpDomain("corpus") auto-generated endpoints | Next — replaces REST + MCP + most CDI producers |
-| Hortora/engine#96 | Strip engine to config-only deployment | After #776 — goal is zero Java source |
+**Issue hygiene:** Closed 7 orphaned children of #763 (#767-#773) that were implemented but never closed. Closed #751 as won't-do with detailed rationale (cognitive modulation doesn't belong at RAG retrieval layer). Filed #792 for hardcoded 30-day decay in queryCorpora().
 
-## References
+## Commits landed on main
 
-| Artifact | Path |
-|----------|------|
-| Design spec (reviewed) | `specs/issue-763-cognitive-knowledge-management/2026-11-02-cognitive-knowledge-management-design.md` |
-| Migration plan (#775) | `plans/2026-11-02-remaining-hortora-migration.md` |
-| Decisions (17) | `specs/issue-763-cognitive-knowledge-management/decisions.md` |
+| Repo | Commit | Description |
+|------|--------|-------------|
+| neocortex | `d4fd3966` | feat: corpus management platform — SPIs, runtime, @McpDomain endpoints |
+| workspace | `92aa175` | feat: corpus management workspace — design specs, plans, blog entries |
+| workspace | `f927aea` | fix: add missing blog entries to INDEX.md |
+
+## Next session
+
+| Issue | What | Scale | Start with |
+|-------|------|-------|-----------|
+| #792 | Remove hardcoded 30-day recency decay from queryCorpora() | XS/Low | **Done** — landed as ece3c932 |
+| #789 | Epic: Corpus management generalization | XL/High | Ordered child issues below |
+| #785 | Audit corpus-management for domain abstraction | M/Med | First — fix leaks before building on them |
+| #786 | E2E examples across diverse domains | M/Med | After #785 |
+| #787 | Rich document ingestion (PDF, Word, OCR, positional markdown) | L/High | After #785, brainstorm-first |
+| #788 | Corpus mindmap — sticky-note annotations | M/High | After #785, brainstorm-first |
+| #790 | Compact relationship store — denormalized cognitive values | L/High | Independent investigation |
+
+## Key design discussion this session
+
+**#751 rationale (won't-do):** Cognitive modulation (mood-congruent, goal-relevant, recency-decayed scoring) doesn't belong at the RAG retrieval layer because: (1) documents don't have emotional valence — category error; (2) CaseContextRetriever is shared infrastructure with no agent context — scope mismatch; (3) cognitive values apply to the agent's *representation* of the object (MindMap node after promotion), not to the document itself.
+
+**#790 (compact relationship store):** Many agent-object relationships don't need full MindMap graph machinery — they need a fast lookup with ~31 cognitive value columns. SQLite stores NULLs cheaply, so a sparse wide table is efficient. Needs audit of existing MindMap nodes to classify which are graph entities vs relationships.
