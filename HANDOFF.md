@@ -1,27 +1,41 @@
-# HANDOFF — casehub-neocortex
+# Session Handover — 2026-11-03 (session 4)
 
-## Last Session (2026-11-02)
+## What happened
 
-Branch `issue-758-pipeline-wiring-and-corpus` closed. All 6 issues landed on main (#758, #759, #755, #733, #732, #753).
+Completed the corpus management epic (#763) — designed, implemented, reviewed, and landed the `@McpDomain("corpus")` auto-generated endpoint layer (#776), plus comprehensive code review fixes (#779-#782).
 
-**#753 cognitive-eidos bridge:** Created `cognitive-eidos/` module — `EidosCognitiveProfileBridge` derives `CognitiveDefaults` from eidos `AgentDescriptor` via `CognitiveDerivationEngine`. Key fix: `registerFromDescriptor` now calls `deriveAndMerge()` when YAML exists (YAML overrides win, derived fills gaps) instead of skipping entirely. 7 tests covering toDescriptorView, bridgeAll, merge semantics, differentiation, edge cases.
+**Implementation:** Created `CorpusApi` interface with 19 operations (`@McpDomain("neocortex/corpus")`), `CorpusApiBean` (thin delegator), `CorpusIndexService` (wraps RAG SPIs for index management). Three result types: `CorpusStatus`, `UnretrievedReport`, `EntryDetail`.
 
-**Cross-repo (casehubio/examples#200):** Wired `AgentExperienceService.recall()` through `CognitiveMemoryRetriever` in wacky-manor. PlaybookOrchestrator constructs retriever with contextual domain weight factory. Landed on main, issue closed.
+**Code review:** 4-dimension parallel review found 11 issues — 3 correctness bugs (search() delegating to searchAdaptive(), null guards for gardenRoot and entryIds), test coverage gaps (reindexEntry and unretrieved untested, 12/19 CorpusApiBean operations untested), and hygiene (SearchScoringConfig still had Quarkus annotations, missing POM dep, unused import). All fixed. Tests: 105 → 123.
 
-**Epic hygiene:** Closed #760, #762, platform#691 (all 5 children). #765 updated: #732, #733 now done (2/5).
+**Branch close:** Rebased onto canonical main (25 new commits from other slots, 1 conflict in CognitiveMemoryRetriever resolved — merged observers + corpus search). Squashed 25 commits into 1 semantic commit. Merged to main, stamped, pushed to canonical. 14 issues closed.
 
-## Epic Status
+**Blog:** "The Interface That Replaced Seven Files" — revised with code review findings section. 4 entries total in the series, all indexed.
 
-| Epic | Done | Open | Next pick |
-|------|------|------|-----------|
-| **#757** Pipeline wiring | 6/12 | #738, #748, #749, #750, #751, #752, #754 | #738 (S/Low) |
-| **#765** Cognitive richness | 2/5 | #544, #734, #724 | #544 (S/Low) |
+**Issue hygiene:** Closed 7 orphaned children of #763 (#767-#773) that were implemented but never closed. Closed #751 as won't-do with detailed rationale (cognitive modulation doesn't belong at RAG retrieval layer). Filed #792 for hardcoded 30-day decay in queryCorpora().
 
-## Immediate Next Step
+## Commits landed on main
 
-`work start 757` — recommended order: #738 (experience recall domain fix, trivial), #748 (DefaultBean stub, trivial), then #749→#750 chain.
+| Repo | Commit | Description |
+|------|--------|-------------|
+| neocortex | `d4fd3966` | feat: corpus management platform — SPIs, runtime, @McpDomain endpoints |
+| workspace | `92aa175` | feat: corpus management workspace — design specs, plans, blog entries |
+| workspace | `f927aea` | fix: add missing blog entries to INDEX.md |
 
-## References
+## Next session
 
-- `blog/2026-11-02-mdp04-sixteen-characters-one-mind.md` — revised diary entry with 3 SVGs
-- casehubio/examples#200 — modulated recall, closed
+| Issue | What | Scale | Start with |
+|-------|------|-------|-----------|
+| #792 | Remove hardcoded 30-day recency decay from queryCorpora() | XS/Low | **Done** — landed as ece3c932 |
+| #789 | Epic: Corpus management generalization | XL/High | Ordered child issues below |
+| #785 | Audit corpus-management for domain abstraction | M/Med | First — fix leaks before building on them |
+| #786 | E2E examples across diverse domains | M/Med | After #785 |
+| #787 | Rich document ingestion (PDF, Word, OCR, positional markdown) | L/High | After #785, brainstorm-first |
+| #788 | Corpus mindmap — sticky-note annotations | M/High | After #785, brainstorm-first |
+| #790 | Compact relationship store — denormalized cognitive values | L/High | Independent investigation |
+
+## Key design discussion this session
+
+**#751 rationale (won't-do):** Cognitive modulation (mood-congruent, goal-relevant, recency-decayed scoring) doesn't belong at the RAG retrieval layer because: (1) documents don't have emotional valence — category error; (2) CaseContextRetriever is shared infrastructure with no agent context — scope mismatch; (3) cognitive values apply to the agent's *representation* of the object (MindMap node after promotion), not to the document itself.
+
+**#790 (compact relationship store):** Many agent-object relationships don't need full MindMap graph machinery — they need a fast lookup with ~31 cognitive value columns. SQLite stores NULLs cheaply, so a sparse wide table is efficient. Needs audit of existing MindMap nodes to classify which are graph entities vs relationships.

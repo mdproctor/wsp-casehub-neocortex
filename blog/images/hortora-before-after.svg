@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 440" font-family="Inter, -apple-system, sans-serif">
+  <style>
+    .box { rx: 8; ry: 8; stroke-width: 1.5; }
+    .label { font-size: 12px; font-weight: 600; fill: #1e293b; text-anchor: middle; }
+    .sublabel { font-size: 10px; fill: #64748b; text-anchor: middle; }
+    .count { font-size: 10px; fill: #94a3b8; text-anchor: middle; font-style: italic; }
+    .phase { font-size: 14px; font-weight: 700; fill: #334155; }
+    .arrow { stroke: #94a3b8; stroke-width: 1.5; fill: none; marker-end: url(#grey-arrow); }
+    .bracket { stroke: #cbd5e1; stroke-width: 1; fill: none; }
+  </style>
+  <defs>
+    <marker id="grey-arrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8"/>
+    </marker>
+  </defs>
+
+  <!-- BEFORE -->
+  <text x="190" y="28" class="phase">Before</text>
+
+  <!-- Hortora monolith -->
+  <rect x="40" y="44" width="300" height="370" class="box" fill="#fef2f2" stroke="#ef4444" stroke-dasharray="4,3"/>
+  <text x="190" y="68" class="label" style="fill:#dc2626">Hortora Engine</text>
+  <text x="190" y="84" class="count">25 files, 2112 lines</text>
+
+  <rect x="60" y="100" width="120" height="36" class="box" fill="#fee2e2" stroke="#fca5a5"/>
+  <text x="120" y="122" class="sublabel">Search</text>
+
+  <rect x="200" y="100" width="120" height="36" class="box" fill="#fee2e2" stroke="#fca5a5"/>
+  <text x="260" y="122" class="sublabel">Federation</text>
+
+  <rect x="60" y="150" width="120" height="36" class="box" fill="#fee2e2" stroke="#fca5a5"/>
+  <text x="120" y="172" class="sublabel">Metadata</text>
+
+  <rect x="200" y="150" width="120" height="36" class="box" fill="#fee2e2" stroke="#fca5a5"/>
+  <text x="260" y="172" class="sublabel">Reindex</text>
+
+  <rect x="60" y="200" width="120" height="36" class="box" fill="#fee2e2" stroke="#fca5a5"/>
+  <text x="120" y="222" class="sublabel">Outcome/CBR</text>
+
+  <rect x="200" y="200" width="120" height="36" class="box" fill="#fee2e2" stroke="#fca5a5"/>
+  <text x="260" y="222" class="sublabel">Provenance</text>
+
+  <rect x="60" y="250" width="120" height="36" class="box" fill="#fee2e2" stroke="#fca5a5"/>
+  <text x="120" y="272" class="sublabel">Collection Mgmt</text>
+
+  <rect x="200" y="250" width="120" height="36" class="box" fill="#fee2e2" stroke="#fca5a5"/>
+  <text x="260" y="272" class="sublabel">Scoring</text>
+
+  <rect x="60" y="300" width="260" height="36" class="box" fill="#fee2e2" stroke="#fca5a5"/>
+  <text x="190" y="322" class="sublabel">MCP Tools (653 lines)</text>
+
+  <rect x="60" y="350" width="260" height="36" class="box" fill="#fde68a" stroke="#f59e0b"/>
+  <text x="190" y="372" class="sublabel">REST Endpoints + CDI Config</text>
+
+  <!-- AFTER -->
+  <text x="600" y="28" class="phase">After</text>
+
+  <!-- Neocortex platform -->
+  <rect x="440" y="44" width="320" height="240" class="box" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="600" y="68" class="label" style="fill:#16a34a">neocortex corpus-management</text>
+  <text x="600" y="84" class="count">platform module — any domain</text>
+
+  <rect x="460" y="100" width="130" height="32" class="box" fill="#dcfce7" stroke="#86efac"/>
+  <text x="525" y="120" class="sublabel">Search</text>
+
+  <rect x="610" y="100" width="130" height="32" class="box" fill="#dcfce7" stroke="#86efac"/>
+  <text x="675" y="120" class="sublabel">HTTP Federation</text>
+
+  <rect x="460" y="146" width="130" height="32" class="box" fill="#dcfce7" stroke="#86efac"/>
+  <text x="525" y="166" class="sublabel">Metadata</text>
+
+  <rect x="610" y="146" width="130" height="32" class="box" fill="#dcfce7" stroke="#86efac"/>
+  <text x="675" y="166" class="sublabel">Reindex</text>
+
+  <rect x="460" y="192" width="130" height="32" class="box" fill="#dcfce7" stroke="#86efac"/>
+  <text x="525" y="212" class="sublabel">Outcome/CBR</text>
+
+  <rect x="610" y="192" width="130" height="32" class="box" fill="#dcfce7" stroke="#86efac"/>
+  <text x="675" y="212" class="sublabel">Provenance</text>
+
+  <rect x="460" y="238" width="130" height="32" class="box" fill="#eff6ff" stroke="#93c5fd"/>
+  <text x="525" y="258" class="sublabel">Collection Mgmt</text>
+  <text x="525" y="270" class="count">in rag module</text>
+
+  <rect x="610" y="238" width="130" height="32" class="box" fill="#dcfce7" stroke="#86efac"/>
+  <text x="675" y="258" class="sublabel">Config Parser</text>
+
+  <!-- Hortora thin -->
+  <rect x="490" y="310" width="220" height="100" class="box" fill="#fef2f2" stroke="#ef4444"/>
+  <text x="600" y="334" class="label" style="fill:#dc2626">Hortora</text>
+  <text x="600" y="350" class="count">config-only deployment</text>
+
+  <rect x="510" y="362" width="80" height="28" class="box" fill="#fde68a" stroke="#f59e0b"/>
+  <text x="550" y="380" class="sublabel" style="font-size:9px">Config</text>
+
+  <rect x="610" y="362" width="80" height="28" class="box" fill="#fde68a" stroke="#f59e0b"/>
+  <text x="650" y="380" class="sublabel" style="font-size:9px">CDI Wiring</text>
+
+  <!-- Arrow from Hortora to neocortex -->
+  <path d="M 600 310 L 600 284" class="arrow"/>
+</svg>

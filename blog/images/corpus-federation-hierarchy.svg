@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 420" font-family="Inter, -apple-system, sans-serif">
+  <style>
+    .node { rx: 10; ry: 10; stroke-width: 1.5; }
+    .node-label { font-size: 12px; font-weight: 600; fill: #1e293b; text-anchor: middle; }
+    .node-desc { font-size: 10px; fill: #64748b; text-anchor: middle; }
+    .level-label { font-size: 11px; fill: #94a3b8; font-style: italic; }
+    .edge { stroke-width: 1.5; fill: none; }
+    .upstream { stroke: #3b82f6; marker-end: url(#blue-arrow); }
+    .peer { stroke: #f59e0b; stroke-dasharray: 6,4; marker-end: url(#gold-arrow); }
+    .legend { font-size: 10px; fill: #475569; }
+  </style>
+  <defs>
+    <marker id="blue-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#3b82f6"/>
+    </marker>
+    <marker id="gold-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#f59e0b"/>
+    </marker>
+  </defs>
+
+  <!-- Level labels -->
+  <text x="20" y="55" class="level-label">canonical</text>
+  <text x="20" y="155" class="level-label">community</text>
+  <text x="20" y="255" class="level-label">platform</text>
+  <text x="20" y="355" class="level-label">product</text>
+
+  <!-- Canonical -->
+  <rect x="280" y="30" width="160" height="48" class="node" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="360" y="52" class="node-label">Java Knowledge</text>
+  <text x="360" y="67" class="node-desc">universal facts</text>
+
+  <!-- Community -->
+  <rect x="200" y="130" width="160" height="48" class="node" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="280" y="152" class="node-label">Quarkus Garden</text>
+  <text x="280" y="167" class="node-desc">ecosystem conventions</text>
+
+  <rect x="400" y="130" width="160" height="48" class="node" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="480" y="152" class="node-label">Spring Garden</text>
+  <text x="480" y="167" class="node-desc">ecosystem conventions</text>
+
+  <!-- Platform -->
+  <rect x="120" y="230" width="160" height="48" class="node" fill="#fefce8" stroke="#eab308"/>
+  <text x="200" y="252" class="node-label">CaseHub Platform</text>
+  <text x="200" y="267" class="node-desc">organisation knowledge</text>
+
+  <rect x="440" y="230" width="160" height="48" class="node" fill="#fefce8" stroke="#eab308"/>
+  <text x="520" y="252" class="node-label">Acme Corp</text>
+  <text x="520" y="267" class="node-desc">organisation knowledge</text>
+
+  <!-- Product -->
+  <rect x="40" y="330" width="150" height="48" class="node" fill="#fef2f2" stroke="#ef4444"/>
+  <text x="115" y="352" class="node-label">Agent Alpha</text>
+  <text x="115" y="367" class="node-desc">research corpus</text>
+
+  <rect x="210" y="330" width="150" height="48" class="node" fill="#fef2f2" stroke="#ef4444"/>
+  <text x="285" y="352" class="node-label">Agent Beta</text>
+  <text x="285" y="367" class="node-desc">investigation corpus</text>
+
+  <rect x="510" y="330" width="150" height="48" class="node" fill="#fef2f2" stroke="#ef4444"/>
+  <text x="585" y="352" class="node-label">Agent Gamma</text>
+  <text x="585" y="367" class="node-desc">research corpus</text>
+
+  <!-- Upstream edges (blue, solid) -->
+  <path d="M 280 130 L 340 78" class="edge upstream"/>
+  <path d="M 480 130 L 380 78" class="edge upstream"/>
+  <path d="M 200 230 L 260 178" class="edge upstream"/>
+  <path d="M 520 230 L 490 178" class="edge upstream"/>
+  <path d="M 115 330 L 180 278" class="edge upstream"/>
+  <path d="M 285 330 L 215 278" class="edge upstream"/>
+  <path d="M 585 330 L 535 278" class="edge upstream"/>
+
+  <!-- Peer edges (gold, dashed) -->
+  <path d="M 165 354 L 210 354" class="edge peer"/>
+  <path d="M 510 354 L 360 354" class="edge peer"/>
+
+  <!-- Legend -->
+  <line x1="560" y1="28" x2="600" y2="28" class="edge upstream" style="marker-end: url(#blue-arrow)"/>
+  <text x="608" y="32" class="legend">upstream (inherits)</text>
+  <line x1="560" y1="46" x2="600" y2="46" class="edge peer" style="marker-end: url(#gold-arrow)"/>
+  <text x="608" y="50" class="legend">peer (federates)</text>
+</svg>

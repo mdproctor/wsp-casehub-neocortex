@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 740 440" font-family="Inter, -apple-system, sans-serif">
+  <style>
+    .node { rx: 10; ry: 10; stroke-width: 1.5; }
+    .node-label { font-size: 12px; font-weight: 600; fill: #1e293b; text-anchor: middle; }
+    .node-desc { font-size: 10px; fill: #64748b; text-anchor: middle; }
+    .tier-label { font-size: 11px; font-weight: 700; fill: #475569; text-anchor: middle; }
+    .tier-num { font-size: 20px; font-weight: 700; fill: #94a3b8; text-anchor: middle; }
+    .edge { stroke-width: 1.5; fill: none; }
+    .walk { stroke: #3b82f6; marker-end: url(#walk-arrow); }
+    .peer { stroke: #f59e0b; stroke-dasharray: 6,4; marker-end: url(#peer-arrow); }
+    .check-box { rx: 6; ry: 6; fill: #fefce8; stroke: #eab308; stroke-width: 1; }
+    .check-text { font-size: 9px; fill: #854d0e; text-anchor: middle; }
+    .legend { font-size: 10px; fill: #475569; }
+    .short-circuit { font-size: 10px; fill: #dc2626; font-style: italic; text-anchor: middle; }
+    .phase { font-size: 10px; fill: #94a3b8; text-anchor: start; font-style: italic; }
+  </style>
+  <defs>
+    <marker id="walk-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#3b82f6"/>
+    </marker>
+    <marker id="peer-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#f59e0b"/>
+    </marker>
+  </defs>
+
+  <!-- Phase labels -->
+  <text x="30" y="68" class="phase">1. search own</text>
+  <text x="30" y="178" class="phase">2. walk upstream</text>
+  <text x="30" y="288" class="phase">2. walk upstream</text>
+  <text x="30" y="398" class="phase">3. peer fan-out</text>
+
+  <!-- Tier labels (right side) -->
+  <text x="700" y="55" class="tier-num">0</text>
+  <text x="700" y="72" class="tier-label">tier</text>
+  <text x="700" y="165" class="tier-num">1</text>
+  <text x="700" y="182" class="tier-label">tier</text>
+  <text x="700" y="275" class="tier-num">2</text>
+  <text x="700" y="292" class="tier-label">tier</text>
+  <text x="700" y="385" class="tier-num">&#x221E;</text>
+  <text x="700" y="402" class="tier-label">tier</text>
+
+  <!-- Starting corpus (tier 0) -->
+  <rect x="280" y="30" width="180" height="52" class="node" fill="#dbeafe" stroke="#3b82f6"/>
+  <text x="370" y="52" class="node-label">My Corpus</text>
+  <text x="370" y="68" class="node-desc">search here first</text>
+
+  <!-- Walk arrow tier 0 to tier 1 -->
+  <path d="M 370 82 L 370 110" class="edge walk"/>
+
+  <!-- Sufficiency check 1 -->
+  <rect x="310" y="110" width="120" height="24" class="check-box"/>
+  <text x="370" y="126" class="check-text">sufficient?</text>
+
+  <!-- No arrow continues to parent -->
+  <path d="M 370 134 L 370 148" class="edge walk"/>
+
+  <!-- Parent corpus (tier 1) -->
+  <rect x="280" y="148" width="180" height="44" class="node" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="370" y="168" class="node-label">Parent Corpus</text>
+  <text x="370" y="182" class="node-desc">upstream[0]</text>
+
+  <!-- Yes branch from check 1 -->
+  <path d="M 430 122 L 500 122" stroke="#dc2626" stroke-width="1" fill="none" stroke-dasharray="4,3"/>
+  <text x="560" y="118" class="short-circuit">yes &#x2192; stop walk</text>
+  <text x="560" y="130" class="short-circuit">return results</text>
+
+  <!-- Walk arrow tier 1 to tier 2 -->
+  <path d="M 370 192 L 370 220" class="edge walk"/>
+
+  <!-- Sufficiency check 2 -->
+  <rect x="310" y="220" width="120" height="24" class="check-box"/>
+  <text x="370" y="236" class="check-text">sufficient?</text>
+
+  <!-- No arrow continues to grandparent -->
+  <path d="M 370 244 L 370 258" class="edge walk"/>
+
+  <!-- Grandparent corpus (tier 2) -->
+  <rect x="280" y="258" width="180" height="44" class="node" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="370" y="278" class="node-label">Grandparent Corpus</text>
+  <text x="370" y="292" class="node-desc">upstream[0].upstream[0]</text>
+
+  <!-- Short circuit label 2 -->
+  <path d="M 430 232 L 500 232" stroke="#dc2626" stroke-width="1" fill="none" stroke-dasharray="4,3"/>
+  <text x="560" y="228" class="short-circuit">yes &#x2192; stop walk</text>
+  <text x="560" y="240" class="short-circuit">return results</text>
+
+  <!-- Walk arrow to sufficiency check before peers -->
+  <path d="M 370 302 L 370 330" class="edge walk"/>
+
+  <!-- Sufficiency check 3 -->
+  <rect x="310" y="330" width="120" height="24" class="check-box"/>
+  <text x="370" y="346" class="check-text">still insufficient?</text>
+
+  <!-- Fan-out to peers -->
+  <path d="M 330 354 L 210 378" class="edge peer"/>
+  <path d="M 410 354 L 530 378" class="edge peer"/>
+
+  <!-- Peer A -->
+  <rect x="130" y="374" width="160" height="44" class="node" fill="#fef2f2" stroke="#ef4444"/>
+  <text x="210" y="394" class="node-label">Peer A</text>
+  <text x="210" y="408" class="node-desc">parallel fan-out</text>
+
+  <!-- Peer B -->
+  <rect x="450" y="374" width="160" height="44" class="node" fill="#fef2f2" stroke="#ef4444"/>
+  <text x="530" y="394" class="node-label">Peer B</text>
+  <text x="530" y="408" class="node-desc">parallel fan-out</text>
+
+  <!-- Legend -->
+  <line x1="140" y1="28" x2="180" y2="28" class="edge walk" style="marker-end: url(#walk-arrow)"/>
+  <text x="188" y="32" class="legend">sequential upstream walk</text>
+  <line x1="140" y1="46" x2="180" y2="46" class="edge peer" style="marker-end: url(#peer-arrow)"/>
+  <text x="188" y="50" class="legend">parallel peer fan-out</text>
+</svg>
