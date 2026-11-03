@@ -1,6 +1,24 @@
-# Session Handover — 2026-11-03 (session 4)
+# Session Handover — 2026-11-03 (session 5)
 
-## What happened
+## What happened (session 5)
+
+**#792 landed** — removed hardcoded 30-day recency decay from `CognitiveMemoryRetriever.queryCorpora()`. The search pipeline already scores recency via `TemporalDecayScorer` and `VersionScorer`; the consumer-layer decay was a duplicate that compound-penalised older documents. Six lines removed, test updated. Commit `ece3c932` on main.
+
+**Close ceremony completed** — the 763/764 plan was stuck in `closing:merged` from a prior session interruption. Completed the full ceremony: verified #779-#782 (all fixed in the code review session before merge), marked plan 7/7, transitioned to drained, synced canonical repos.
+
+**Blog written** — "The Score That Counted Twice" (`blog/2026-11-03-mdp02-the-score-that-counted-twice.md`). Educational piece on compound decay in multi-stage retrieval pipelines, with 2 SVGs. Opened in Typora for review.
+
+**Canonical sync** — both project and workspace rebased/pushed to canonical clones at `~/claude/casehub/neocortex` and `~/claude/public/casehub/neocortex`.
+
+## Next session
+
+Start with **#785** — Audit corpus-management for domain abstraction (M/Med). Foundation for the generalization epic #789. Then #787 (rich documents — PDF/OCR/images).
+
+`.plan` scaffolded with #785 ready to go. Run `work` to begin.
+
+---
+
+## Previous session (session 4)
 
 Completed the corpus management epic (#763) — designed, implemented, reviewed, and landed the `@McpDomain("corpus")` auto-generated endpoint layer (#776), plus comprehensive code review fixes (#779-#782).
 
