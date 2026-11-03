@@ -81,3 +81,4 @@
 | [2026-11-03-mdp02-the-score-that-counted-twice.md](2026-11-03-mdp02-the-score-that-counted-twice.md) | 2026-11-03 | Compound decay in retrieval pipelines — why scoring recency at two layers inverts rankings instead of improving them |
 | [2026-11-01-mdp01-the-perception-gap.md](2026-11-01-mdp01-the-perception-gap.md) | 2026-11-01 | Why agents need corpus management — typed, searchable, federable knowledge with lifecycle, not just a vector store |
 | [2026-11-02-mdp01-knowledge-that-outlives-the-session.md](2026-11-02-mdp01-knowledge-that-outlives-the-session.md) | 2026-11-02 | Corpus management as cognitive infrastructure — SPIs, federation, cover documents, and the three-layer model |
+| [2026-11-03-mdp03-names-are-not-identity.md](2026-11-03-mdp03-names-are-not-identity.md) | 2026-11-03 | Why literal names in cognitive AI memories are structural debt, and how standoff annotations solve renaming, merging, and cross-context reuse |
