@@ -1,15 +1,12 @@
-# Work Plan — issue-714-barrett-personality-profiles
-
-## State
-branch: issue-714-barrett-personality-profiles
-state: scaffolded
-project-sha: 
-date: 
-issue-repo: casehubio/neocortex
-covers: 714
-design-repo: 
-design-section-hashes: 
-flyway-next-v: 
+# Work Plan — signal-propagation-tests
 
 ## Queue
-- [ ] casehubio/neocortex#714 — Issue #714 ← active
+- [ ] casehubio/neocortex#791 — TDD-regression-tests-signal-propagation ← active
+
+## State
+branch: signal-propagation-tests
+state: scaffolded
+issue-repo: casehubio/neocortex
+covers: casehubio/neocortex#791
+Current: casehubio/neocortex#791 — TDD-regression-tests-signal-propagation
+date: 2026-11-03
