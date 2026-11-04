@@ -2,42 +2,37 @@
 
 ## Last Session
 
-Brainstormed, designed, and partially implemented **#787** (Rich document ingestion). 6/9 tasks complete across 3 of 4 batches.
+Completed **#787** (Rich document ingestion — Positional Markdown format). Full lifecycle: brainstorming → spec → Standard review → implementation plan → all 9 tasks implemented. Queue advanced to #802.
 
-**Design decisions (10):** Cover document pattern (binary via `artifactRef`, positional markdown in `body`), `body` stays `String` (resolves audit L1 via cover document pattern rather than Content sealed hierarchy), positional markdown format with `#@` block annotations + layout frontmatter + normalized panel coordinates, three-layer image handling (caption + OCR + optional LLM), new `corpus-management-parsers` module, structure-aware chunking with per-chunk metadata, PDF+DOCX+images format scope, synchronous parsing, independent LLM config flags for layout detection vs image description.
+**What was built:**
+- **Positional Markdown (PMD)** format — YAML frontmatter layout declarations + `#@` block annotations mapping text to spatial panels + existing `word[alias]` inline entity annotations. Normalized coordinates (0.0–1.0).
+- **corpus-management-parsers** module — `DocumentParser` SPI with `PdfDocumentParser` (PDFBox heuristics), `DocxDocumentParser` (Apache POI), `ImageDocumentParser` (Tika TesseractOCRParser)
+- **BlockAnnotationParser** — parses `#@` annotations, produces clean text + offset-mapped annotations (15 tests)
+- **SPI types** — `PanelDefinition`, `StructuredChunk`, `StructuralChunker`, `ImageDescriber`, `LayoutClassifier`, `LayoutClassification` in corpus-management-api
+- **DefaultStructuralChunker** — structure-aware chunking at `#@` boundaries with per-chunk metadata (11 tests)
+- **SqliteCorpusEntryStore integration** — `ingestEmbedding()` detects `content_format: positional-markdown` and routes to `StructuralChunker`
+- **PositionalMarkdownBuilder** + `DocumentCorpusTypes.DOCUMENT`
+- **LayoutPresets** — single, 2-column, 3-column, header-body-footer, grid-2x2
+- **Enrichment pipeline hooks** — `LayoutClassifier` and `ImageDescriber` SPIs tested with stubs, ready for ONNX implementations (#814)
 
-**Implemented:**
-- `BlockAnnotationParser` (15 tests) — parses `#@` annotations, produces clean text + offset-mapped annotations
-- SPI types in `corpus-management-api` — `PanelDefinition`, `StructuredChunk`, `StructuralChunker`, `ImageDescriber`, `LayoutClassifier`, `LayoutClassification`
-- `corpus-management-parsers` Maven module — `DocumentParser` SPI, `ParseResult`, `Layout`, `ImageRegion`, `DocumentParserConfig`, `LayoutPresets` (5 presets)
-- `PositionalMarkdownBuilder` + `DocumentCorpusTypes.DOCUMENT`
-- `DefaultStructuralChunker` (11 tests) — splits at `#@` page/panel/layout boundaries, heading fallback, character-based fallback, small chunk merging
-- `SqliteCorpusEntryStore` integration — `ingestEmbedding()` detects `content_format: positional-markdown` metadata and routes to `StructuralChunker`
+**52 new tests** in corpus-management-parsers, **27 new tests** in corpus-management-api. All existing tests pass.
 
-**All existing tests pass.** 133 corpus-management tests + 27 new corpus-management-api tests + 26 new parsers tests.
+**Also this session:**
+- Filed **#814** (ONNX document layout model — YOLOv10/RT-DETR enrichment for PdfDocumentParser)
+- Wrote blog entry: "The Text That Remembers Where It Was" — PMD format rationale with SVG diagrams
+- Researched HURIDOCS, Docling, RasgaPDF as prior art. HURIDOCS VGT (95.4% accuracy) is closest; PMD differs by inline annotations vs sidecar JSON.
 
 ## Immediate Next Step
 
-Complete **Batch 4: Document Parsers** — 3 remaining tasks:
-- **Task 7: PdfDocumentParser** — Apache PDFBox (from Tika transitive 2.0.31) structural text extraction with position data, programmatic layout classification, `#@` panel annotation generation
-- **Task 8: DocxDocumentParser** — Apache POI (from Tika transitive 5.2.5) paragraph/table/image extraction
-- **Task 9: ImageDocumentParser** — Tika TesseractOCRParser for OCR text extraction
+Pick up **#802** (Phase 3 structural extraction — extract Hortora-specific corpus code to dedicated module). L/High. Requires brainstorming: whether to create `corpus-management-hortora` Maven module or keep Hortora code in existing module with package boundaries. Audit items: L7+L10 (GardenMetadataExtractor, CorpusIndexService), L9 (ScoringStrategy SPI). Branch `issue-802-extract-hortora-specific-corpus-code` exists.
 
-After Batch 4: completeness audit, then `work next` to advance queue.
-
-## Key Design Details
-
-- **Positional markdown format:** YAML frontmatter declares layout (preset name or ad-hoc with panel coordinates). Body uses `#@` block annotations (`panel`, `page`, `layout`, `figure`, `ocr`, `describe`, `table`). Two-tier annotation model: `#@` for block-level spatial, `word[alias]` for inline entity.
-- **Panel coordinates are normalized** (0.0–1.0 relative to page dimensions) for format independence across PDF/DOCX/image.
-- **Layout presets:** `single`, `2-column`, `3-column`, `header-body-footer`, `grid-2x2`
-- **Detection signal:** `content_format: positional-markdown` metadata field set by `PositionalMarkdownBuilder` — not body scanning.
-- **LLM SPIs:** `ImageDescriber` and `LayoutClassifier` in `corpus-management-api` (Tier 1), not coupled to platform `AgentProvider`.
-- **Dependency note:** PDFBox and POI come from Tika 2.9.2 transitive deps (PDFBox 2.0.31, POI 5.2.5) — no separate declarations due to convergence enforcer.
+**Note:** L1 from the audit (Content sealed hierarchy) is resolved by #787's cover document pattern — update #802 scope to remove L1.
 
 ## References
 
-- `specs/issue-787-rich-document-ingestion/2026-11-04-rich-document-ingestion-design.md` — design spec (Standard reviewed, 3 rounds, approved)
-- `specs/issue-787-rich-document-ingestion/decisions.md` — 10 decisions with rationale
-- `plans/2026-11-04-rich-document-ingestion.md` — implementation plan (9 tasks, 4 batches)
-- `.plan` — queue position 4/11, active batch: Document Parsers
-- `docs/specs/2026-11-04-corpus-domain-abstraction-audit.md` — audit (L1 resolved via cover document)
+- `specs/issue-787-rich-document-ingestion/` — design spec, decisions, pipeline state
+- `plans/2026-11-04-rich-document-ingestion.md` — implementation plan (9 tasks, 4 batches, all complete)
+- `blog/2026-11-04-mdp03-the-text-that-remembers-where-it-was.md` — PMD blog entry
+- `docs/specs/2026-11-04-corpus-domain-abstraction-audit.md` — audit (L1 resolved, L7-L10 next)
+- `.plan` — queue: #802 (next active), #788, #804, #810, #811, #812
+- GitHub #814 — ONNX document layout model follow-up
