@@ -100,6 +100,7 @@ Page 1 of 24 — Confidential
 |-----------|--------|---------|
 | `panel` | `#@ panel: <panel-id>` | Map following text to a layout panel |
 | `page` | `#@ page: <number>` | Page break marker |
+| `layout` | `#@ layout: <preset-name>` | Per-page layout override (page-scoped, see §Multi-Page Documents precedence rules) |
 | `figure` | `#@ figure: <key=value pairs>` | Figure marker with caption, alt text |
 | `ocr` | `#@ ocr: "<text>"` | OCR-extracted text from an image region |
 | `describe` | `#@ describe: "<text>"` | LLM-generated image/figure description |
@@ -162,6 +163,12 @@ Left column text...
 4. **Per-page layout overrides use preset panel definitions** — an `#@ layout: single` page gets the preset's `main` panel, regardless of any custom `panels:` defined in the frontmatter. Frontmatter panel definitions apply only to pages using the frontmatter layout
 5. **A page with `#@ layout: ad-hoc` at page level is an error** unless inline `#@ panel:` definitions follow with explicit coordinates (not yet supported — deferred to a future iteration. For now, ad-hoc layouts are frontmatter-only)
 
+**Panel ID validation:** When `#@ panel: <id>` references a panel ID that does not exist in the active layout (e.g., `#@ panel: header` on a page with `2-column` layout, which only defines `left` and `right`), the parser:
+1. Logs a warning identifying the undefined panel ID and the active layout
+2. Assigns the text to the **first panel** in the active layout's panel list (e.g., `left` for `2-column`)
+
+This prevents silent data loss while being lenient about imperfect parser output. The warning is surfaced via `ParseResult.extractedMetadata` as a `parse_warnings` field (comma-separated), allowing callers to detect and act on panel mismatches.
+
 ## Module Architecture
 
 ### Layer Placement
@@ -195,10 +202,22 @@ public interface DocumentParser {
 ```java
 public record ParseResult(
     String positionalMarkdown,
+    Layout layout,
     Map<String, String> extractedMetadata,
     List<ImageRegion> imageRegions
 ) {}
 ```
+
+```java
+public record Layout(
+    String name,
+    List<PanelDefinition> panels,
+    int pageCount,
+    int[] pageSize
+) {}
+```
+
+`Layout` carries the structured layout data that `PositionalMarkdownBuilder` needs to construct the YAML frontmatter. `PanelDefinition` is the same record used by `LayoutClassifier` (shared type in `corpus-management-api`). `extractedMetadata` remains `Map<String, String>` for flat document metadata (title, author, date) — layout data is not mixed in.
 
 ```java
 public record ImageRegion(
@@ -283,9 +302,13 @@ When layout detection is enabled, the parser sends the rendered page image to th
 
 When image description is enabled, each extracted image is sent to the LLM for a natural language description. The description is included in the positional markdown via `#@ describe:` annotations.
 
-#### ImageDescriber SPI
+#### LLM Vision SPIs
 
-LLM vision is accessed through a narrow SPI in `corpus-management-api`, not through `AgentProvider` (which is `io.casehub.platform.agent.AgentProvider` from `casehub-platform-agent-api` — a casehub platform type, not LangChain4j). Coupling the parsers module to `casehub-platform-agent-api` would break domain neutrality.
+LLM vision is accessed through two narrow SPIs in `corpus-management-api`, not through `AgentProvider` (which is `io.casehub.platform.agent.AgentProvider` from `casehub-platform-agent-api` — a casehub platform type, not LangChain4j). Coupling the parsers module to `casehub-platform-agent-api` would break domain neutrality.
+
+The two LLM vision operations have fundamentally different return types and are modelled as separate SPIs:
+
+**Image description** — produces a natural language `String`:
 
 ```java
 @FunctionalInterface
@@ -294,7 +317,22 @@ public interface ImageDescriber {
 }
 ```
 
-The casehub platform provides an `AgentProvider`-backed implementation. Hortora or other consumers can provide their own implementation using any LLM client. When the flag is enabled but no `ImageDescriber` is available (CDI `Instance<ImageDescriber>.isUnsatisfied()`), a warning is logged and the feature degrades gracefully to programmatic-only.
+**Layout classification** — produces structured layout data (layout name + panel boundaries with normalized coordinates):
+
+```java
+public record PanelDefinition(String id, double x, double y, double w, double h) {}
+
+public record LayoutClassification(String layoutName, List<PanelDefinition> panels) {}
+
+@FunctionalInterface
+public interface LayoutClassifier {
+    LayoutClassification classify(byte[] pageImage, String mimeType);
+}
+```
+
+Both SPIs are in `corpus-management-api` (Tier 1), keeping the parsers module domain-neutral. The casehub platform provides `AgentProvider`-backed implementations. Hortora or other consumers can provide their own implementations using any LLM client.
+
+When a config flag is enabled but the corresponding SPI is unavailable (CDI `Instance.isUnsatisfied()`), a warning is logged and the feature degrades gracefully to programmatic-only. `ImageDescriber` gates `#@ describe:` annotation generation. `LayoutClassifier` gates LLM-assisted layout detection — without it, programmatic heuristics (PDFBox text block positions) are used.
 
 ## PositionalMarkdownBuilder
 
@@ -318,10 +356,11 @@ The output has this structure:
 id: <generated CE-YYYYMMDD-XXXXXX>
 content_format: positional-markdown
 source_format: <from parseResult.extractedMetadata()>
-source_pages: <page count>
-layout: <detected layout or ad-hoc>
+source_pages: <from parseResult.layout().pageCount()>
+page_size: <from parseResult.layout().pageSize()>
+layout: <from parseResult.layout().name()>
 panels:
-  - id: <panel-id>
+  - id: <from parseResult.layout().panels()>
     x: <normalized x>
     y: <normalized y>
     w: <normalized width>
@@ -331,16 +370,29 @@ artifact_ref: <artifactRef>
 <positional markdown body from parseResult>
 ```
 
-The `content_format: positional-markdown` metadata field is the structural signal used by `SqliteCorpusEntryStore.ingestEmbedding()` to detect positional markdown and route to `StructuralChunker`. All extracted metadata from `parseResult.extractedMetadata()` is merged into the frontmatter.
+**Data sources for frontmatter fields:**
+- `layout`, `panels`, `source_pages`, `page_size` — from `parseResult.layout()` (structured `Layout` record)
+- `source_format`, `title`, `author`, etc. — from `parseResult.extractedMetadata()` (flat `Map<String, String>`)
+- `content_format` — hardcoded `"positional-markdown"` by the builder
+- `artifact_ref` — from the `artifactRef` parameter
 
-**CorpusType:** A new `CorpusType.DOCUMENT` constant is defined in `corpus-management-parsers` (not in `corpus-management-api` — follows the same remediation direction as audit L2, which moves domain-specific constants out of the API):
+The `content_format: positional-markdown` metadata field is the structural signal used by `SqliteCorpusEntryStore.ingestEmbedding()` to detect positional markdown and route to `StructuralChunker`.
+
+**CorpusType:** A new `CorpusType.DOCUMENT` constant is defined in `corpus-management-parsers` (not in `corpus-management-api` — follows the same remediation direction as audit L2, which moves domain-specific constants out of the API). Uses the actual `CorpusType` record constructor and `FieldSchema` enum values (consistent with `BuiltInCorpusTypes`):
 
 ```java
-public static final CorpusType DOCUMENT = CorpusType.of("document",
-    Map.of("content_format", FieldSchema.required(String.class),
-           "source_format", FieldSchema.required(String.class),
-           "artifact_ref", FieldSchema.optional(String.class)));
+public static final CorpusType DOCUMENT = new CorpusType(
+    "document",
+    Map.of("content_format", FieldSchema.STRING,
+           "source_format", FieldSchema.STRING,
+           "layout", FieldSchema.STRING),
+    Map.of("artifact_ref", FieldSchema.STRING,
+           "source_pages", FieldSchema.INTEGER),
+    null
+);
 ```
+
+Required fields: `content_format` (discriminator for `ingestEmbedding()`), `source_format` (original file type), `layout` (layout name or `ad-hoc`). Optional fields: `artifact_ref` (path to original binary — also stored as `CorpusEntry.artifactRef()`), `source_pages` (page count for multi-page documents).
 
 ## BlockAnnotationParser
 
@@ -413,7 +465,7 @@ The `metadata` map carries per-chunk structural context:
 ### Chunking Algorithm
 
 1. Parse `#@` annotations via `BlockAnnotationParser` → clean text + annotations
-2. Split at structural boundaries: `#@ page:` and `#@ panel:` annotations are hard split points
+2. Split at structural boundaries: `#@ page:`, `#@ panel:`, and `#@ layout:` annotations are hard split points. `#@ layout:` changes the active panel definitions for subsequent `#@ panel:` references on that page
 3. Within a panel, split at heading boundaries if the panel text exceeds `maxChunkSize`
 4. Within a section, fall back to character-based splitting (reuse `TextChunker.recursive()` logic) if text still exceeds limit. The overlap for fallback splitting is a construction-time parameter — the `StructuralChunker` implementation reads `casehub.corpus.parsers.chunk-overlap` from config at construction and passes it to `TextChunker.recursive(maxChunkSize, overlap)` internally. The `chunk()` method signature does not carry overlap because it is not a per-invocation concern
 5. Very short chunks (< 20% of maxChunkSize) are merged with the next chunk in the same panel
@@ -472,11 +524,12 @@ DocumentParser.parse(inputStream, sourceRef, config)
     │
     ├─ PDFBox: extract text blocks with positions
     ├─ Tika TesseractOCR: extract text from images
-    ├─ [optional] ImageDescriber: classify layout
-    ├─ [optional] ImageDescriber: describe images
+    ├─ [optional] LayoutClassifier: classify layout → LayoutClassification
+    ├─ [optional] ImageDescriber: describe images → String
     │
     ▼
-ParseResult(positionalMarkdown, metadata, imageRegions)
+ParseResult(positionalMarkdown, layout, metadata, imageRegions)
+    │  ── layout: Layout(name, panels, pageCount, pageSize)
     │  ── imageBytes used for OCR/description, then discarded
     │
     ▼
