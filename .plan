@@ -19,7 +19,7 @@ evidence-era: true
 - [x] casehubio/neocortex#801 — Phase 2 API fixes
 - [ ] casehubio/neocortex#787 — Rich document ingestion ← active
   - [ ] Batch 1: Foundation
-    - [ ] Task 1: BlockAnnotationParser
+    - [x] Task 1: BlockAnnotationParser
     - [ ] Task 2: SPI types
   - [ ] Batch 2: Module+Format
     - [ ] Task 3: Module scaffold+DocumentParser SPI
