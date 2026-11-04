@@ -28,7 +28,7 @@ evidence-era: true
     - [x] Task 5: DefaultStructuralChunker
     - [x] Task 6: SqliteCorpusEntryStore integration
   - [ ] Batch 4: Document Parsers
-    - [ ] Task 7: PdfDocumentParser
+    - [x] Task 7: PdfDocumentParser
     - [ ] Task 8: DocxDocumentParser
     - [ ] Task 9: ImageDocumentParser
 - [ ] casehubio/neocortex#802 — Phase 3 structural extraction
