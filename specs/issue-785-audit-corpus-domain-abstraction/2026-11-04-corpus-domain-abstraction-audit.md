@@ -74,7 +74,7 @@ The `body` field is `String`, forcing all corpus content through a text represen
 | Software | Partial | Could use `KNOWLEDGE_GARDEN` awkwardly; `staleness_threshold` maps loosely to deprecation |
 | Hortora | Works | These constants exist for Hortora |
 
-**Remediation direction:** Move constants to a `HortoraCo rpusTypes` class in `corpus-management` (the Hortora-specific module, not the API). The `CorpusType` record itself is fine — it's already dynamic. Consumers create their own `CorpusType` instances with domain-appropriate field schemas.
+**Remediation direction:** Move constants to a `HortoraCorpusTypes` class in `corpus-management` (the Hortora-specific module, not the API). The `CorpusType` record itself is fine — it's already dynamic. Consumers create their own `CorpusType` instances with domain-appropriate field schemas.
 
 ### L3: InteractionContext / InteractionType / ActivityType are agent-centric
 
