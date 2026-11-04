@@ -258,6 +258,10 @@ Changes that restructure modules to cleanly separate Hortora-specific code:
 | L9 | Extract scoring strategies behind a `ScoringStrategy` SPI | Med — changes SearchResource internals |
 | L7 | Support pluggable metadata extraction per corpus type (already SPI-driven via `MetadataExtractor`, just needs proper module separation) | Low |
 
+### Optional: ArchUnit Leak Enforcement
+
+Consider codifying API-layer leaks (L1-L6) as suppressed ArchUnit rules with `@Reason` annotations. These would serve as machine-verifiable acceptance criteria for remediation issues and would get louder (fail) if new leaks appear, rather than a document that silently grows stale. This aligns with the project's ArchUnit-first enforcement culture.
+
 ### Phase 3 Module Structure (suggested)
 
 ```
