@@ -21,9 +21,9 @@ evidence-era: true
   - [x] Batch 1: Foundation
     - [x] Task 1: BlockAnnotationParser
     - [x] Task 2: SPI types
-  - [ ] Batch 2: Module+Format
-    - [ ] Task 3: Module scaffold+DocumentParser SPI
-    - [ ] Task 4: PositionalMarkdownBuilder
+  - [x] Batch 2: Module+Format
+    - [x] Task 3: Module scaffold+DocumentParser SPI
+    - [x] Task 4: PositionalMarkdownBuilder
   - [ ] Batch 3: Chunking+Integration
     - [ ] Task 5: DefaultStructuralChunker
     - [ ] Task 6: SqliteCorpusEntryStore integration
