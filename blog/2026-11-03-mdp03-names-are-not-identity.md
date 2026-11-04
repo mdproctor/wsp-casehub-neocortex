@@ -5,7 +5,7 @@ date: 2026-11-03
 entry_type: article
 subtype: diary
 projects: [casehubio/neocortex]
-tags: [entity-references, standoff-annotations, cognitive-architecture, knowledge-representation]
+tags: [entity-references, tokenisation, cognitive-architecture, knowledge-representation]
 ---
 
 # Names Are Not Identity
@@ -22,60 +22,114 @@ This isn't a theoretical elegance concern. In a cognitive AI system like neocort
 
 **Memory storage.** When an agent records "Alice told Bob about the project," those literal strings are stored as the memory's text. Embedding retrieval finds it. But no part of the system knows that "Alice" in this memory refers to the same entity as "Alice" in a separate knowledge graph node, or that "Alice" in one tenant context is a different entity from "Alice" in another.
 
-**Prompt rendering.** Cognitive prompt sections render entity knowledge into the agent's system prompt. Edge relationships come through as raw node UUIDs — `"knows → 7f3a2b1c-..."` — because the prompt section has a node ID but no mechanism to resolve it to a human-readable name. The agent sees gibberish where it should see "knows → Bob."
+**Prompt rendering.** Cognitive prompt sections render entity knowledge into the agent's system prompt. Edge relationships come through as raw node UUIDs — `"knows → 7f3a2b1c-..."` — because the prompt section has a node ID but no mechanism to resolve it to a human-readable name.
 
-**Biography import.** Character biographies use bracket syntax for some entry types — `Guillermo[Guillermo] taught photography` — but only life events and beliefs were processed. Cultural contexts, relationships, activities, projects, and goals all passed through with literal names, creating a patchwork where some text was annotated and most wasn't.
+**Biography import.** Character biographies contain entity names throughout — goal names like "Protect Clara Bellingham from all dangers," relationship display names, life-event subjects. Every text field that mentions another entity does so by literal string.
 
-## Standoff Annotations: Separating Name from Identity
+The problem isn't just names. It's places ("Mexico City", "CDMX", "Ciudad de México"), organisations ("The Ant Hill Mob", "the mob"), artworks ("The Mona Lisa", "La Gioconda"), concepts ("Continental System", "the blockade"). Anything with a name that appears in text in multiple surface forms.
 
-The representation choice matters more than the implementation. I considered three approaches:
+## The Wrong Answer: Standoff Annotations
 
-![Three ways to handle entity names in text](images/standoff-vs-inline.svg)
+I built the wrong thing first. The NLP literature pointed toward standoff annotations — store the text unchanged, maintain a parallel index of character offsets linking text spans to entity node IDs. The annotation infrastructure was mature: `EntityAnnotationIndex` SPI, SQLite and in-memory backends, lifecycle observers that automatically repoint annotations on entity merge and clean up on erasure. Biography import used it. The extraction pipeline used it. It worked.
 
-**Inline tokens** — replace "Alice" with `{{entity:abc123}}` everywhere. Self-contained, but you lose the original surface form permanently. Was it "Alice" or "Ms. Kahlo" or "she"? Gone. And every consumer of that text must now understand token syntax.
+It also required:
+- A parallel data store to keep in sync with every text change
+- Character offset arithmetic that breaks when names change length
+- Lifecycle observers (`MergeRepointObserver`, `MemoryEntityErasedObserver`) purely to maintain sync between two representations of the same information
+- A batch query SPI (`findBySource`) and a resolution utility (`EntityReferenceResolver`) with right-to-left offset substitution logic
+- Every query that asks "which entities does this memory mention?" routing through an index join instead of reading the text
 
-**Bracket syntax** — store `Alice[node:abc123]` in the text itself. The surface form survives, but the stored text is no longer the original text. Every consumer needs a bracket parser.
+The complexity existed to preserve one property: **the original text stays unchanged.** But that property costs more than it's worth when the actual need is simpler.
 
-**Standoff annotations** — store the text unchanged. In a parallel index, record that characters 0–5 of memory `mem-42` correspond to entity node `abc123`. The text reads normally. Consumers that don't know about annotations see the original text. Resolution happens at the boundary where text becomes prompt content.
+## The Right Answer: Inline Tokenisation
 
-Standoff annotations won. The key insight: graceful degradation. Any part of the system that doesn't know about entity references keeps working exactly as before. The annotation layer is additive, not invasive.
+The real requirement is: entity names in text should resolve to current canonical names at render time. That's a tokenisation problem, not an annotation problem.
 
-Neocortex already had the annotation infrastructure — `EntityAnnotationIndex`, `AnnotationSpanResolver`, lifecycle observers that automatically repoint annotations when entities are merged and clean them up when entities are erased. The biography import pipeline was using it for two entry types. The infrastructure was mature; the wiring was incomplete.
+Replace the name with a token that carries identity, variant, and the original surface form:
 
-## The Architecture: Write Side and Read Side
+```
+{{person_001:full:Clara Bellingham}} walked to the park.
+She told {{person_002:first:Bob}} about the project.
+They visited {{place_001:short:CDMX}} together.
+```
 
-The entity reference pipeline splits cleanly into two independent halves.
+The token format is `{{entity_id:variant:surface_form}}`. At render time, the renderer looks up `person_001` in the entity record, checks the variant (`full`, `first`, `short`, `pronoun:subject`), and resolves to the current canonical form. If Clara Bellingham was renamed to Penelope Pitstop, every `full` token renders the new name. The stored text doesn't change — the token is stable, the resolution is dynamic.
 
-![Entity reference pipeline — write and read sides](images/entity-reference-pipeline.svg)
+Multi-word names aren't a problem — the surface form extends to the closing `}}`. Pronouns work the same way: `{{person_001:pronoun:subject:She}}` — the renderer keeps "She" (pronouns don't change on rename unless the entity's pronouns change), but the system knows who "She" refers to.
 
-**Write side** creates annotations at every ingestion point. Three paths:
+## The Entity Record
 
-1. **LLM extraction** — when the MindMap extractor processes conversation text, it already extracts entity mentions with surface forms. The observer now writes those mentions to the annotation index. This was the simplest change — the data existed, it just wasn't being persisted.
+For tokenisation to work, entities need structured identity — not just a single `name()` string. An entity record decomposes the name into parts and declares all known surface forms:
 
-2. **Biography import** — the preprocessor now processes bracket syntax in all biography entry types, not just life events and beliefs. Cultural contexts, relationship BDI values, activity notes, project descriptions, goal sub-goals — every text field that might contain entity references.
+```yaml
+person_001:
+  type: person
+  canonical:
+    full: "Jane Doe"
+    first: "Jane"
+    last: "Doe"
+    title_prefix: "Dr"
+  pronouns:
+    subject: "she"
+    object: "her"
+    possessive: "her"
+    reflexive: "herself"
+  preferred_short: "Jane"
+  preferred_long: "Dr Jane Doe"
+  aliases: ["JD", "Jane D."]
+```
 
-3. **Memory events** — a post-store CDI observer watches for experience, relationship, and reflection recordings. After a memory is stored, it scans the text against known entity names from the knowledge graph. Longest-match-first prevents "Alice" from matching inside "Alice Johnson." Entity candidates come from entity-carrying subgraph types only — person, project, organisation, place — excluding cognitive/behavioral/type-system nodes that would be false matches.
+The variant taxonomy covers the ways a name appears in text:
 
-**Read side** resolves at the prompt boundary. A batch utility in `annotation-api` queries all annotations for a set of source documents in one call, resolves each entity node ID to its current canonical name via a `Function<String, String>` parameter (keeping the module dependency-free), and applies substitutions right-to-left to preserve character offsets.
+| Variant | Meaning |
+|---------|---------|
+| `full` | Full name as written |
+| `first` | Given name |
+| `last` | Family name |
+| `title` | Title + name |
+| `preferred_short` | Entity's preferred short form |
+| `preferred_long` | Entity's preferred long form |
+| `pronoun:subject` | Subject pronoun |
+| `pronoun:object` | Object pronoun |
+| `pronoun:possessive` | Possessive |
+| `other` | Nickname, initials, epithet |
 
-The prompt sections that render memory text or entity edges now accept an optional node-name resolver function. If Alice was renamed to Alicia since the memory was stored, the prompt reads "Alicia walked to the park" — the stored text is unchanged, the annotation still points to the same entity, and the resolution happens fresh each time the prompt is composed.
+This extends naturally to any entity type. Places get `short` and `formal` (original language). Organisations get `abbreviation`. Artworks get `formal` for the original-language title. The token format and lookup table are universal.
 
-## Why This Matters Beyond Renaming
+## Fast Lookup via Surface Form Table
 
-Entity references are the foundation for three capabilities that literal names make impossible:
+At write time, the tokeniser needs to recognise any surface form and map it to an entity. A flat lookup table makes this fast:
 
-**Profile reuse.** A cognitive profile — personality weights, mood baseline, drive configuration, CAPS topology — describes *how* an agent thinks, not *who* it thinks about. With entity references, the same profile can operate in different contexts where entities have different names. A character profile built for one scenario transfers to another without search-and-replace across thousands of stored memories.
+| surface_form | entity_id | variant | tenant_id |
+|---|---|---|---|
+| Jane Doe | person_001 | full | t1 |
+| Jane | person_001 | first | t1 |
+| Dr Jane Doe | person_001 | preferred_long | t1 |
+| JD | person_001 | other | t1 |
+| Mexico City | place_001 | full | t1 |
+| CDMX | place_001 | short | t1 |
+| La Gioconda | thing_001 | formal | t1 |
 
-**Entity merging.** Knowledge graphs merge entities as understanding evolves. "Dr. Smith" and "Professor Sarah Smith" turn out to be the same person. The merge operation updates the graph node, and the annotation repoint observer automatically updates every annotation that pointed at the absorbed node. No text is modified. No memories are rewritten.
+The table is derived from entity records — rebuilt when an entity changes. The tokeniser scans text against the table, longest match wins. One lookup per candidate phrase.
 
-**Cross-tenant entity mapping.** In a multi-tenant cognitive system, the same real-world entity might exist as different nodes in different tenants. Entity references let you map between them — "node A in tenant 1 is the same entity as node B in tenant 2" — without requiring that the stored memories use identical surface forms.
+At read time, "which entities does this text mention?" is a regex scan for `{{entity_id:` patterns — no index query, no join. `EntityTokens.entityIds(text)` returns the set. The three cognitive consumers that previously queried the annotation index (`EntityOverlapModulationFactor`, `EntityAwareSalienceStrategy`, `LlmReflectionSynthesizer`) become one-liners.
 
-## What This Doesn't Solve (Yet)
+## Why This Matters
 
-Existing content — memories stored before annotation wiring was added — contains literal names with no annotations. A backfill migration (#797) would scan existing memories through the same entity-name matching pipeline used by the memory observer, but it's a separate piece of work. The write side ensures all *new* content gets annotations. The read side gracefully returns original text when no annotations exist.
+Entity tokenisation is the foundation for capabilities that literal names make impossible:
 
-Several prompt sections render LLM-generated text (strategy guidelines, mental model descriptions, goal proposals) that passes through no annotated write path. These have bounded staleness — the text is periodically regenerated, so name drift self-corrects over time. Full coverage would mean adding annotation observers for every cognitive store that generates text.
+**Profile reuse.** A cognitive profile describes *how* an agent thinks, not *who* it thinks about. With tokens, the same profile operates in different contexts where entities have different names. No search-and-replace across thousands of stored memories.
 
-There's also query-time entity-aware retrieval (#796) — boosting search results that mention a specific entity. That operates on the annotation index as a retrieval signal rather than a rendering transform. A related but distinct problem.
+**Entity merging.** "Dr. Smith" and "Professor Sarah Smith" turn out to be the same person. Find-and-replace `{{person_042` with `{{person_001` in stored text. One operation, complete. No parallel index to reconcile.
 
-Each of these gaps has a clear path forward because the infrastructure exists. The annotation index, the resolution utility, and the lifecycle observers are all in place. Extending coverage is mechanical work, not architectural work. That's the value of getting the representation right.
+**Search.** "Find all memories about Mexico City" → search for `{{place_001`. Exact match. No embedding similarity, no missing "CDMX" because the vector didn't associate it with "Mexico City."
+
+**Rename cascades.** Change an entity's preferred name → every token renders the new value at read time. No text changes, no backfill, no migration.
+
+## What I Learned
+
+I built standoff annotations first because the NLP literature recommended them and the architecture seemed elegant — original text preserved, annotations as a composable layer. But the elegance created a coordination problem: two systems to keep in sync, lifecycle observers to maintain consistency, offset arithmetic that breaks on length changes.
+
+The simpler design — a token in the text that carries identity and variant — eliminates the coordination problem entirely. The token IS the reference. One system, one source of truth.
+
+Sometimes the right design is the one that makes the hard problems disappear rather than the one that solves them elegantly.
