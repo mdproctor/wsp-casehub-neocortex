@@ -1,0 +1,110 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 520" font-family="system-ui, -apple-system, sans-serif">
+  <rect width="720" height="520" fill="#f8f9fa" rx="8"/>
+
+  <!-- Title -->
+  <text x="360" y="30" text-anchor="middle" font-size="14" font-weight="bold" fill="#333">Binary Document → Positional Markdown → Structured Chunks</text>
+
+  <!-- Source document -->
+  <rect x="40" y="55" width="140" height="90" fill="#e8e0f0" stroke="#7a5ea8" stroke-width="2" rx="6"/>
+  <text x="110" y="80" text-anchor="middle" font-size="13" font-weight="bold" fill="#5a3e88">PDF / DOCX</text>
+  <text x="110" y="98" text-anchor="middle" font-size="11" fill="#6a4e98">Binary document</text>
+  <text x="110" y="116" text-anchor="middle" font-size="11" fill="#6a4e98">with spatial layout</text>
+  <text x="110" y="134" text-anchor="middle" font-size="10" fill="#8a6eb8">artifactRef →</text>
+
+  <!-- Arrow 1 -->
+  <line x1="180" y1="100" x2="220" y2="100" stroke="#666" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+  <text x="200" y="90" text-anchor="middle" font-size="9" fill="#888">parse</text>
+
+  <!-- DocumentParser box -->
+  <rect x="220" y="55" width="160" height="90" fill="#fff3e0" stroke="#e6a23c" stroke-width="2" rx="6"/>
+  <text x="300" y="78" text-anchor="middle" font-size="12" font-weight="bold" fill="#b87a1c">DocumentParser</text>
+  <line x1="235" y1="85" x2="365" y2="85" stroke="#e6a23c" stroke-width="0.5" opacity="0.5"/>
+  <text x="300" y="100" text-anchor="middle" font-size="10" fill="#c89a3c">PDFBox positions</text>
+  <text x="300" y="114" text-anchor="middle" font-size="10" fill="#c89a3c">Tika OCR</text>
+  <text x="300" y="128" text-anchor="middle" font-size="10" fill="#c89a3c">[optional] LLM vision</text>
+
+  <!-- Arrow 2 -->
+  <line x1="380" y1="100" x2="420" y2="100" stroke="#666" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+  <text x="400" y="90" text-anchor="middle" font-size="9" fill="#888">build</text>
+
+  <!-- Positional Markdown box -->
+  <rect x="420" y="45" width="260" height="110" fill="#e8f4e8" stroke="#4a8a4a" stroke-width="2" rx="6"/>
+  <text x="550" y="68" text-anchor="middle" font-size="12" font-weight="bold" fill="#2a6a2a">Positional Markdown</text>
+  <line x1="435" y1="75" x2="665" y2="75" stroke="#4a8a4a" stroke-width="0.5" opacity="0.5"/>
+  <text x="440" y="92" font-size="10" fill="#3a7a3a" font-family="monospace">---</text>
+  <text x="440" y="105" font-size="10" fill="#3a7a3a" font-family="monospace">layout: 2-column</text>
+  <text x="440" y="118" font-size="10" fill="#3a7a3a" font-family="monospace">panels: [{left}, {right}]</text>
+  <text x="440" y="131" font-size="10" fill="#3a7a3a" font-family="monospace">---</text>
+  <text x="440" y="144" font-size="10" fill="#8a4a2a" font-family="monospace">#@ panel: left</text>
+
+  <!-- Arrow 3 (down) -->
+  <line x1="550" y1="155" x2="550" y2="195" stroke="#666" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+  <text x="565" y="180" font-size="9" fill="#888">chunk</text>
+
+  <!-- StructuralChunker -->
+  <rect x="420" y="195" width="260" height="70" fill="#e8eef8" stroke="#4a6aa8" stroke-width="2" rx="6"/>
+  <text x="550" y="218" text-anchor="middle" font-size="12" font-weight="bold" fill="#2a4a88">StructuralChunker</text>
+  <text x="550" y="236" text-anchor="middle" font-size="10" fill="#4a6aa8">Split at #@ boundaries</text>
+  <text x="550" y="250" text-anchor="middle" font-size="10" fill="#4a6aa8">Per-chunk metadata: page, panel, section</text>
+
+  <!-- Arrow 4 (down) -->
+  <line x1="550" y1="265" x2="550" y2="305" stroke="#666" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+
+  <!-- Three chunks -->
+  <rect x="380" y="305" width="110" height="65" fill="#fce8e8" stroke="#c44a4a" stroke-width="1.5" rx="4"/>
+  <text x="435" y="325" text-anchor="middle" font-size="10" font-weight="bold" fill="#8a2a2a">Chunk 1</text>
+  <text x="435" y="340" text-anchor="middle" font-size="9" fill="#aa4a4a">page: 1</text>
+  <text x="435" y="352" text-anchor="middle" font-size="9" fill="#aa4a4a">panel: left</text>
+  <text x="435" y="364" text-anchor="middle" font-size="9" fill="#aa4a4a">section: Intro</text>
+
+  <rect x="505" y="305" width="110" height="65" fill="#fce8e8" stroke="#c44a4a" stroke-width="1.5" rx="4"/>
+  <text x="560" y="325" text-anchor="middle" font-size="10" font-weight="bold" fill="#8a2a2a">Chunk 2</text>
+  <text x="560" y="340" text-anchor="middle" font-size="9" fill="#aa4a4a">page: 1</text>
+  <text x="560" y="352" text-anchor="middle" font-size="9" fill="#aa4a4a">panel: right</text>
+  <text x="560" y="364" text-anchor="middle" font-size="9" fill="#aa4a4a">has_table: true</text>
+
+  <rect x="630" y="305" width="70" height="65" fill="#fce8e8" stroke="#c44a4a" stroke-width="1.5" rx="4"/>
+  <text x="665" y="325" text-anchor="middle" font-size="10" font-weight="bold" fill="#8a2a2a">Chunk 3</text>
+  <text x="665" y="340" text-anchor="middle" font-size="9" fill="#aa4a4a">page: 2</text>
+  <text x="665" y="352" text-anchor="middle" font-size="9" fill="#aa4a4a">panel: left</text>
+
+  <!-- Arrow 5 (down to Qdrant) -->
+  <line x1="550" y1="370" x2="550" y2="410" stroke="#666" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+  <text x="565" y="395" font-size="9" fill="#888">embed</text>
+
+  <!-- Qdrant -->
+  <rect x="420" y="410" width="260" height="50" fill="#e0e8f8" stroke="#3a5a9a" stroke-width="2" rx="6"/>
+  <text x="550" y="435" text-anchor="middle" font-size="12" font-weight="bold" fill="#2a3a6a">Vector Store</text>
+  <text x="550" y="450" text-anchor="middle" font-size="10" fill="#4a5a8a">Chunks + structural metadata → searchable</text>
+
+  <!-- Retrieval arrow back -->
+  <rect x="40" y="410" width="260" height="50" fill="#f0f8e8" stroke="#5a8a3a" stroke-width="2" rx="6"/>
+  <text x="170" y="432" text-anchor="middle" font-size="12" font-weight="bold" fill="#3a6a2a">Retrieval Result</text>
+  <text x="170" y="448" text-anchor="middle" font-size="10" fill="#5a8a3a">"page 3, left column, Methods section"</text>
+
+  <line x1="420" y1="435" x2="305" y2="435" stroke="#5a8a3a" stroke-width="1.5" marker-end="url(#arrowhead-green)" stroke-dasharray="5,3"/>
+  <text x="365" y="425" text-anchor="middle" font-size="9" fill="#5a8a3a">search</text>
+
+  <!-- Side annotation: two-tier model -->
+  <rect x="40" y="175" width="200" height="120" fill="#fff8e8" stroke="#c8a848" stroke-width="1.5" rx="6"/>
+  <text x="140" y="195" text-anchor="middle" font-size="11" font-weight="bold" fill="#8a7828">Two-Tier Annotations</text>
+  <line x1="55" y1="202" x2="225" y2="202" stroke="#c8a848" stroke-width="0.5" opacity="0.5"/>
+  <text x="55" y="220" font-size="10" fill="#8a7828" font-family="monospace">#@ panel: left</text>
+  <text x="55" y="235" font-size="9" fill="#a89848">↑ block-level spatial</text>
+  <text x="55" y="258" font-size="10" fill="#8a7828" font-family="monospace">Revenue[metric-1]</text>
+  <text x="55" y="273" font-size="9" fill="#a89848">↑ inline entity anchor</text>
+  <text x="55" y="288" font-size="9" fill="#a89848">Both strippable → clean text</text>
+
+  <!-- Arrow markers -->
+  <defs>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#666"/>
+    </marker>
+    <marker id="arrowhead-green" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#5a8a3a"/>
+    </marker>
+  </defs>
+
+  <!-- Bottom note -->
+  <text x="360" y="500" text-anchor="middle" font-size="10" fill="#999">cover document pattern: binary stored via artifactRef, positional markdown is the searchable representation</text>
+</svg>
