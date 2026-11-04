@@ -2,7 +2,7 @@
 
 ## State
 branch: main
-state: scaffolded
+state: active
 project-sha: slot-creation
 date: 2026-11-03
 issue-repo: casehubio/neocortex
