@@ -82,3 +82,4 @@
 | [2026-11-01-mdp01-the-perception-gap.md](2026-11-01-mdp01-the-perception-gap.md) | 2026-11-01 | Why agents need corpus management — typed, searchable, federable knowledge with lifecycle, not just a vector store |
 | [2026-11-02-mdp01-knowledge-that-outlives-the-session.md](2026-11-02-mdp01-knowledge-that-outlives-the-session.md) | 2026-11-02 | Corpus management as cognitive infrastructure — SPIs, federation, cover documents, and the three-layer model |
 | [2026-11-04-mdp01-corpus-vs-workspace.md](2026-11-04-mdp01-corpus-vs-workspace.md) | 2026-11-04 | Why LLM platforms need two content management patterns — curated corpus and agent-driven workspace — sharing the same subsystems |
+| [2026-11-04-mdp02-four-schemas-one-api.md](2026-11-04-mdp02-four-schemas-one-api.md) | 2026-11-04 | Proves corpus-management is domain-neutral with 4 working examples; reveals missing CDI wiring and MCP surface for agent access |

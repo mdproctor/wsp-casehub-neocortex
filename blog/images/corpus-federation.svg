@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 280" font-family="system-ui, -apple-system, sans-serif">
+  <style>
+    .box-label { font-size: 13px; font-weight: 600; fill: #fff; }
+    .box-sub { font-size: 10px; fill: #e2e8f0; }
+    .entry { font-size: 10px; fill: #4a5568; }
+    .arrow-label { font-size: 11px; fill: #718096; font-style: italic; }
+    .query-label { font-size: 12px; font-weight: 600; fill: #2d3748; }
+    .result-label { font-size: 10px; fill: #2d3748; }
+  </style>
+
+  <!-- Literature corpus -->
+  <rect x="30" y="30" width="250" height="200" rx="10" fill="#ebf8ff" stroke="#4299e1" stroke-width="2"/>
+  <rect x="30" y="30" width="250" height="34" rx="10" fill="#4299e1"/>
+  <rect x="30" y="54" width="250" height="10" fill="#4299e1"/>
+  <text x="155" y="54" text-anchor="middle" class="box-label">evidence-base</text>
+  <text x="155" y="54" text-anchor="middle" class="box-sub" dy="14">academic-literature</text>
+
+  <rect x="45" y="82" width="220" height="26" rx="4" fill="#fff" stroke="#bee3f8" stroke-width="1"/>
+  <text x="55" y="100" class="entry">ACE Inhibitors in Hypertension</text>
+
+  <rect x="45" y="114" width="220" height="26" rx="4" fill="#fff" stroke="#bee3f8" stroke-width="1"/>
+  <text x="55" y="132" class="entry">Metformin Outcomes in T2D</text>
+
+  <rect x="45" y="146" width="220" height="26" rx="4" fill="#fff" stroke="#bee3f8" stroke-width="1"/>
+  <text x="55" y="164" class="entry">Dense Passage Retrieval for QA</text>
+
+  <rect x="45" y="178" width="220" height="26" rx="4" fill="#fff" stroke="#bee3f8" stroke-width="1"/>
+  <text x="55" y="196" class="entry">Knowledge Graphs: Foundations</text>
+
+  <!-- Clinical corpus -->
+  <rect x="420" y="30" width="250" height="200" rx="10" fill="#fffaf0" stroke="#ed8936" stroke-width="2"/>
+  <rect x="420" y="30" width="250" height="34" rx="10" fill="#ed8936"/>
+  <rect x="420" y="54" width="250" height="10" fill="#ed8936"/>
+  <text x="545" y="54" text-anchor="middle" class="box-label">treatment-protocols</text>
+  <text x="545" y="54" text-anchor="middle" class="box-sub" dy="14">clinical-guideline</text>
+
+  <rect x="435" y="82" width="220" height="26" rx="4" fill="#fff" stroke="#feebc8" stroke-width="1"/>
+  <text x="445" y="100" class="entry">Hypertension — ACE Inhibitor Protocol</text>
+
+  <rect x="435" y="114" width="220" height="26" rx="4" fill="#fff" stroke="#feebc8" stroke-width="1"/>
+  <text x="445" y="132" class="entry">Diabetes — Insulin Titration</text>
+
+  <rect x="435" y="146" width="220" height="26" rx="4" fill="#fff" stroke="#feebc8" stroke-width="1"/>
+  <text x="445" y="164" class="entry">Asthma — Step Therapy Protocol</text>
+
+  <rect x="435" y="178" width="220" height="26" rx="4" fill="#fff" stroke="#feebc8" stroke-width="1"/>
+  <text x="445" y="196" class="entry">Anticoagulation — DVT Prophylaxis</text>
+
+  <!-- Federation arrow -->
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#718096"/>
+    </marker>
+  </defs>
+  <line x1="420" y1="130" x2="285" y2="130" stroke="#718096" stroke-width="2" marker-end="url(#arrowhead)" stroke-dasharray="8,4"/>
+  <text x="352" y="120" text-anchor="middle" class="arrow-label">upstream</text>
+  <text x="352" y="145" text-anchor="middle" class="arrow-label">federation</text>
+
+  <!-- Query -->
+  <rect x="250" y="248" width="200" height="28" rx="14" fill="#edf2f7" stroke="#a0aec0" stroke-width="1.5"/>
+  <text x="350" y="267" text-anchor="middle" class="query-label">query: "hypertension"</text>
+
+  <!-- Result arrows -->
+  <line x1="290" y1="248" x2="155" y2="232" stroke="#4299e1" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+  <line x1="410" y1="248" x2="545" y2="232" stroke="#ed8936" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+
+  <text x="190" y="248" text-anchor="middle" class="result-label" fill="#4299e1">results from both</text>
+  <text x="510" y="248" text-anchor="middle" class="result-label" fill="#ed8936">corpora</text>
+</svg>
