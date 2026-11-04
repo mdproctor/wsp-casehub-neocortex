@@ -154,7 +154,29 @@ Full-width title page content...
 Left column text...
 ```
 
+**Layout override precedence rules:**
+
+1. **Frontmatter `layout:` is the default** — applies to all pages that do not carry an explicit `#@ layout:` annotation
+2. **`#@ layout:` is page-scoped** — overrides the layout for that specific page only. It does NOT propagate to subsequent pages
+3. **Subsequent pages revert to the frontmatter default** — a `#@ layout: single` on page 1 does not affect page 2 (which uses the frontmatter layout unless it has its own `#@ layout:`)
+4. **Per-page layout overrides use preset panel definitions** — an `#@ layout: single` page gets the preset's `main` panel, regardless of any custom `panels:` defined in the frontmatter. Frontmatter panel definitions apply only to pages using the frontmatter layout
+5. **A page with `#@ layout: ad-hoc` at page level is an error** unless inline `#@ panel:` definitions follow with explicit coordinates (not yet supported — deferred to a future iteration. For now, ad-hoc layouts are frontmatter-only)
+
 ## Module Architecture
+
+### Layer Placement
+
+The corpus-management subsystem (`corpus-management-api`, `corpus-management`, and the new `corpus-management-parsers`) is not currently in the ARC42STORIES layer architecture. These modules form a management layer above L8 (Corpus SPI) and L9 (Corpus Runtime), providing managed entries with metadata, cover documents, and structured parsing.
+
+The ARC42STORIES should be updated to add a layer designation for this subsystem. The proposed structure:
+
+| Module | Tier | Hortora? |
+|--------|------|----------|
+| `corpus-management-api` | Pure Java, zero deps (Tier 1) | ✅ yes |
+| `corpus-management` | CDI library (Tier 2/3) | casehub only (depends on platform types via InteractionContext) |
+| `corpus-management-parsers` | PDFBox, POI, Tika deps (Tier 3) | ✅ yes (domain-neutral, no platform deps) |
+
+**Follow-up:** File GitHub issue to update ARC42STORIES with the corpus-management layer.
 
 ### New Module: `corpus-management-parsers`
 
@@ -189,6 +211,8 @@ public record ImageRegion(
 ) {}
 ```
 
+**Image bytes lifecycle:** `imageBytes` are transient — used during parsing to produce OCR text and LLM descriptions, then discarded. They are NOT stored in the corpus. The original binary document is preserved via `artifactRef` (cover document pattern, D1), and images can be re-extracted from the original document at any time. This avoids duplicating image storage and keeps `CorpusEntry` lightweight. The `#@ figure:` and `#@ ocr:` annotations in the positional markdown carry the text representations; the `#@ describe:` annotation carries the LLM description. If a consumer needs the original image, they follow `artifactRef` to the binary document and re-extract.
+
 ```java
 public record DocumentParserConfig(
     boolean ocrEnabled,
@@ -202,20 +226,34 @@ public record DocumentParserConfig(
 }
 ```
 
-#### DocumentParser vs MetadataExtractor
+`DocumentParserConfig` carries **cross-cutting per-invocation options** only. Format-specific options (PDF passwords, OCR language, DOCX track-changes visibility, image DPI) are construction-time concerns for each `DocumentParser` implementation — injected via Quarkus `@ConfigMapping` or constructor parameters. This keeps the SPI's format-agnostic contract clean: callers pass `DocumentParserConfig` without knowing which parser handles the document.
 
-These serve different layers:
+#### DocumentParser vs MetadataExtractor vs TikaDocumentParser
 
-| | DocumentParser | MetadataExtractor |
-|---|---|---|
-| **Layer** | corpus-management (pre-processing) | rag (ingestion pipeline) |
-| **Input** | Binary document (InputStream) | Raw bytes from CorpusReader |
-| **Output** | Positional markdown + metadata | Flat text + metadata |
-| **Purpose** | Structure-preserving conversion | Content extraction for RAG |
-| **When** | Before `CorpusEntryStore.add()` | During `CorpusIngestionService` polling |
-| **Used by** | corpus-management consumers | RAG pipeline |
+Three document processing components exist, serving different layers:
 
-`GardenMetadataExtractor` (markdown → flat text for RAG) is not replaced. A PDF corpus would use `PdfDocumentParser` to create the positional markdown entry, then `MetadataExtractor` to extract text for RAG indexing (which strips `#@` annotations and produces flat text).
+| | DocumentParser (new) | MetadataExtractor (existing) | TikaDocumentParser (existing) |
+|---|---|---|---|
+| **Module** | `corpus-management-parsers` | `rag-api` (SPI) | `rag-tika` |
+| **Input** | Binary document (InputStream) | Raw bytes from CorpusReader | Binary document (InputStream) |
+| **Output** | Positional markdown + metadata + image regions | Flat text + metadata (`ExtractionResult`) | `List<ChunkInput>` (ready for embedding) |
+| **Purpose** | Structure-preserving conversion | Content extraction for RAG | Content extraction + chunking (flat text) |
+| **When** | Before `CorpusEntryStore.add()` | During `CorpusIngestionService` polling | Standalone parsing utility |
+| **Used by** | corpus-management consumers | RAG pipeline | Direct callers (not in the ingestion pipeline) |
+
+**TikaDocumentParser** in `rag-tika` is a standalone utility that uses Tika's `AutoDetectParser` to extract flat text from PDFs/DOCX/images, then chunks via `TextChunker`. It is NOT superseded by the new `DocumentParser` implementations. The new `PdfDocumentParser` uses Apache PDFBox directly (not Tika) for structural text extraction with positions — a fundamentally different approach that preserves spatial layout. `DocxDocumentParser` uses Apache POI. `ImageDocumentParser` uses Tika's `TesseractOCRParser` for OCR only.
+
+`GardenMetadataExtractor` (markdown → flat text for RAG) is not replaced.
+
+#### Ingestion path constraint
+
+Positional markdown documents MUST go through the corpus-management path:
+
+```
+DocumentParser → PositionalMarkdownBuilder → CoverDocumentParser → CorpusEntryStore.add() → ingestEmbedding() → StructuralChunker
+```
+
+They must NOT enter the system via `CorpusStore` → `CorpusIngestionService`. The `CorpusIngestionService` path uses `MetadataExtractor` (strips frontmatter) + `TextChunker` (character-based splitting with no structural awareness). `#@` annotations would be treated as ordinary text and structural chunking would be silently skipped. The `content_format: positional-markdown` metadata field is set by `PositionalMarkdownBuilder` — if a positional markdown file were written directly to a `CorpusStore`, this metadata would not be set and the detection in `ingestEmbedding()` would not trigger.
 
 #### Implementations
 
@@ -245,7 +283,64 @@ When layout detection is enabled, the parser sends the rendered page image to th
 
 When image description is enabled, each extracted image is sent to the LLM for a natural language description. The description is included in the positional markdown via `#@ describe:` annotations.
 
-Both require an `AgentProvider` (LangChain4j) on the classpath. When the flag is enabled but no `AgentProvider` is available, a warning is logged and the feature degrades gracefully to programmatic-only.
+#### ImageDescriber SPI
+
+LLM vision is accessed through a narrow SPI in `corpus-management-api`, not through `AgentProvider` (which is `io.casehub.platform.agent.AgentProvider` from `casehub-platform-agent-api` — a casehub platform type, not LangChain4j). Coupling the parsers module to `casehub-platform-agent-api` would break domain neutrality.
+
+```java
+@FunctionalInterface
+public interface ImageDescriber {
+    String describe(byte[] imageBytes, String mimeType);
+}
+```
+
+The casehub platform provides an `AgentProvider`-backed implementation. Hortora or other consumers can provide their own implementation using any LLM client. When the flag is enabled but no `ImageDescriber` is available (CDI `Instance<ImageDescriber>.isUnsatisfied()`), a warning is logged and the feature degrades gracefully to programmatic-only.
+
+## PositionalMarkdownBuilder
+
+New class in `corpus-management-parsers`, analogous to `CoverDocumentGenerator` for transcripts:
+
+```java
+public class PositionalMarkdownBuilder {
+
+    public String build(ParseResult parseResult, String artifactRef) { ... }
+}
+```
+
+**Module:** `corpus-management-parsers`
+**Input:** `ParseResult` (from `DocumentParser.parse()`) + `artifactRef` (reference to the original binary document)
+**Output:** A YAML-frontmatter cover document string, suitable for `CoverDocumentParser.parse()`
+
+The output has this structure:
+
+```yaml
+---
+id: <generated CE-YYYYMMDD-XXXXXX>
+content_format: positional-markdown
+source_format: <from parseResult.extractedMetadata()>
+source_pages: <page count>
+layout: <detected layout or ad-hoc>
+panels:
+  - id: <panel-id>
+    x: <normalized x>
+    y: <normalized y>
+    w: <normalized width>
+    h: <normalized height>
+artifact_ref: <artifactRef>
+---
+<positional markdown body from parseResult>
+```
+
+The `content_format: positional-markdown` metadata field is the structural signal used by `SqliteCorpusEntryStore.ingestEmbedding()` to detect positional markdown and route to `StructuralChunker`. All extracted metadata from `parseResult.extractedMetadata()` is merged into the frontmatter.
+
+**CorpusType:** A new `CorpusType.DOCUMENT` constant is defined in `corpus-management-parsers` (not in `corpus-management-api` — follows the same remediation direction as audit L2, which moves domain-specific constants out of the API):
+
+```java
+public static final CorpusType DOCUMENT = CorpusType.of("document",
+    Map.of("content_format", FieldSchema.required(String.class),
+           "source_format", FieldSchema.required(String.class),
+           "artifact_ref", FieldSchema.optional(String.class)));
+```
 
 ## BlockAnnotationParser
 
@@ -267,6 +362,7 @@ public record BlockParseResult(
 ```java
 public record BlockAnnotation(
     String type,
+    String value,
     Map<String, String> params,
     int startOffset,
     int endOffset
@@ -276,7 +372,12 @@ public record BlockAnnotation(
 - Scans for lines matching `^#@\s*(\w+):\s*(.*)$`
 - Strips `#@` lines from the text
 - Records the text offset range each annotation applies to (from its position to the next `#@` or end of text)
-- Parses key=value pairs from the parameter string (supports quoted values: `caption="Figure 1: Overview"`)
+- `type` is the annotation name (group 1: `panel`, `page`, `figure`, etc.)
+- `value` is the raw parameter text after the colon (group 2), with leading/trailing whitespace stripped
+- `params` is populated by parsing key=value pairs from the value string:
+  - **Key=value pairs** (e.g., `caption="Fig 1" alt="diagram"`): parsed into the map. Quoted values have quotes stripped
+  - **Single values** (e.g., `header`, `3`, `"extracted text"`): `params` is empty. Consumers use `value()` directly. Quoted single values have quotes stripped in `value()`
+  - **Mixed** (e.g., `3 rows=5 cols=3`): the first token without `=` is the `value()`; remaining key=value pairs go into `params`
 
 The `startOffset`/`endOffset` in `BlockAnnotation` refer to positions in the `cleanText` (after `#@` lines are removed), consistent with how `ParsedAnchor` offsets work in `AnchorAnnotationParser`.
 
@@ -284,11 +385,11 @@ The `startOffset`/`endOffset` in `BlockAnnotation` refer to positions in the `cl
 
 ### StructuralChunker Interface
 
-New interface in `corpus-management-parsers` (not in rag-api — this is a corpus-management concern):
+New interface in `corpus-management-api` (Tier 1 SPI — `SqliteCorpusEntryStore` in `corpus-management` consumes it via CDI `Instance<StructuralChunker>`, so the interface must be in a module that `corpus-management` already depends on. Implementations go in `corpus-management-parsers` (Tier 3). This follows the module-tier-structure protocol: SPI interfaces in the API tier, implementations in the runtime tier, dependency direction Tier 3 → Tier 1):
 
 ```java
 public interface StructuralChunker {
-    List<StructuredChunk> chunk(String positionalMarkdown, int maxChunkTokens);
+    List<StructuredChunk> chunk(String positionalMarkdown, int maxChunkSize);
 }
 ```
 
@@ -313,19 +414,19 @@ The `metadata` map carries per-chunk structural context:
 
 1. Parse `#@` annotations via `BlockAnnotationParser` → clean text + annotations
 2. Split at structural boundaries: `#@ page:` and `#@ panel:` annotations are hard split points
-3. Within a panel, split at heading boundaries if the panel text exceeds `maxChunkTokens`
-4. Within a section, fall back to token-based splitting (reuse `TextChunker.recursive()` logic) if text still exceeds limit
-5. Very short chunks (< 20% of maxChunkTokens) are merged with the next chunk in the same panel
+3. Within a panel, split at heading boundaries if the panel text exceeds `maxChunkSize`
+4. Within a section, fall back to character-based splitting (reuse `TextChunker.recursive()` logic) if text still exceeds limit. The overlap for fallback splitting is a construction-time parameter — the `StructuralChunker` implementation reads `casehub.corpus.parsers.chunk-overlap` from config at construction and passes it to `TextChunker.recursive(maxChunkSize, overlap)` internally. The `chunk()` method signature does not carry overlap because it is not a per-invocation concern
+5. Very short chunks (< 20% of maxChunkSize) are merged with the next chunk in the same panel
 6. Each chunk carries metadata from its enclosing annotations
 
 ### Integration with SqliteCorpusEntryStore
 
-`SqliteCorpusEntryStore.ingestEmbedding()` is enhanced to detect positional markdown in the body:
+`SqliteCorpusEntryStore.ingestEmbedding()` is enhanced to detect positional markdown via the entry's metadata — not by scanning body content:
 
 ```java
 private void ingestEmbedding(CorpusRef corpus, CorpusEntry entry) {
     List<ChunkInput> chunks;
-    if (entry.body().contains("#@ ")) {
+    if ("positional-markdown".equals(entry.metadata().get("content_format"))) {
         // Structure-aware chunking for positional markdown
         List<StructuredChunk> structured = structuralChunker.chunk(entry.body(), chunkSize);
         chunks = structured.stream()
@@ -338,6 +439,8 @@ private void ingestEmbedding(CorpusRef corpus, CorpusEntry entry) {
     embeddingIngestor.ingest(corpus, chunks);
 }
 ```
+
+Detection uses `entry.metadata().get("content_format")` — a metadata field set by `PositionalMarkdownBuilder` during cover document generation. This is a structural signal set at parsing time, not a substring check on arbitrary body content. Plain text entries, transcripts, and garden entries do not carry this metadata field — no risk of false-positive detection.
 
 The `StructuralChunker` is an optional dependency (via CDI `Instance<StructuralChunker>`). When not on the classpath, all entries use the existing single-chunk behavior.
 
@@ -369,19 +472,22 @@ DocumentParser.parse(inputStream, sourceRef, config)
     │
     ├─ PDFBox: extract text blocks with positions
     ├─ Tika TesseractOCR: extract text from images
-    ├─ [optional] LLM vision: classify layout
-    ├─ [optional] LLM vision: describe images
+    ├─ [optional] ImageDescriber: classify layout
+    ├─ [optional] ImageDescriber: describe images
     │
     ▼
 ParseResult(positionalMarkdown, metadata, imageRegions)
+    │  ── imageBytes used for OCR/description, then discarded
     │
     ▼
 PositionalMarkdownBuilder.build(parseResult, artifactRef)
-    │  ── frontmatter (layout + panels) + body (#@ annotated markdown)
+    │  ── frontmatter: layout, panels, content_format: positional-markdown
+    │  ── body: #@ annotated markdown
     │  ── analogous to CoverDocumentGenerator for transcripts
     │
     ▼
-CoverDocumentParser.parse(positionalMarkdown, corpusType) → CorpusEntry
+CoverDocumentParser.parse(coverDocument, CorpusType.DOCUMENT) → CorpusEntry
+    │  ── metadata includes content_format: positional-markdown
     │
     ▼
 CorpusEntryStore.add(corpus, entry)
@@ -389,14 +495,16 @@ CorpusEntryStore.add(corpus, entry)
     ├─ SQLite: store entry (body as TEXT)
     │
     ├─ ingestEmbedding():
-    │     ├─ BlockAnnotationParser.parse(body) → clean text + annotations
-    │     ├─ StructuralChunker.chunk(body, maxTokens) → List<StructuredChunk>
-    │     ├─ AnchorAnnotationParser.parse(chunk.text) → cleaner text + anchors
+    │     ├─ detect: metadata.get("content_format") == "positional-markdown"
+    │     ├─ StructuralChunker.chunk(body, maxChunkSize) → List<StructuredChunk>
+    │     ├─ per chunk: AnchorAnnotationParser.parse(chunk.text) → cleaner text + anchors
     │     └─ EmbeddingIngestor.ingest(corpus, chunks)
     │
     ▼
 Qdrant: chunks with per-chunk metadata (page, panel, section)
 ```
+
+**Note:** Positional markdown documents must go through this corpus-management path. The `CorpusStore` → `CorpusIngestionService` path (used for file-based corpora like Hortora gardens) does not support structural chunking and would silently skip `#@` annotation processing.
 
 ## Testing Strategy
 
@@ -430,7 +538,7 @@ Issue #802 (Phase 3 structural extraction) handles:
 - The audit's L7+L10 (GardenMetadataExtractor, CorpusIndexService extraction)
 - The audit's L9 (ScoringStrategy SPI)
 
-The audit's L1 (Content sealed hierarchy) is resolved by this issue's cover document pattern — D2 explicitly supersedes the audit's remediation direction. #802 should be updated to remove L1 from its scope.
+The audit's L1 (Content sealed hierarchy) is **partially resolved** by this issue's cover document pattern for **binary document formats** (PDF, DOCX, images) — D2 supersedes the audit's remediation direction for these formats. The cover document pattern converts binary documents to positional markdown, making them representable as `String body` with preserved spatial structure. Structured-text formats (FHIR JSON/XML, HTML, LaTeX, BibTeX) can already be stored as `String body` since they are text, but do not yet have format-specific `DocumentParser` implementations for structure-preserving conversion. The `DocumentParser` SPI is designed for extensibility — additional format parsers (e.g., `HtmlDocumentParser`, `FhirDocumentParser`) can be added without API changes. L1 remains partially open in #802's scope for structured-text formats that would benefit from structure-aware parsing.
 
 ## References
 
@@ -440,7 +548,7 @@ The audit's L1 (Content sealed hierarchy) is resolved by this issue's cover docu
 - `rag-api/.../MetadataExtractor.java` — existing extraction SPI (not replaced)
 - `rag-api/.../TextChunker.java` — existing chunker (not modified)
 - `rag-tika/.../TikaDocumentParser.java` — existing Tika integration (standalone)
-- `annotation-api/.../AnchorAnnotationParser.java` — existing inline annotation parser (platform parent)
+- `annotation-api/.../AnchorAnnotationParser.java` — existing inline annotation parser (neocortex L18 Annotation SPI)
 - `docs/specs/2026-11-04-corpus-domain-abstraction-audit.md` — audit L1 analysis
 - ytt annotation convention — `#@` syntax precedent
 - decisions.md — all design decisions with rationale and alternatives
