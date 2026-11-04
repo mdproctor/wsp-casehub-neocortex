@@ -24,9 +24,9 @@ evidence-era: true
   - [x] Batch 2: Module+Format
     - [x] Task 3: Module scaffold+DocumentParser SPI
     - [x] Task 4: PositionalMarkdownBuilder
-  - [ ] Batch 3: Chunking+Integration
-    - [ ] Task 5: DefaultStructuralChunker
-    - [ ] Task 6: SqliteCorpusEntryStore integration
+  - [x] Batch 3: Chunking+Integration
+    - [x] Task 5: DefaultStructuralChunker
+    - [x] Task 6: SqliteCorpusEntryStore integration
   - [ ] Batch 4: Document Parsers
     - [ ] Task 7: PdfDocumentParser
     - [ ] Task 8: DocxDocumentParser
