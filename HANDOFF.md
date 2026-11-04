@@ -2,14 +2,15 @@
 
 ## Last Session
 
-Completed Batches 3-6 of #799 (inline entity tokenisation): migrated three cognitive consumers from annotation index to `TokenFormat`, extended `Personable` trait with 10 identity accessors, created `TokenisingBiographyPreprocessor`, deleted all 5 annotation modules (~3100 lines). Scope audit revealed 3 gaps — filed #807 (prompt rendering), #808 (identity property population), #809 (backfill). Epic reopened.
+Completed **#801** — remediated 3 API-layer leaks in corpus-management-api: moved CorpusType constants to `BuiltInCorpusTypes` in impl (L2), moved `InteractionContext/InteractionType/ActivityType` from API to impl (L3), added `embeddingVector` field to `CorpusQuery` with withers and factories (L5). All IntelliJ-driven refactoring. 133 tests + 11 example tests pass. Branch landed, issue closed. Scaffolded feature branches for all 7 remaining epic issues.
 
 ## Immediate Next Step
 
-`work start 807` — wire `EntityRenderer` into the prompt rendering pipeline. Smallest of the three gaps, S/Low, unblocks the other two (identity population and backfill are pointless until rendering works).
+Pick up **#787** (Rich document ingestion — PDFs, Word, images). Requires brainstorming the `Content` sealed hierarchy from audit L1 — `CorpusEntry.body` is currently `String`, blocking non-text corpora. Branch `issue-787-rich-document-ingestion` exists.
 
 ## References
 
-- `blog/2026-11-04-mdp02-the-indirection-that-disappeared.md` — session blog entry
-- `blog/2026-11-03-mdp03-names-are-not-identity.md` — design rationale (prior session)
-- `blog/2026-11-04-mdp01-the-text-that-knows-who-it-means.md` — foundation implementation (prior session)
+- `specs/issue-801-remediate-corpus-api-leaks/` — design spec + decisions for #801
+- `plans/2026-11-04-corpus-api-remediation.md` — implementation plan for #801
+- `docs/specs/2026-11-04-corpus-domain-abstraction-audit.md` — audit (L1-L13)
+- `.plan` — queue: #787, #802, #788, #804, #810, #811, #812
