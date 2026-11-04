@@ -111,3 +111,16 @@
 **Depends on:** D3 (positional markdown format)
 **Exploration:** deep-analysis
 **Status:** captured
+
+## D10: LLM-assisted layout detection
+
+**Choice:** Optional LLM vision call to classify page layout and identify panels when programmatic extraction is uncertain. Config-gated under the same `casehub.corpus.parsers.llm.enabled` flag as image description (D4). One LLM call per page can classify layout + describe images together.
+**Alternatives:**
+- Programmatic only — fully deterministic but mis-classifies complex layouts (forms, worksheets, multi-panel documents)
+- Defer — start programmatic, add LLM later if quality is insufficient
+**Rationale:** LLM vision understands spatial structure as a human does — it can identify instruction boxes, exercise panels, sidebars, reference sections in a single pass. Programmatic extraction (PDFBox) gives raw text blocks with coordinates but doesn't understand what the regions *mean*. The LLM path and programmatic path produce the same output format (positional markdown with panel annotations); the difference is accuracy of panel classification.
+**Trade-offs:** LLM call adds latency and cost per page. Not needed for simple single-column documents. Config gate keeps it off by default for bulk ingestion.
+**Sources:** Claude vision capability (demonstrated on KS2 worksheets — spatial understanding of forms), issue #787 (positional format requirements)
+**Depends on:** D3 (positional markdown format), D4 (image handling config gate)
+**Exploration:** quick
+**Status:** captured
