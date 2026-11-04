@@ -2,7 +2,7 @@
 
 ## State
 branch: issue-786-e2e-examples-corpus-management
-state: active
+state: closing:review
 project-sha: 
 date: 
 issue-repo: casehubio/neocortex
@@ -11,5 +11,6 @@ design-repo: project
 design-section-hashes: 
 flyway-next-v: unknown
 
+evidence-era: true
 ## Queue
 - [x] casehubio/neocortex#786 — Issue #786
