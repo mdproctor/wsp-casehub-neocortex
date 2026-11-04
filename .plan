@@ -27,10 +27,10 @@ evidence-era: true
   - [x] Batch 3: Chunking+Integration
     - [x] Task 5: DefaultStructuralChunker
     - [x] Task 6: SqliteCorpusEntryStore integration
-  - [ ] Batch 4: Document Parsers
+  - [x] Batch 4: Document Parsers
     - [x] Task 7: PdfDocumentParser
-    - [ ] Task 8: DocxDocumentParser
-    - [ ] Task 9: ImageDocumentParser
+    - [x] Task 8: DocxDocumentParser
+    - [x] Task 9: ImageDocumentParser
 - [ ] casehubio/neocortex#802 — Phase 3 structural extraction
 - [ ] casehubio/neocortex#788 — Corpus annotations
 - [ ] casehubio/neocortex#804 — Research workspace methodology
