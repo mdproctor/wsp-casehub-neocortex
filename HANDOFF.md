@@ -2,15 +2,14 @@
 
 ## Last Session
 
-Completed **#801** — remediated 3 API-layer leaks in corpus-management-api: moved CorpusType constants to `BuiltInCorpusTypes` in impl (L2), moved `InteractionContext/InteractionType/ActivityType` from API to impl (L3), added `embeddingVector` field to `CorpusQuery` with withers and factories (L5). All IntelliJ-driven refactoring. 133 tests + 11 example tests pass. Branch landed, issue closed. Scaffolded feature branches for all 7 remaining epic issues.
+Completed #807 (wire EntityRenderer into prompt rendering pipeline). `EntityRenderingSection` wraps all cognitive prompt sections via `chainSectionCustomizer()`, resolves `{{entity_id:variant:surface_form}}` tokens to display text at render time. `CognitionCoreFactory` auto-discovers `EntityIdentityCache` via CDI; falls back to `TokenFormat.stripTokens()` when absent. 11 tests, full module suite green (560 tests).
 
 ## Immediate Next Step
 
-Pick up **#787** (Rich document ingestion — PDFs, Word, images). Requires brainstorming the `Content` sealed hierarchy from audit L1 — `CorpusEntry.body` is currently `String`, blocking non-text corpora. Branch `issue-787-rich-document-ingestion` exists.
+`work start 808` — populate entity identity properties on MindMap nodes. Identity accessors exist on the `Personable` trait but no pipeline writes the canonical name parts, pronouns, or preferred forms into node properties. Without these, `EntityIdentityCache` returns null for every lookup and the renderer falls back to surface forms.
 
 ## References
 
-- `specs/issue-801-remediate-corpus-api-leaks/` — design spec + decisions for #801
-- `plans/2026-11-04-corpus-api-remediation.md` — implementation plan for #801
-- `docs/specs/2026-11-04-corpus-domain-abstraction-audit.md` — audit (L1-L13)
-- `.plan` — queue: #787, #802, #788, #804, #810, #811, #812
+- `blog/2026-11-04-mdp02-the-last-mile-for-entity-tokens.md` — session blog entry
+- `blog/2026-11-03-mdp03-names-are-not-identity.md` — design rationale (prior session)
+- `blog/2026-11-04-mdp01-corpus-vs-workspace.md` — corpus management (earlier today)
