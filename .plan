@@ -18,6 +18,19 @@ evidence-era: true
 - [x] casehubio/neocortex#786 — E2E examples across domains
 - [x] casehubio/neocortex#801 — Phase 2 API fixes
 - [ ] casehubio/neocortex#787 — Rich document ingestion ← active
+  - [ ] Batch 1: Foundation
+    - [ ] Task 1: BlockAnnotationParser
+    - [ ] Task 2: SPI types
+  - [ ] Batch 2: Module+Format
+    - [ ] Task 3: Module scaffold+DocumentParser SPI
+    - [ ] Task 4: PositionalMarkdownBuilder
+  - [ ] Batch 3: Chunking+Integration
+    - [ ] Task 5: DefaultStructuralChunker
+    - [ ] Task 6: SqliteCorpusEntryStore integration
+  - [ ] Batch 4: Document Parsers
+    - [ ] Task 7: PdfDocumentParser
+    - [ ] Task 8: DocxDocumentParser
+    - [ ] Task 9: ImageDocumentParser
 - [ ] casehubio/neocortex#802 — Phase 3 structural extraction
 - [ ] casehubio/neocortex#788 — Corpus annotations
 - [ ] casehubio/neocortex#804 — Research workspace methodology
