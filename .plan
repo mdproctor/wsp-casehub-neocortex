@@ -13,4 +13,4 @@ flyway-next-v: unknown
 evidence-era: true
 
 ## Queue
-- [ ] casehubio/neocortex#785 — Audit corpus-management for domain abstraction ← active
+- [x] casehubio/neocortex#785 — Audit corpus-management for domain abstraction
