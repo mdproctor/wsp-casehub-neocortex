@@ -21,3 +21,6 @@ evidence-era: true
 - [ ] casehubio/neocortex#802 — Phase 3 structural extraction
 - [ ] casehubio/neocortex#788 — Corpus annotations
 - [ ] casehubio/neocortex#804 — Research workspace methodology
+- [ ] casehubio/neocortex#810 — CDI wiring for corpus-management
+- [ ] casehubio/neocortex#811 — MCP domain for corpus-management
+- [ ] casehubio/neocortex#812 — Spring wiring for corpus-management
