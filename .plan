@@ -13,8 +13,8 @@ flyway-next-v: unknown
 
 ## Queue
 - [ ] casehubio/neocortex#785 — Issue #785 ← active
-  - [ ] Batch 1: Publish
-    - [ ] Task 1: Publish audit to project repo
-    - [ ] Task 2: File Phase 1 remediation issue
-    - [ ] Task 3: File Phase 2 remediation issue
-    - [ ] Task 4: File Phase 3 remediation issue
+  - [x] Batch 1: Publish
+    - [x] Task 1: Publish audit to project repo
+    - [x] Task 2: File Phase 1 remediation issue
+    - [x] Task 3: File Phase 2 remediation issue
+    - [x] Task 4: File Phase 3 remediation issue
