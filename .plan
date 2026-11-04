@@ -12,14 +12,4 @@ design-section-hashes:
 flyway-next-v: unknown
 
 ## Queue
-- [ ] casehubio/neocortex#786 — Issue #786 ← active
-  - [x] Batch 1: Scaffold
-    - [x] Task 1: Module POM and test harness
-  - [x] Batch 2: Domain tests A
-    - [x] Task 2: Garden scenario
-    - [x] Task 3: Literature scenario
-  - [x] Batch 3: Domain tests B
-    - [x] Task 4: Clinical scenario
-    - [x] Task 5: NPC scenario
-  - [x] Batch 4: Federation
-    - [x] Task 6: Cross-domain federation
+- [x] casehubio/neocortex#786 — Issue #786
