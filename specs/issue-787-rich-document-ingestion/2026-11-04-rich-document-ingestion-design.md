@@ -376,11 +376,12 @@ DocumentParser.parse(inputStream, sourceRef, config)
 ParseResult(positionalMarkdown, metadata, imageRegions)
     │
     ▼
-CoverDocumentParser.buildEntry(parseResult, artifactRef)
+PositionalMarkdownBuilder.build(parseResult, artifactRef)
     │  ── frontmatter (layout + panels) + body (#@ annotated markdown)
+    │  ── analogous to CoverDocumentGenerator for transcripts
     │
     ▼
-CorpusEntry(id, metadata, body=positionalMarkdown, artifactRef)
+CoverDocumentParser.parse(positionalMarkdown, corpusType) → CorpusEntry
     │
     ▼
 CorpusEntryStore.add(corpus, entry)
