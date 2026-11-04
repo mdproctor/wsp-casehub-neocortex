@@ -133,3 +133,4 @@ I built standoff annotations first because the NLP literature recommended them a
 The simpler design — a token in the text that carries identity and variant — eliminates the coordination problem entirely. The token IS the reference. One system, one source of truth.
 
 Sometimes the right design is the one that makes the hard problems disappear rather than the one that solves them elegantly.
+
