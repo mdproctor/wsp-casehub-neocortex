@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 400" font-family="system-ui, -apple-system, sans-serif">
+  <!-- Background -->
+  <rect width="720" height="400" fill="#f8f9fa" rx="8"/>
+
+  <!-- Corpus box -->
+  <rect x="40" y="30" width="300" height="160" fill="#e8f4f8" stroke="#4a90a4" stroke-width="2" rx="8"/>
+  <text x="190" y="58" text-anchor="middle" font-size="16" font-weight="bold" fill="#2c5f6e">Corpus</text>
+  <text x="190" y="78" text-anchor="middle" font-size="12" fill="#4a7a8a">the library</text>
+  <line x1="60" y1="90" x2="320" y2="90" stroke="#4a90a4" stroke-width="1" opacity="0.4"/>
+  <text x="60" y="112" font-size="11" fill="#3a6a7a">Curated, long-lived content</text>
+  <text x="60" y="130" font-size="11" fill="#3a6a7a">Stable metadata schemas</text>
+  <text x="60" y="148" font-size="11" fill="#3a6a7a">Federation across instances</text>
+  <text x="60" y="166" font-size="11" fill="#3a6a7a">Human-organised, authoritative</text>
+  <text x="60" y="182" font-size="11" fill="#3a6a7a">Changes slowly</text>
+
+  <!-- Workspace box -->
+  <rect x="380" y="30" width="300" height="160" fill="#fef3e8" stroke="#c47a2a" stroke-width="2" rx="8"/>
+  <text x="530" y="58" text-anchor="middle" font-size="16" font-weight="bold" fill="#8a5518">Workspace</text>
+  <text x="530" y="78" text-anchor="middle" font-size="12" fill="#a06828">the desk</text>
+  <line x1="400" y1="90" x2="660" y2="90" stroke="#c47a2a" stroke-width="1" opacity="0.4"/>
+  <text x="400" y="112" font-size="11" fill="#7a5518">Agent-driven, ephemeral content</text>
+  <text x="400" y="130" font-size="11" fill="#7a5518">Provenance-first metadata</text>
+  <text x="400" y="148" font-size="11" fill="#7a5518">Progressive enrichment chains</text>
+  <text x="400" y="166" font-size="11" fill="#7a5518">LLM-built during research</text>
+  <text x="400" y="182" font-size="11" fill="#7a5518">Changes constantly</text>
+
+  <!-- Arrows down -->
+  <line x1="190" y1="190" x2="190" y2="230" stroke="#4a90a4" stroke-width="2" marker-end="url(#arrowBlue)"/>
+  <line x1="530" y1="190" x2="530" y2="230" stroke="#c47a2a" stroke-width="2" marker-end="url(#arrowOrange)"/>
+
+  <!-- Shared subsystems box -->
+  <rect x="80" y="240" width="560" height="130" fill="#f0f0f0" stroke="#666" stroke-width="2" rx="8"/>
+  <text x="360" y="268" text-anchor="middle" font-size="15" font-weight="bold" fill="#333">Shared Subsystems</text>
+  <line x1="100" y1="278" x2="620" y2="278" stroke="#999" stroke-width="1" opacity="0.4"/>
+
+  <!-- Three sub-boxes -->
+  <rect x="100" y="290" width="160" height="60" fill="#fff" stroke="#999" stroke-width="1" rx="4"/>
+  <text x="180" y="312" text-anchor="middle" font-size="11" font-weight="bold" fill="#444">corpus-api</text>
+  <text x="180" y="328" text-anchor="middle" font-size="10" fill="#666">CorpusStore, CorpusReader</text>
+  <text x="180" y="342" text-anchor="middle" font-size="10" fill="#666">byte-level storage I/O</text>
+
+  <rect x="280" y="290" width="160" height="60" fill="#fff" stroke="#999" stroke-width="1" rx="4"/>
+  <text x="360" y="312" text-anchor="middle" font-size="11" font-weight="bold" fill="#444">rag</text>
+  <text x="360" y="328" text-anchor="middle" font-size="10" fill="#666">EmbeddingIngestor</text>
+  <text x="360" y="342" text-anchor="middle" font-size="10" fill="#666">CaseRetriever, search</text>
+
+  <rect x="460" y="290" width="160" height="60" fill="#fff" stroke="#999" stroke-width="1" rx="4"/>
+  <text x="540" y="312" text-anchor="middle" font-size="11" font-weight="bold" fill="#444">fusion-api</text>
+  <text x="540" y="328" text-anchor="middle" font-size="10" fill="#666">ScoreFusion</text>
+  <text x="540" y="342" text-anchor="middle" font-size="10" fill="#666">result ranking</text>
+
+  <!-- Arrow markers -->
+  <defs>
+    <marker id="arrowBlue" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#4a90a4"/>
+    </marker>
+    <marker id="arrowOrange" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#c47a2a"/>
+    </marker>
+  </defs>
+</svg>

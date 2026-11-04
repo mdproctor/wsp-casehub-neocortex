@@ -81,3 +81,4 @@
 | [2026-11-03-mdp02-the-score-that-counted-twice.md](2026-11-03-mdp02-the-score-that-counted-twice.md) | 2026-11-03 | Compound decay in retrieval pipelines — why scoring recency at two layers inverts rankings instead of improving them |
 | [2026-11-01-mdp01-the-perception-gap.md](2026-11-01-mdp01-the-perception-gap.md) | 2026-11-01 | Why agents need corpus management — typed, searchable, federable knowledge with lifecycle, not just a vector store |
 | [2026-11-02-mdp01-knowledge-that-outlives-the-session.md](2026-11-02-mdp01-knowledge-that-outlives-the-session.md) | 2026-11-02 | Corpus management as cognitive infrastructure — SPIs, federation, cover documents, and the three-layer model |
+| [2026-11-04-mdp01-corpus-vs-workspace.md](2026-11-04-mdp01-corpus-vs-workspace.md) | 2026-11-04 | Why LLM platforms need two content management patterns — curated corpus and agent-driven workspace — sharing the same subsystems |
