@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 400" font-family="system-ui, -apple-system, sans-serif">
+  <rect width="720" height="400" fill="#f8f9fa" rx="8"/>
+
+  <text x="360" y="28" text-anchor="middle" font-size="14" font-weight="bold" fill="#333">Tiered Document Layout Pipeline</text>
+
+  <!-- Input -->
+  <rect x="30" y="55" width="120" height="60" fill="#e8e0f0" stroke="#7a5ea8" stroke-width="2" rx="6"/>
+  <text x="90" y="82" text-anchor="middle" font-size="12" font-weight="bold" fill="#5a3e88">PDF Page</text>
+  <text x="90" y="98" text-anchor="middle" font-size="10" fill="#7a5ea8">binary input</text>
+
+  <!-- Arrow to Tier 1 -->
+  <line x1="150" y1="85" x2="190" y2="85" stroke="#666" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- Tier 1: PDFBox -->
+  <rect x="190" y="45" width="160" height="80" fill="#e8f4e8" stroke="#4a8a4a" stroke-width="2" rx="6"/>
+  <text x="270" y="65" text-anchor="middle" font-size="11" font-weight="bold" fill="#2a6a2a">Tier 1: PDFBox</text>
+  <line x1="200" y1="72" x2="340" y2="72" stroke="#4a8a4a" stroke-width="0.5" opacity="0.4"/>
+  <text x="270" y="88" text-anchor="middle" font-size="10" fill="#3a7a3a">Gap analysis heuristics</text>
+  <text x="270" y="102" text-anchor="middle" font-size="10" fill="#3a7a3a">Deterministic, free, fast</text>
+  <text x="270" y="116" text-anchor="middle" font-size="9" fill="#6a9a6a">Pure Java — zero deps</text>
+
+  <!-- Decision diamond 1 -->
+  <polygon points="395,85 420,60 445,85 420,110" fill="#fff8e8" stroke="#c8a848" stroke-width="1.5"/>
+  <text x="420" y="89" text-anchor="middle" font-size="9" font-weight="bold" fill="#8a7828">sure?</text>
+
+  <!-- Confident path down -->
+  <line x1="420" y1="110" x2="420" y2="320" stroke="#4a8a4a" stroke-width="1.5" marker-end="url(#arr-green)"/>
+  <text x="435" y="140" font-size="9" fill="#4a8a4a">confident</text>
+
+  <!-- Uncertain path right to Tier 2 -->
+  <line x1="445" y1="85" x2="485" y2="85" stroke="#c8a848" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="465" y="75" text-anchor="middle" font-size="9" fill="#c8a848">uncertain</text>
+
+  <!-- Tier 2: ONNX -->
+  <rect x="485" y="45" width="200" height="80" fill="#e8eef8" stroke="#4a6aa8" stroke-width="2" rx="6"/>
+  <text x="585" y="65" text-anchor="middle" font-size="11" font-weight="bold" fill="#2a4a88">Tier 2: ONNX Model</text>
+  <line x1="495" y1="72" x2="675" y2="72" stroke="#4a6aa8" stroke-width="0.5" opacity="0.4"/>
+  <text x="585" y="88" text-anchor="middle" font-size="10" fill="#3a6a9a">YOLOv10 / RT-DETR</text>
+  <text x="585" y="102" text-anchor="middle" font-size="10" fill="#3a6a9a">95%+ accuracy, ~0.3s/page</text>
+  <text x="585" y="116" text-anchor="middle" font-size="9" fill="#6a8aba">Java via inference-runtime</text>
+
+  <!-- Decision diamond 2 -->
+  <polygon points="560,160 585,135 610,160 585,185" fill="#fff8e8" stroke="#c8a848" stroke-width="1.5"/>
+  <text x="585" y="164" text-anchor="middle" font-size="9" font-weight="bold" fill="#8a7828">sure?</text>
+
+  <!-- Arrow down from Tier 2 -->
+  <line x1="585" y1="125" x2="585" y2="135" stroke="#666" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- Confident path down from diamond 2 -->
+  <line x1="585" y1="185" x2="585" y2="320" stroke="#4a6aa8" stroke-width="1.5" marker-end="url(#arr-blue)"/>
+  <text x="600" y="210" font-size="9" fill="#4a6aa8">confident</text>
+
+  <!-- Uncertain path to Tier 3 -->
+  <line x1="610" y1="160" x2="680" y2="160" stroke="#c8a848" stroke-width="1.5"/>
+  <line x1="680" y1="160" x2="680" y2="210" stroke="#c8a848" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="665" y="188" font-size="9" fill="#c8a848" transform="rotate(90,665,188)">uncertain</text>
+
+  <!-- Tier 3: LLM Vision -->
+  <rect x="590" y="210" width="120" height="70" fill="#fce8e8" stroke="#c44a4a" stroke-width="2" rx="6"/>
+  <text x="650" y="230" text-anchor="middle" font-size="11" font-weight="bold" fill="#8a2a2a">Tier 3: LLM</text>
+  <line x1="600" y1="237" x2="700" y2="237" stroke="#c44a4a" stroke-width="0.5" opacity="0.4"/>
+  <text x="650" y="252" text-anchor="middle" font-size="10" fill="#aa3a3a">Claude Vision</text>
+  <text x="650" y="266" text-anchor="middle" font-size="9" fill="#aa3a3a">Best accuracy, $$</text>
+
+  <!-- Arrow down from Tier 3 -->
+  <line x1="650" y1="280" x2="650" y2="320" stroke="#c44a4a" stroke-width="1.5" marker-end="url(#arr-red)"/>
+
+  <!-- Output -->
+  <rect x="300" y="320" width="400" height="55" fill="#f0f8e8" stroke="#5a8a3a" stroke-width="2" rx="6"/>
+  <text x="500" y="343" text-anchor="middle" font-size="12" font-weight="bold" fill="#3a6a2a">Positional Markdown</text>
+  <text x="500" y="360" text-anchor="middle" font-size="10" fill="#5a8a3a">Same output format regardless of which tier classified the layout</text>
+
+  <!-- Cost/accuracy labels -->
+  <rect x="30" y="150" width="140" height="105" fill="white" stroke="#ddd" stroke-width="1" rx="4"/>
+  <text x="100" y="170" text-anchor="middle" font-size="10" font-weight="bold" fill="#666">Cost / Accuracy</text>
+  <line x1="40" y1="178" x2="160" y2="178" stroke="#ddd" stroke-width="0.5"/>
+  <circle cx="50" cy="195" r="5" fill="#4a8a4a"/>
+  <text x="62" y="199" font-size="9" fill="#555">Free, ~80% accuracy</text>
+  <circle cx="50" cy="217" r="5" fill="#4a6aa8"/>
+  <text x="62" y="221" font-size="9" fill="#555">~$0.001/pg, ~95%</text>
+  <circle cx="50" cy="239" r="5" fill="#c44a4a"/>
+  <text x="62" y="243" font-size="9" fill="#555">~$0.10/pg, ~99%</text>
+
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#666"/>
+    </marker>
+    <marker id="arr-green" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#4a8a4a"/>
+    </marker>
+    <marker id="arr-blue" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#4a6aa8"/>
+    </marker>
+    <marker id="arr-red" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#c44a4a"/>
+    </marker>
+  </defs>
+</svg>

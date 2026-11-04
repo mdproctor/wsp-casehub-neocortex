@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 340" font-family="system-ui, -apple-system, sans-serif">
+  <rect width="720" height="340" fill="#f8f9fa" rx="8"/>
+
+  <text x="360" y="28" text-anchor="middle" font-size="14" font-weight="bold" fill="#333">The ONNX Bridge: Train in Python, Serve from Java</text>
+
+  <!-- Python side -->
+  <rect x="30" y="50" width="280" height="240" fill="#e8eef8" stroke="#4a6aa8" stroke-width="2" rx="8"/>
+  <text x="170" y="75" text-anchor="middle" font-size="14" font-weight="bold" fill="#2a4a88">Python Ecosystem</text>
+  <text x="170" y="93" text-anchor="middle" font-size="10" fill="#6a8aba">Where the models live</text>
+  <line x1="45" y1="100" x2="295" y2="100" stroke="#4a6aa8" stroke-width="0.5" opacity="0.4"/>
+
+  <rect x="50" y="112" width="110" height="35" fill="white" stroke="#7a9ac8" stroke-width="1" rx="4"/>
+  <text x="105" y="134" text-anchor="middle" font-size="10" fill="#4a6aa8">PyTorch</text>
+
+  <rect x="180" y="112" width="110" height="35" fill="white" stroke="#7a9ac8" stroke-width="1" rx="4"/>
+  <text x="235" y="134" text-anchor="middle" font-size="10" fill="#4a6aa8">Hugging Face</text>
+
+  <rect x="50" y="160" width="110" height="35" fill="white" stroke="#7a9ac8" stroke-width="1" rx="4"/>
+  <text x="105" y="182" text-anchor="middle" font-size="10" fill="#4a6aa8">detectron2</text>
+
+  <rect x="180" y="160" width="110" height="35" fill="white" stroke="#7a9ac8" stroke-width="1" rx="4"/>
+  <text x="235" y="182" text-anchor="middle" font-size="10" fill="#4a6aa8">DocLayNet</text>
+
+  <rect x="50" y="208" width="240" height="35" fill="#d8e8f8" stroke="#4a6aa8" stroke-width="1.5" rx="4"/>
+  <text x="170" y="230" text-anchor="middle" font-size="11" font-weight="bold" fill="#2a4a88">torch.onnx.export()</text>
+
+  <text x="170" y="270" text-anchor="middle" font-size="9" fill="#6a8aba">95% accuracy, 80k training images</text>
+  <text x="170" y="283" text-anchor="middle" font-size="9" fill="#6a8aba">GPU clusters for training</text>
+
+  <!-- Arrow across -->
+  <rect x="320" y="175" width="80" height="40" fill="#fff3e0" stroke="#e6a23c" stroke-width="2" rx="20"/>
+  <text x="360" y="195" text-anchor="middle" font-size="11" font-weight="bold" fill="#b87a1c">.onnx</text>
+  <line x1="310" y1="225" x2="330" y2="195" stroke="#e6a23c" stroke-width="1.5" marker-end="url(#arr3)"/>
+  <line x1="400" y1="195" x2="420" y2="195" stroke="#e6a23c" stroke-width="1.5" marker-end="url(#arr3)"/>
+
+  <!-- Java side -->
+  <rect x="410" y="50" width="280" height="240" fill="#e8f4e8" stroke="#4a8a4a" stroke-width="2" rx="8"/>
+  <text x="550" y="75" text-anchor="middle" font-size="14" font-weight="bold" fill="#2a6a2a">Java Production</text>
+  <text x="550" y="93" text-anchor="middle" font-size="10" fill="#6a9a6a">Where the apps run</text>
+  <line x1="425" y1="100" x2="675" y2="100" stroke="#4a8a4a" stroke-width="0.5" opacity="0.4"/>
+
+  <rect x="430" y="112" width="110" height="35" fill="white" stroke="#6a9a6a" stroke-width="1" rx="4"/>
+  <text x="485" y="134" text-anchor="middle" font-size="10" fill="#3a7a3a">ONNX Runtime</text>
+
+  <rect x="560" y="112" width="110" height="35" fill="white" stroke="#6a9a6a" stroke-width="1" rx="4"/>
+  <text x="615" y="134" text-anchor="middle" font-size="10" fill="#3a7a3a">Quarkus CDI</text>
+
+  <rect x="430" y="160" width="110" height="35" fill="white" stroke="#6a9a6a" stroke-width="1" rx="4"/>
+  <text x="485" y="182" text-anchor="middle" font-size="10" fill="#3a7a3a">inference-runtime</text>
+
+  <rect x="560" y="160" width="110" height="35" fill="white" stroke="#6a9a6a" stroke-width="1" rx="4"/>
+  <text x="615" y="182" text-anchor="middle" font-size="10" fill="#3a7a3a">inference-tasks</text>
+
+  <rect x="430" y="208" width="240" height="35" fill="#d8f0d8" stroke="#4a8a4a" stroke-width="1.5" rx="4"/>
+  <text x="550" y="230" text-anchor="middle" font-size="11" font-weight="bold" fill="#2a6a2a">DocumentLayoutModel</text>
+
+  <text x="550" y="270" text-anchor="middle" font-size="9" fill="#6a9a6a">No Python, no Docker, no GPU</text>
+  <text x="550" y="283" text-anchor="middle" font-size="9" fill="#6a9a6a">Type-safe, injectable, testable</text>
+
+  <!-- Bottom note -->
+  <text x="360" y="320" text-anchor="middle" font-size="10" fill="#888">Already proven: BGE-M3 embeddings, NLI classifiers, cross-encoder rerankers — all running from Java via ONNX</text>
+
+  <defs>
+    <marker id="arr3" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#e6a23c"/>
+    </marker>
+  </defs>
+</svg>
