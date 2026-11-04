@@ -1,1 +1,2 @@
 {"event":"land","repo":"neocortex","branch":"issue-785-audit-corpus-domain-abstraction","base_branch":"main","landed_sha":"9d4b320ded79fa88ef9647e44d158c8fe6b5bb00","push_target":"origin","mirrored":false,"stamped":true,"timestamp":"2026-11-04T02:21:17.967703+00:00"}
+{"event":"land","repo":"neocortex","branch":"issue-799-inline-entity-tokenisation","base_branch":"main","landed_sha":"7ac0736abb8d024ab221c6a77704bd11aedce4d2","push_target":"upstream","mirrored":true,"stamped":true,"timestamp":"2026-11-04T05:10:57.176035+00:00"}
