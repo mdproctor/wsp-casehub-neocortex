@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 320" font-family="system-ui, -apple-system, sans-serif">
+  <!-- Background -->
+  <rect width="720" height="320" fill="#f8f9fa" rx="8"/>
+
+  <!-- Title -->
+  <text x="360" y="30" text-anchor="middle" font-size="14" font-weight="bold" fill="#333">Agent Research Workflow — What the Tools Shape</text>
+
+  <!-- Step boxes -->
+  <rect x="30" y="55" width="130" height="70" fill="#e8f4f8" stroke="#4a90a4" stroke-width="2" rx="6"/>
+  <text x="95" y="78" text-anchor="middle" font-size="12" font-weight="bold" fill="#2c5f6e">Fetch</text>
+  <text x="95" y="95" text-anchor="middle" font-size="10" fill="#4a7a8a">scrape pages</text>
+  <text x="95" y="108" text-anchor="middle" font-size="10" fill="#4a7a8a">download PDFs</text>
+
+  <rect x="190" y="55" width="130" height="70" fill="#e8f4f8" stroke="#4a90a4" stroke-width="2" rx="6"/>
+  <text x="255" y="78" text-anchor="middle" font-size="12" font-weight="bold" fill="#2c5f6e">Store</text>
+  <text x="255" y="95" text-anchor="middle" font-size="10" fill="#4a7a8a">with source URL</text>
+  <text x="255" y="108" text-anchor="middle" font-size="10" fill="#4a7a8a">+ fetch timestamp</text>
+
+  <rect x="350" y="55" width="130" height="70" fill="#fef3e8" stroke="#c47a2a" stroke-width="2" rx="6"/>
+  <text x="415" y="78" text-anchor="middle" font-size="12" font-weight="bold" fill="#8a5518">Analyse</text>
+  <text x="415" y="95" text-anchor="middle" font-size="10" fill="#a06828">extract facts</text>
+  <text x="415" y="108" text-anchor="middle" font-size="10" fill="#a06828">link to evidence</text>
+
+  <rect x="510" y="55" width="130" height="70" fill="#fef3e8" stroke="#c47a2a" stroke-width="2" rx="6"/>
+  <text x="575" y="78" text-anchor="middle" font-size="12" font-weight="bold" fill="#8a5518">Synthesise</text>
+  <text x="575" y="95" text-anchor="middle" font-size="10" fill="#a06828">comparative report</text>
+  <text x="575" y="108" text-anchor="middle" font-size="10" fill="#a06828">recommendations</text>
+
+  <!-- Arrows between steps -->
+  <line x1="160" y1="90" x2="190" y2="90" stroke="#4a90a4" stroke-width="2" marker-end="url(#arrowB)"/>
+  <line x1="320" y1="90" x2="350" y2="90" stroke="#888" stroke-width="2" marker-end="url(#arrowG)"/>
+  <line x1="480" y1="90" x2="510" y2="90" stroke="#c47a2a" stroke-width="2" marker-end="url(#arrowO)"/>
+
+  <!-- Feedback loop -->
+  <path d="M 415 125 L 415 155 Q 415 165 405 165 L 105 165 Q 95 165 95 155 L 95 125" fill="none" stroke="#888" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arrowG)"/>
+  <text x="255" y="180" text-anchor="middle" font-size="10" fill="#666" font-style="italic">coverage gaps drive next fetch</text>
+
+  <!-- Tool contract section -->
+  <rect x="30" y="205" width="660" height="95" fill="#f5f5f5" stroke="#ccc" stroke-width="1" rx="6"/>
+  <text x="50" y="228" font-size="12" font-weight="bold" fill="#444">The tool contract — what makes this prescriptive:</text>
+
+  <text x="50" y="250" font-size="11" fill="#555">store(content, sourceUrl, mediaType)</text>
+  <text x="330" y="250" font-size="10" fill="#888">— every entry has provenance by construction</text>
+
+  <text x="50" y="268" font-size="11" fill="#555">coverage(categories)</text>
+  <text x="330" y="268" font-size="10" fill="#888">— the agent knows what it hasn't covered yet</text>
+
+  <text x="50" y="286" font-size="11" fill="#555">stale(maxAge) / enrich(sourceId, analysis)</text>
+  <text x="330" y="286" font-size="10" fill="#888">— freshness awareness + derivation tracking</text>
+
+  <!-- Arrow markers -->
+  <defs>
+    <marker id="arrowB" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#4a90a4"/>
+    </marker>
+    <marker id="arrowO" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#c47a2a"/>
+    </marker>
+    <marker id="arrowG" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#888"/>
+    </marker>
+  </defs>
+</svg>

@@ -1,1 +1,4 @@
-neocortex:issue-757-cognitive-pipeline-wiring=pushed
+wsp-casehub-neocortex:issue-785-audit-corpus-domain-abstraction=stamped
+neocortex:issue-785-audit-corpus-domain-abstraction=stamped
+neocortex:issue-799-inline-entity-tokenisation=stamped
+wsp-casehub-neocortex:issue-799-inline-entity-tokenisation=stamped

@@ -2,21 +2,22 @@
 
 ## State
 branch: main
-state: drained
+state: scaffolded
 project-sha: slot-creation
-date: 2026-11-01
+date: 2026-11-03
 issue-repo: casehubio/neocortex
-covers: 763,764
+covers: 789
 design-repo: project
 design-section-hashes: 
 flyway-next-v: unknown
-
 evidence-era: true
+
 ## Queue
-- [x] casehubio/neocortex#763 — Issue #763
-- [x] casehubio/neocortex#775 — Move remaining Hortora services to corpus-management
-- [x] casehubio/neocortex#776 — McpDomain corpus auto-generated endpoints
-- [ ] casehubio/neocortex#779 — CorpusApi correctness bugs
-- [ ] casehubio/neocortex#780 — CorpusApi design gaps
-- [ ] casehubio/neocortex#781 — CorpusApi test coverage gaps
-- [ ] casehubio/neocortex#782 — corpus-management code hygiene
+- [x] casehubio/neocortex#785 — Audit corpus-management for domain abstraction
+- [x] casehubio/neocortex#800 — Phase 1 renames
+- [ ] casehubio/neocortex#786 — E2E examples across domains
+- [ ] casehubio/neocortex#801 — Phase 2 API fixes
+- [ ] casehubio/neocortex#787 — Rich document ingestion
+- [ ] casehubio/neocortex#802 — Phase 3 structural extraction
+- [ ] casehubio/neocortex#788 — Corpus annotations
+- [ ] casehubio/neocortex#804 — Research workspace methodology
