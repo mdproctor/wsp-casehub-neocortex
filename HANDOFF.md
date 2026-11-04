@@ -2,21 +2,16 @@
 
 ## Last Session
 
-Completed **#800** (Phase 1 renames, S/Low). Renamed 5 corpus-management naming leaks identified by the #785 audit:
-
-- L4: `CorpusDescriptor.qdrantCollection` → `vectorCollection`
-- L6: `CorpusEntry.frontmatter` → `metadata`
-- L8: `FederationConfig.gardenId` → `corpusId`
-- L11: ProvenanceStore `ge_id` → `document_id` (Flyway V4 migration)
-- L12: `CorpusApiBean.gardenRoot` → `corpusRoot`
-
-Also renamed related local variables/parameters in FederationConfigParser, CorpusIndexService, GardenReindexService for consistency. 20 files changed, 123 corpus-management tests pass. Landed as 2658d17c on main.
+Completed **#786** — built `example-corpus-management` module with 4 domain scenarios (garden, literature, clinical, NPC) and cross-domain federation. Proved corpus-management API is domain-neutral: 4 genuinely different `CorpusType` schemas, same code path, 11 tests passing. Key finding: corpus-management has no CDI wiring and no MCP surface — the abstraction is proven but unreachable by Quarkus apps and LLM agents. Filed #810 (CDI wiring), #811 (MCP domain), #812 (Spring wiring) and added to .plan queue.
 
 ## Immediate Next Step
 
-Start **#786** — E2E examples across domains (M/Med). Or **#801** — Phase 2 API fixes (M/Med) if continuing the rename remediation sequence.
+Next in original queue is **#801** (Phase 2 API fixes — move built-in `CorpusType` constants out of API). Alternatively, **#810** (CDI wiring) is a higher-impact gap if the priority is agent accessibility over cleanup.
 
 ## References
 
-- `docs/specs/2026-11-04-corpus-domain-abstraction-audit.md` — audit spec (13 leaks, 3-phase roadmap)
-- `.plan` — queue: #786, #801, #787, #802, #788, #804
+- `examples/example-corpus-management/` — the new example module
+- `specs/issue-786-e2e-examples-corpus-management/` — design spec + decisions
+- `plans/2026-11-04-e2e-corpus-management-examples.md` — implementation plan
+- `blog/2026-11-04-mdp02-four-schemas-one-api.md` — diary entry
+- `.plan` — queue: #801, #787, #802, #788, #804, #810, #811, #812
