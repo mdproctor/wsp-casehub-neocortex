@@ -14,3 +14,10 @@ evidence-era: true
 
 ## Queue
 - [x] casehubio/neocortex#785 — Audit corpus-management for domain abstraction
+- [ ] casehubio/neocortex#800 — Phase 1 renames
+- [ ] casehubio/neocortex#786 — E2E examples across domains
+- [ ] casehubio/neocortex#801 — Phase 2 API fixes
+- [ ] casehubio/neocortex#787 — Rich document ingestion
+- [ ] casehubio/neocortex#802 — Phase 3 structural extraction
+- [ ] casehubio/neocortex#788 — Corpus annotations
+- [ ] casehubio/neocortex#804 — Research workspace methodology
