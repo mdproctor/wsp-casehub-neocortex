@@ -1,2 +1,14 @@
-examples
-neocortex
+{
+  "repos": {
+    "neocortex": {
+      "sha": "7ac0736a",
+      "branch": "issue-799-inline-entity-tokenisation",
+      "landed_at": "2026-11-04T05:13:47.304978"
+    }
+  },
+  "covers": [
+    763,
+    764,
+    799
+  ]
+}
