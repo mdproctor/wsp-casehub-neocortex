@@ -17,6 +17,7 @@ A single standalone Maven module `example-corpus-management/` under `examples/`,
 examples/example-corpus-management/
   pom.xml
   src/test/java/io/casehub/neocortex/examples/corpus/
+    CorpusTestHarness.java              — shared wiring: SQLite :memory: + impl classes
     domains/
       garden/
         GardenCorpusTypes.java
@@ -32,13 +33,6 @@ examples/example-corpus-management/
         NpcScenarioTest.java
     federation/
       FederatedSearchScenarioTest.java
-  src/test/resources/
-    application.properties
-    sample-data/
-      garden/
-      literature/
-      clinical/
-      npc/
 ```
 
 ## Per-Domain Pattern
@@ -51,7 +45,21 @@ Static factory class defining the domain's `CorpusType` via the record construct
 
 ### `*ScenarioTest.java` — Lifecycle Exercise
 
-`@QuarkusTest` that exercises the full API surface:
+Plain JUnit test with manual wiring (no CDI — corpus-management is framework-neutral). A shared `CorpusTestHarness` utility creates the SQLite `:memory:` DataSource and wires the implementation classes:
+
+```java
+class CorpusTestHarness {
+    static CorpusTestHarness create() {
+        var ds = SqliteDataSourceFactory.create(":memory:", 1, 3000);
+        var catalogue = new SqliteCorpusCatalogue(ds);
+        var entryStore = new SqliteCorpusEntryStore(ds, noOpIngestor());
+        // ... wire remaining implementations
+        return new CorpusTestHarness(catalogue, entryStore, ...);
+    }
+}
+```
+
+Each scenario test exercises the full API surface:
 
 1. **Create** — `CorpusManager.create(name, type, tenantId, upstream, peers, metadata)`
 2. **Ingest** — `CorpusEntryStore.add(corpusRef, entry)` with 5-8 sample entries
@@ -148,25 +156,29 @@ Sample entries: NPCs with relationships and faction ties, locations, items with 
         <artifactId>casehub-neocortex-corpus-management</artifactId>
     </dependency>
     <dependency>
-        <groupId>io.quarkus</groupId>
-        <artifactId>quarkus-junit5</artifactId>
+        <groupId>io.casehub</groupId>
+        <artifactId>casehub-neocortex-sqlite-support</artifactId>
+    </dependency>
+    <dependency>
+        <groupId>org.junit.jupiter</groupId>
+        <artifactId>junit-jupiter</artifactId>
+        <scope>test</scope>
+    </dependency>
+    <dependency>
+        <groupId>org.assertj</groupId>
+        <artifactId>assertj-core</artifactId>
         <scope>test</scope>
     </dependency>
 </dependencies>
 ```
 
-Plus any in-memory/testing alternatives needed for corpus-management's SQLite backend.
+No Quarkus dependency — corpus-management is framework-neutral. SQLite `:memory:` is wired programmatically via `SqliteDataSourceFactory`.
 
 ### Profile Activation
 
 Add the module to the parent POM's `examples-smoke` profile alongside existing example modules. No Docker, no ONNX models, no external services.
 
-### application.properties
-
-Configure SQLite `:memory:` mode for `CorpusEntryStore`:
-```properties
-casehub.corpus.sqlite.path=:memory:
-```
+No `application.properties` needed — all configuration is programmatic.
 
 ## Sample Data Strategy
 
@@ -189,6 +201,12 @@ If entry bodies are longer than a few sentences, use `src/test/resources/sample-
 4. No imports from domain-specific packages (Hortora, etc.) — pure corpus-management API
 5. Each scenario is readable as standalone reference code for a consumer adopting corpus-management
 
+## Design Note: No CDI
+
+corpus-management is deliberately framework-neutral. All implementation classes (`SqliteCorpusEntryStore`, `SqliteCorpusCatalogue`, etc.) use constructor injection with no CDI annotations. The module's own tests use `SqliteDataSourceFactory.create(":memory:", ...)` for manual wiring. The examples follow this same pattern via `CorpusTestHarness`.
+
+This is an intentional architectural choice — corpus-management sits below the Quarkus layer and can be used by non-Quarkus consumers.
+
 ## References
 
 - casehubio/neocortex#786 — issue body
@@ -197,3 +215,5 @@ If entry bodies are longer than a few sentences, use `src/test/resources/sample-
 - `corpus-management-api/` — CorpusType, CorpusManager, CorpusCatalogue, CorpusSearch, FederatedCorpusSearch SPIs
 - `examples/example-rag-pipeline/` — existing example module pattern
 - `examples/example-text-analysis/` — existing programmatic example pattern
+- `corpus-management/src/test/.../SqliteCorpusEntryStoreTest.java` — manual wiring pattern for in-memory SQLite
+- `sqlite-support/` — `SqliteDataSourceFactory` for shared DataSource creation

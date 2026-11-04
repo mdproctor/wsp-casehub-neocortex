@@ -72,12 +72,13 @@
 
 ## D7: Demo structure — scenario-based @QuarkusTest
 
-**Choice:** Per-domain scenario classes with shared test harness, each a `@QuarkusTest`
+**Choice:** Per-domain scenario classes as plain JUnit tests with manual wiring via shared test harness
 **Alternatives:**
-- Programmatic main() demos — no CDI, fastest but doesn't prove integration wiring
+- @QuarkusTest scenarios — no CDI producers exist for corpus-management; would require writing producers just for examples
+- Programmatic main() demos — works but JUnit gives assertions and test lifecycle
 - Single orchestrated test — fast but monolithic, failure in one domain blocks others
-**Rationale:** Examples must prove CDI wiring works (that's corpus-management's value prop over raw corpus-api). Per-scenario isolation keeps each domain readable as standalone reference code.
-**Trade-offs:** Quarkus test startup ~2-3s per scenario class; acceptable for 5 scenarios
-**Sources:** example-rag-pipeline @QuarkusTest pattern, corpus-management CDI beans
+**Rationale:** corpus-management is deliberately framework-neutral — all implementations use constructor injection, no CDI annotations. Self-review found no @ApplicationScoped beans. The module's own tests use the same pattern: `SqliteDataSourceFactory.create(":memory:")` → manual wiring. Examples should match.
+**Trade-offs:** Doesn't prove CDI integration (because none exists). Consumers wanting CDI must write their own producers.
+**Sources:** SqliteCorpusEntryStoreTest.java (existing pattern), SqliteCorpusCatalogue.java (no CDI annotations)
 **Exploration:** quick
-**Status:** captured
+**Status:** revised (self-review: corpus-management has no CDI wiring)
