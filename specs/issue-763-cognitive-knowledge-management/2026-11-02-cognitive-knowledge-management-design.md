@@ -478,7 +478,7 @@ public enum CorpusLifecycle { ACTIVE, ARCHIVED }
 | CollectionMigration | ~180 | Move + adapt | `CollectionMigrationService` |
 | **Total** | **~1,254 source** | **~700 new/rewritten, ~550 move+adapt** | |
 
-**Note:** Previous estimates overstated `GardenReindexService` (42 LOC, not ~150) and `SearchProfileStore` (118 LOC, not ~170). The search orchestration LOC includes code already in neocortex rag-scoring. `ChainWalker` is a rewrite, not a move — Hortora types do not map to rag-api types.
+**Note:** Previous estimates overstated `CorpusReindexService` (42 LOC, not ~150) and `SearchProfileStore` (118 LOC, not ~170). The search orchestration LOC includes code already in neocortex rag-scoring. `ChainWalker` is a rewrite, not a move — Hortora types do not map to rag-api types.
 
 ### 4.2 What Stays Domain-Specific (becomes configuration)
 

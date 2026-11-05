@@ -479,7 +479,7 @@ git commit -m "feat(#776): add CorpusIndexService — index management for @McpD
 - Create: `corpus-management/src/test/java/io/casehub/neocortex/corpus/management/impl/CorpusApiBeanTest.java`
 
 **Interfaces:**
-- Consumes: `SearchResource` (search, searchAdaptive, adaptiveSearchEndpoint), `CorpusIndexService` (status, deleteEntry, reindexEntry, unretrieved, recordFeedback, entry), `GardenReindexService` (reindex), `SearchProfileStore` (put, get, getRawStack, list, delete), `ProvenanceStore` (record, forwardLineage, reverseLineage, stats), `CorpusOutcomeService` (recordOutcome, outcomeReport), `CorpusRef`, `FederationConfig`, `java.nio.file.Path` (gardenRoot)
+- Consumes: `SearchResource` (search, searchAdaptive, adaptiveSearchEndpoint), `CorpusIndexService` (status, deleteEntry, reindexEntry, unretrieved, recordFeedback, entry), `CorpusReindexService` (reindex), `SearchProfileStore` (put, get, getRawStack, list, delete), `ProvenanceStore` (record, forwardLineage, reverseLineage, stats), `CorpusOutcomeService` (recordOutcome, outcomeReport), `CorpusRef`, `FederationConfig`, `java.nio.file.Path` (gardenRoot)
 - Produces: `CorpusApi` interface (19 operations), `CorpusApiBean` implementation
 
 - [ ] **Step 1: Write the CorpusApi interface**

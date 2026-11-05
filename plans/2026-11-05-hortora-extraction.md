@@ -400,14 +400,14 @@ Refs #802"
 ### Task 3: Rename GardenReindexService → CorpusReindexService
 
 **Files:**
-- Rename: `GardenReindexService` → `CorpusReindexService` (use `ide_refactor_rename`)
+- Rename: `CorpusReindexService` → `CorpusReindexService` (use `ide_refactor_rename`)
 
 **Interfaces:**
 - Produces: `CorpusReindexService` — same API, new name
 
 - [ ] **Step 1: Rename via IntelliJ**
 
-Use `ide_refactor_rename` on `GardenReindexService` → `CorpusReindexService`. This updates all references including `CorpusApi.java` (the return type `GardenReindexService.ReindexResult` → `CorpusReindexService.ReindexResult`), `CorpusApiBean.java`, and `CorpusApiBeanTest.java`.
+Use `ide_refactor_rename` on `CorpusReindexService` → `CorpusReindexService`. This updates all references including `CorpusApi.java` (the return type `GardenReindexService.ReindexResult` → `CorpusReindexService.ReindexResult`), `CorpusApiBean.java`, and `CorpusApiBeanTest.java`.
 
 - [ ] **Step 2: Run tests to verify**
 

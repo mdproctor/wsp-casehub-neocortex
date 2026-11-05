@@ -23,7 +23,7 @@ After this work, a non-Hortora consumer can depend on `corpus-management-api` + 
 **Also in scope (discovered during design):**
 - Split `CorpusApi` MCP interface (generic vs garden-specific)
 - Move `BuiltInCorpusTypes`, `CorpusOutcomeService`, `StalenessReport`, `FeedbackContext` to Hortora module
-- Rename `GardenReindexService` → `CorpusReindexService`
+- Rename `CorpusReindexService` → `CorpusReindexService`
 
 **Out of scope:**
 - `TranscriptCorpusInitializer`, `InteractionContext`, `InteractionType`, `ActivityType` — stay in generic module (agent-shaped, not garden-shaped)
@@ -222,7 +222,7 @@ The core `ProvenanceStore` keeps only: `record()`, `forwardLineage()`, `reverseL
 
 | Before | After | Module |
 |--------|-------|--------|
-| `GardenReindexService` | `CorpusReindexService` | corpus-management |
+| `CorpusReindexService` | `CorpusReindexService` | corpus-management |
 
 ### 8. corpus-management-hortora module
 
@@ -278,7 +278,7 @@ Current `CorpusApiBean` implements the full `CorpusApi`. After the split:
 6. Split `CorpusApi` → generic `CorpusApi` + `GardenCorpusApi`
 7. Move Hortora-specific classes to the new module
 8. Extract `GardenProvenanceExtension` from `ProvenanceStore`, move Flyway V2/V3 migrations
-9. Rename `GardenReindexService` → `CorpusReindexService`
+9. Rename `CorpusReindexService` → `CorpusReindexService`
 10. Simplify `CorpusApiBean` — remove garden dependencies
 11. Create `GardenCorpusApiBean` in Hortora module
 12. Move/split tests

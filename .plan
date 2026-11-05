@@ -19,10 +19,10 @@ evidence-era: true
 - [x] casehubio/neocortex#801 — Phase 2 API fixes
 - [x] casehubio/neocortex#787 — Rich document ingestion
 - [ ] casehubio/neocortex#802 — Phase 3 structural extraction ← active
-  - [ ] Batch 1: SPI+Refactor
-    - [ ] Task 1: ScoreModifier SPI and implementations
-    - [ ] Task 2: Refactor SearchResource to use ScoreModifier
-    - [ ] Task 3: Rename GardenReindexService
+  - [x] Batch 1: SPI+Refactor
+    - [x] Task 1: ScoreModifier SPI and implementations
+    - [x] Task 2: Refactor SearchResource to use ScoreModifier
+    - [x] Task 3: Rename GardenReindexService
   - [ ] Batch 2: Module+Split
     - [ ] Task 4: Scaffold corpus-management-hortora
     - [ ] Task 5: Split CorpusApi into generic and garden

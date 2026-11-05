@@ -134,7 +134,7 @@ Existing types reused without changes: `SearchResult`, `AdaptiveResult`, `Reinde
 |------------|-----------|
 | `SearchResource` | search, adaptiveSearch |
 | `CorpusIndexService` (new) | status, unretrieved, reindexEntry, deleteEntry, entry, recordFeedback |
-| `GardenReindexService` | reindex |
+| `CorpusReindexService` | reindex |
 | `SearchProfileStore` | profile, profiles, saveProfile, deleteProfile |
 | `ProvenanceStore` | forwardLineage, reverseLineage, provenanceStats, recordProvenance |
 | `CorpusOutcomeService` | outcomeReport, recordOutcome |

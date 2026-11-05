@@ -562,7 +562,7 @@ For each:
 
 `SearchProfileStore`: move from `io.hortora.garden.search.SearchProfileStore` → `io.casehub.neocortex.corpus.management.impl.SearchProfileStore`
 
-`GardenReindexService` → `CorpusReindexService`: move + rename via `ide_move_file` + `ide_refactor_rename`
+`CorpusReindexService` → `CorpusReindexService`: move + rename via `ide_move_file` + `ide_refactor_rename`
 
 `CollectionMigration` → `CollectionMigrationService`: move + rename
 

@@ -245,7 +245,7 @@ Unified under the `Resolution` concept. A case store holds `ResolvedCase` entrie
 | `ProvenanceStore` (~192 LOC) | Hortora-specific schema. Implements the new `ProvenanceTracker` SPI with domain parameter mapping. |
 | `ChainWalker` (~184 LOC) | First `FederationStrategy` implementation. Stays until federation SPI is validated by a second consumer. |
 | `ReconcileScheduler` (~29 LOC) | Thin delegation to existing neocortex `CorpusIngestionService`. |
-| `GardenReindexService` (~42 LOC) | Thin delegation to existing neocortex `EmbeddingIngestor` + `CursorStore`. |
+| `CorpusReindexService` (~42 LOC) | Thin delegation to existing neocortex `EmbeddingIngestor` + `CursorStore`. |
 | Config, CDI producers (~215 LOC) | Deployment wiring. |
 
 After extraction, engine's dependency on neocortex grows (new SPIs to implement), but engine's own code shrinks (scoring, migration checks, query augmentation SPI move out). Engine becomes: neocortex dep + config + MCP tools + federation + domain-specific SPI implementations.
