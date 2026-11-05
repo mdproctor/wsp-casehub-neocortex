@@ -1,26 +1,15 @@
-# Work Plan — issue-763-cognitive-knowledge-management
+# Work Plan — main
 
 ## State
-branch: issue-787-rich-document-ingestion
-state: active
-project-sha: slot-creation
-date: 2026-11-03
+branch: main
+state: scaffolded
+project-sha: 
+date: 
 issue-repo: casehubio/neocortex
-covers: 789
+covers: 804
 design-repo: project
 design-section-hashes: 
 flyway-next-v: unknown
-evidence-era: true
 
 ## Queue
-- [x] casehubio/neocortex#785 — Audit corpus-management for domain abstraction
-- [x] casehubio/neocortex#800 — Phase 1 renames
-- [x] casehubio/neocortex#786 — E2E examples across domains
-- [x] casehubio/neocortex#801 — Phase 2 API fixes
-- [x] casehubio/neocortex#787 — Rich document ingestion
-- [x] casehubio/neocortex#802 — Phase 3 structural extraction
-- [x] casehubio/neocortex#788 — Corpus annotations
-- [ ] casehubio/neocortex#804 — Research workspace methodology ← active
-- [ ] casehubio/neocortex#810 — CDI wiring for corpus-management
-- [ ] casehubio/neocortex#811 — MCP domain for corpus-management
-- [ ] casehubio/neocortex#812 — Spring wiring for corpus-management
+- [ ] casehubio/neocortex#804 — Issue #804 ← active
