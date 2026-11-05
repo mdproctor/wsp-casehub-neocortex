@@ -84,3 +84,33 @@
 **Sources:** ProvenanceStore.java:179-264 (garden methods), V2__staleness_reports.sql, V3__feedback_context.sql
 **Exploration:** quick (self-review finding)
 **Status:** captured
+
+---
+
+# Decisions — #788 Corpus Annotations
+
+## D8: Annotation architecture
+
+**Choice:** Dedicated `AnnotationStore` SPI in `corpus-management-api` with SQLite implementation in `corpus-management`. Agents-only authorship (PrincipalId = agentId). Per-entry granularity (annotation targets a corpus entry ID). Minimal lifecycle (create, read, delete — no confidence decay or supersession). Separate annotation search (FTS5 on annotation text, no impact on corpus search). String type field with documented constants (SubgraphTypes pattern). Annotation record carries fixed fields plus `Map<String, String>` metadata for extensibility.
+**Alternatives:**
+- MindMap subgraph — reuses graph infrastructure but shares SQLite WAL with consolidation phases. Fine for low volume, risk at scale with high-frequency agent annotation.
+- CaseMemoryStore (domain="annotation") — similar WAL contention concern. Annotations aren't really memories — conceptual mismatch.
+- Hybrid (dedicated store + MindMap bridge) — best of both but unnecessary complexity given minimal lifecycle requirements.
+**Rationale:** A dedicated store with its own SQLite database (via SqliteDataSourceFactory) gives zero contention with MindMap's busy WAL. Purpose-built schema enables fast per-entry lookups and FTS5 annotation search. The minimal lifecycle (no decay, no supersession) means MindMap's graph features aren't needed. Follows the established pattern: SPI in API module, SQLite impl in runtime module (like CorpusEntryStore, ProvenanceStore).
+**Trade-offs:** Another SQLite database. Doesn't participate in MindMap graph traversal — annotations can't be linked to knowledge graph nodes via edges. This is acceptable because the bridge can be added later if graph integration proves valuable.
+**Sources:** MindMapStore.java (graph SPI — evaluated and rejected for performance), SqliteDataSourceFactory (shared utility), CorpusEntryStore/ProvenanceStore (established pattern)
+**Exploration:** quick
+**Status:** captured
+
+## D9: Entry-level audit fields
+
+**Choice:** Add `createdBy`, `createdAt`, `updatedBy`, `updatedAt` to `CorpusEntry`. SqliteCorpusEntryStore schema migration adds these columns. `CorpusEntryStore.add()` and `update()` populate them.
+**Alternatives:**
+- Separate audit table — adds join cost for something that belongs on the row
+- External tracking only (ProvenanceStore) — provenance tracks issue→entry links, not who created/modified the entry itself
+**Rationale:** Annotations track "who said this when" — entries should too. Both are authored artifacts. Adding audit fields alongside the annotation work keeps the audit story consistent. Small, well-scoped addition.
+**Trade-offs:** Schema migration on an existing table. `CorpusEntry` record gains 4 fields (nullable for backward compat with existing entries).
+**Sources:** CorpusEntry.java (current: id, metadata, body, artifactRef — no audit), CorpusEntryStore.java, SqliteCorpusEntryStore.java
+**Depends on:** D8 (annotation design motivates consistent audit tracking)
+**Exploration:** quick
+**Status:** captured
