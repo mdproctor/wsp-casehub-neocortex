@@ -26,11 +26,11 @@ evidence-era: true
   - [x] Batch 2: Module+Split
     - [x] Task 4: Scaffold corpus-management-hortora
     - [x] Task 5: Split CorpusApi into generic and garden
-  - [ ] Batch 3: Move Classes
-    - [ ] Task 6: Move Hortora classes to new module
-    - [ ] Task 7: Extract GardenProvenanceExtension
-  - [ ] Batch 4: Verification
-    - [ ] Task 8: Fix tests and verify separation
+  - [x] Batch 3: Move Classes
+    - [x] Task 6: Move Hortora classes to new module
+    - [x] Task 7: Extract GardenProvenanceExtension
+  - [x] Batch 4: Verification
+    - [x] Task 8: Fix tests and verify separation
 - [ ] casehubio/neocortex#788 — Corpus annotations
 - [ ] casehubio/neocortex#804 — Research workspace methodology
 - [ ] casehubio/neocortex#810 — CDI wiring for corpus-management
