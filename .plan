@@ -19,14 +19,8 @@ evidence-era: true
 - [x] casehubio/neocortex#801 — Phase 2 API fixes
 - [x] casehubio/neocortex#787 — Rich document ingestion
 - [x] casehubio/neocortex#802 — Phase 3 structural extraction
-- [ ] casehubio/neocortex#788 — Corpus annotations ← active
-  - [x] Batch 1: SPI+Records
-    - [x] Task 1: CorpusAnnotation record and AnnotationTypes and AnnotationStore SPI
-    - [x] Task 2: SqliteAnnotationStore implementation with tests
-  - [x] Batch 2: Entry Audit+MCP
-    - [x] Task 3: Add audit fields to CorpusEntry
-    - [x] Task 4: Add annotation MCP operations to CorpusApi
-- [ ] casehubio/neocortex#804 — Research workspace methodology
+- [x] casehubio/neocortex#788 — Corpus annotations
+- [ ] casehubio/neocortex#804 — Research workspace methodology ← active
 - [ ] casehubio/neocortex#810 — CDI wiring for corpus-management
 - [ ] casehubio/neocortex#811 — MCP domain for corpus-management
 - [ ] casehubio/neocortex#812 — Spring wiring for corpus-management
