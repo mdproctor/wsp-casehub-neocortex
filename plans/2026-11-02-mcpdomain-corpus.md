@@ -34,10 +34,10 @@
 
 **Files:**
 - Create: `corpus-management/src/main/java/io/casehub/neocortex/corpus/management/impl/CorpusStatus.java`
-- Create: `corpus-management/src/main/java/io/casehub/neocortex/corpus/management/impl/UnretrievedReport.java`
-- Create: `corpus-management/src/main/java/io/casehub/neocortex/corpus/management/impl/EntryDetail.java`
-- Create: `corpus-management/src/main/java/io/casehub/neocortex/corpus/management/impl/CorpusIndexService.java`
-- Create: `corpus-management/src/test/java/io/casehub/neocortex/corpus/management/impl/CorpusIndexServiceTest.java`
+- Create: `../../corpus-management-hortora/src/main/java/io/casehub/neocortex/corpus/management/hortora/UnretrievedReport.java`
+- Create: `../../corpus-management-hortora/src/main/java/io/casehub/neocortex/corpus/management/hortora/EntryDetail.java`
+- Create: `../../corpus-management-hortora/src/main/java/io/casehub/neocortex/corpus/management/hortora/CorpusIndexService.java`
+- Create: `../../corpus-management-hortora/src/test/java/io/casehub/neocortex/corpus/management/hortora/CorpusIndexServiceTest.java`
 
 **Interfaces:**
 - Consumes: `EmbeddingIngestor` (from rag-api: `listDocuments(CorpusRef)`, `deleteDocument(CorpusRef, String)`, `ingest(CorpusRef, List<ChunkInput>)`), `RetrievalTracker` (from rag-api: `findRecords(CorpusRef, Instant, Instant)`, `feedback(String, String, RetrievalOutcome)`), `RetrievalAnalyzer` (from rag-api: static `qualitySignals(...)`), `GardenMetadataExtractor` (from corpus-management: `extract(String, byte[])`), `ProvenanceStore` (from corpus-management: `recordFeedbackContext(...)`, `recordStaleness(...)`)

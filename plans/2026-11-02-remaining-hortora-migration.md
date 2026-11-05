@@ -896,8 +896,8 @@ Refs #775"
 ### Task 3: Create CorpusOutcomeService in corpus-management
 
 **Files:**
-- Create: `corpus-management/src/main/java/io/casehub/neocortex/corpus/management/impl/CorpusOutcomeService.java`
-- Test: `corpus-management/src/test/java/io/casehub/neocortex/corpus/management/impl/CorpusOutcomeServiceTest.java`
+- Create: `../../corpus-management-hortora/src/main/java/io/casehub/neocortex/corpus/management/hortora/CorpusOutcomeService.java`
+- Test: `../../corpus-management-hortora/src/test/java/io/casehub/neocortex/corpus/management/hortora/CorpusOutcomeServiceTest.java`
 
 **Interfaces:**
 - Consumes: `CbrRecordStore`, `CbrGuidanceRecord`, `CbrOutcome`, `CbrScanRequest`, `CbrScanResult`, `CbrRecordSummary` (from memory-api, already optional dep), `Path` (from casehub-platform-api)
