@@ -185,7 +185,7 @@ ALTER TABLE corpus_entries ADD COLUMN updated_by TEXT;
 ALTER TABLE corpus_entries ADD COLUMN updated_at TEXT;
 ```
 
-`CorpusEntryStore.add()` populates `createdBy`/`createdAt`. `update()` populates `updatedBy`/`updatedAt`. Callers pass the agent/user ID — the store does not resolve identity.
+Callers populate the audit fields on the `CorpusEntry` record before calling `add()`/`update()`. The store persists what it receives — it does not resolve identity or generate timestamps. This keeps the SPI signature unchanged (`add(CorpusRef, CorpusEntry)`) and avoids a breaking change to existing callers (pre-existing entries pass nulls).
 
 ## MCP Operations
 
