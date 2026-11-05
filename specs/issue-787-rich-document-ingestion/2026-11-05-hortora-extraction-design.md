@@ -68,16 +68,15 @@ New `@FunctionalInterface` in `io.casehub.neocortex.corpus.management`:
 ```java
 @FunctionalInterface
 public interface ScoreModifier {
-    double modify(double score, Map<String, String> metadata, Map<String, String> context);
+    double multiplier(Map<String, String> metadata, Map<String, String> context);
 }
 ```
 
 Parameters:
-- `score` — the current score (relevance or cross-encoder)
 - `metadata` — per-result metadata from the retrieved chunk
 - `context` — query-level context (e.g., BOM versions for version scoring)
 
-Returns a multiplier in (0.0, 1.0] applied to the score. Returns 1.0 for no modification.
+Returns a multiplier in (0.0, 1.0] applied to the score. Returns 1.0 for no modification. The modifier does not need the current score — it computes a decay factor from metadata and context only.
 
 ### 2. Built-in ScoreModifier implementations (corpus-management)
 
@@ -105,9 +104,10 @@ public SearchResource(..., List<ScoreModifier> scoreModifiers) { ... }
 List<SearchResult> applyScoring(List<SearchResult> results, String queryText, Map<String, String> bom) {
     if (scoreModifiers.isEmpty()) return results;
     return results.stream().map(r -> {
+        if (r.metadata() == null) return r;
         double multiplier = 1.0;
         for (ScoreModifier mod : scoreModifiers) {
-            multiplier *= mod.modify(1.0, r.metadata(), bom);
+            multiplier *= mod.multiplier(r.metadata(), bom);
         }
         if (multiplier >= 0.999) return r;
         Double adjustedCe = r.crossEncoderScore() != null ? r.crossEncoderScore() * multiplier : null;
@@ -117,10 +117,17 @@ List<SearchResult> applyScoring(List<SearchResult> results, String queryText, Ma
 ```
 
 Remove: `TIER_HALF_LIVES`, `temporalDecayScore()`, `versionScore()`, `versionDistance()`, `parseVersion()` static methods.
-Remove: `SearchScoringConfig` fields `temporalDecayEnabled`/`versionScoringEnabled`/`versionDecayFactor`/`versionDecayFloor`/`versionTopicWeightDefault`.
-`SearchScoringConfig` may be removed entirely if no other config remains, or simplified to hold only `scoreBoostWeight`.
+Remove: `SearchScoringConfig` entirely — all 5 fields (`temporalDecayEnabled`/`versionScoringEnabled`/`versionDecayFactor`/`versionDecayFloor`/`versionTopicWeightDefault`) are absorbed by ScoreModifier constructor parameters. The remaining `scoreBoostWeight` already lives on `SearchConfig`.
 
-### 4. CorpusApi split
+### 4. SearchResult garden accessor cleanup
+
+`SearchResult` currently has 5 Jackson-serialized convenience accessors that project garden-specific metadata keys: `stalenessThreshold()`, `tags()`, `lastReviewed()`, `author()`, `verifiedOn()`. These are garden vocabulary on a "generic" record.
+
+**Fix:** Remove these accessors from `SearchResult`. Consumers read the metadata map directly. The `GardenCorpusApi` MCP layer in the Hortora module can format garden-specific fields in its response if needed, or the MCP tool descriptions can document which metadata keys are available.
+
+The `seeAlsoIds` field (GE-ID cross-references) also moves to garden-specific handling — the `expandWithAdjacent()` method in `SearchResource` that uses it stays generic (it works on any `seeAlsoIds` list), but the population of `seeAlsoIds` from `see_also_ids` metadata is a garden convention documented by `GardenMetadataExtractor`.
+
+### 5. CorpusApi split
 
 **Generic CorpusApi (stays in corpus-management):**
 
@@ -161,7 +168,15 @@ public interface GardenCorpusApi {
 
 Note: `GardenCorpusApi` does not extend `CorpusApi` — they are separate MCP domains. The generic operations are available via `CorpusApi`; garden-specific ones via `GardenCorpusApi`. Both are available when `corpus-management-hortora` is on the classpath.
 
-### 5. Implementation classes — what moves where
+### 6. ProvenanceStore — garden method extraction
+
+`ProvenanceStore` implements the generic `ProvenanceTracker` SPI and stays in `corpus-management`. However, it has garden-specific methods bolted on: `recordFeedbackContext()`, `findFeedbackContext()`, `recordStaleness()`, `findStalenessReports()`, `findAllStalenessReports()`. These methods and their backing tables (`feedback_context`, `staleness_reports`) are garden-specific.
+
+**Fix:** Extract garden-specific methods into a `GardenProvenanceExtension` class in `corpus-management-hortora`. It takes the same `DataSource` and provides staleness/feedback operations. The Flyway migration scripts `V2__staleness_reports.sql` and `V3__feedback_context.sql` move to the Hortora module under a separate Flyway location (e.g., `classpath:db/garden-provenance`). `GardenProvenanceExtension` runs its own Flyway migration on construction.
+
+The core `ProvenanceStore` keeps only: `record()`, `forwardLineage()`, `reverseLineage()`, `stats()`, `purgeOlderThan()`, `deleteAll()` — the `ProvenanceTracker` SPI methods plus the domain-specific overloads.
+
+### 7. Implementation classes — what moves where
 
 **Moves to `corpus-management-hortora`:**
 
@@ -177,6 +192,7 @@ Note: `GardenCorpusApi` does not extend `CorpusApi` — they are separate MCP do
 | `FeedbackContext` | Garden-specific value type |
 | `EntryDetail` | Garden entry detail (title, domain, type, seeAlso) |
 | `UnretrievedReport` | Garden-specific unretrieved analysis |
+| `GardenProvenanceExtension` | NEW — staleness/feedback methods extracted from ProvenanceStore |
 
 **Stays in `corpus-management` (generic):**
 
@@ -193,6 +209,7 @@ Note: `GardenCorpusApi` does not extend `CorpusApi` — they are separate MCP do
 | `TranscriptCorpusInitializer` | Agent transcript ingestion |
 | `InteractionContext`/`Type`/`ActivityType` | Agent interaction types |
 | `FederationConfig`/`Parser` | Generic federation config |
+| `RemoteCorpusClient` | Generic remote corpus client |
 | `SearchProfileStore` | Generic BOM profiles |
 | `CorpusReindexService` | Renamed from GardenReindexService |
 | `CorpusStatus` | Generic status record |
@@ -207,7 +224,7 @@ Note: `GardenCorpusApi` does not extend `CorpusApi` — they are separate MCP do
 |--------|-------|--------|
 | `GardenReindexService` | `CorpusReindexService` | corpus-management |
 
-### 6. corpus-management-hortora module
+### 8. corpus-management-hortora module
 
 **Maven coordinates:**
 - artifactId: `casehub-neocortex-corpus-management-hortora`
@@ -217,7 +234,7 @@ Note: `GardenCorpusApi` does not extend `CorpusApi` — they are separate MCP do
 - `casehub-neocortex-corpus-management` (compile)
 - `casehub-neocortex-corpus-management-api` (transitive via above)
 - `casehub-neocortex-rag-api` (transitive via corpus-management — for MetadataExtractor SPI)
-- `casehub-neocortex-sqlite-support` (for ProvenanceStore — if staleness/feedback needs its own schema)
+- `casehub-neocortex-sqlite-support` (for GardenProvenanceExtension Flyway migrations)
 - `casehub-neocortex-memory-api` (optional — for CorpusOutcomeService CbrRecordStore)
 - `casehub-platform-api` (optional — for @McpDomain, @PlatformQuery)
 - `org.yaml:snakeyaml` (for GardenMetadataExtractor YAML parsing)
@@ -229,7 +246,7 @@ Note: `GardenCorpusApi` does not extend `CorpusApi` — they are separate MCP do
 - `CorpusOutcomeServiceTest` → moves (if it exists)
 - Other tests stay in corpus-management
 
-### 7. CorpusApiBean simplification
+### 9. CorpusApiBean simplification
 
 Current `CorpusApiBean` implements the full `CorpusApi`. After the split:
 
@@ -255,15 +272,17 @@ Current `CorpusApiBean` implements the full `CorpusApi`. After the split:
 
 1. Create `ScoreModifier` SPI in `corpus-management-api`
 2. Implement `TemporalDecayScoreModifier` and `VersionDistanceScoreModifier` in `corpus-management`
-3. Refactor `SearchResource` to use `List<ScoreModifier>`
-4. Create `corpus-management-hortora` module scaffold
-5. Split `CorpusApi` → generic `CorpusApi` + `GardenCorpusApi`
-6. Move Hortora-specific classes to the new module
-7. Rename `GardenReindexService` → `CorpusReindexService`
-8. Simplify `CorpusApiBean` — remove garden dependencies
-9. Create `GardenCorpusApiBean` in Hortora module
-10. Move/split tests
-11. Verify `corpus-management` builds independently (no Hortora on classpath)
+3. Refactor `SearchResource` to use `List<ScoreModifier>`, remove `SearchScoringConfig`
+4. Strip garden-specific accessors from `SearchResult`
+5. Create `corpus-management-hortora` module scaffold
+6. Split `CorpusApi` → generic `CorpusApi` + `GardenCorpusApi`
+7. Move Hortora-specific classes to the new module
+8. Extract `GardenProvenanceExtension` from `ProvenanceStore`, move Flyway V2/V3 migrations
+9. Rename `GardenReindexService` → `CorpusReindexService`
+10. Simplify `CorpusApiBean` — remove garden dependencies
+11. Create `GardenCorpusApiBean` in Hortora module
+12. Move/split tests
+13. Verify `corpus-management` builds independently (no Hortora on classpath)
 
 ## Risk Assessment
 

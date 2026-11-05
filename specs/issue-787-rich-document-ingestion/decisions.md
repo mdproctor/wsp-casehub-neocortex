@@ -26,7 +26,7 @@
 
 ## D3: ScoreModifier SPI design
 
-**Choice:** `ScoreModifier` @FunctionalInterface in `corpus-management-api`: `double modify(SearchResult result, Map<String,String> context)`. Two built-in implementations in `corpus-management`: `TemporalDecayScoreModifier` (configurable half-lives per tier) and `VersionDistanceScoreModifier` (configurable decay factor/floor). `SearchResource` accepts `List<ScoreModifier>` and applies them composably.
+**Choice:** `ScoreModifier` @FunctionalInterface in `corpus-management-api`: `double multiplier(Map<String,String> metadata, Map<String,String> context)`. Two built-in implementations in `corpus-management`: `TemporalDecayScoreModifier` (configurable half-lives per tier) and `VersionDistanceScoreModifier` (configurable decay factor/floor). `SearchResource` accepts `List<ScoreModifier>` and applies them composably. The modifier returns a multiplier from metadata and context — it does not need the current score.
 **Alternatives:**
 - Composite ScoringStrategy with named strategies — adds orchestrator layer for two strategies
 - Keep inline, make configurable — simpler but other domains can't swap scoring logic
@@ -59,4 +59,28 @@
 **Sources:** Issue #801 (Phase 2 — moved these from API to impl)
 **Depends on:** D1 (module structure determines where non-garden code lives)
 **Exploration:** quick
+**Status:** captured
+
+## D6: SearchResult garden accessor cleanup
+
+**Choice:** Remove 5 garden-specific Jackson accessors (`stalenessThreshold()`, `tags()`, `lastReviewed()`, `author()`, `verifiedOn()`) from `SearchResult`. Consumers read the metadata map directly.
+**Alternatives:**
+- Keep accessors — leaves garden vocabulary on a "generic" record
+- Create GardenSearchResult wrapper — adds type for 5 convenience methods
+**Rationale:** SearchResult is listed as generic. These accessors project garden-specific metadata keys into JSON properties. The `GardenCorpusApi` MCP layer can format garden-specific fields in its response.
+**Trade-offs:** Downstream consumers that serialize SearchResult to JSON and rely on these properties will need to read metadata directly. This is a breaking change for MCP tool consumers expecting these fields in the JSON response.
+**Sources:** SearchResult.java:38-62 (garden-specific Jackson properties)
+**Exploration:** quick (self-review finding)
+**Status:** captured
+
+## D7: ProvenanceStore garden method extraction
+
+**Choice:** Extract `recordFeedbackContext()`, `findFeedbackContext()`, `recordStaleness()`, `findStalenessReports()`, `findAllStalenessReports()` into `GardenProvenanceExtension` in corpus-management-hortora. Flyway V2/V3 migrations move to the Hortora module.
+**Alternatives:**
+- Keep ProvenanceStore intact — garden methods stay, deferred cleanup
+- Delete garden methods entirely — breaks Hortora functionality
+**Rationale:** ProvenanceStore implements the generic `ProvenanceTracker` SPI. The staleness/feedback methods are garden-specific add-ons called only by `CorpusIndexService.recordFeedback()` (which is moving to Hortora). Clean split keeps ProvenanceStore generic.
+**Trade-offs:** Hortora module needs access to the same DataSource that ProvenanceStore uses. GardenProvenanceExtension runs its own Flyway migration.
+**Sources:** ProvenanceStore.java:179-264 (garden methods), V2__staleness_reports.sql, V3__feedback_context.sql
+**Exploration:** quick (self-review finding)
 **Status:** captured
