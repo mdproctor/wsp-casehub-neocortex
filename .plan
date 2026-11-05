@@ -23,9 +23,9 @@ evidence-era: true
     - [x] Task 1: ScoreModifier SPI and implementations
     - [x] Task 2: Refactor SearchResource to use ScoreModifier
     - [x] Task 3: Rename GardenReindexService
-  - [ ] Batch 2: Module+Split
-    - [ ] Task 4: Scaffold corpus-management-hortora
-    - [ ] Task 5: Split CorpusApi into generic and garden
+  - [x] Batch 2: Module+Split
+    - [x] Task 4: Scaffold corpus-management-hortora
+    - [x] Task 5: Split CorpusApi into generic and garden
   - [ ] Batch 3: Move Classes
     - [ ] Task 6: Move Hortora classes to new module
     - [ ] Task 7: Extract GardenProvenanceExtension
