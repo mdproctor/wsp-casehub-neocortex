@@ -1,67 +1,65 @@
 # Session Handover — neocortex (slot 196)
 
-**Date:** 2026-10-25
-**Branches:** `issue-698-move-zero-dep-eval-tests`, `issue-699-neocortex-eval-fixtures`
-**Epic:** casehubio/neocortex#697 — Migrate neocortex eval tests from wacky-manor
+**Date:** 2026-11-06
+**Branch:** `main` (all #818 work landed)
+**Queue next:** #830 → #829 → #819
 
 ## What was done (this session)
 
-### 1. Move zero-dep eval tests (casehubio/neocortex#698) — branch `issue-698-move-zero-dep-eval-tests`
+### #818 — Automatic regulation predictor (CLOSED)
 
-Migrated 4 LLM eval tests from wacky-manor `experiment/` to neocortex `caps-llm-classifier/src/test/java/.../eval/`:
+Built `RegulationStrategyPredictor` — maps (DispositionAxes × EmotionType) → regulation strategy mechanically, constraining the LLM's strategy reasoning while leaving narrative generation fully emergent.
 
-| Test | Manor deps replaced |
-|------|-------------------|
-| ChannelWeightingEvalTest | None (direct move) |
-| ClassifierModelComparisonTest | None (direct move) |
-| SituationClassifierIntegrationTest | None (direct move) |
-| BehavioralAttractorEvalTest | AgentResponse → ThinkingDialogueResponse; CharacterAgentLoop.RESPONSE_FORMAT_INSTRUCTION → inline; LlmTestSupport removed (unused) |
+**Key design:** The predictor pins the strategy; the LLM generates the embodied experience via Barrett four-channel rendering. No templates, no hardcoded text. The predictor tells cognition HOW to regulate; the LLM generates WHAT it feels like.
 
-### 2. Create eval test fixtures (casehubio/neocortex#699) — branch `issue-699-neocortex-eval-fixtures`
+**Quality gate:** LLM judge plausibility scoring. Floor 4/5, mean 4.6/5 across 8 judge runs. Distribution: [4, 5, 4, 5, 5].
 
-Created test fixtures for Phase 2 eval test migration:
+**Empirical findings (documented in research doc + blog):**
 
-| Fixture | Purpose |
-|---------|---------|
-| eval-characters.yaml | Baseline character data: drives + formation memories for 4 characters |
-| eval-characters-generic.yaml | Generic profile (no pop-culture refs) for same characters |
-| EvalCharacterData | Simplified SocialConfig record (drives + formation memories only) |
-| EvalCharacterLoader | YAML loader for eval character data |
-| CognitionCoreTestBuilder | Builds CognitionCore without agency deps (no-op MemoryHygiene) |
-| CognitiveDeltaCapture | Tick-level section delta tracking utility |
+1. **Personality coherence determines predictability.** Mixed-signal personalities (avoidant BUT flexible) score 2-3 regardless of strategy. Coherent personalities (all signals one direction) score 4-5. The predictor checks coherence: `isSuppressor` requires suppressor signals ≥3 AND CC-enabling signals <2.
 
-**Key design decisions:**
-- Tests are plain JUnit 5 (no `@QuarkusTest`). Library modules can't host full Quarkus apps.
-- `EvalTestSupport` builds Claude backend + SessionPipeline programmatically (in #698).
-- `CognitionCoreTestBuilder` replaces manor's `CognitiveActivationTest.buildCore()` with no-op stubs for agency-dependent MemoryHygieneOrchestrator (avoids circular neocortex→agency dep).
-- Both branches modify parent pom (dependencyManagement) independently; merge will reconcile.
+2. **Shame is mechanically unresolvable for suppressors.** 7 judge runs: RM=2-3, CC=2-3, AD=3. Shame is self-evaluative — needs CC, but suppressors can't execute it.
 
-### Commits
+3. **LLM strategy selection is non-deterministic.** Same inputs → different strategies across runs. Agreement-based quality gates are unreliable.
 
-```
-# Branch issue-698-move-zero-dep-eval-tests
-bcf93fb0 feat(#698): move zero-dep eval tests from wacky-manor to caps-llm-classifier
+### #828 — Regulation predictor observability (CLOSED)
 
-# Branch issue-699-neocortex-eval-fixtures
-d94159a0 wip: extract character data fixtures for eval tests
-8bf4af78 feat(#699): create neocortex eval test fixtures
-```
+FINE-level logging in `EmotionRegulationTickParticipant`: logs predictor hits (agent, emotion, strategy, confidence) and falls-through (agent, emotion, personality axes).
+
+### Documentation
+
+- Post-era6 research doc updated: `docs/research/2026-11-05-post-era6-regulation-and-identity.md`
+- Blog written: `wsp-casehub/blog/2026-11-05-mdp01-when-personality-isnt-enough.md`
+- Issues created: #830 (predictor quality), #831 (coherence generalisation), #832 (capacity gap generalisation)
 
 ## What the next session must do
 
-### 1. Remove migrated tests from wacky-manor
+### #830 — Predictor quality: address shame fall-through
 
-Once #698 is reviewed and merged, delete the 4 original tests from examples.
+Three approaches to try (all documented in the issue):
 
-### 2. Move Phase 2 eval tests (#700)
+1. **Temporal regulation** — suppress now, reappraise later. Add temporal framing to the pinned strategy constraint. Test through judge.
 
-Blocked by #699. Once fixtures merged, migrate CognitiveEvalTest, EmergenceVerificationTest, SleepDerivationEvalTest, SomaticDescriptionEvalTest — replacing ManorSocialConfigLoader with EvalCharacterLoader and CognitiveActivationTest with CognitionCoreTestBuilder.
+2. **LLM system prompt improvement** — add personality-aware shame guidance to `EmotionRegulationGenerationPhase.SYSTEM_PROMPT`. Improves the fall-through path.
 
-### 3. Extract CognitionObservationBuilder (#701)
+3. **CognitiveDerivationEngine continuous weights** — add `deriveRegulationDefaults(DispositionAxes)` pathway. Pattern: static `Map<String, Double>` lookup tables (like `deriveMoodBaseline`). Returns `RegulationDefaults(suppressionCapacity, reappraisalCapacity, redirectTendency)`. Entry point: `derive()` at line 141.
 
-Independent architectural work. Extract generic observation rendering from CharacterCognition into neocortex/cognition. Unblocks Phase 3 (#702).
+### Then #829 — Scenario validation
+
+Run a short scenario with the improved predictor active. Verify it fires, check rendered output quality, measure LLM call savings. Requires #828 observability logging to see what happens.
+
+## Key files
+
+| File | What it does |
+|------|-------------|
+| `cognition/.../regulation/RegulationStrategyPredictor.java` | Strategy prediction — personality coherence + emotion category |
+| `cognition/.../regulation/EmotionRegulationTickParticipant.java` | Integration — tries predictor, passes strategy hint to generation phase |
+| `cognition/.../regulation/EmotionRegulationGenerationPhase.java` | LLM call — accepts optional `pinnedStrategy` parameter |
+| `caps-llm-classifier/.../eval/RegulationPredictorBackTest.java` | LLM judge eval — writes results to `target/regulation-predictor-judge-results.json` |
+| `cognitive-index/.../CognitiveDerivationEngine.java` | Derivation pattern for approach 3 (lines 141-167 entry point, 243-254 example pathway) |
 
 ## Test status
 
-- caps-llm-classifier unit tests: 13 pass on both branches
-- Both branches: BUILD SUCCESS (test-compile)
+- cognition regulation tests: 20 pass (predictor + tick participant)
+- caps-llm-classifier judge eval: passes (floor 4, mean 4.6)
+- All repos synced: canonical, slot, origin (casehubio), fork (mdproctor)
