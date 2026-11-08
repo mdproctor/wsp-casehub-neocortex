@@ -332,7 +332,7 @@ Range [0.5, 0.95]. Low anxiousness + low lability → 0.95 (tolerates extreme in
 |---|---|---|
 | maxTicks | `(int)(6 + conscientiousness * 8)` | Range 6–14; conscientious sustains longer |
 | recoveryRate | `0.3 + conscientiousness * 0.4` | Range 0.3–0.7; conscientious recovers faster |
-| depthEffect | `-(anxiousness * 0.3) + conscientiousness * 0.05` | Neurotic loses depth; conscientious barely affected |
+| depthEffect | `min(0, -0.08 * (1.0 - conscientiousness))` | Universal baseline loss (Warm 2008 vigilance decrement), conscientiousness reduces it (Hockey 1997 primary task protection). Anxiety affects depth exclusively through D2 inverted-U — no double-counting. |
 | breadthEffect | `-(0.15 + (1.0 - openness) * 0.15)` | Always negative; low openness sacrifices faster |
 | lateralityEffect | `-(0.1 + (1.0 - openness) * 0.1) + impulsivity * 0.15` | Usually negative; impulsivity can flip positive |
 | convergenceEffect | `conscientiousness * 0.2 - anxiousness * 0.15` | Positive for conscientious (satisficing); negative for anxious |
@@ -353,12 +353,14 @@ Two profiles illustrating maximum contrast, plus a third showing conscientiousne
 | convergenceDecay | 0.0 (stable) | 0.95 (degrades) |
 | depthAmplification | +0.20 (amplifies) | −0.15 (compresses) |
 | fatigue maxTicks | 8 | 8 |
-| fatigue depthEffect | −0.02 (barely affected) | −0.23 (vulnerable) |
+| fatigue depthEffect | −0.06 (moderate — low C) | −0.06 (moderate — low C, same as bold; anxiety operates through D2 not D4) |
 | fatigue convergenceEffect | +0.04 (satisficing) | −0.07 (blocked) |
 
 At intensity 0.8: the bold explorer is below their peak (0.95) — full activation, no fatigue. The anxious worrier is past their peak (0.72) — activation declining, fatigue accumulating, breadth narrowing, depth degrading, convergence failing.
 
-**Conscientiousness as protective factor:** The **Disciplined Analyst** (same anxiousness/lability as the Anxious Worrier but ruleFollowing="strict", imp=0.1 → C=0.85, O=0.33) peaks at the same 0.72 but with radically different dynamics: depthDecay=0.0 (protected), depthAmplification=+0.45 (amplified), maxTicks=12 (high endurance), convergenceEffect=+0.05 (satisficing). Conscientiousness flips the fatigue profile from degradation to sustained performance — exactly Hockey's (1997) compensatory control: primary task performance maintained at the cost of breadth (breadthDecay=2.33 remains sharp). This is the original "Cautious analyst" from `SearchBudgetQualityTest` — the name was misleading because the profile is resilient, not fragile.
+**Conscientiousness as protective factor:** The **Disciplined Analyst** (same anxiousness/lability as the Anxious Worrier but ruleFollowing="strict", imp=0.1 → C=0.85, O=0.33) peaks at the same 0.72 but with radically different dynamics: depthDecay=0.0 (protected), depthAmplification=+0.45 (amplified), maxTicks=12 (high endurance), depthEffect=−0.01 (depth protected — `min(0, -0.08 * 0.15) = -0.012`), convergenceEffect=+0.05 (satisficing). Conscientiousness flips the fatigue profile from degradation to sustained performance — exactly Hockey's (1997) compensatory control: primary task performance maintained at the cost of breadth (breadthDecay=2.33 remains sharp). This is the original "Cautious analyst" from `SearchBudgetQualityTest` — the name was misleading because the profile is resilient, not fragile.
+
+**Calibration note:** The direction and relative ordering of all CDE-derived values are literature-grounded. The specific coefficient values (0.08, 0.15, 0.2, etc.) are calibration parameters. The quality test defines invariants that constrain the calibration: `depthEffect(C=0.85) > depthEffect(C=0.25)`, `depthEffect(any) <= 0`, `convergenceEffect(cautious) > 0 > convergenceEffect(anxious)`. If the quality test fails, the coefficients need re-calibration — the formula structure is correct.
 
 ## Prose Generation
 
