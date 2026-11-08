@@ -89,10 +89,9 @@ At moderate intensity (below peak): `max(0, intensity - peak) = 0`, so `scale = 
 
 At extreme intensity (above peak): personality-derived `amplificationRate` scales the modulation:
 - Positive rate → modulation grows (amplification). Depth for conscientious agents: the +0.15 competence boost becomes +0.20, +0.25.
-- Negative rate → modulation shrinks (compression). Breadth for low-openness agents: the +0.15 curiosity boost becomes +0.10, +0.05.
-- Rate sufficiently negative → modulation reverses (capped at scale = -1.0). Convergence delay for neurotic agents under extreme anxiety: the -0.10 curiosity delay becomes a +0.10 convergence *acceleration* as anxiety overrides exploratory drive.
+- Negative rate → modulation shrinks toward zero (compression). Breadth for low-openness agents: the +0.15 curiosity boost becomes +0.10, +0.05, approaching 0 at extreme overshoot.
 
-Negative scaling factors are intentional for specific trait × parameter combinations. If empirical testing shows unintended reversals, the amplification rate is CDE-derived and can be constrained.
+CDE-derived amplification rates produce **compression only** — scale reaches 0.0 at most but never goes negative. The maximum-magnitude CDE rate is `convergenceAmplification = -2.0` (anx=1.0, C=0.0), which at maximum overshoot (intensity=1.0, peak=0.5) gives `scale = 1.0 + (-2.0)(0.5) = 0.0`. The `Math.max(-1.0, scale)` clamp protects against manual YAML overrides that set amplification rates beyond CDE ranges — reversal (modulation flips sign) is available as an override mechanism for bespoke profiles but is not a CDE-derived behavior.
 
 The amplification threshold shares the `extremePeak` from the inverted-U activation. This is an acknowledged simplification — the two phenomena (performance decline onset vs personality expression scaling onset) could theoretically diverge, but the output resolution of LLM prompt rendering doesn't benefit from the distinction. See #879 for optional `amplificationThreshold`.
 
