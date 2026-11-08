@@ -5,8 +5,9 @@ branch: issue-853-capacity-modulation-function
 state: active
 issue-repo: casehubio/neocortex
 covers: casehubio/neocortex#853
-Current: casehubio/neocortex#791 — TDD-regression-tests-signal-propagation
+Current: casehubio/neocortex#853 — capacity-modulation-function
 date: 2026-11-08
 
 ## Queue
-- [ ] casehubio/neocortex#791 — TDD-regression-tests-signal-propagation ← active
+- [x] casehubio/neocortex#791 — TDD-regression-tests-signal-propagation
+- [ ] casehubio/neocortex#853 — capacity-modulation-function
