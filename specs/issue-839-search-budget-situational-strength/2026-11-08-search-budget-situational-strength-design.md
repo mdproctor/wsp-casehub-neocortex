@@ -7,7 +7,7 @@
 
 ## Problem
 
-The search budget model (#825) produces meaningful personality differentiation in the moderate-intensity range (0.3–0.7) but compresses against the ceiling at high intensity (>0.8). At intensity 0.8, `logistic(0.8, 6.0, 0.5) = 0.86` and the fixed additive drive modulations (±0.08 to ±0.15) are proportionally small. Personality character disappears — a bold explorer and a cautious analyst produce nearly identical budgets when motivation is maximal.
+The search budget model (#825) produces meaningful personality differentiation in the moderate-intensity range (0.3–0.7) but compresses against the ceiling at high intensity (>0.8). At intensity 0.8, `logistic(0.8, 6.0, 0.5) = 0.86` and the fixed additive drive modulations (±0.08 to ±0.15) are proportionally small. Personality character disappears — a bold explorer and an anxious worrier produce nearly identical budgets when motivation is maximal.
 
 The literature predicts three personality-intensity interaction effects absent from the current model:
 
@@ -19,18 +19,26 @@ The literature predicts three personality-intensity interaction effects absent f
 
 Three interaction effects applied in sequence after the existing base activation:
 
-1. **Inverted-U decline (Yerkes-Dodson):** Past a personality-specific `extremePeak`, activation declines via exponential decay. The peak position is CDE-derived from anxiousness and emotional lability — neurotic agents peak earlier (0.6–0.7), conscientious agents later (0.9+).
+1. **Inverted-U decline (Yerkes-Dodson):** Past a personality-specific `extremePeak`, activation declines via exponential decay. The peak position is CDE-derived from anxiousness and emotional lability — neurotic agents peak earlier (0.6–0.7), resilient agents later (0.9+).
 
-2. **Modulation scaling (Situational Strength):** Drive modulations become intensity-dependent. Past the peak, personality-derived amplification rates make modulations grow (amplification), shrink (compression), or reverse (convergence failure under neuroticism).
+2. **Modulation scaling (Situational Strength):** Drive modulations become intensity-dependent. Past the peak, personality-derived amplification rates make modulations grow (amplification), shrink (compression), or reverse (convergence failure under neuroticism). Amplification rates are **per-parameter**, not per-drive — all drive modulations to a given parameter (e.g., COMPETENCE's +0.15 and AUTONOMY's +0.10 to depth) scale by the same factor. This is intentional: the amplification represents how the *parameter* responds to extreme intensity (personality sustaining or degrading that cognitive dimension), not how each drive's contribution responds individually.
 
 3. **Fatigue reallocation (Compensatory Control):** Sustained extreme intensity triggers per-parameter reallocation. Each parameter has a signed fatigue effect: depth is protected for conscientious agents, sacrificed for neurotic; convergence accelerates for conscientious (satisficing), blocks for neurotic (can't commit).
 
 **Processing order in `tick()`:**
-1. Base activation with exponential decay — `activationWithDecay()`
-2. Scaled drive modulation — `modulation * scalingFactor`
+
+Steps 1–4 execute **inside** each `computeX()` method. Steps 5–7 are **post-processing** in `tick()` after all four parameters are computed.
+
+*Inside each compute method:*
+1. Base activation with exponential decay — `activationWithDecay()` replaces `logistic()`
+2. Scaled drive modulation — `modulation * scalingFactor` replaces fixed additive `+0.15` etc.
 3. Mood / gut adjustments (existing, unchanged)
 4. Pathological check (existing, unchanged — convergence floors to 0)
-5. Fatigue reallocation — per-parameter signed effects
+
+*Note:* `computeLaterality()` short-circuits before step 1 when `threatIntensity > lateralityThreatFloor`, returning 0.0 immediately. The inverted-U activation has no effect when threat is dominant — correct behavior per Frijda (1986) approach/avoidance.
+
+*Post-processing in tick():*
+5. Fatigue reallocation — per-parameter signed effects (NEW)
 6. Channel modulation (existing, unchanged)
 7. `clamp01()` on all four values
 
@@ -60,6 +68,8 @@ Properties of the exponential form:
 
 When `ExtremeInteractionConfig` is null, falls back to bare `logistic()` — existing behaviour.
 
+**Why `compositeMotivation`, not `arousalScore()`:** The activation input is `DriveProfile.compositeMotivation()`, not `arousalScore()`. These are correlated but distinct: `compositeMotivation` measures the intensity of the agent's dominant motivational drive (how strongly motivated to explore), while `arousalScore()` measures the physiological arousal component of the current emotional state (emotion intensities × PAD arousal values). A goal-driven agent can have high compositeMotivation (strong drive) with low emotional arousal (calm determination). An emotionally reactive agent can have high arousalScore (agitated) with low compositeMotivation (unfocused). The search budget responds to motivation intensity — how hard the agent is pushing to explore — not emotional arousal. The inverted-U applies to motivation: too much motivational push narrows and degrades cognitive flexibility. `arousalScore()` is already used for the pathological threshold check, which models emotional dysregulation — a distinct phenomenon.
+
 **Caveat:** The Yerkes-Dodson inverted-U is a contested empirical generalisation (Corbett 2015, Teigen 1994). This design uses it as a modelling abstraction — "performance has a personality-specific peak and declines past it" — not as a literal neurophysiological claim. The quality test validates whether the abstraction produces meaningfully different outputs.
 
 ## Drive Modulation Scaling
@@ -84,7 +94,7 @@ At extreme intensity (above peak): personality-derived `amplificationRate` scale
 
 Negative scaling factors are intentional for specific trait × parameter combinations. If empirical testing shows unintended reversals, the amplification rate is CDE-derived and can be constrained.
 
-The amplification threshold shares the `extremePeak` from the inverted-U activation. This is an acknowledged simplification — the two phenomena (performance decline onset vs personality expression scaling onset) could theoretically diverge, but the output resolution of LLM prompt rendering doesn't benefit from the distinction. If future validation shows meaningful divergence, an optional `amplificationThreshold` field can be added to `ExtremeInteractionConfig`.
+The amplification threshold shares the `extremePeak` from the inverted-U activation. This is an acknowledged simplification — the two phenomena (performance decline onset vs personality expression scaling onset) could theoretically diverge, but the output resolution of LLM prompt rendering doesn't benefit from the distinction. See #879 for optional `amplificationThreshold`.
 
 ## Fatigue Dynamics — Per-Parameter Strategic Reallocation
 
@@ -92,22 +102,22 @@ Fatigue is modelled as per-parameter strategic reallocation (Hockey 1997 Compens
 
 ### Mechanism
 
-**Accumulation:** Fatigue accumulates when composite intensity exceeds `extremePeak`. Logarithmic temporal accumulation matches the vigilance decrement literature (Warm, Parasuraman & Matthews 2008) — rapid initial onset, plateau:
+**Accumulation:** Fatigue accumulates when composite intensity exceeds `extremePeak`. `fatigueAccumulator` is a `double`, ensuring sub-integer `recoveryRate` values produce genuine personality differentiation. Logarithmic temporal accumulation matches the vigilance decrement literature (Warm, Parasuraman & Matthews 2008) — rapid initial onset, plateau:
 
 ```java
 if (compositeIntensity > config.extremePeak()) {
-    ticksAbove++;
+    fatigueAccumulator += 1.0;
 } else {
-    ticksAbove = Math.max(0, (int)(ticksAbove - config.fatigue().recoveryRate()));
+    fatigueAccumulator = Math.max(0.0, fatigueAccumulator - config.fatigue().recoveryRate());
 }
 
 double fatigueLevel = Math.min(1.0,
-    Math.log(1 + ticksAbove) / Math.log(1 + config.fatigue().maxTicks()));
+    Math.log(1 + fatigueAccumulator) / Math.log(1 + config.fatigue().maxTicks()));
 ```
 
-Clamped at 1.0 to prevent unbounded effects when `ticksAbove` exceeds `maxTicks`.
+Clamped at 1.0 to prevent unbounded effects when `fatigueAccumulator` exceeds `maxTicks`.
 
-**Recovery:** Gradual, not instantaneous — `ticksAbove` decrements by `recoveryRate` per sub-peak tick. The logarithmic accumulation produces intentional hysteresis: recovery is fast when fatigue is low and extremely slow when fatigue is high. After sustained extreme intensity (`ticksAbove = 100`), reducing by 5 barely moves `fatigueLevel` from 1.0 to ~0.986. This matches Hockey's refractory period — deeply fatigued agents recover slowly.
+**Recovery:** Gradual, not instantaneous — `fatigueAccumulator` decrements by `recoveryRate` per sub-peak tick. With `fatigueAccumulator` as a `double`, recovery rates of 0.64 (conscientious) vs 0.40 (low conscientiousness) produce genuine differentiation: after 10 recovery ticks, the conscientious agent has reduced by 6.4 while the low-C agent has reduced by only 4.0. The logarithmic accumulation produces intentional hysteresis: recovery is fast when fatigue is low and extremely slow when fatigue is high. After sustained extreme intensity (`fatigueAccumulator = 100.0`), reducing by 5.0 barely moves `fatigueLevel` from 1.0 to ~0.986. This matches Hockey's refractory period — deeply fatigued agents recover slowly.
 
 **Application:** Per-parameter signed effects:
 
@@ -123,7 +133,7 @@ convergence += fatigueLevel * config.fatigue().convergenceEffect();
 | Personality trait | Depth | Breadth | Laterality | Convergence | Mechanism |
 |---|---|---|---|---|---|
 | Conscientious | Protected (≈0) | Sacrificed (−) | Sacrificed (−) | Accelerated (+) | Hockey: primary task protection, satisficing |
-| Neurotic | Vulnerable (−) | Rapidly sacrificed (−) | Noise (+) | Blocked (−) | Sarason: worry consumes resources |
+| Neurotic | Vulnerable (−) | Rapidly sacrificed (−) | Noise (+)† | Blocked (−) | Sarason: worry consumes resources |
 | Open | Protected (≈0) | Slowly sacrificed (−) | Slowly sacrificed (−) | Neutral (≈0) | Ego-syntonic exploration costs less |
 | Impulsive | Vulnerable (−) | Rapidly sacrificed (−) | Random jumps (+)† | Premature (+) | Executive control degrades first |
 
@@ -131,11 +141,17 @@ convergence += fatigueLevel * config.fatigue().convergenceEffect();
 
 ### Fatigue State Lifecycle
 
-- `FatigueState` record (`int ticksAbove`) stored in `ConcurrentHashMap<String, FatigueState>` on `SearchBudgetTickParticipant` alongside existing `results` map
+- `FatigueState` is a value holder class with a `double accumulator` field, stored in `ConcurrentHashMap<String, FatigueState>` on `SearchBudgetTickParticipant` alongside existing `results` map
+- Thread safety: the ConcurrentHashMap provides agent-level isolation; each agent's entry is updated only during its own tick call (no concurrent mutation of the same entry)
+- State updates use `ConcurrentHashMap.compute()`:
+  ```java
+  fatigueStates.compute(key, (k, v) ->
+      v == null ? new FatigueState(1.0) : v.withAccumulator(v.accumulator() + 1.0));
+  ```
 - Created on first tick where intensity > extremePeak
 - Survives across ticks within a session (temporal accumulator)
 - Destroyed when agent is deregistered or process restarts — transient per-process state, not persisted
-- Full recovery (ticksAbove returns to 0) removes the entry from the map
+- Full recovery (accumulator returns to 0.0) removes the entry from the map
 
 ### Interaction with Pathological Threshold
 
@@ -143,7 +159,21 @@ Pathological threshold is evaluated first — if convergence collapses to 0 via 
 
 ### Independence from RegulationFatigueTracker
 
-Search fatigue and regulation fatigue are independent models for different phenomena. Search fatigue is arousal-driven cognitive narrowing (sustained high motivation degrades exploration capacity). Regulation fatigue is willpower depletion (suppressing emotions costs effort — Bosse et al. 2010). Different mechanisms, different resource pools. An agent can be regulation-fatigued (exhausted from suppressing anger) without being search-fatigued (motivation intensity is moderate). If future work reveals they share a resource pool, a shared substrate can be extracted.
+Search fatigue and regulation fatigue are independent models for different phenomena. Search fatigue is arousal-driven cognitive narrowing (sustained high motivation degrades exploration capacity). Regulation fatigue is willpower depletion (suppressing emotions costs effort — Bosse et al. 2010). Different mechanisms, different resource pools. An agent can be regulation-fatigued (exhausted from suppressing anger) without being search-fatigued (motivation intensity is moderate). See #880 for shared substrate exploration.
+
+### Recurring Thought Interaction
+
+Recurring thought states (FIXATION, OBSESSION, RUMINATION from #826) produce sustained extreme intensity — the agent's `compositeMotivation` stays above `extremePeak` for many consecutive ticks. This is the **primary exercise case** for the fatigue model:
+
+1. **Sustained fatigue accumulation:** A FIXATION or RUMINATION state means `fatigueAccumulator` grows continuously. Over time, `fatigueLevel` saturates toward 1.0. The personality-differentiated fatigue effects then become the dominant shaping force on the search budget. A conscientious agent in fixation sustains depth and accelerates convergence (satisficing to escape the loop). A neurotic agent in rumination loses depth AND convergence (can't commit, can't go deeper — spiraling).
+
+2. **Pathological threshold is independent:** Fatigue does not feed back into pathological triggering. The pathological check uses `arousalScore + habituationFailure > pathologicalThreshold` — fatigue modifies neither input. This is intentional: pathological state models the thought's grip (emotional dysregulation), while fatigue models resource depletion from sustained intensity. One-directional: pathological state floors convergence to 0, making fatigue's convergence effect irrelevant; fatigue does not make pathological triggering more likely.
+
+3. **Prompt composition:** At tick time, extreme-intensity prose selection (§Prose Generation) happens first, producing the base prose. `modulateByContinuum()` then modulates this base by `ContinuumPosition` — prepending fixation/obsession context, or replacing entirely at RUMINATION. The two mechanisms compose naturally: extreme prose describes how the agent handles pressure; continuum modulation describes what the pressure has become.
+
+### Forward Interaction with Intelligence Capacity Layer (#840)
+
+When #840 adds capacity ceilings (max-breadth, max-laterality from intelligence), two systems will constrain the same parameters: capacity ceilings bound the maximum, fatigue effects modify within that bound. This is correct behavior — fatigue cannot push a parameter below its capacity floor. If #840 also introduces fatigue-dependent ceiling degradation (as epic #841 suggests), the two fatigue sources could double-count. #840's spec should evaluate whether to absorb this spec's direct-parameter approach into a ceiling-mediated model. This spec's approach is a correct standalone design that may need refactoring when #840 lands.
 
 ## Config Records
 
@@ -208,6 +238,14 @@ public record ExtremeInteractionConfig(
         validateNonNegative("convergenceDecay", convergenceDecay);
     }
 
+    /**
+     * Approximates a moderate personality: conscientiousness ≈ 0.5,
+     * openness ≈ 0.5, anxiousness ≈ 0.3. Depth protected (decay=0),
+     * breadth narrows moderately (1.5), laterality narrows faster (2.0),
+     * convergence slightly compressed (0.5). Depth modulations amplify
+     * mildly (0.5), breadth/laterality compress, convergence compresses
+     * significantly (-1.5).
+     */
     public static ExtremeInteractionConfig defaults() {
         return new ExtremeInteractionConfig(
             0.0, 1.5, 2.0, 0.5,
@@ -261,7 +299,7 @@ public record FatigueConfig(
 
 The `extremePeak` is an agent-level value, not per-parameter. The original Yerkes-Dodson finding was about task complexity — simple tasks peak at higher arousal, complex tasks peak lower. Within the search budget, depth (complex systematic analysis) and breadth (simpler parallel scanning) arguably have different optimal arousal points. A single peak treats them identically.
 
-This is an acknowledged simplification: the LLM prompt rendering resolution doesn't benefit from a 0.1 difference in per-parameter peak position. The per-parameter `decay` values capture most of the task-complexity effect — zero decay on depth for a conscientious agent means depth doesn't decline past peak, regardless of peak position. If future validation shows per-parameter peaks are needed, they can be added to `ExtremeInteractionConfig` without breaking the top-level structure.
+This is an acknowledged simplification: the LLM prompt rendering resolution doesn't benefit from a 0.1 difference in per-parameter peak position. The per-parameter `decay` values capture most of the task-complexity effect — zero decay on depth for a conscientious agent means depth doesn't decline past peak, regardless of peak position. See #878 for per-parameter peaks.
 
 ## CDE Derivation Pathways
 
@@ -274,7 +312,7 @@ double extremePeak = 0.85 - (anxiousness - 0.5) * 0.3 - (emotionalLability - 0.5
 extremePeak = Math.max(0.5, Math.min(0.95, extremePeak));
 ```
 
-Range [0.5, 0.95]. Low anxiousness + low lability → 0.93 (tolerates extreme intensity). High anxiousness + high lability → 0.62 (peaks early).
+Range [0.5, 0.95]. Low anxiousness + low lability → 0.95 (tolerates extreme intensity). High anxiousness + high lability → 0.72 (peaks early).
 
 ### ExtremeInteractionConfig
 
@@ -302,34 +340,75 @@ Range [0.5, 0.95]. Low anxiousness + low lability → 0.93 (tolerates extreme in
 
 ### Concrete Example
 
-| | Bold (risk=0.9, anx=0.1, imp=0.7) | Cautious (risk=0.1, anx=0.8, lability=0.7) |
-|---|---|---|
-| extremePeak | 0.93 | 0.62 |
-| depthDecay | 0.0 (protected) | 1.3 (sharp decline) |
-| breadthDecay | 1.4 | 2.8 (narrows fast) |
-| depthAmplification | 0.55 (amplifies) | -0.15 (compresses) |
-| fatigue maxTicks | 12 | 7 |
-| fatigue depthEffect | -0.03 (barely affected) | -0.22 (vulnerable) |
-| fatigue convergenceEffect | +0.12 (satisficing) | -0.10 (blocked) |
+Two profiles illustrating maximum contrast, plus a third showing conscientiousness as protective factor.
 
-At intensity 0.8: the bold explorer is below their peak (0.93) — full activation, no fatigue. The cautious analyst is past their peak (0.62) — activation declining, fatigue accumulating, breadth narrowing, convergence failing.
+**Bold Explorer:** risk=0.9, anx=0.1, imp=0.7, withdrawal=0.1, IA=0.1, susp=0.1, lability=0.2, ruleFollowing="flexible" → C=0.25, O=0.9 (from `SearchBudgetQualityTest`)
+
+**Anxious Worrier:** anx=0.8, lability=0.7, imp=0.7, risk=0.1, withdrawal=0.7, IA=0.6, susp=0.7, ruleFollowing="flexible" → C=0.25, O=0.33 (high neuroticism, low conscientiousness, low openness)
+
+| | Bold Explorer | Anxious Worrier |
+|---|---|---|
+| extremePeak | 0.95 | 0.72 |
+| depthDecay | 0.0 (protected) | 0.63 (degrades) |
+| breadthDecay | 1.2 | 2.33 (narrows fast) |
+| convergenceDecay | 0.0 (stable) | 0.95 (degrades) |
+| depthAmplification | +0.20 (amplifies) | −0.15 (compresses) |
+| fatigue maxTicks | 8 | 8 |
+| fatigue depthEffect | −0.02 (barely affected) | −0.23 (vulnerable) |
+| fatigue convergenceEffect | +0.04 (satisficing) | −0.07 (blocked) |
+
+At intensity 0.8: the bold explorer is below their peak (0.95) — full activation, no fatigue. The anxious worrier is past their peak (0.72) — activation declining, fatigue accumulating, breadth narrowing, depth degrading, convergence failing.
+
+**Conscientiousness as protective factor:** The **Disciplined Analyst** (same anxiousness/lability as the Anxious Worrier but ruleFollowing="strict", imp=0.1 → C=0.85, O=0.33) peaks at the same 0.72 but with radically different dynamics: depthDecay=0.0 (protected), depthAmplification=+0.45 (amplified), maxTicks=12 (high endurance), convergenceEffect=+0.05 (satisficing). Conscientiousness flips the fatigue profile from degradation to sustained performance — exactly Hockey's (1997) compensatory control: primary task performance maintained at the cost of breadth (breadthDecay=2.33 remains sharp). This is the original "Cautious analyst" from `SearchBudgetQualityTest` — the name was misleading because the profile is resilient, not fragile.
 
 ## Prose Generation
 
-`SearchBudgetDescriptionGenerationPhase` gains a new section in its LLM prompt describing the agent's extreme-intensity personality:
+`SearchBudgetDescriptionGenerationPhase` gains an expanded LLM prompt generating TWO descriptions per agent — normal-range and extreme-intensity — in a single LLM call:
 
 ```
-Describe how this agent's search behaviour changes under extreme motivation:
-- Extreme peak tolerance: {extremePeak} (how much pressure before performance declines)
-- Under sustained extreme intensity, what degrades first and what holds?
-- Does pressure sharpen their focus or scatter it?
+Describe this agent's cognitive search disposition. Provide two descriptions:
+
+1. **Normal range** — how they naturally explore under moderate motivation.
+   Given parameters: breadth steepness={breadthSteepness}, midpoint={breadthMidpoint}, ...
+
+2. **Extreme intensity** — how their exploration changes under extreme motivation
+   pressure (past their tolerance peak of {extremePeak}).
+   - Extreme peak tolerance: {extremePeak}
+   - Under sustained extreme intensity, what degrades first and what holds?
+   - Does pressure sharpen their focus or scatter it?
+
+Write 2-3 sentences each, second person ("you"). Describe felt cognitive state,
+not parameters.
+
+Respond with JSON: {"normal": "...", "extreme": "..."}
 ```
 
-The LLM generates personality-specific prose. Examples:
-- Bold explorer: *"Pressure sharpens you. When motivation peaks, your focus narrows to the essential threads and holds there. Fatigue, when it comes, takes breadth first — you stop scanning for alternatives and commit to the line you're on."*
-- Cautious analyst: *"High pressure overwhelms your capacity to sustain multiple threads. Anxiety pulls you back to re-examine what you've already covered rather than pushing forward. Your convergence stutters — you know you should synthesise, but the uncertainty prevents commitment."*
+Both descriptions crystallise to the **same** MindMap COGNITIVE node as separate properties: `description` (normal, backward-compatible with existing `SearchBudgetGenerated` trait) and `extreme-description` (new).
 
-The `SearchBudgetPromptSection` at tick time selects the extreme-intensity prose when intensity > extremePeak.
+Examples:
+- Bold explorer normal: *"Multiple angles present themselves — single explanations rarely satisfy. Threads pull you deeper before you're ready to surface."*
+- Bold explorer extreme: *"Pressure sharpens you. When motivation peaks, your focus narrows to the essential threads and holds there. Fatigue, when it comes, takes breadth first — you stop scanning for alternatives and commit to the line you're on."*
+- Anxious worrier extreme: *"High pressure overwhelms your capacity to sustain threads. Anxiety pulls you back to re-examine what you've already covered rather than pushing forward. Your convergence stutters — you know you should synthesise, but the uncertainty prevents commitment."*
+
+### Tick-Time Prose Selection
+
+`SearchBudget` gains an `extremeActivation` boolean field, set by `SearchBudgetTickParticipant` when `compositeIntensity > config.extremePeak()`:
+
+```java
+public record SearchBudget(
+        double breadth, double laterality, double depth, double convergence,
+        SearchMotivation source, boolean extremeActivation, Instant computedAt) { ... }
+```
+
+`SearchBudgetPromptSection` reads both properties from the MindMap node and selects based on `extremeActivation`:
+
+```java
+String crystallised = budget.extremeActivation()
+    ? readProperty(agentId, tenantId, "extreme-description")
+    : readProperty(agentId, tenantId, "description");
+```
+
+Fallback (no crystallised prose): `renderFromParameters()` gains an extreme-intensity path using `extremeActivation` to select between normal templates (existing) and extreme templates (new degradation-aware descriptions).
 
 ## Quality Tests
 
@@ -338,22 +417,31 @@ The `SearchBudgetPromptSection` at tick time selects the extreme-intensity prose
 ```java
 @Test
 void personality_differentiation_maintained_at_extreme_intensity() {
-    // Grid: 4 personality profiles × 5 intensity levels (0.3, 0.5, 0.7, 0.85, 0.95)
+    // Grid: 3 personality profiles × 5 intensity levels (0.3, 0.5, 0.7, 0.85, 0.95)
+    // Profiles: Bold Explorer, Anxious Worrier, Disciplined Analyst
     // For each pair of profiles at each intensity, compute budget difference
     // Assert: at intensity 0.85+, differentiation >= at intensity 0.5
 }
 
 @Test
 void inverted_u_activates_past_personality_peak() {
-    // neurotic profile (peak ~0.62): activation at 0.8 < activation at 0.6
-    // conscientious profile (peak ~0.93): activation at 0.8 ≈ activation at 0.7
+    // anxious worrier (peak ~0.72): activation at 0.8 < activation at 0.6
+    // bold explorer (peak ~0.95): activation at 0.8 ≈ activation at 0.7
 }
 
 @Test
-void fatigue_reallocation_matches_hockey_predictions() {
-    // After N ticks above peak:
-    // conscientious: depth stable, breadth decreased, convergence increased
-    // neurotic: depth decreased, convergence decreased (blocked)
+void conscientiousness_protects_depth_under_fatigue() {
+    // Disciplined Analyst vs Anxious Worrier: same peak, same ticks above
+    // Disciplined: depth stable, convergence accelerated
+    // Anxious: depth degraded, convergence blocked
+}
+
+@Test
+void fatigue_recovery_differentiates_by_personality() {
+    // After sustained extreme intensity, drop below peak
+    // Low-C (recoveryRate=0.40): fatigueAccumulator decreases by 0.40/tick
+    // High-C (recoveryRate=0.64): fatigueAccumulator decreases by 0.64/tick
+    // After 10 recovery ticks: high-C has recovered meaningfully more
 }
 
 @Test
@@ -365,13 +453,13 @@ void fatigue_recovery_is_gradual_not_instantaneous() {
 @Test
 void impulsivity_laterality_under_fatigue_flagged_speculative() {
     // Validate direction of impulsive laterality effect
-    // Document as speculative per R1-11
+    // Document as speculative per reallocation table
 }
 ```
 
 ### CognitionTestHarness scenario (cognition)
 
-Full-pipeline scenario with different personality profiles at extreme intensity. Assert prompt section renders meaningfully different prose — following the #849 S1 personality differentiation pattern.
+Full-pipeline scenario with different personality profiles at extreme intensity. Assert prompt section renders meaningfully different prose and selects extreme-intensity crystallised description when `extremeActivation` is true. Following the #849 S1 personality differentiation pattern.
 
 ## Module Placement
 
@@ -380,12 +468,21 @@ Full-pipeline scenario with different personality profiles at extreme intensity.
 | `ExtremeInteractionConfig` | cognitive-api | Per-agent config, alongside SearchBudgetConfig |
 | `FatigueConfig` | cognitive-api | Per-agent config, alongside SearchBudgetConfig |
 | `SearchBudgetConfig` changes | cognitive-api | Existing location |
+| `SearchBudget` changes (`extremeActivation`) | cognition-api | Existing location |
 | `activationWithDecay()` | cognition (TickParticipant) | Tick-time computation |
 | `FatigueState` | cognition (TickParticipant) | Per-process transient state |
 | CDE derivation pathways | cognitive-index (CDE) | Alongside existing 14 pathways |
 | Prose generation updates | mindmap-intelligence | Existing SearchBudgetDescriptionGenerationPhase |
 | Quality tests | cognitive-index (test) | Alongside existing SearchBudgetQualityTest |
 | Scenario test | cognition (test) | CognitionTestHarness pattern |
+
+## Deferred Items
+
+Captured as GitHub issues per review protocol:
+
+- **#878** Per-parameter extreme peaks (§Single Peak Simplification)
+- **#879** Separate amplification threshold (§Drive Modulation Scaling)
+- **#880** Shared fatigue substrate with regulation fatigue (§Independence from RegulationFatigueTracker)
 
 ## References
 
