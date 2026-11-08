@@ -113,3 +113,44 @@ FatigueConfig(int maxTicks, double recoveryRate,
 
 **Exploration:** deep-analysis
 **Status:** captured
+
+## D5: Config structure — single peak + two sub-records
+
+**Choice:** One agent-level `extremePeak` on `SearchBudgetConfig` (Yerkes-Dodson arousal tolerance, CDE-derived from anxiousness/emotional lability). Two nullable sub-records:
+- `ExtremeInteractionConfig(depthDecay, breadthDecay, lateralityDecay, convergenceDecay, depthAmplification, breadthAmplification, lateralityAmplification, convergenceAmplification)` — 8 fields
+- `FatigueConfig(maxTicks, recoveryRate, depthEffect, breadthEffect, lateralityEffect, convergenceEffect)` — 6 fields
+
+Total: 1 (peak) + 8 (interaction) + 6 (fatigue) = 15 new fields. SearchBudgetConfig grows from 11 to 14 top-level fields (peak + 2 nullable sub-records).
+
+**Alternatives:**
+- Full per-parameter peaks (4 × peak) — more degrees of freedom than literature supports; Yerkes-Dodson peak is an agent-level property (arousal tolerance), not parameter-specific
+- Flat fields on SearchBudgetConfig — no sub-records, record grows from 11 to 26+ fields, unwieldy
+
+**Rationale:** D3's amplification threshold and D2's peak serve the same purpose — "where extreme behaviour begins." Unifying them as a single agent-level `extremePeak` saves 4 fields and is more accurate: the literature describes arousal tolerance as a personality trait, not as a per-cognitive-parameter property. Nullable sub-records follow the channelModulation precedent — null disables the feature, keeping the defaults path simple.
+
+**Trade-offs:** Single peak means we can't model a personality that peaks early for convergence but late for depth. The literature doesn't predict this level of specificity, so this is acceptable.
+
+**Depends on:** D2 (peak positions), D3 (amplification thresholds), D4 (fatigue config)
+
+**Sources:**
+- Eysenck & Eysenck (1985) — arousal tolerance as personality-level property
+- SearchBudgetConfig.channelModulation pattern — nullable sub-record precedent
+
+**Exploration:** quick
+**Status:** captured
+
+## D6: Builder classes for config records
+
+**Choice:** Add static `builder()` factory methods returning fluent builders for `SearchBudgetConfig`, `ExtremeInteractionConfig`, and `FatigueConfig`. Builders pre-populated with defaults. Records remain immutable — builder is the construction API.
+
+**Rationale:** SearchBudgetConfig grows to 14 constructor args. ExtremeInteractionConfig has 8. Positional constructor calls are unreadable and error-prone at this scale. Builders with defaults mean CDE and YAML parsing only set the fields they need to override.
+
+**Trade-offs:** Three new builder inner classes. Boilerplate, but the alternative (14-arg constructor calls in tests and CDE) is worse.
+
+**Depends on:** D5 (config structure with sub-records)
+
+**Sources:**
+- Existing pattern: no current builder precedent in neocortex config records, but standard Java practice for records with >5 fields
+
+**Exploration:** quick
+**Status:** captured
