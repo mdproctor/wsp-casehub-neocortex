@@ -1,5 +1,4 @@
-_branch=issue-801-remediate-corpus-api-leaks
-_exec_ok:report_init=yes
+_branch=issue-807-entity-renderer-prompt
 report_init=done
 code_review=skipped
 branch_audit_conformance=skipped
