@@ -363,7 +363,7 @@ At intensity 0.8: the bold explorer is below their peak (0.95) — full activati
 
 ## Prose Generation
 
-`SearchBudgetDescriptionGenerationPhase` gains an expanded LLM prompt generating TWO descriptions per agent — normal-range and extreme-intensity — in a single LLM call:
+`SearchBudgetDescriptionGenerationPhase` gains an expanded LLM prompt generating TWO descriptions per agent — normal-range and extreme-intensity — in a single LLM call. **The extreme-intensity prompt section is only included when the agent's `SearchBudgetConfig` has at least one extreme feature enabled** (`extremeInteraction != null || fatigue != null`). When both sub-records are null, the phase generates only `{"description": "..."}` — the existing single-description format, backward-compatible. No `extreme-description` property is stored:
 
 ```
 Describe this agent's cognitive search disposition. Provide two descriptions:
@@ -392,15 +392,20 @@ Examples:
 
 ### Tick-Time Prose Selection
 
-`SearchBudget` gains an `extremeActivation` boolean field, set by `SearchBudgetTickParticipant` when `compositeIntensity > config.extremePeak()`:
+`SearchBudget` gains an `extremeActivation` boolean field, set by `SearchBudgetTickParticipant`. The flag is `true` only when extreme features are enabled AND intensity exceeds the peak — it is never set for agents using default config with null sub-records:
+
+```java
+boolean extremeActivation = (config.extremeInteraction() != null || config.fatigue() != null)
+    && compositeIntensity > config.extremePeak();
+```
 
 ```java
 public record SearchBudget(
         double breadth, double laterality, double depth, double convergence,
-        SearchMotivation source, boolean extremeActivation, Instant computedAt) { ... }
+        SearchMotivation source, boolean extremeActivation, Instant evaluatedAt) { ... }
 ```
 
-`SearchBudgetPromptSection` reads both properties from the MindMap node and selects based on `extremeActivation`:
+`SearchBudgetPromptSection` reads both properties from the MindMap node and selects based on `extremeActivation`. When `extremeActivation` is false (including all default-config agents), the prompt section reads `description` — the normal prose:
 
 ```java
 String crystallised = budget.extremeActivation()
@@ -408,7 +413,7 @@ String crystallised = budget.extremeActivation()
     : readProperty(agentId, tenantId, "description");
 ```
 
-Fallback (no crystallised prose): `renderFromParameters()` gains an extreme-intensity path using `extremeActivation` to select between normal templates (existing) and extreme templates (new degradation-aware descriptions).
+Fallback (no crystallised prose): `renderFromParameters()` gains an extreme-intensity path using `extremeActivation` to select between normal templates (existing) and extreme templates (new degradation-aware descriptions). Since `extremeActivation` is gated on feature enablement, agents with default config always get normal fallback prose.
 
 ## Quality Tests
 
