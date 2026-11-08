@@ -1,12 +1,12 @@
 # Work Plan — signal-propagation-tests
 
+## State
+branch: issue-853-capacity-modulation-function
+state: active
+issue-repo: casehubio/neocortex
+covers: casehubio/neocortex#853
+Current: casehubio/neocortex#791 — TDD-regression-tests-signal-propagation
+date: 2026-11-08
+
 ## Queue
 - [ ] casehubio/neocortex#791 — TDD-regression-tests-signal-propagation ← active
-
-## State
-branch: signal-propagation-tests
-state: scaffolded
-issue-repo: casehubio/neocortex
-covers: casehubio/neocortex#791
-Current: casehubio/neocortex#791 — TDD-regression-tests-signal-propagation
-date: 2026-11-03
