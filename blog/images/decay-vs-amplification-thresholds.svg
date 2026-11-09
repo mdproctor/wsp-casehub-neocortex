@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 300">
+  <style>
+    text { font-family: -apple-system, 'Segoe UI', sans-serif; fill: #333; }
+    .title { font-size: 13px; font-weight: 600; text-anchor: middle; }
+    .label { font-size: 11px; text-anchor: middle; }
+    .axis-label { font-size: 10px; fill: #666; }
+    .curve-label { font-size: 10px; }
+    .annotation { font-size: 9px; fill: #888; font-style: italic; }
+  </style>
+
+  <!-- Left panel: Shared onset -->
+  <g transform="translate(30, 30)">
+    <text x="160" y="-10" class="title">Shared onset</text>
+
+    <!-- Axes -->
+    <line x1="30" y1="220" x2="320" y2="220" stroke="#999" stroke-width="1"/>
+    <line x1="30" y1="220" x2="30" y2="20" stroke="#999" stroke-width="1"/>
+    <text x="175" y="250" class="axis-label" text-anchor="middle">motivation intensity</text>
+    <text x="12" y="120" class="axis-label" text-anchor="middle" transform="rotate(-90, 12, 120)">effect magnitude</text>
+
+    <!-- Shared peak line -->
+    <line x1="210" y1="25" x2="210" y2="220" stroke="#999" stroke-width="1" stroke-dasharray="4,3"/>
+    <text x="210" y="240" class="label" fill="#666">peak</text>
+
+    <!-- Decay curve (blue) — logistic rise then exponential decline -->
+    <path d="M 30,200 C 80,195 130,170 160,120 C 180,80 200,55 210,50 C 220,55 240,80 260,120 C 280,155 300,180 320,190"
+          fill="none" stroke="#4A90D9" stroke-width="2.5"/>
+    <text x="290" y="175" class="curve-label" fill="#4A90D9">decay</text>
+
+    <!-- Amplification curve (orange) — flat then rising from same peak -->
+    <path d="M 30,180 L 210,180 C 230,170 250,150 270,125 C 290,100 310,80 320,65"
+          fill="none" stroke="#E67E22" stroke-width="2.5"/>
+    <text x="305" y="55" class="curve-label" fill="#E67E22">amplification</text>
+
+    <!-- Annotation -->
+    <text x="210" y="15" class="annotation" text-anchor="middle">both activate here</text>
+  </g>
+
+  <!-- Right panel: Separate onset -->
+  <g transform="translate(410, 30)">
+    <text x="160" y="-10" class="title">Separate onset</text>
+
+    <!-- Axes -->
+    <line x1="30" y1="220" x2="320" y2="220" stroke="#999" stroke-width="1"/>
+    <line x1="30" y1="220" x2="30" y2="20" stroke="#999" stroke-width="1"/>
+    <text x="175" y="250" class="axis-label" text-anchor="middle">motivation intensity</text>
+
+    <!-- Amplification threshold line (earlier) -->
+    <line x1="160" y1="25" x2="160" y2="220" stroke="#E67E22" stroke-width="1" stroke-dasharray="4,3"/>
+    <text x="148" y="240" class="label" fill="#E67E22" font-size="9" text-anchor="end">amplification</text>
+    <text x="148" y="252" class="label" fill="#E67E22" font-size="9" text-anchor="end">threshold</text>
+
+    <!-- Decay peak line (later) -->
+    <line x1="230" y1="25" x2="230" y2="220" stroke="#4A90D9" stroke-width="1" stroke-dasharray="4,3"/>
+    <text x="242" y="240" class="label" fill="#4A90D9" font-size="9" text-anchor="start">decay</text>
+    <text x="242" y="252" class="label" fill="#4A90D9" font-size="9" text-anchor="start">peak</text>
+
+    <!-- Decay curve (blue) — activates at later threshold -->
+    <path d="M 30,200 C 80,195 140,170 180,120 C 210,75 225,55 230,50 C 240,55 260,85 280,125 C 300,160 310,180 320,190"
+          fill="none" stroke="#4A90D9" stroke-width="2.5"/>
+    <text x="300" y="178" class="curve-label" fill="#4A90D9">decay</text>
+
+    <!-- Amplification curve (orange) — activates at earlier threshold -->
+    <path d="M 30,180 L 160,180 C 180,170 200,155 220,135 C 240,115 260,95 280,78 C 300,62 310,52 320,45"
+          fill="none" stroke="#E67E22" stroke-width="2.5"/>
+    <text x="305" y="38" class="curve-label" fill="#E67E22">amplification</text>
+
+    <!-- Region annotation -->
+    <rect x="163" y="60" width="64" height="30" rx="3" fill="#FFF3E0" opacity="0.8"/>
+    <text x="195" y="73" class="annotation" text-anchor="middle" fill="#E67E22" font-size="8.5">personality</text>
+    <text x="195" y="84" class="annotation" text-anchor="middle" fill="#E67E22" font-size="8.5">active, no decline</text>
+  </g>
+</svg>

@@ -5,7 +5,7 @@ date: 2026-11-09
 entry_type: article
 subtype: diary
 projects: [casehubio/neocortex]
-tags: [cognitive-architecture, personality, search-budget, literature-grounded, yerkes-dodson, task-complexity]
+tags: [cognitive-architecture, personality, search-budget, literature-grounded, yerkes-dodson, task-complexity, amplification-threshold]
 series: issue-839-search-budget-situational-strength
 ---
 
@@ -99,14 +99,71 @@ For a concrete example: an anxious worrier (anxiousness 0.8, emotional lability 
 
 That ordering is the point. Under rising pressure, this agent loses creative leaps first, then depth of reasoning, and keeps the ability to commit and scan until later. A disciplined agent (conscientiousness 0.825) gets depthPeak 0.75 and convergencePeak 0.79 — discipline pushes both parameters higher, extending the window before they degrade.
 
+## But Personality Doesn't Wait for Decline
+
+Per-parameter peaks separate *when each dimension's raw performance starts to degrade*. Creative association goes first, focus holds longest. The Yerkes-Dodson ordering makes structural sense.
+
+But the decay curve isn't the only thing keyed to these thresholds. A second function sits on the same trigger:
+
+```java
+static double modulationScale(double amplificationRate, double intensity, double peak) {
+    double scale = 1.0 + amplificationRate * Math.max(0.0, intensity - peak);
+    return Math.max(-1.0, scale);
+}
+```
+
+Past the peak, `modulationScale` starts scaling drive modulations. A curiosity-driven agent's breadth bonus grows past its baseline magnitude (positive amplification) or compresses toward zero (negative amplification). This is the personality-expression path — how strongly dispositional patterns color the cognitive budget under pressure.
+
+Until now, both functions shared the same onset. The point where depth performance started declining was also the point where depth modulations started scaling. That conflation makes an implicit claim: personality expression activates at the same intensity as cognitive degradation.
+
+It shouldn't.
+
+Performance decline is involuntary — the cognitive system hitting its limits under overload. Amplification is behavioral — the personality leaning harder into its signature patterns. A conscientious agent doesn't wait until it's cognitively failing to start expressing conscientiousness. The discipline is already active at moderate arousal, shaping how deeply and how systematically the agent searches, well before the inverted-U turns downward.
+
+![Shared vs separate thresholds](images/decay-vs-amplification-thresholds.svg)
+
+The left panel shows the old model: one threshold, both curves activating together. Past the peak, performance declines and personality modulations scale simultaneously. The right panel shows the new model: the amplification threshold sits lower than the decay peak. Personality expression begins while performance is still climbing. There's a window — marked in the diagram — where the agent's personality is actively shaping its cognitive budget but raw performance hasn't yet started to degrade.
+
+The implementation is one nullable field on `ExtremeInteractionConfig`:
+
+```java
+Double amplificationThreshold
+```
+
+Each compute method resolves a separate threshold for `modulationScale`:
+
+```java
+double ampThreshold = ext != null
+    ? ext.amplificationThresholdOrDefault(peak) : peak;
+double scale = modulationScale(
+    ext != null ? ext.breadthAmplification() : 0.0,
+    intensity, ampThreshold);
+```
+
+When `amplificationThreshold` is null — the default — the existing behavior holds: amplification and decay share the per-parameter peak. When set, amplification activates at a different intensity than decay.
+
+The derivation is one line from conscientiousness:
+
+```
+amplificationThreshold = clamp(extremePeak − conscientiousness × 0.1, [0.5, 0.95])
+```
+
+Higher conscientiousness lowers the threshold. A disciplined agent (conscientiousness 0.825) gets an amplification threshold roughly 0.08 below its global peak — personality modulations kick in while raw performance is still at full strength. A low-conscientiousness agent gets a threshold barely below its peak — personality expression and performance decline are nearly simultaneous.
+
+This makes psychological sense. Conscientiousness is a well-practiced, stable behavioral pattern. Under moderate pressure, the disciplined agent doesn't suddenly become disciplined — it already was. The amplification threshold captures this: the personality's influence on the cognitive budget starts scaling before the system is overloaded, because the behavioral repertoire that conscientiousness represents is available at lower activation levels than the cognitive limit that Yerkes-Dodson describes.
+
 ## Why This Matters
 
-The per-parameter peak distinction matters for anyone building cognitive agents, not just this codebase. The question is whether your agent's cognitive degradation under stress is *uniform* or *structured*.
+The per-parameter peaks and the amplification threshold together form a two-layer model of cognitive degradation under stress.
 
-Uniform degradation is easy to implement and easy to reason about, but it produces agents that lose every cognitive faculty simultaneously. An agent under pressure becomes generically worse — less creative, less deep, less focused, less decisive, all at the same rate. The result is a personality that fades to grey under load.
+**Layer one:** different cognitive operations degrade at different intensities. Laterality goes first, convergence last. The Yerkes-Dodson task-complexity effect.
 
-Structured degradation produces agents that compensate. Under rising arousal, creative association goes first — the agent stops making lateral leaps. But depth holds, convergence holds, scanning holds. As pressure increases further, depth starts to degrade while convergence remains. The agent narrows its cognitive repertoire rather than dimming uniformly. It becomes less creative but more decisive. Less exploratory but more focused.
+**Layer two:** personality expression and performance decline have different onsets. A conscientious agent starts expressing its depth bonuses while performance is still climbing. The personality isn't waiting for failure — it's responding to rising demand.
 
-That pattern — losing the complex faculties first while retaining the simple ones — is what the Yerkes-Dodson task-complexity effect predicts. It's what Hockey's Compensatory Control Model describes. And it's what makes cognitive agents feel like they're experiencing pressure rather than running a global discount on all their capabilities.
+Uniform degradation is easy to implement, but it produces agents that lose every cognitive faculty simultaneously while their personality sits dormant until the exact moment things start failing. The agent under pressure becomes generically worse — less creative, less deep, less focused, less decisive — with no compensatory restructuring.
 
-The practical cost was four nullable fields, four resolution methods, and four lines in the derivation engine. The structural cost was zero — the `activationWithDecay` function already takes `peak` as a parameter. Each compute method was already looking it up; we just changed *where* it looked.
+Structured degradation produces agents that compensate. Under rising arousal, creative association goes first — the agent stops making lateral leaps. But depth holds, convergence holds, scanning holds. Personality modulations are already active, steering the budget toward the agent's strengths. As pressure increases further, depth starts to degrade while convergence remains. The agent narrows its cognitive repertoire rather than dimming uniformly. It becomes less creative but more decisive. Less exploratory but more focused.
+
+That pattern — personality responding to demand before performance hits its ceiling, then complex faculties degrading before simple ones — is what the literature predicts. Hockey's Compensatory Control Model describes performance protection through selective resource allocation. The Yerkes-Dodson task-complexity effect describes differential decline rates across cognitive operations. And personality psychology consistently finds that stable traits like conscientiousness manifest under moderate challenge, not only at extremes.
+
+The practical cost across both features: four nullable peak fields, one nullable threshold, five resolution methods, and one derivation formula. The structural cost was zero — `activationWithDecay` and `modulationScale` already took their thresholds as parameters. Each compute method was already resolving a peak; we just gave the two functions different places to look.
