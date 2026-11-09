@@ -2,29 +2,20 @@
 
 ## Last Session
 
-Completed the intelligence capacity layer (#840) — all 4 batches, 6 tasks. Merged slot 211 into canonical main (`~/claude/casehub/neocortex`) as `00620ccf` — 144 files, ~20k lines covering the full cognitive exploration epic (#841). Created #900 (capacity fidelity testing) and #901 (test fix, closed). Revised blog with prose composition model, verification section, and practical takeaways. Fixed pre-existing EmotionRegulationGenerationPhaseTest failure (#901).
+Completed #865 (migrate cognitive tests to CognitionTestHarness). Migrated 3 test files (12 tests) to use `CognitionTestHarness.builder()`:
+- `SearchBudgetPathologicalThresholdTest` (4 tests) — replaced manual mock wiring with `withAppraisalResult()` + `withHabituationState()`
+- `ContinuumRenderingTest` (7 tests) — replaced manual prompt section construction with `setContinuumPosition()` + `renderPrompt()`
+- `RecurringThoughtIntegrationTest.scorerToRenderingPipeline` — migrated to harness consolidation pipeline
+
+Enhanced `CognitionTestHarness.Builder` with `withAppraisalResult(agentId, AppraisalResult)` for injecting specific appraisal state. Left `CuriosityDriveTest` and `CuriosityQualityTest` as component-level unit tests (they test individual components directly, not the pipeline). Landed as `e3e32759` on main, pushed to upstream, #865 closed.
 
 ## Immediate Next Step
 
-`work continue 865` — migrate four test classes to CognitionTestHarness.
+`work continue` — start #866 (Empirical quality testing). This is L/High and needs brainstorming + a .plan before implementation.
 
-## Issue Scaffolds
+## Remaining Work
 
-### #865 — Migrate cognitive tests to CognitionTestHarness (S / Low)
-
-**What:** Replace manual store + component wiring with `CognitionTestHarness.builder()` in four test classes.
-
-**Migration candidates:**
-1. `RecurringThoughtIntegrationTest` — manual store + scorer wiring → `builder().withConsolidationEnabled(true).agentFromDefaults(...)`
-2. `SearchBudgetPathologicalThresholdTest` — manual participant + registry wiring → `builder().withHabituationState(...).agentFromDefaults(...)`
-3. `CuriosityDriveTest` / `CuriosityQualityTest` — manual store + drive wiring → `builder().withMindMapStore(store).agentFromDefaults(...)`
-4. `ContinuumRenderingTest` — manual prompt section + continuum wiring → `builder().agentFromDefaults(...)` + `setContinuumPosition()`
-
-**Pattern:** Each test currently constructs stores, registries, orchestrators, and participants by hand. The harness provides all of this via builder defaults. The migration replaces construction boilerplate with builder calls while preserving the test assertions.
-
-**Verify:** All migrated tests still pass. Run full `mvn test -pl cognition`.
-
-### #866 — Empirical quality testing (L / High)
+### #866 — Empirical quality testing (L / High) ← NEXT
 
 **What:** LLM-judged evaluation across all exploration subsystems. Not "did the value change?" (Tier 2 — already done in #849) but "did the LLM behave differently?" (Tier 3+).
 
@@ -75,24 +66,21 @@ Completed the intelligence capacity layer (#840) — all 4 batches, 6 tasks. Mer
 
 ## State
 
-- Branch: `issue-802-hortora-corpus-extraction` (slot main merged)
-- Canonical: `~/claude/casehub/neocortex` at `00620ccf` — up to date with full epic
-- Queue: #865 active, then #866, #900
+- Branch: main (clean)
+- Upstream: pushed to `e3e32759`
+- Queue: #866 active, then #900
 - All builds green (except pre-existing schema-generator failure)
-- Blog revised and open in Typora
+- `docs/specs/issue-802-hortora-corpus-extraction/` untracked directory on main (pre-existing, not part of current work)
 
 ## References
 
-- `specs/issue-840-intelligence-capacity/2026-11-09-intelligence-capacity-layer-design.md` — reviewed spec
-- `specs/issue-840-intelligence-capacity/decisions.md` — 8 design decisions
-- `plans/2026-11-09-intelligence-capacity-layer.md` — implementation plan (complete)
-- `blog/2026-11-09-mdp02-wanting-to-think-vs-being-able.md` — revised diary entry
-- `docs/research/2026-11-05-post-era6-regulation-and-identity.md` — updated with #840 progress
+- `cognition/src/test/java/.../eval/CognitionTestHarness.java` — enhanced with `withAppraisalResult()`
+- `cognition/src/test/java/.../eval/CognitiveExplorationScenarioTest.java` — Tier 2 structural tests (S1-S5)
+- `caps-llm-classifier/src/test/java/.../eval/CognitiveInfluenceEvalTest.java` — Tier 3 pattern to follow for #866
+- `caps-llm-classifier/src/test/java/.../eval/EvalLlmJudge.java` — judge infrastructure
 - Deferred issues: #890 (learning rate modulation), #891 (convergence ceiling), #892 (capacity→appraisal frustration)
-- GitHub: #900 (capacity fidelity), #901 (test fix, closed)
 
 ## Warnings
 
 - `schema-generator` module has a pre-existing build failure (Jackson 3 `tools.jackson.databind.node.ObjectNode` not found)
-- Canonical was squash-merged (not rebased per-commit) due to significant divergence between slot and upstream — 48 commits with conflicts across corpus-management
-- Slot's `issue-802-hortora-corpus-extraction` branch still exists; slot main is ahead of upstream/main
+- `work.py` has a bug (`_sync_queue_branch_script` not defined) — `work continue` routing fails; work around by creating branches manually

@@ -20,6 +20,6 @@ flyway-next-v: unknown
 - [x] casehubio/neocortex#849 — CognitionTestHarness + scenario tests
 - [x] casehubio/neocortex#839 — Personality at extreme intensity
 - [x] casehubio/neocortex#840 — Intelligence capacity layer
-- [ ] casehubio/neocortex#865 — Migrate cognitive tests to CognitionTestHarness ← active
-- [ ] casehubio/neocortex#866 — Empirical quality testing
+- [x] casehubio/neocortex#865 — Migrate cognitive tests to CognitionTestHarness
+- [ ] casehubio/neocortex#866 — Empirical quality testing ← active
 - [ ] casehubio/neocortex#900 — Capacity fidelity testing
