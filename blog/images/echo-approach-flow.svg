@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 400" font-family="system-ui, -apple-system, sans-serif">
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#64748b"/>
+    </marker>
+  </defs>
+
+  <text x="360" y="28" text-anchor="middle" font-size="14" font-weight="600" fill="#1e293b">The Echo Approach</text>
+
+  <!-- Step 1: Cognitive State -->
+  <rect x="40" y="50" width="180" height="90" rx="8" fill="#ede9fe" stroke="#a78bfa" stroke-width="1.5"/>
+  <text x="130" y="75" text-anchor="middle" font-size="12" font-weight="600" fill="#4c1d95">Cognitive State</text>
+  <text x="130" y="95" text-anchor="middle" font-size="10" fill="#475569">Personality profile</text>
+  <text x="130" y="110" text-anchor="middle" font-size="10" fill="#475569">Capacity ceilings</text>
+  <text x="130" y="125" text-anchor="middle" font-size="10" fill="#475569">Mood, drives, continuum</text>
+
+  <!-- Step 2: Rendered Description -->
+  <rect x="270" y="50" width="180" height="90" rx="8" fill="#e0f2fe" stroke="#7dd3fc" stroke-width="1.5"/>
+  <text x="360" y="75" text-anchor="middle" font-size="12" font-weight="600" fill="#0c4a6e">Prompt Rendering</text>
+  <text x="360" y="95" text-anchor="middle" font-size="10" fill="#475569">"Your attention narrows..."</text>
+  <text x="360" y="110" text-anchor="middle" font-size="10" fill="#475569">"Earlier links start to blur..."</text>
+  <text x="360" y="125" text-anchor="middle" font-size="10" fill="#475569">"You keep circling back..."</text>
+
+  <!-- Step 3: LLM Behaviour -->
+  <rect x="500" y="50" width="180" height="90" rx="8" fill="#dcfce7" stroke="#4ade80" stroke-width="1.5"/>
+  <text x="590" y="75" text-anchor="middle" font-size="12" font-weight="600" fill="#14532d">LLM Behaviour</text>
+  <text x="590" y="95" text-anchor="middle" font-size="10" fill="#475569">Character responds</text>
+  <text x="590" y="110" text-anchor="middle" font-size="10" fill="#475569">in character, shaped</text>
+  <text x="590" y="125" text-anchor="middle" font-size="10" fill="#475569">by the self-description</text>
+
+  <!-- Arrows -->
+  <line x1="220" y1="95" x2="268" y2="95" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="450" y1="95" x2="498" y2="95" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- The question -->
+  <rect x="120" y="180" width="480" height="50" rx="8" fill="#fff7ed" stroke="#fb923c" stroke-width="1.5"/>
+  <text x="360" y="205" text-anchor="middle" font-size="13" font-weight="600" fill="#9a3412">Does the description actually change the behaviour?</text>
+  <text x="360" y="220" text-anchor="middle" font-size="11" fill="#78350f">Or does the LLM ignore it and reason at full capability regardless?</text>
+
+  <!-- Two outcomes -->
+  <rect x="80" y="270" width="240" height="100" rx="8" fill="#fef2f2" stroke="#f87171" stroke-width="1.5"/>
+  <text x="200" y="295" text-anchor="middle" font-size="12" font-weight="600" fill="#991b1b">Compliance</text>
+  <text x="200" y="315" text-anchor="middle" font-size="10" fill="#475569">LLM stops mid-chain because</text>
+  <text x="200" y="330" text-anchor="middle" font-size="10" fill="#475569">a rule told it to stop.</text>
+  <text x="200" y="350" text-anchor="middle" font-size="10" fill="#991b1b">Robotic. Not what we want.</text>
+
+  <rect x="400" y="270" width="240" height="100" rx="8" fill="#dcfce7" stroke="#4ade80" stroke-width="1.5"/>
+  <text x="520" y="295" text-anchor="middle" font-size="12" font-weight="600" fill="#14532d">Fidelity</text>
+  <text x="520" y="315" text-anchor="middle" font-size="10" fill="#475569">LLM gradually loses coherence</text>
+  <text x="520" y="330" text-anchor="middle" font-size="10" fill="#475569">as described — earlier steps blur,</text>
+  <text x="520" y="350" text-anchor="middle" font-size="10" fill="#475569">uncertainty grows naturally.</text>
+
+  <!-- Arrow down -->
+  <line x1="360" y1="230" x2="200" y2="268" stroke="#64748b" stroke-width="1" marker-end="url(#arr)"/>
+  <line x1="360" y1="230" x2="520" y2="268" stroke="#64748b" stroke-width="1" marker-end="url(#arr)"/>
+</svg>

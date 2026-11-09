@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 280" width="700" height="280" font-family="Helvetica, Arial, sans-serif">
+  <rect width="700" height="280" fill="#fff"/>
+
+  <!-- Integration layer (dashed, behind components) -->
+  <rect x="20" y="16" width="660" height="120" rx="10" ry="10"
+        fill="#fff5f5" stroke="#c0392b" stroke-width="2" stroke-dasharray="8 4"/>
+  <text x="350" y="42" text-anchor="middle" font-size="13" font-weight="bold" fill="#c0392b">Pipeline Integration</text>
+  <text x="630" y="90" text-anchor="middle" font-size="36" fill="#e74c3c" font-weight="bold">?</text>
+
+  <!-- Component boxes -->
+  <g transform="translate(40, 60)">
+    <rect width="110" height="56" rx="6" ry="6" fill="#f0faf0" stroke="#27ae60" stroke-width="2"/>
+    <text x="55" y="30" text-anchor="middle" font-size="11" font-weight="bold" fill="#2c3e50">Curiosity</text>
+    <text x="55" y="44" text-anchor="middle" font-size="11" font-weight="bold" fill="#2c3e50">Drive</text>
+  </g>
+  <g transform="translate(168, 60)">
+    <rect width="110" height="56" rx="6" ry="6" fill="#f0faf0" stroke="#27ae60" stroke-width="2"/>
+    <text x="55" y="30" text-anchor="middle" font-size="11" font-weight="bold" fill="#2c3e50">Search</text>
+    <text x="55" y="44" text-anchor="middle" font-size="11" font-weight="bold" fill="#2c3e50">Budget</text>
+  </g>
+  <g transform="translate(296, 60)">
+    <rect width="110" height="56" rx="6" ry="6" fill="#f0faf0" stroke="#27ae60" stroke-width="2"/>
+    <text x="55" y="30" text-anchor="middle" font-size="11" font-weight="bold" fill="#2c3e50">Recurring</text>
+    <text x="55" y="44" text-anchor="middle" font-size="11" font-weight="bold" fill="#2c3e50">Thought</text>
+  </g>
+  <g transform="translate(424, 60)">
+    <rect width="110" height="56" rx="6" ry="6" fill="#f0faf0" stroke="#27ae60" stroke-width="2"/>
+    <text x="55" y="30" text-anchor="middle" font-size="11" font-weight="bold" fill="#2c3e50">Prompt</text>
+    <text x="55" y="44" text-anchor="middle" font-size="11" font-weight="bold" fill="#2c3e50">Section</text>
+  </g>
+  <g transform="translate(552, 60)">
+    <rect width="110" height="56" rx="6" ry="6" fill="#f0faf0" stroke="#27ae60" stroke-width="2"/>
+    <text x="55" y="30" text-anchor="middle" font-size="11" font-weight="bold" fill="#2c3e50">Cognition</text>
+    <text x="55" y="44" text-anchor="middle" font-size="11" font-weight="bold" fill="#2c3e50">Core</text>
+  </g>
+
+  <!-- Green checkmarks on each component -->
+  <text x="130" y="80" font-size="16" fill="#27ae60">&#x2713;</text>
+  <text x="258" y="80" font-size="16" fill="#27ae60">&#x2713;</text>
+  <text x="386" y="80" font-size="16" fill="#27ae60">&#x2713;</text>
+  <text x="514" y="80" font-size="16" fill="#27ae60">&#x2713;</text>
+  <text x="642" y="80" font-size="16" fill="#27ae60">&#x2713;</text>
+
+  <!-- Arrows between components -->
+  <line x1="150" y1="88" x2="168" y2="88" stroke="#bdc3c7" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="278" y1="88" x2="296" y2="88" stroke="#bdc3c7" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="406" y1="88" x2="424" y2="88" stroke="#bdc3c7" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="534" y1="88" x2="552" y2="88" stroke="#bdc3c7" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="none" stroke="#bdc3c7" stroke-width="1.2"/>
+    </marker>
+  </defs>
+
+  <!-- Bottom tier labels -->
+  <rect x="20" y="156" width="320" height="108" rx="8" ry="8" fill="#f7faf7" stroke="#27ae60" stroke-width="1.5"/>
+  <text x="180" y="178" text-anchor="middle" font-size="12" font-weight="bold" fill="#27ae60">Tier 1 — Unit Tests</text>
+  <text x="180" y="196" text-anchor="middle" font-size="11" fill="#555">"Does each component compute correctly?"</text>
+  <text x="180" y="216" text-anchor="middle" font-size="10" fill="#888">CuriosityDriveTest, RecurringThoughtScorer,</text>
+  <text x="180" y="230" text-anchor="middle" font-size="10" fill="#888">SearchBudgetTickParticipant, CuriosityQualityTest</text>
+  <text x="180" y="252" text-anchor="middle" font-size="13" font-weight="bold" fill="#27ae60">701 tests &#x2713;</text>
+
+  <rect x="360" y="156" width="320" height="108" rx="8" ry="8" fill="#fff8f5" stroke="#e67e22" stroke-width="1.5" stroke-dasharray="6 3"/>
+  <text x="520" y="178" text-anchor="middle" font-size="12" font-weight="bold" fill="#d35400">Tier 2+ — Pipeline Behaviour</text>
+  <text x="520" y="196" text-anchor="middle" font-size="11" fill="#555">"Does an anxious agent narrow its search</text>
+  <text x="520" y="210" text-anchor="middle" font-size="11" fill="#555">when surprised?"</text>
+  <text x="520" y="236" text-anchor="middle" font-size="10" fill="#888">Requires full pipeline wiring, multi-tick</text>
+  <text x="520" y="250" text-anchor="middle" font-size="10" fill="#888">execution, personality-differentiated agents</text>
+</svg>

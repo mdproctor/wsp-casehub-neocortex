@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 300" width="600" height="300" font-family="Arial, Helvetica, sans-serif">
+  <defs>
+    <style>
+      .header { font-size: 11px; font-weight: bold; fill: #333; }
+      .row-label { font-size: 10px; fill: #444; }
+      .cell-active { fill: rgba(74, 144, 217, 0.30); stroke: #ccc; stroke-width: 0.5; }
+      .cell-inactive { fill: #F0F0F0; stroke: #ccc; stroke-width: 0.5; }
+      .check { font-size: 13px; fill: #2D6EB5; font-weight: bold; }
+    </style>
+  </defs>
+
+  <!-- Column headers -->
+  <text x="295" y="22" text-anchor="middle" class="header">MindMap</text>
+  <text x="355" y="22" text-anchor="middle" class="header">Drives</text>
+  <text x="425" y="22" text-anchor="middle" class="header">Search</text>
+  <text x="425" y="34" text-anchor="middle" style="font-size:10px; fill:#333;">Budget</text>
+  <text x="497" y="22" text-anchor="middle" class="header">Consoli-</text>
+  <text x="497" y="34" text-anchor="middle" style="font-size:10px; fill:#333;">dation</text>
+  <text x="565" y="22" text-anchor="middle" class="header">Prompt</text>
+  <text x="565" y="34" text-anchor="middle" style="font-size:10px; fill:#333;">Render</text>
+
+  <!-- Row 1: S1 Personality Differentiation -->
+  <text x="10" y="62" class="row-label">S1  Personality Differentiation</text>
+  <rect x="265" y="44" width="60" height="28" class="cell-inactive"/>
+  <rect x="327" y="44" width="60" height="28" class="cell-active"/>
+  <text x="357" y="63" text-anchor="middle" class="check">&#x2713;</text>
+  <rect x="389" y="44" width="70" height="28" class="cell-active"/>
+  <text x="424" y="63" text-anchor="middle" class="check">&#x2713;</text>
+  <rect x="461" y="44" width="70" height="28" class="cell-inactive"/>
+  <rect x="533" y="44" width="60" height="28" class="cell-active"/>
+  <text x="563" y="63" text-anchor="middle" class="check">&#x2713;</text>
+
+  <!-- Row 2: S2 Goal-Directed Exploration -->
+  <text x="10" y="102" class="row-label">S2  Goal-Directed Exploration</text>
+  <rect x="265" y="84" width="60" height="28" class="cell-active"/>
+  <text x="295" y="103" text-anchor="middle" class="check">&#x2713;</text>
+  <rect x="327" y="84" width="60" height="28" class="cell-active"/>
+  <text x="357" y="103" text-anchor="middle" class="check">&#x2713;</text>
+  <rect x="389" y="84" width="70" height="28" class="cell-inactive"/>
+  <rect x="461" y="84" width="70" height="28" class="cell-inactive"/>
+  <rect x="533" y="84" width="60" height="28" class="cell-active"/>
+  <text x="563" y="103" text-anchor="middle" class="check">&#x2713;</text>
+
+  <!-- Row 3: S3 Recurring Thought Escalation -->
+  <text x="10" y="142" class="row-label">S3  Recurring Thought Escalation</text>
+  <rect x="265" y="124" width="60" height="28" class="cell-active"/>
+  <text x="295" y="143" text-anchor="middle" class="check">&#x2713;</text>
+  <rect x="327" y="124" width="60" height="28" class="cell-active"/>
+  <text x="357" y="143" text-anchor="middle" class="check">&#x2713;</text>
+  <rect x="389" y="124" width="70" height="28" class="cell-inactive"/>
+  <rect x="461" y="124" width="70" height="28" class="cell-active"/>
+  <text x="497" y="143" text-anchor="middle" class="check">&#x2713;</text>
+  <rect x="533" y="124" width="60" height="28" class="cell-active"/>
+  <text x="563" y="143" text-anchor="middle" class="check">&#x2713;</text>
+
+  <!-- Row 4: S4 Curiosity Channel Shifts -->
+  <text x="10" y="182" class="row-label">S4  Curiosity Channel Shifts</text>
+  <rect x="265" y="164" width="60" height="28" class="cell-active"/>
+  <text x="295" y="183" text-anchor="middle" class="check">&#x2713;</text>
+  <rect x="327" y="164" width="60" height="28" class="cell-active"/>
+  <text x="357" y="183" text-anchor="middle" class="check">&#x2713;</text>
+  <rect x="389" y="164" width="70" height="28" class="cell-active"/>
+  <text x="424" y="183" text-anchor="middle" class="check">&#x2713;</text>
+  <rect x="461" y="164" width="70" height="28" class="cell-inactive"/>
+  <rect x="533" y="164" width="60" height="28" class="cell-active"/>
+  <text x="563" y="183" text-anchor="middle" class="check">&#x2713;</text>
+
+  <!-- Row 5: S5 Convergence Collapse -->
+  <text x="10" y="222" class="row-label">S5  Convergence Collapse</text>
+  <rect x="265" y="204" width="60" height="28" class="cell-inactive"/>
+  <rect x="327" y="204" width="60" height="28" class="cell-active"/>
+  <text x="357" y="223" text-anchor="middle" class="check">&#x2713;</text>
+  <rect x="389" y="204" width="70" height="28" class="cell-active"/>
+  <text x="424" y="223" text-anchor="middle" class="check">&#x2713;</text>
+  <rect x="461" y="204" width="70" height="28" class="cell-active"/>
+  <text x="497" y="223" text-anchor="middle" class="check">&#x2713;</text>
+  <rect x="533" y="204" width="60" height="28" class="cell-active"/>
+  <text x="563" y="223" text-anchor="middle" class="check">&#x2713;</text>
+
+  <!-- Divider line between header and rows -->
+  <line x1="265" y1="40" x2="593" y2="40" stroke="#999" stroke-width="1"/>
+
+  <!-- Divider line between labels and grid -->
+  <line x1="262" y1="40" x2="262" y2="232" stroke="#999" stroke-width="1"/>
+</svg>
