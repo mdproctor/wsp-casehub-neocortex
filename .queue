@@ -1,7 +1,7 @@
 # Work Plan — Work Plan —
 
 ## State
-branch: main
+branch: issue-802-hortora-corpus-extraction
 issue-repo: casehubio/neocortex
 status: active
 covers: 841
@@ -20,5 +20,15 @@ flyway-next-v: unknown
 - [x] casehubio/neocortex#849 — CognitionTestHarness + scenario tests
 - [x] casehubio/neocortex#839 — Personality at extreme intensity
 - [ ] casehubio/neocortex#840 — Intelligence capacity layer ← active
+  - [ ] Batch 1: Type Foundation
+    - [ ] Task 1: CognitiveCapacityConfig + CognitiveDefaults field 21
+    - [ ] Task 2: SearchBudget fields 8-11
+  - [ ] Batch 2: CDE Derivation
+    - [ ] Task 3: Jungian capacity derivation + quality tests
+  - [ ] Batch 3: Pipeline Ceiling
+    - [ ] Task 4: Capacity ceiling + gap signal + quality tests
+  - [ ] Batch 4: Prose & Scenario
+    - [ ] Task 5: Unified prose generation + composition
+    - [ ] Task 6: CognitionTestHarness capacity scenario
 - [ ] casehubio/neocortex#865 — Migrate cognitive tests to CognitionTestHarness
 - [ ] casehubio/neocortex#866 — Empirical quality testing
