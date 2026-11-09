@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 320">
+  <defs>
+    <style>
+      text { font-family: 'Inter', 'Helvetica Neue', sans-serif; }
+      .box { rx: 6; ry: 6; stroke-width: 1.5; }
+      .input-box { fill: #eff6ff; stroke: #93c5fd; }
+      .process-box { fill: #f0fdf4; stroke: #86efac; }
+      .output-box { fill: #fef3c7; stroke: #fcd34d; }
+      .box-label { font-size: 11px; fill: #333; font-weight: 500; }
+      .box-detail { font-size: 9.5px; fill: #666; }
+      .arrow { stroke: #888; stroke-width: 1.2; fill: none; marker-end: url(#arrowhead); }
+      .section-label { font-size: 10px; fill: #999; font-weight: 600; letter-spacing: 0.5px; }
+    </style>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#888"/>
+    </marker>
+  </defs>
+
+  <!-- Section labels -->
+  <text x="100" y="18" text-anchor="middle" class="section-label">PERSONALITY FACETS</text>
+  <text x="340" y="18" text-anchor="middle" class="section-label">DERIVATION</text>
+  <text x="570" y="18" text-anchor="middle" class="section-label">PER-PARAMETER PEAKS</text>
+
+  <!-- Input boxes -->
+  <rect x="20" y="35" width="160" height="36" class="box input-box"/>
+  <text x="100" y="50" text-anchor="middle" class="box-label">Anxiousness</text>
+  <text x="100" y="63" text-anchor="middle" class="box-detail">PID-5 facet [0,1]</text>
+
+  <rect x="20" y="85" width="160" height="36" class="box input-box"/>
+  <text x="100" y="100" text-anchor="middle" class="box-label">Emotional Lability</text>
+  <text x="100" y="113" text-anchor="middle" class="box-detail">PID-5 facet [0,1]</text>
+
+  <rect x="20" y="145" width="160" height="36" class="box input-box"/>
+  <text x="100" y="160" text-anchor="middle" class="box-label">Openness</text>
+  <text x="100" y="173" text-anchor="middle" class="box-detail">composite from W, IA, S</text>
+
+  <rect x="20" y="195" width="160" height="36" class="box input-box"/>
+  <text x="100" y="210" text-anchor="middle" class="box-label">Conscientiousness</text>
+  <text x="100" y="223" text-anchor="middle" class="box-detail">composite from RF, I</text>
+
+  <!-- Global peak derivation -->
+  <rect x="240" y="55" width="200" height="52" class="box process-box"/>
+  <text x="340" y="72" text-anchor="middle" class="box-label">Global extremePeak</text>
+  <text x="340" y="86" text-anchor="middle" class="box-detail">0.85 − anx×0.3 − lability×0.2</text>
+  <text x="340" y="99" text-anchor="middle" class="box-detail">clamped [0.5, 0.95]</text>
+
+  <!-- Arrows from inputs to global peak -->
+  <path d="M180,53 L238,75" class="arrow"/>
+  <path d="M180,103 L238,82" class="arrow"/>
+
+  <!-- Per-parameter derivation boxes -->
+  <rect x="240" y="130" width="200" height="36" class="box process-box"/>
+  <text x="340" y="145" text-anchor="middle" class="box-label">peak − 0.1 + open×0.08</text>
+  <text x="340" y="158" text-anchor="middle" class="box-detail">creative assoc. peaks earliest</text>
+
+  <rect x="240" y="175" width="200" height="36" class="box process-box"/>
+  <text x="340" y="190" text-anchor="middle" class="box-label">peak + open×0.05</text>
+  <text x="340" y="203" text-anchor="middle" class="box-detail">scanning more resilient</text>
+
+  <rect x="240" y="220" width="200" height="36" class="box process-box"/>
+  <text x="340" y="235" text-anchor="middle" class="box-label">peak − 0.05 + consc×0.1</text>
+  <text x="340" y="248" text-anchor="middle" class="box-detail">protected by discipline</text>
+
+  <rect x="240" y="265" width="200" height="36" class="box process-box"/>
+  <text x="340" y="280" text-anchor="middle" class="box-label">peak + consc×0.08</text>
+  <text x="340" y="293" text-anchor="middle" class="box-detail">enhanced by discipline</text>
+
+  <!-- Arrows from facets to per-parameter boxes -->
+  <path d="M180,163 L238,148" class="arrow"/>
+  <path d="M180,163 L238,193" class="arrow"/>
+  <path d="M180,213 L238,238" class="arrow"/>
+  <path d="M180,213 L238,283" class="arrow"/>
+
+  <!-- Arrow from global peak down to per-parameter boxes -->
+  <path d="M340,107 L340,128" class="arrow"/>
+
+  <!-- Output boxes -->
+  <rect x="480" y="130" width="180" height="30" class="box output-box"/>
+  <text x="570" y="150" text-anchor="middle" class="box-label">lateralityPeak</text>
+
+  <rect x="480" y="175" width="180" height="30" class="box output-box"/>
+  <text x="570" y="195" text-anchor="middle" class="box-label">breadthPeak</text>
+
+  <rect x="480" y="220" width="180" height="30" class="box output-box"/>
+  <text x="570" y="240" text-anchor="middle" class="box-label">depthPeak</text>
+
+  <rect x="480" y="265" width="180" height="30" class="box output-box"/>
+  <text x="570" y="285" text-anchor="middle" class="box-label">convergencePeak</text>
+
+  <!-- Arrows to output -->
+  <path d="M440,148 L478,145" class="arrow"/>
+  <path d="M440,193 L478,190" class="arrow"/>
+  <path d="M440,238 L478,235" class="arrow"/>
+  <path d="M440,283 L478,280" class="arrow"/>
+</svg>

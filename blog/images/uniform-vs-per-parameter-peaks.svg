@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 340">
+  <defs>
+    <style>
+      text { font-family: 'Inter', 'Helvetica Neue', sans-serif; }
+      .axis { stroke: #555; stroke-width: 1.5; }
+      .label { font-size: 11px; fill: #555; }
+      .title { font-size: 13px; fill: #333; font-weight: 600; }
+      .curve { fill: none; stroke-width: 2.2; }
+      .peak-line { stroke-dasharray: 5,4; stroke-width: 1.2; }
+      .legend { font-size: 10px; fill: #444; }
+    </style>
+  </defs>
+
+  <!-- Left panel: Uniform peak -->
+  <text x="170" y="22" text-anchor="middle" class="title">Uniform Peak</text>
+
+  <!-- Axes -->
+  <line x1="50" y1="290" x2="330" y2="290" class="axis"/>
+  <line x1="50" y1="290" x2="50" y2="40" class="axis"/>
+  <text x="190" y="320" text-anchor="middle" class="label">Motivation Intensity</text>
+  <text x="18" y="165" text-anchor="middle" class="label" transform="rotate(-90, 18, 165)">Activation</text>
+
+  <!-- Single peak line -->
+  <line x1="230" y1="45" x2="230" y2="290" class="peak-line" stroke="#888"/>
+  <text x="230" y="308" text-anchor="middle" class="label" style="fill:#888">peak</text>
+
+  <!-- All four curves converge at the same peak -->
+  <path d="M55,280 Q120,250 160,180 Q200,90 230,75 Q260,85 290,150 Q310,200 325,220" class="curve" stroke="#2563eb"/>
+  <path d="M55,278 Q120,248 160,178 Q200,92 230,78 Q258,87 288,148 Q308,198 325,218" class="curve" stroke="#dc2626"/>
+  <path d="M55,276 Q120,246 160,176 Q200,94 230,81 Q256,89 286,146 Q306,196 325,216" class="curve" stroke="#059669"/>
+  <path d="M55,274 Q120,244 160,174 Q200,96 230,84 Q254,91 284,144 Q304,194 325,214" class="curve" stroke="#d97706"/>
+
+  <!-- Right panel: Per-parameter peaks -->
+  <text x="530" y="22" text-anchor="middle" class="title">Per-Parameter Peaks</text>
+
+  <!-- Axes -->
+  <line x1="400" y1="290" x2="690" y2="290" class="axis"/>
+  <line x1="400" y1="290" x2="400" y2="40" class="axis"/>
+  <text x="545" y="320" text-anchor="middle" class="label">Motivation Intensity</text>
+
+  <!-- Per-parameter peak lines -->
+  <line x1="530" y1="45" x2="530" y2="290" class="peak-line" stroke="#dc2626" opacity="0.5"/>
+  <line x1="560" y1="45" x2="560" y2="290" class="peak-line" stroke="#059669" opacity="0.5"/>
+  <line x1="590" y1="45" x2="590" y2="290" class="peak-line" stroke="#2563eb" opacity="0.5"/>
+  <line x1="610" y1="45" x2="610" y2="290" class="peak-line" stroke="#d97706" opacity="0.5"/>
+
+  <!-- Laterality — peaks earliest (creative association, Martindale) -->
+  <path d="M405,278 Q460,250 500,185 Q520,120 530,90 Q545,100 570,160 Q600,230 680,260" class="curve" stroke="#dc2626"/>
+
+  <!-- Breadth — peaks next (Easterbrook cue narrowing) -->
+  <path d="M405,276 Q470,245 510,175 Q540,110 560,82 Q575,92 600,145 Q630,210 680,240" class="curve" stroke="#059669"/>
+
+  <!-- Depth — peaks later (complex reasoning, protected by conscientiousness) -->
+  <path d="M405,274 Q480,240 530,165 Q560,100 590,75 Q605,82 630,120 Q655,180 680,210" class="curve" stroke="#2563eb"/>
+
+  <!-- Convergence — peaks latest (simple focused search) -->
+  <path d="M405,272 Q490,235 545,155 Q580,90 610,70 Q625,75 650,105 Q665,155 680,190" class="curve" stroke="#d97706"/>
+
+  <!-- Legend -->
+  <line x1="420" y1="42" x2="440" y2="42" stroke="#2563eb" stroke-width="2.2"/>
+  <text x="444" y="46" class="legend">Depth</text>
+  <line x1="490" y1="42" x2="510" y2="42" stroke="#dc2626" stroke-width="2.2"/>
+  <text x="514" y="46" class="legend">Laterality</text>
+  <line x1="575" y1="42" x2="595" y2="42" stroke="#059669" stroke-width="2.2"/>
+  <text x="599" y="46" class="legend">Breadth</text>
+  <line x1="650" y1="42" x2="670" y2="42" stroke="#d97706" stroke-width="2.2"/>
+  <text x="674" y="46" class="legend">Conv.</text>
+</svg>
