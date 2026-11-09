@@ -1,0 +1,124 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 420">
+  <defs>
+    <style>
+      text { font-family: -apple-system, 'Segoe UI', sans-serif; }
+      .title { font-size: 14px; fill: #333; font-weight: 600; }
+      .subtitle { font-size: 11px; fill: #777; }
+      .box-label { font-size: 12px; fill: #fff; font-weight: 600; }
+      .box-detail { font-size: 10px; fill: #fff; }
+      .annotation { font-size: 10px; fill: #555; }
+      .phase-label { font-size: 11px; fill: #888; font-weight: 500; }
+      .formula { font-family: 'Menlo', 'Courier New', monospace; font-size: 9px; fill: #444; }
+      .arrow { stroke: #666; stroke-width: 1.5; fill: none; marker-end: url(#arrowhead); }
+      .arrow-down { stroke: #999; stroke-width: 1; fill: none; marker-end: url(#arrowSmall); }
+      .condition { font-size: 9px; fill: #888; font-style: italic; }
+      .gate { fill: #f5f5f5; stroke: #ccc; stroke-width: 1; rx: 4; }
+    </style>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#666"/>
+    </marker>
+    <marker id="arrowSmall" markerWidth="6" markerHeight="5" refX="5" refY="2.5" orient="auto">
+      <path d="M0,0 L6,2.5 L0,5" fill="#999"/>
+    </marker>
+  </defs>
+
+  <text x="340" y="24" text-anchor="middle" class="title">Processing Pipeline: Three Interaction Effects</text>
+  <text x="340" y="42" text-anchor="middle" class="subtitle">Steps 1-4 inside each computeX(), steps 5-7 post-processing in tick()</text>
+
+  <!-- Phase labels -->
+  <text x="20" y="76" class="phase-label">Inside each</text>
+  <text x="20" y="90" class="phase-label">compute()</text>
+
+  <!-- Step 1: Activation with Decay -->
+  <rect x="80" y="62" width="180" height="56" rx="6" fill="#3b82f6"/>
+  <text x="170" y="82" text-anchor="middle" class="box-label">1. Activation with Decay</text>
+  <text x="170" y="98" text-anchor="middle" class="box-detail">logistic(x) * exp(-decay * max(0, x-peak))</text>
+  <text x="170" y="110" text-anchor="middle" class="box-detail">Replaces bare logistic when config present</text>
+
+  <!-- Arrow 1->2 -->
+  <path d="M260,90 L290,90" class="arrow"/>
+
+  <!-- Step 2: Modulation Scaling -->
+  <rect x="290" y="62" width="180" height="56" rx="6" fill="#8b5cf6"/>
+  <text x="380" y="82" text-anchor="middle" class="box-label">2. Modulation Scaling</text>
+  <text x="380" y="98" text-anchor="middle" class="box-detail">modulation * (1 + rate * max(0, x-peak))</text>
+  <text x="380" y="110" text-anchor="middle" class="box-detail">Personality amplifies or compresses</text>
+
+  <!-- Arrow 2->3 -->
+  <path d="M470,90 L500,90" class="arrow"/>
+
+  <!-- Step 3: Mood/Gut -->
+  <rect x="500" y="62" width="140" height="56" rx="6" fill="#94a3b8"/>
+  <text x="570" y="82" text-anchor="middle" class="box-label">3. Mood / Gut</text>
+  <text x="570" y="98" text-anchor="middle" class="box-detail">Existing adjustments</text>
+  <text x="570" y="110" text-anchor="middle" class="box-detail">Unchanged</text>
+
+  <!-- Gate: extremeInteraction != null -->
+  <rect x="80" y="130" width="390" height="22" class="gate"/>
+  <text x="275" y="145" text-anchor="middle" class="condition">Gate: extremeInteraction != null (otherwise bare logistic, scale=1.0)</text>
+
+  <!-- Phase 2 label -->
+  <text x="20" y="200" class="phase-label">Post-</text>
+  <text x="20" y="214" class="phase-label">processing</text>
+  <text x="20" y="228" class="phase-label">in tick()</text>
+
+  <!-- Arrow down from compute to post-processing -->
+  <path d="M340,152 L340,175" class="arrow-down"/>
+
+  <!-- Step 4: Pathological check -->
+  <rect x="80" y="175" width="140" height="48" rx="6" fill="#94a3b8"/>
+  <text x="150" y="195" text-anchor="middle" class="box-label">4. Pathological</text>
+  <text x="150" y="209" text-anchor="middle" class="box-detail">convergence -> 0</text>
+  <text x="150" y="220" text-anchor="middle" class="box-detail">when arousal + hab > threshold</text>
+
+  <!-- Arrow 4->5 -->
+  <path d="M220,199 L260,199" class="arrow"/>
+
+  <!-- Step 5: Fatigue Reallocation -->
+  <rect x="260" y="175" width="180" height="48" rx="6" fill="#ef4444"/>
+  <text x="350" y="195" text-anchor="middle" class="box-label">5. Fatigue Reallocation</text>
+  <text x="350" y="209" text-anchor="middle" class="box-detail">per-parameter signed effects</text>
+  <text x="350" y="220" text-anchor="middle" class="box-detail">Hockey compensatory control</text>
+
+  <!-- Arrow 5->6 -->
+  <path d="M440,199 L470,199" class="arrow"/>
+
+  <!-- Step 6: Channel modulation -->
+  <rect x="470" y="175" width="140" height="48" rx="6" fill="#94a3b8"/>
+  <text x="540" y="195" text-anchor="middle" class="box-label">6. Channel Mod</text>
+  <text x="540" y="209" text-anchor="middle" class="box-detail">Curiosity channel</text>
+  <text x="540" y="220" text-anchor="middle" class="box-detail">Unchanged</text>
+
+  <!-- Gate: fatigue != null -->
+  <rect x="260" y="235" width="180" height="22" class="gate"/>
+  <text x="350" y="250" text-anchor="middle" class="condition">Gate: fatigue != null (otherwise skip)</text>
+
+  <!-- Arrow down to output -->
+  <path d="M340,257 L340,278" class="arrow-down"/>
+
+  <!-- Step 7: Clamp + output -->
+  <rect x="200" y="278" width="280" height="48" rx="6" fill="#16a34a"/>
+  <text x="340" y="298" text-anchor="middle" class="box-label">7. clamp01() + extremeActivation flag</text>
+  <text x="340" y="314" text-anchor="middle" class="box-detail">extremeActivation = features enabled AND intensity > peak</text>
+
+  <!-- Fatigue state box (side) -->
+  <rect x="80" y="280" width="110" height="82" rx="6" fill="none" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <text x="135" y="298" text-anchor="middle" font-size="11" fill="#ef4444" font-weight="500">FatigueState</text>
+  <text x="135" y="314" text-anchor="middle" class="annotation">accumulator: double</text>
+  <text x="135" y="328" text-anchor="middle" class="annotation">per-agent, transient</text>
+  <text x="135" y="342" text-anchor="middle" class="annotation">log(1+acc)/log(1+max)</text>
+  <text x="135" y="356" text-anchor="middle" class="annotation">recovery: gradual</text>
+
+  <!-- Arrow from fatigue state to step 5 -->
+  <path d="M135,280 L135,223 L260,210" class="arrow-down"/>
+
+  <!-- Legend -->
+  <rect x="80" y="380" width="14" height="14" rx="3" fill="#3b82f6"/>
+  <text x="100" y="392" class="annotation">Inverted-U (Yerkes-Dodson)</text>
+  <rect x="240" y="380" width="14" height="14" rx="3" fill="#8b5cf6"/>
+  <text x="260" y="392" class="annotation">Situational strength</text>
+  <rect x="380" y="380" width="14" height="14" rx="3" fill="#ef4444"/>
+  <text x="400" y="392" class="annotation">Compensatory control (Hockey)</text>
+  <rect x="545" y="380" width="14" height="14" rx="3" fill="#94a3b8"/>
+  <text x="565" y="392" class="annotation">Existing</text>
+</svg>

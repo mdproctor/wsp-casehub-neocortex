@@ -5,7 +5,7 @@ date: 2026-11-09
 entry_type: article
 subtype: diary
 projects: [casehubio/neocortex]
-tags: [cognitive-architecture, personality, search-budget, literature-grounded, situational-strength]
+tags: [cognitive-architecture, personality, search-budget, literature-grounded, situational-strength, fatigue, yerkes-dodson]
 series: issue-839-search-budget-situational-strength
 ---
 
@@ -35,7 +35,7 @@ The fix wasn't "make the modulations bigger." It was understanding that extreme 
 
 **1. Inverted-U Decline.** Past a personality-specific peak, activation declines via exponential decay: `logistic(x) * exp(-decay * max(0, x - peak))`. Below the peak the function is pure logistic — current behaviour preserved. Past it, the decay rate determines how sharply activation drops. A conscientious agent protecting depth gets decay = 0 (depth sustains at the ceiling). An anxious agent gets decay = 2.3 on breadth (Easterbrook narrowing hits hard).
 
-The exponential form matters. I originally chose a quadratic penalty (`logistic - decay * (x-peak)²`), but Claude's first-principles check revealed it has a problem the quadratic doesn't advertise: the subtractive form can go negative for large overshoot. The multiplicative exponential is naturally non-negative. It also produces asymmetric decline — a rapid initial drop past the peak, then gradual plateau toward zero — which better matches the empirical curves.
+The exponential form matters. I originally chose a quadratic penalty (`logistic - decay * (x-peak)²`), but Claude caught a problem the quadratic doesn't advertise: the subtractive form can go negative for large overshoot. The multiplicative exponential is naturally non-negative. It also produces asymmetric decline — a rapid initial drop past the peak, then gradual plateau toward zero — which better matches the empirical curves.
 
 **2. Modulation Scaling.** Drive modulations become intensity-dependent rather than fixed. Past the peak, personality-derived amplification rates scale each modulation: `modulation * (1 + rate * max(0, intensity - peak))`. A positive rate amplifies the modulation (conscientiousness → depth boost grows under pressure). A negative rate compresses it (low openness → curiosity breadth boost shrinks). With CDE-derived rates, the scaling factor reaches 0.0 at most — full compression, but never reversal. Modulations fade out rather than flip sign.
 
@@ -70,10 +70,28 @@ This is exactly what Hockey predicts. An anxious perfectionist under pressure do
 
 The lesson: personality is compositional. You can't reason about "high anxiety" in isolation — the interaction with conscientiousness flips the entire fatigue profile. The CDE formulas capture this correctly. My narrative intuitions didn't.
 
-## What This Opens Up
+## What the Implementation Revealed
 
-The design is complete and reviewed. Implementation is planned — three batches across six tasks. But the interesting implications are downstream.
+![Processing pipeline for the three interaction effects](images/extreme-processing-pipeline.svg)
 
-Recurring thought states (fixation, rumination) produce sustained extreme intensity. An agent stuck in a fixation loop is above their Yerkes-Dodson peak for many consecutive ticks. The fatigue model becomes the dominant shaping force on their search budget. A conscientious agent in fixation sustains depth and satisfices to escape the loop. A neurotic agent in rumination loses depth AND convergence — the spiral tightens because the very resources needed to break out are the ones being consumed.
+The implementation confirmed something the design spec only hinted at: the separation of concerns between the three mechanisms is load-bearing, not cosmetic.
+
+The inverted-U activation and modulation scaling operate *inside* each `computeX()` method — they shape how each individual parameter responds to intensity. Fatigue operates *after* all four parameters are computed — it redistributes the budget as a whole. This matters because the pathological threshold check (convergence collapses to 0 when arousal plus habituation failure exceeds a personality-specific threshold) sits between them. If fatigue ran inside the compute methods, it would interact with the pathological check in ways that produce double-counting. With fatigue applied after, the two systems are genuinely independent: the pathological check models emotional dysregulation, fatigue models resource depletion. One-directional only — pathological state makes fatigue's convergence effect irrelevant (convergence is already zero), but fatigue never makes pathological triggering more likely.
+
+The backward compatibility story held up cleanly. All three features gate on nullable config sub-records. `ExtremeInteractionConfig` and `FatigueConfig` are null by default. Every existing constructor call simply appends `null, null` — no behaviour change for any agent that hasn't been personality-derived through the CDE. The quality tests verify this: default-config agents produce identical budgets before and after.
+
+The CDE derivation formulas needed one calibration adjustment that the spec didn't anticipate. The fatigue depth formula `min(0, -0.08 * (1.0 - conscientiousness))` originally had an anxiety term, but that would have double-counted — anxiety already operates through the inverted-U decay (mechanism 1). The formula separates concerns cleanly: conscientiousness determines how much depth protection you have under fatigue; anxiety determines how early your activation starts declining. Two different mechanisms, two different config fields, no interference.
+
+## Why This Matters for Agent Design
+
+The deeper question this work answers isn't about search budgets. It's about whether synthetic personality can survive extreme conditions.
+
+Most personality models in agent frameworks are cosmetic — they produce different outputs at moderate intensity, but the differentiation collapses under load. When an agent is maximally motivated, maximally stressed, or stuck in a thought loop, the personality layer becomes decorative. Every agent converges to the same ceiling-capped behaviour. The agent *sounds* different in its text (the personality prompt is still there), but its cognitive architecture *acts* the same.
+
+The literature says this is wrong. Real personality doesn't disappear under pressure — it *transforms*. The conscientious person under extreme stress doesn't behave like the anxious person under extreme stress. They narrow differently, fatigue differently, recover differently, and commit differently. The Yerkes-Dodson peak shifts. The Easterbrook narrowing rate varies. The Hockey reallocation pattern is personality-specific.
+
+The implementation proves this is tractable. Three config records, fourteen CDE-derived parameters, one processing pipeline. The quality tests show 23x breadth differentiation improvement at extreme intensity with zero regression at moderate intensity. The key architectural insight: personality expression at extremes requires multiplicative gating (the exponential decay) rather than additive adjustment (larger offsets). The ceiling problem wasn't about the size of the modulations. It was about the shape of the activation function.
+
+Recurring thought states — fixation, obsession, rumination — are where this matters most. These states produce sustained extreme intensity over many consecutive ticks. The fatigue model becomes the dominant shaping force on the search budget. A conscientious agent in fixation sustains depth and satisfices to escape the loop. A neurotic agent in rumination loses depth AND convergence — the spiral tightens because the very resources needed to break out are the ones being consumed.
 
 That's not a bug in the model. That's what rumination actually looks like.
