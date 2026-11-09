@@ -50,14 +50,14 @@ Capacity and fatigue are independent (D5). Fatigue modifies raw values, capacity
 
 ```java
 public record CognitiveCapacityConfig(
-        double relationalComplexity,
-        double associativeReach,
-        double workingMemorySpan
+        Double relationalComplexity,
+        Double associativeReach,
+        Double workingMemorySpan
 ) {
     public CognitiveCapacityConfig {
-        validate("relationalComplexity", relationalComplexity);
-        validate("associativeReach", associativeReach);
-        validate("workingMemorySpan", workingMemorySpan);
+        if (relationalComplexity != null) validate("relationalComplexity", relationalComplexity);
+        if (associativeReach != null) validate("associativeReach", associativeReach);
+        if (workingMemorySpan != null) validate("workingMemorySpan", workingMemorySpan);
     }
 
     public static CognitiveCapacityConfig defaults() {
@@ -67,6 +67,25 @@ public record CognitiveCapacityConfig(
     private static void validate(String name, double value) {
         if (value < 0.0 || value > 1.0)
             throw new IllegalArgumentException(name + " must be in [0,1], got " + value);
+    }
+
+    public CognitiveCapacityConfig mergeWith(CognitiveCapacityConfig derived) {
+        return new CognitiveCapacityConfig(
+            relationalComplexity != null ? relationalComplexity : derived.relationalComplexity(),
+            associativeReach != null ? associativeReach : derived.associativeReach(),
+            workingMemorySpan != null ? workingMemorySpan : derived.workingMemorySpan());
+    }
+
+    public double relationalComplexityOrDefault() {
+        return relationalComplexity != null ? relationalComplexity : 0.75;
+    }
+
+    public double associativeReachOrDefault() {
+        return associativeReach != null ? associativeReach : 0.75;
+    }
+
+    public double workingMemorySpanOrDefault() {
+        return workingMemorySpan != null ? workingMemorySpan : 0.75;
     }
 
     public CognitiveCapacityConfig withRelationalComplexity(double v) {
@@ -83,7 +102,9 @@ public record CognitiveCapacityConfig(
 }
 ```
 
-All values in [0,1]: 1.0 = uncapped (maximally capable), 0.0 = fully constrained. Population-mean default 0.75.
+Fields use `Double` (boxed) to distinguish "not specified" (null) from "explicitly set to 0.0". Jackson deserialises missing YAML fields as null, enabling per-field merge in `deriveAndMerge()`. The `mergeWith()` method implements per-field null-coalescing: explicit values win, missing fields fall through to derived.
+
+All values in [0,1]: 1.0 = uncapped (maximally capable), 0.0 = fully constrained. Derivation midpoint default 0.75 — equals `compress(0.5)`, the midpoint of the compressed Jungian derivation range [0.55, 0.95]. Not an empirical population mean.
 
 ### Scale Semantics
 
@@ -125,37 +146,72 @@ public record CognitiveDefaults(
 ) { ... }
 ```
 
-Top-level placement enables future access from the memory subsystem for Cattell's Investment Theory learning rate modulation, without reaching through SearchBudgetConfig.
+Top-level placement enables future access from the memory subsystem for Cattell's Investment Theory learning rate modulation (#890), without reaching through SearchBudgetConfig.
 
 When null, capacity ceilings are disabled — existing behaviour preserved. The tick participant checks `capacityConfig != null` before applying ceilings.
 
+**Integration blast radius:** Adding field 21 changes the `CognitiveDefaults` record constructor, `empty()` factory (adds null argument), and all 20 existing `withX()` methods (each positionally reconstructs the record). A new `withCapacityConfig()` method is needed. This is the same mechanical pattern followed for every prior field addition (fields 16–20 in recent issues).
+
 ## CDE Derivation
 
-Extends `CognitiveDerivationEngine.deriveSearchBudgetDefaults()` with a capacity derivation block. When the cognitive profile YAML specifies explicit capacity values, the CDE's `deriveAndMerge()` overlays the explicit values on the derived base — explicit specification always wins.
+New `deriveCapacity()` method called from `derive()`, parallel to the existing 15 derivation pathways (`derivePersonality`, `deriveMoodBaseline`, `deriveSearchBudgetDefaults`, etc.). Not an extension of `deriveSearchBudgetDefaults()` — that method returns `SearchBudgetConfig`, while capacity lives on `CognitiveDefaults` at the top level.
+
+### Integration Points
+
+**`derive()` addition** (CognitiveDerivationEngine.java:179):
+```java
+CognitiveCapacityConfig capacity = deriveCapacity(descriptor.dispositionProfile());
+// ... existing derivation calls ...
+return CognitiveDefaults.empty(descriptor.agentId())
+    // ... existing .withX() chain ...
+    .withCapacityConfig(capacity);
+```
+
+**`deriveAndMerge()` addition** (CognitiveDerivationEngine.java:213):
+```java
+.withCapacityConfig(mergeCapacity(explicit.capacityConfig(), derived.capacityConfig()))
+```
+
+**Per-field capacity merge** — unlike other CDE fields that use whole-record null-coalescing, capacity uses per-field merge via `CognitiveCapacityConfig.mergeWith()`:
+```java
+private static CognitiveCapacityConfig mergeCapacity(
+        CognitiveCapacityConfig explicit, CognitiveCapacityConfig derived) {
+    if (explicit == null) return derived;
+    if (derived == null) return explicit;
+    return explicit.mergeWith(derived);
+}
+```
+
+This handles partial YAML specification correctly: a YAML specifying only `relationalComplexity: 0.90` produces a `CognitiveCapacityConfig(0.90, null, null)` — Jackson maps missing fields to null (boxed `Double`). The `mergeWith()` fills the nulls from the derived values, producing `CognitiveCapacityConfig(0.90, derivedAssociative, derivedWmSpan)`.
 
 ### Jungian → Capacity Mapping
 
-The derivation uses Jungian cognitive functions as weak proxies, with a compressed range of [0.55, 0.95] that acknowledges the low correlation (r ≈ 0.3-0.4):
+The derivation uses Jungian cognitive functions as weak proxies, with a compressed range of [0.55, 0.95] that acknowledges the low correlation (r ≈ 0.3-0.4). Follows the existing CDE iteration pattern over `List<WeightedTerm>` (see `deriveGraphStructure`, `deriveExtractionBias`, `deriveAppraisalWeights`):
 
 ```java
-static CognitiveCapacityConfig deriveCapacity(DescriptorView view) {
-    Map<String, Double> profile = toWeightMap(view.dispositionProfile());
+static CognitiveCapacityConfig deriveCapacity(List<WeightedTerm> profile) {
+    if (profile == null || profile.isEmpty()) return null;
 
-    double ti = profile.getOrDefault("ti", 0.0);
-    double te = profile.getOrDefault("te", 0.0);
-    double ne = profile.getOrDefault("ne", 0.0);
-    double ni = profile.getOrDefault("ni", 0.0);
-    double si = profile.getOrDefault("si", 0.0);
+    double tiWeight = 0.0, teWeight = 0.0, neWeight = 0.0, niWeight = 0.0, siWeight = 0.0;
+    for (WeightedTerm term : profile) {
+        String fn = term.term().toLowerCase();
+        switch (fn) {
+            case "ti" -> tiWeight = term.weight();
+            case "te" -> teWeight = term.weight();
+            case "ne" -> neWeight = term.weight();
+            case "ni" -> niWeight = term.weight();
+            case "si" -> siWeight = term.weight();
+        }
+    }
 
-    double relational = compress(0.5 * (ti + te));
-    double associative = compress(0.5 * (ne + ni));
-    double wmSpan = compress(0.5 * (te + si));
+    double relational = compress(0.5 * (tiWeight + teWeight));
+    double associative = compress(0.5 * (neWeight + niWeight));
+    double wmSpan = compress(0.5 * (teWeight + siWeight));
 
     return new CognitiveCapacityConfig(relational, associative, wmSpan);
 }
 
 private static double compress(double raw) {
-    // Map [0, 1] → [0.55, 0.95]
     return 0.55 + raw * 0.4;
 }
 ```
@@ -196,9 +252,13 @@ After fatigue reallocation (step 6, existing), before clamp (step 8):
 // Step 7: Capacity ceiling (NEW)
 CognitiveCapacityConfig capacity = defaults.capacityConfig();
 if (capacity != null) {
-    depth = Math.min(capacity.relationalComplexity(), depth);
-    breadth = Math.min(capacity.workingMemorySpan(), breadth);
-    laterality = Math.min(capacity.associativeReach(), laterality);
+    double rc = capacity.relationalComplexityOrDefault();
+    double wm = capacity.workingMemorySpanOrDefault();
+    double ar = capacity.associativeReachOrDefault();
+
+    depth = Math.min(rc, depth);
+    breadth = Math.min(wm, breadth);
+    laterality = Math.min(ar, laterality);
     // convergence: no ceiling
 }
 
@@ -211,31 +271,34 @@ convergence = clamp01(convergence);
 
 ### Capacity Gap Signal
 
-The tick participant computes the gap between unconstrained and constrained values BEFORE applying the ceiling:
+The tick participant computes the per-parameter gap between unconstrained and constrained values. Gap values are exposed on `SearchBudget` for two consumers: prose selection (boolean threshold) and the appraisal system (#892 — frustration pathway):
 
 ```java
+double depthGap = 0.0, breadthGap = 0.0, lateralityGap = 0.0;
 boolean capacityConstrained = false;
 if (capacity != null) {
-    double unclampedDepth = depth;
-    double unclampedBreadth = breadth;
-    double unclampedLaterality = laterality;
+    double rc = capacity.relationalComplexityOrDefault();
+    double wm = capacity.workingMemorySpanOrDefault();
+    double ar = capacity.associativeReachOrDefault();
 
-    depth = Math.min(capacity.relationalComplexity(), depth);
-    breadth = Math.min(capacity.workingMemorySpan(), breadth);
-    laterality = Math.min(capacity.associativeReach(), laterality);
+    depthGap = Math.max(0.0, depth - rc);
+    breadthGap = Math.max(0.0, breadth - wm);
+    lateralityGap = Math.max(0.0, laterality - ar);
 
-    double maxGap = Math.max(
-        unclampedDepth - depth,
-        Math.max(unclampedBreadth - breadth, unclampedLaterality - laterality));
+    depth = Math.min(rc, depth);
+    breadth = Math.min(wm, breadth);
+    laterality = Math.min(ar, laterality);
+
+    double maxGap = Math.max(depthGap, Math.max(breadthGap, lateralityGap));
     capacityConstrained = maxGap > 0.05;
 }
 ```
 
-The `capacityConstrained` flag is true when any parameter is materially capped (gap > 0.05 threshold to filter noise). The 0.05 threshold avoids triggering capacity-constrained prose for negligible ceiling effects — the LLM wouldn't render a 0.02 gap differently from zero.
+The `capacityConstrained` boolean uses a 0.05 threshold to filter noise for prose selection — the LLM wouldn't render a 0.02 gap differently from zero. The per-parameter gap values (depthGap, breadthGap, lateralityGap) are preserved at full precision for the appraisal system to generate proportional frustration (#892).
 
 ### SearchBudget Record
 
-Grows from 7 to 8 fields:
+Grows from 7 to 11 fields:
 
 ```java
 public record SearchBudget(
@@ -246,81 +309,81 @@ public record SearchBudget(
         SearchMotivation source,
         boolean extremeActivation,
         boolean capacityConstrained,    // NEW — field 8
+        double depthGap,                // NEW — field 9
+        double breadthGap,              // NEW — field 10
+        double lateralityGap,           // NEW — field 11
         Instant evaluatedAt
 ) { ... }
 ```
+
+Per-parameter gap values (fields 9-11) are 0.0 when no capacity ceiling binds. Non-zero values indicate the magnitude by which motivation exceeds capacity on each dimension. Epic #841 requires these for the capacity→appraisal frustration pathway (#892): a gap of 0.3 (high motivation, low capacity) should produce stronger frustration than a gap of 0.05.
 
 ## Prose Generation
 
 ### SearchBudgetDescriptionGenerationPhase
 
-Extends the LLM prompt to generate three descriptions when capacity config is present. When capacity is null (or all ceilings ≥ 0.95), falls back to existing two-description format.
+Extends the LLM prompt to generate a third description (capacity-constrained) when capacity config is present.
 
-**New system prompt variant** (`SYSTEM_PROMPT_WITH_CAPACITY`):
+**Unified system prompt** — replaces the current two-variant approach (`SYSTEM_PROMPT` / `SYSTEM_PROMPT_WITH_EXTREME`). The existing per-batch system prompt selection (`anyExtreme ? SYSTEM_PROMPT_WITH_EXTREME : SYSTEM_PROMPT`) has a known limitation: when any agent in the batch has extreme features, ALL agents receive the extreme-format system prompt, causing format mismatch for non-extreme agents. Adding a third variant would compound this problem.
 
-```
-Describe this agent's cognitive search disposition. Provide three descriptions:
-
-1. **Normal range** — how they naturally explore under moderate motivation.
-   Given parameters: breadth steepness={breadthSteepness}, midpoint={breadthMidpoint}, ...
-
-2. **Extreme intensity** — how their exploration changes under extreme motivation
-   pressure (past their tolerance peak of {extremePeak}).
-
-3. **Capacity constrained** — what happens when their motivation pushes them
-   past their cognitive capacity limits.
-   - Depth capacity: {relationalComplexity} (relational reasoning ceiling)
-   - Breadth capacity: {workingMemorySpan} (working memory span ceiling)
-   - Laterality capacity: {associativeReach} (associative reach ceiling)
-   - Where specifically does their reach exceed their grasp?
-   - What does it feel like to want more cognitive reach than you have?
-
-Write 2-3 sentences each, second person ("you"). Describe felt cognitive state,
-not parameters.
-
-Respond with JSON: {"normal": "...", "extreme": "...", "constrained": "..."}
-```
-
-The capacity-constrained description is optionally combined with the extreme description in a single prompt:
+The fix: a single unified system prompt that describes all possible fields. Each agent's per-agent **user prompt** specifies which descriptions are needed by including or excluding the relevant parameters:
 
 ```
-3. **Capacity constrained** — what happens when their motivation pushes them
-   past their cognitive capacity limits.
-   ...
+SYSTEM_PROMPT_UNIFIED:
 
-[If extreme interaction is configured:]
-2. **Extreme intensity** — how their exploration changes under extreme motivation
-   pressure (past their tolerance peak of {extremePeak}).
+You describe an agent's cognitive search disposition — how they
+naturally approach exploration and problem-solving, shaped by their personality.
+
+Generate descriptions based on what information is provided:
+
+1. **Normal range** (always) — how they naturally explore under moderate
+   motivation. Write 2-3 sentences in second person ("you").
+
+2. **Extreme intensity** (only when extreme parameters are provided) — how
+   their exploration changes under extreme motivation pressure. 2-3 sentences.
+
+3. **Capacity constrained** (only when capacity parameters are provided) —
+   what happens when motivation pushes past cognitive capacity limits.
+   Where does their reach exceed their grasp? 2-3 sentences.
+
+Describe felt cognitive state, not parameters. Do not name parameters.
+
+Respond with JSON containing only the requested fields:
+- Base only: {"description": "..."}
+- With extreme: {"normal": "...", "extreme": "..."}
+- With capacity: {"normal": "...", "constrained": "..."}
+- With both: {"normal": "...", "extreme": "...", "constrained": "..."}
 ```
 
-Selection:
-- `capacity != null` → `SYSTEM_PROMPT_WITH_CAPACITY` (generates normal + constrained, plus extreme if `anyExtreme`)
-- `anyExtreme && capacity == null` → `SYSTEM_PROMPT_WITH_EXTREME` (existing)
-- `!anyExtreme && capacity == null` → `SYSTEM_PROMPT` (existing)
-
-JSON response adapts to what was requested:
-- `{"normal": "...", "constrained": "..."}` — capacity only
-- `{"normal": "...", "extreme": "...", "constrained": "..."}` — both
-- `{"normal": "...", "extreme": "..."}` — extreme only (existing)
+The per-agent user prompt (`buildUserPrompt`) conditionally includes extreme parameters (when `extremeInteraction != null || fatigue != null`) and capacity parameters (when `capacityConfig != null`). Each task's response parsing (`extractField`/`extractDescription`) handles whichever fields are present — existing null-safe extraction with fallback works unchanged.
 
 All descriptions crystallise to the same MindMap COGNITIVE node: `description` (backward-compatible), `extreme-description` (#839), `constrained-description` (new).
 
 ### Tick-Time Prose Selection
 
-`SearchBudgetPromptSection` selects prose based on the SearchBudget flags:
+`SearchBudgetPromptSection` selects prose using **composition**, not exclusive priority. Capacity constraint and extreme activation describe orthogonal phenomena — capacity is structural (ceiling), extreme is dynamic (pressure). An agent can experience both simultaneously, and should.
+
+This follows the existing `modulateByContinuum()` pattern: fixation context is prepended to the base prose, composing two independent signals.
 
 ```java
-String crystallised;
+String base = budget.extremeActivation()
+    ? readCrystallisedProse(agentId, tenantId, "extreme-description")
+    : readCrystallisedProse(agentId, tenantId, "description");
 if (budget.capacityConstrained()) {
-    crystallised = readProperty(agentId, tenantId, "constrained-description");
-} else if (budget.extremeActivation()) {
-    crystallised = readProperty(agentId, tenantId, "extreme-description");
-} else {
-    crystallised = readProperty(agentId, tenantId, "description");
+    String constrained = readCrystallisedProse(agentId, tenantId, "constrained-description");
+    if (constrained != null && base != null) {
+        return modulateByContinuum(constrained + " " + base);
+    }
+    if (constrained != null) {
+        return modulateByContinuum(constrained);
+    }
+}
+if (base != null) {
+    return modulateByContinuum(base);
 }
 ```
 
-Priority: `capacityConstrained` > `extremeActivation` > normal. An agent can be both capacity-constrained and at extreme intensity — capacity is the more specific condition.
+Composition semantics: capacity-constrained prose **prepends** to the selected base (normal or extreme). An INTP at 0.9 intensity with a relational complexity ceiling of 0.7 hears both: their reasoning is truncated by capacity AND pressure is narrowing their focus. `modulateByContinuum()` then modulates the combined prose by recurring thought state, composing all three independent signals.
 
 ### Example Prose
 
@@ -345,9 +408,17 @@ capacityConfig:
   workingMemorySpan: 0.85
 ```
 
-When `capacityConfig` is present in YAML, the CDE's `deriveAndMerge()` overlays explicit values on Jungian-derived defaults. Partially specified capacity (e.g., only `relationalComplexity`) fills missing fields from the derivation — standard `deriveAndMerge` semantics.
+When `capacityConfig` is present in YAML, the CDE's `deriveAndMerge()` uses per-field merge via `CognitiveCapacityConfig.mergeWith()`. Partially specified capacity (e.g., only `relationalComplexity: 0.90`) fills missing fields from the Jungian derivation:
 
-When `capacityConfig` is absent from YAML, the CDE derives all three values from the Jungian profile with compressed range.
+```yaml
+# Partial specification — only relationalComplexity is explicit
+capacityConfig:
+  relationalComplexity: 0.90
+```
+
+Jackson deserialises this as `CognitiveCapacityConfig(0.90, null, null)` — `Double` (boxed) fields map missing YAML keys to null, not 0.0. The `mergeWith()` call in `deriveAndMerge()` produces `CognitiveCapacityConfig(0.90, derivedAssociative, derivedWmSpan)`. This is distinct from the existing `deriveAndMerge()` pattern for other fields (whole-record null-coalescing) — capacity requires per-field merge because partial specification is a common use case (configuring one dimension while deriving the rest).
+
+When `capacityConfig` is absent from YAML (null at record level), whole-record null-coalescing applies as with all other fields — the derived capacity config wins entirely.
 
 ## Quality Tests
 
@@ -447,11 +518,28 @@ Following the #849 S1 personality differentiation pattern.
 | Quality tests | cognitive-index (test) | Alongside existing `SearchBudgetQualityTest` |
 | Scenario test | cognition (test) | `CognitionTestHarness` pattern |
 
+## Forward Interaction with #839
+
+The #839 spec (§Forward Interaction with Intelligence Capacity Layer) explicitly requests: "#840's spec should evaluate whether to absorb this spec's direct-parameter approach into a ceiling-mediated model."
+
+**Evaluation:** The independent model is correct. Fatigue and capacity model different phenomena:
+
+1. **Different mechanisms:** Fatigue is motivational resource depletion (dynamic, transient) — Hockey's compensatory control allocates resources strategically under load. Capacity is structural cognitive limit (static, derived from intelligence) — Halford's relational complexity defines the ceiling regardless of motivational state.
+
+2. **Different directionality:** Fatigue effects are signed — they push parameters up (laterality under impulsivity) or down (depth under neuroticism). Ceiling mediation only makes sense for upper bounds. Absorbing fatigue into capacity ceilings would lose the signed reallocation that is Hockey's key insight.
+
+3. **Correct processing order:** Fatigue modifies raw values (step 6), capacity caps the result (step 7). This means fatigue cannot push a parameter above its capacity ceiling — the ceiling always wins. The reverse ordering would be wrong: applying ceiling first would cap the raw value before fatigue's reallocation, preventing the meaningful differentiation of "what you sacrifice when fatigued."
+
+4. **No double-counting:** #839's fatigue effects modify the search budget parameters directly (additive). Capacity ceilings apply `Math.min()` after. These compose correctly — fatigue cannot push above the ceiling, and ceiling cannot undo fatigue-driven reduction below it. The #839 concern about "two fatigue sources could double-count" applies only to the deferred #880 scenario where capacity ceilings themselves degrade under fatigue. For v1, capacity ceilings are static.
+
+**Reference to #880:** If future work (per epic #841: "Cognitive capacity degrades under fatigue") introduces fatigue-dependent ceiling degradation, the two fatigue sources would interact. #880 (shared fatigue substrate) is the appropriate venue for that design. This spec's static capacity model is correct for v1 and forward-compatible with dynamic ceilings.
+
 ## Deferred Items
 
-- **Learning rate modulation** — Cattell's Investment Theory implies capacity should modulate learning effectiveness in the memory subsystem. `CognitiveCapacityConfig` placement on `CognitiveDefaults` enables this without architectural changes. Separate follow-up issue.
+- **Learning rate modulation** (#890) — Cattell's Investment Theory implies capacity should modulate learning effectiveness in the memory subsystem. `CognitiveCapacityConfig` placement on `CognitiveDefaults` enables this without architectural changes.
 - **Fatigue-capacity coupling** — Sustained cognitive load degrades processing capacity in reality. #880 (shared fatigue substrate) covers the interaction design. For v1, fatigue and capacity are independent.
-- **Convergence ceiling** — Inhibitory control (Miyake et al. 2000) is a capacity dimension, but convergence blurs the capacity/personality boundary (Need for Cognitive Closure). Not in scope unless empirical testing reveals the need.
+- **Convergence ceiling** (#891) — Inhibitory control (Miyake et al. 2000) is a capacity dimension, but convergence blurs the capacity/personality boundary (Need for Cognitive Closure). Filed for evaluation after empirical testing (#866) reveals whether convergence benefits from a ceiling.
+- **Capacity→appraisal frustration pathway** (#892) — Epic #841 requires that capacity gaps produce frustration via the appraisal system. This spec exposes per-parameter gap values on `SearchBudget` (fields 9-11) to enable this. The appraisal integration itself is separate work.
 
 ## References
 
