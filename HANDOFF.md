@@ -2,85 +2,34 @@
 
 ## Last Session
 
-Completed #865 (migrate cognitive tests to CognitionTestHarness). Migrated 3 test files (12 tests) to use `CognitionTestHarness.builder()`:
-- `SearchBudgetPathologicalThresholdTest` (4 tests) — replaced manual mock wiring with `withAppraisalResult()` + `withHabituationState()`
-- `ContinuumRenderingTest` (7 tests) — replaced manual prompt section construction with `setContinuumPosition()` + `renderPrompt()`
-- `RecurringThoughtIntegrationTest.scorerToRenderingPipeline` — migrated to harness consolidation pipeline
+Completed #879 (Search budget: separate amplification threshold). Added nullable `amplificationThreshold` field to `ExtremeInteractionConfig` so the onset of personality-scaling (drive modulation amplification) can diverge from the onset of performance-decline (per-parameter peaks / Yerkes-Dodson). Derived from conscientiousness in `CognitiveDerivationEngine` — higher conscientiousness lowers the threshold, meaning personality expression kicks in earlier under pressure.
 
-Enhanced `CognitionTestHarness.Builder` with `withAppraisalResult(agentId, AppraisalResult)` for injecting specific appraisal state. Left `CuriosityDriveTest` and `CuriosityQualityTest` as component-level unit tests (they test individual components directly, not the pipeline). Landed as `e3e32759` on main, pushed to upstream, #865 closed.
+Also landed #878 (per-parameter extreme peaks) which was done in a prior session but not yet pushed with implementation code. Both landed on main and pushed: #878 as `7f2010f9`, #879 as `d6812e91`. Blog `2026-11-09-mdp04-not-everything-breaks-at-once.md` revised with new section on amplification threshold divergence, pushed as `8f2776c4`.
+
+## Queue Housekeeping
+
+#878 and #879 are both closed on GitHub but still unchecked in `.queue`. The `plan_manager.py advance` command didn't check them off because there was no active branch when advance was called. The next session should check these off — either find the right plan_manager command or update the queue manually.
 
 ## Immediate Next Step
 
-`work continue` — start #866 (Empirical quality testing). This is L/High and needs brainstorming + a .plan before implementation.
+`work start 880` — #880 (Search budget: shared fatigue substrate with regulation fatigue). Continues the search budget extreme interaction series.
 
-## Remaining Work
+## Remaining Queue (Epic #841)
 
-### #866 — Empirical quality testing (L / High) ← NEXT
+| # | Title | Scale | Complexity | Status |
+|---|-------|-------|------------|--------|
+| #878 | Search budget per-parameter extreme peaks | S | Med | Done, unchecked in queue |
+| #879 | Search budget separate amplification threshold | S | Med | Done, unchecked in queue |
+| #880 | Search budget shared fatigue substrate | S | Med | Open — NEXT |
+| #890 | Intelligence capacity: learning rate modulation | S | Med | Open |
+| #891 | Intelligence capacity: convergence ceiling | S | Med | Open |
+| #892 | Intelligence capacity: appraisal frustration pathway | S | Med | Open |
+| #894 | Eval pipeline coherence trace chain validation | M | High | Open |
+| #905 | Run and calibrate exploration + capacity eval suite | L | High | Open |
 
-**What:** LLM-judged evaluation across all exploration subsystems. Not "did the value change?" (Tier 2 — already done in #849) but "did the LLM behave differently?" (Tier 3+).
+## Key Files Modified This Session
 
-**Approach:** Follow `CognitiveInfluenceEvalTest` pattern:
-1. Seed character via CognitionTestHarness
-2. Render cognitive state into prompt sections
-3. Present situation to character via Claude CLI
-4. LLM judge scores whether exploration behaviour matches cognitive state
-5. Threshold: >=3/5 per scenario
-
-**Scenarios to cover:**
-- Curiosity channels (I-TYPE vs D-TYPE, SPECIFIC vs DIVERSIVE)
-- Search budget personality differentiation (bold explorer vs cautious analyst — blind judge)
-- Recurring thought continuum (HEALTHY → FIXATION → OBSESSION → RUMINATION)
-- Goal-directed exploration (active goal near vs far vs none)
-- Pathological boundary (extreme motivation + personality compression)
-- Intelligence capacity (see #900 for dedicated capacity fidelity)
-
-**Dependencies:** All layers complete (#825, #596, #826, #839, #840). CognitionTestHarness available. Needs `EvalLlmJudge` infrastructure from caps-llm-classifier.
-
-**Key reference files:**
-- `caps-llm-classifier/src/test/java/.../eval/CognitiveInfluenceEvalTest.java` — working pattern
-- `caps-llm-classifier/src/test/java/.../eval/EvalLlmJudge.java` — judge infrastructure
-- `cognition/src/test/java/.../eval/CognitionTestHarness.java` — test harness
-
-### #900 — Capacity fidelity testing (M / High)
-
-**What:** Does the LLM stay true to cognitive self-description when solving actual problems? The echo approach: describe the state, let the model figure out how to express it. Don't engineer constraints.
-
-**Approach:** Give the same reasoning problem to three agents (high/low/null capacity). Judge evaluates fidelity to self-description, not rule compliance.
-
-**Problem types (varying complexity):**
-- 2-step syllogism (baseline — all should handle)
-- 4-step logical chain (low relational complexity should show limitation)
-- Distant analogy bridging (low associative reach should produce weaker connections)
-- Multi-thread tracking (low working memory should lose earlier threads)
-
-**Agent profiles:**
-- High capacity (all ceilings 0.90) — clean reasoning
-- Low capacity (targeted ceiling 0.40) — authentic limitation
-- Null capacity — no self-description of limitation
-
-**Judge criteria:** Fidelity (output reflects self-description), authenticity (limitation looks natural not robotic), differentiation (blind judge matches output to profile).
-
-**Key insight from session:** This is NOT about making the LLM dumber. It's about whether cognitive self-description causally influences exploration style. The capacity layer is deliberately prompt-only — the LLM figures out how to inhabit the limitation. Engineered constraints would produce compliance, not character.
-
-**Dependencies:** #840 complete. CognitionTestHarness available. Needs EvalLlmJudge infrastructure.
-
-## State
-
-- Branch: main (clean)
-- Upstream: pushed to `e3e32759`
-- Queue: #866 active, then #900
-- All builds green (except pre-existing schema-generator failure)
-- `docs/specs/issue-802-hortora-corpus-extraction/` untracked directory on main (pre-existing, not part of current work)
-
-## References
-
-- `cognition/src/test/java/.../eval/CognitionTestHarness.java` — enhanced with `withAppraisalResult()`
-- `cognition/src/test/java/.../eval/CognitiveExplorationScenarioTest.java` — Tier 2 structural tests (S1-S5)
-- `caps-llm-classifier/src/test/java/.../eval/CognitiveInfluenceEvalTest.java` — Tier 3 pattern to follow for #866
-- `caps-llm-classifier/src/test/java/.../eval/EvalLlmJudge.java` — judge infrastructure
-- Deferred issues: #890 (learning rate modulation), #891 (convergence ceiling), #892 (capacity→appraisal frustration)
-
-## Warnings
-
-- `schema-generator` module has a pre-existing build failure (Jackson 3 `tools.jackson.databind.node.ObjectNode` not found)
-- `work.py` has a bug (`_sync_queue_branch_script` not defined) — `work continue` routing fails; work around by creating branches manually
+- `cognitive-api/.../ExtremeInteractionConfig.java` — added `amplificationThreshold` field (13th parameter), `amplificationThresholdOrDefault()`, `withAmplificationThreshold()`
+- `cognition/.../SearchBudgetTickParticipant.java` — each compute method resolves separate `ampThreshold` for `modulationScale()`
+- `cognitive-index/.../CognitiveDerivationEngine.java` — derives `amplificationThreshold = clampPeak(extremePeak - conscientiousness * 0.1)`
+- Tests added in all three modules (10 new tests total)
