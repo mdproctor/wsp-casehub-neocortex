@@ -1,0 +1,16 @@
+# Work Plan — issue-882-html-positional-markdown-parser
+
+## State
+branch: issue-882-html-positional-markdown-parser
+status: active
+issue-repo: casehubio/neocortex
+covers: 875
+
+## Queue
+- [x] casehubio/neocortex#882 — HTML to positional markdown parser
+- [x] casehubio/neocortex#883 — Web capture store integration
+- [x] casehubio/neocortex#884 — Web capture MCP tool
+- [x] casehubio/neocortex#885 — PDF visual archive
+- [x] casehubio/neocortex#886 — TTL-based curation
+- [ ] casehubio/neocortex#887 — Image capture and LLM description
+- [ ] casehubio/neocortex#888 — Captcha inbox
