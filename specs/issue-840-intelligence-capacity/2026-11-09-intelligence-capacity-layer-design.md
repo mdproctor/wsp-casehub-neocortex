@@ -77,15 +77,15 @@ public record CognitiveCapacityConfig(
     }
 
     public double relationalComplexityOrDefault() {
-        return relationalComplexity != null ? relationalComplexity : 0.75;
+        return relationalComplexity != null ? relationalComplexity : 1.0;
     }
 
     public double associativeReachOrDefault() {
-        return associativeReach != null ? associativeReach : 0.75;
+        return associativeReach != null ? associativeReach : 1.0;
     }
 
     public double workingMemorySpanOrDefault() {
-        return workingMemorySpan != null ? workingMemorySpan : 0.75;
+        return workingMemorySpan != null ? workingMemorySpan : 1.0;
     }
 
     public CognitiveCapacityConfig withRelationalComplexity(double v) {
@@ -244,32 +244,7 @@ The analytical agent has higher depth ceiling (0.85 vs 0.63) and higher WM span 
 
 ## Pipeline Integration — SearchBudgetTickParticipant
 
-### Ceiling Application
-
-After fatigue reallocation (step 6, existing), before clamp (step 8):
-
-```java
-// Step 7: Capacity ceiling (NEW)
-CognitiveCapacityConfig capacity = defaults.capacityConfig();
-if (capacity != null) {
-    double rc = capacity.relationalComplexityOrDefault();
-    double wm = capacity.workingMemorySpanOrDefault();
-    double ar = capacity.associativeReachOrDefault();
-
-    depth = Math.min(rc, depth);
-    breadth = Math.min(wm, breadth);
-    laterality = Math.min(ar, laterality);
-    // convergence: no ceiling
-}
-
-// Step 8: Final clamp
-depth = clamp01(depth);
-breadth = clamp01(breadth);
-laterality = clamp01(laterality);
-convergence = clamp01(convergence);
-```
-
-### Capacity Gap Signal
+### Step 7: Capacity Ceiling and Gap Signal
 
 The tick participant computes the per-parameter gap between unconstrained and constrained values. Gap values are exposed on `SearchBudget` for two consumers: prose selection (boolean threshold) and the appraisal system (#892 — frustration pathway):
 
@@ -292,7 +267,15 @@ if (capacity != null) {
     double maxGap = Math.max(depthGap, Math.max(breadthGap, lateralityGap));
     capacityConstrained = maxGap > 0.05;
 }
+
+// Step 8: Final clamp
+depth = clamp01(depth);
+breadth = clamp01(breadth);
+laterality = clamp01(laterality);
+convergence = clamp01(convergence);
 ```
+
+This is the single, definitive implementation of step 7. Gap computation and ceiling application happen in one pass — gaps are computed BEFORE the ceiling binds the value.
 
 The `capacityConstrained` boolean uses a 0.05 threshold to filter noise for prose selection — the LLM wouldn't render a 0.02 gap differently from zero. The per-parameter gap values (depthGap, breadthGap, lateralityGap) are preserved at full precision for the appraisal system to generate proportional frustration (#892).
 
@@ -348,14 +331,25 @@ Generate descriptions based on what information is provided:
 
 Describe felt cognitive state, not parameters. Do not name parameters.
 
-Respond with JSON containing only the requested fields:
-- Base only: {"description": "..."}
+Respond with JSON containing only the requested fields. Always use
+"normal" as the key for the normal-range description:
+- Base only: {"normal": "..."}
 - With extreme: {"normal": "...", "extreme": "..."}
 - With capacity: {"normal": "...", "constrained": "..."}
 - With both: {"normal": "...", "extreme": "...", "constrained": "..."}
 ```
 
-The per-agent user prompt (`buildUserPrompt`) conditionally includes extreme parameters (when `extremeInteraction != null || fatigue != null`) and capacity parameters (when `capacityConfig != null`). Each task's response parsing (`extractField`/`extractDescription`) handles whichever fields are present — existing null-safe extraction with fallback works unchanged.
+The per-agent user prompt (`buildUserPrompt`) conditionally includes extreme parameters (when `extremeInteraction != null || fatigue != null`) and capacity parameters (when `capacityConfig != null`). Each task's response parsing uses `extractField(response, "normal")` consistently. Backward-compatible fallback: if `"normal"` is absent, try `"description"` (handles cached responses from the legacy single-description format).
+
+The `crystallise` method maps the `"normal"` JSON key to MindMap property `"description"` for backward compatibility with `SearchBudgetPromptSection`'s existing `readCrystallisedProse(agentId, tenantId, "description")` call:
+
+```java
+String normal = extractField(responseText, "normal");
+if (normal == null) normal = extractField(responseText, "description");
+crystallise(agentId, tenantId, normal, extreme, constrained);
+// crystallise stores: "description" ← normal, "extreme-description" ← extreme,
+//                     "constrained-description" ← constrained
+```
 
 All descriptions crystallise to the same MindMap COGNITIVE node: `description` (backward-compatible), `extreme-description` (#839), `constrained-description` (new).
 
@@ -484,6 +478,24 @@ void explicit_yaml_overrides_derived_capacity() {
     // YAML specifies relationalComplexity = 0.3
     // derived value would be 0.75
     // result: 0.3 wins
+}
+
+@Test
+void partial_yaml_fills_unspecified_from_derivation() {
+    // YAML specifies only relationalComplexity = 0.90
+    // Jackson produces CognitiveCapacityConfig(0.90, null, null)
+    // Jungian derivation produces associative = 0.73, wmSpan = 0.79
+    // mergeWith() fills the nulls from derivation
+    // result: relational = 0.90, associative = 0.73, wmSpan = 0.79
+}
+
+@Test
+void partial_yaml_without_derivation_leaves_unspecified_uncapped() {
+    // YAML specifies only relationalComplexity = 0.90
+    // No disposition profile → deriveCapacity returns null
+    // mergeCapacity(explicit, null) returns explicit unchanged
+    // *OrDefault() returns 1.0 for null fields
+    // result: relational = 0.90, breadth uncapped (1.0), laterality uncapped (1.0)
 }
 
 @Test
