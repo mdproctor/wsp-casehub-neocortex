@@ -20,13 +20,13 @@ flyway-next-v: unknown
 - [x] casehubio/neocortex#849 — CognitionTestHarness + scenario tests
 - [x] casehubio/neocortex#839 — Personality at extreme intensity
 - [ ] casehubio/neocortex#840 — Intelligence capacity layer ← active
-  - [ ] Batch 1: Type Foundation
-    - [ ] Task 1: CognitiveCapacityConfig + CognitiveDefaults field 21
-    - [ ] Task 2: SearchBudget fields 8-11
-  - [ ] Batch 2: CDE Derivation
-    - [ ] Task 3: Jungian capacity derivation + quality tests
-  - [ ] Batch 3: Pipeline Ceiling
-    - [ ] Task 4: Capacity ceiling + gap signal + quality tests
+  - [x] Batch 1: Type Foundation
+    - [x] Task 1: CognitiveCapacityConfig + CognitiveDefaults field 21
+    - [x] Task 2: SearchBudget fields 8-11
+  - [x] Batch 2: CDE Derivation
+    - [x] Task 3: Jungian capacity derivation + quality tests
+  - [x] Batch 3: Pipeline Ceiling
+    - [x] Task 4: Capacity ceiling + gap signal + quality tests
   - [ ] Batch 4: Prose & Scenario
     - [ ] Task 5: Unified prose generation + composition
     - [ ] Task 6: CognitionTestHarness capacity scenario

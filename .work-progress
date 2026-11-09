@@ -88,4 +88,6 @@ wip_commit=done
 lifecycle_continue=done
 _exec_ok:health_check=yes
 health_check=done
-load_context_attempt=1
+load_context_attempt=2
+load_context=done
+load_context_produced=0
