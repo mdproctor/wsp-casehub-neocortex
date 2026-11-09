@@ -1,10 +1,10 @@
 # Work Plan — Work Plan —
 
 ## State
-branch: 
+branch: main
 issue-repo: casehubio/neocortex
 status: active
-covers: 789
+covers: 841
 project-sha: slot-creation
 date: 2026-11-03
 design-repo: project
@@ -12,14 +12,13 @@ design-section-hashes:
 flyway-next-v: unknown
 
 ## Queue
-- [x] casehubio/neocortex#785 — Audit corpus-management for domain abstraction
-- [x] casehubio/neocortex#800 — Phase 1 renames
-- [x] casehubio/neocortex#786 — E2E examples across domains
-- [x] casehubio/neocortex#801 — Phase 2 API fixes
-- [x] casehubio/neocortex#787 — Rich document ingestion
-- [ ] casehubio/neocortex#802 — Phase 3 structural extraction ← active
-- [ ] casehubio/neocortex#788 — Corpus annotations
-- [ ] casehubio/neocortex#804 — Research workspace methodology
-- [ ] casehubio/neocortex#810 — CDI wiring for corpus-management
-- [ ] casehubio/neocortex#811 — MCP domain for corpus-management
-- [ ] casehubio/neocortex#812 — Spring wiring for corpus-management
+- [x] casehubio/neocortex#825 — Search budget foundation
+- [x] casehubio/neocortex#596 — Information-gap curiosity
+- [x] casehubio/neocortex#826 — Recurring thought continuum
+- [x] casehubio/neocortex#847 — Channel modulation wiring
+- [x] casehubio/neocortex#848 — Goal proximity biases
+- [x] casehubio/neocortex#849 — CognitionTestHarness + scenario tests
+- [x] casehubio/neocortex#839 — Personality at extreme intensity
+- [ ] casehubio/neocortex#840 — Intelligence capacity layer ← active
+- [ ] casehubio/neocortex#865 — Migrate cognitive tests to CognitionTestHarness
+- [ ] casehubio/neocortex#866 — Empirical quality testing
