@@ -174,13 +174,6 @@ private static double compress(double raw) {
 
 Using existing agent profiles:
 
-**High-Ti/Te agent** (e.g., INTJ disposition — ni=0.9, te=0.85, fi=0.7, se=0.15):
-- Relational complexity: compress(0.5 * (0.0 + 0.85)) = compress(0.425) = 0.72
-- Associative reach: compress(0.5 * (0.0 + 0.9)) = compress(0.45) = 0.73
-- WM span: compress(0.5 * (0.85 + 0.0)) = compress(0.425) = 0.72
-
-Wait — ti is not in this profile. Let me use proper Jungian profiles:
-
 **Analytical disposition** (ti=0.8, te=0.7, ni=0.6, ne=0.3, si=0.5):
 - Relational: compress(0.5 * (0.8 + 0.7)) = compress(0.75) = 0.85
 - Associative: compress(0.5 * (0.3 + 0.6)) = compress(0.45) = 0.73
@@ -288,10 +281,27 @@ not parameters.
 Respond with JSON: {"normal": "...", "extreme": "...", "constrained": "..."}
 ```
 
+The capacity-constrained description is optionally combined with the extreme description in a single prompt:
+
+```
+3. **Capacity constrained** — what happens when their motivation pushes them
+   past their cognitive capacity limits.
+   ...
+
+[If extreme interaction is configured:]
+2. **Extreme intensity** — how their exploration changes under extreme motivation
+   pressure (past their tolerance peak of {extremePeak}).
+```
+
 Selection:
-- `anyExtreme && capacity != null` → `SYSTEM_PROMPT_WITH_CAPACITY`
+- `capacity != null` → `SYSTEM_PROMPT_WITH_CAPACITY` (generates normal + constrained, plus extreme if `anyExtreme`)
 - `anyExtreme && capacity == null` → `SYSTEM_PROMPT_WITH_EXTREME` (existing)
-- `!anyExtreme` → `SYSTEM_PROMPT` (existing)
+- `!anyExtreme && capacity == null` → `SYSTEM_PROMPT` (existing)
+
+JSON response adapts to what was requested:
+- `{"normal": "...", "constrained": "..."}` — capacity only
+- `{"normal": "...", "extreme": "...", "constrained": "..."}` — both
+- `{"normal": "...", "extreme": "..."}` — extreme only (existing)
 
 All descriptions crystallise to the same MindMap COGNITIVE node: `description` (backward-compatible), `extreme-description` (#839), `constrained-description` (new).
 
