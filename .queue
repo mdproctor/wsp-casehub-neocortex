@@ -1,7 +1,7 @@
-# Work Plan — 
+# Work Plan — Work Plan —
 
 ## State
-branch: issue-839-search-budget-situational-strength
+branch: 
 issue-repo: casehubio/neocortex
 status: active
 covers: 789
@@ -16,17 +16,8 @@ flyway-next-v: unknown
 - [x] casehubio/neocortex#800 — Phase 1 renames
 - [x] casehubio/neocortex#786 — E2E examples across domains
 - [x] casehubio/neocortex#801 — Phase 2 API fixes
-- [ ] casehubio/neocortex#787 — Rich document ingestion ← active
-  - [ ] Batch 1: Config+CDE
-    - [ ] Task 1: ExtremeInteractionConfig and FatigueConfig records
-    - [ ] Task 2: SearchBudgetConfig and SearchBudget changes
-    - [ ] Task 3: CDE derivation pathways and quality tests
-  - [ ] Batch 2: TickParticipant
-    - [ ] Task 4: Activation decay and modulation scaling and fatigue
-  - [ ] Batch 3: Prose+Integration
-    - [ ] Task 5: Prose generation and prompt section
-    - [ ] Task 6: CLAUDE.md update and full build
-- [ ] casehubio/neocortex#802 — Phase 3 structural extraction
+- [x] casehubio/neocortex#787 — Rich document ingestion
+- [ ] casehubio/neocortex#802 — Phase 3 structural extraction ← active
 - [ ] casehubio/neocortex#788 — Corpus annotations
 - [ ] casehubio/neocortex#804 — Research workspace methodology
 - [ ] casehubio/neocortex#810 — CDI wiring for corpus-management
