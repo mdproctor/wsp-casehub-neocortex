@@ -21,5 +21,12 @@ flyway-next-v: unknown
 - [x] casehubio/neocortex#839 — Personality at extreme intensity
 - [x] casehubio/neocortex#840 — Intelligence capacity layer
 - [x] casehubio/neocortex#865 — Migrate cognitive tests to CognitionTestHarness
-- [ ] casehubio/neocortex#866 — Empirical quality testing ← active
-- [ ] casehubio/neocortex#900 — Capacity fidelity testing
+- [x] casehubio/neocortex#866 — Empirical quality testing
+- [x] casehubio/neocortex#900 — Capacity fidelity testing
+- [ ] casehubio/neocortex#878 — Search budget per-parameter extreme peaks
+- [ ] casehubio/neocortex#879 — Search budget separate amplification threshold
+- [ ] casehubio/neocortex#880 — Search budget shared fatigue substrate
+- [ ] casehubio/neocortex#890 — Intelligence capacity learning rate modulation
+- [ ] casehubio/neocortex#891 — Intelligence capacity convergence ceiling
+- [ ] casehubio/neocortex#892 — Intelligence capacity appraisal frustration pathway
+- [ ] casehubio/neocortex#894 — Eval pipeline coherence trace chain validation
