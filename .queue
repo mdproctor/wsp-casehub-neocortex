@@ -43,3 +43,6 @@ check: 878
 - [ ] casehubio/neocortex#892 — Intelligence capacity appraisal frustration pathway
 - [ ] casehubio/neocortex#894 — Eval pipeline coherence trace chain validation
 - [ ] casehubio/neocortex#905 — Run and calibrate exploration + capacity eval suite
+- [ ] casehubio/neocortex#916 — QdrantCbrRecordStore 4-arg recordOutcome
+- [ ] casehubio/neocortex#917 — Fix cognition test compilation from 880
+- [ ] casehubio/neocortex#918 — Capacity modulation observability
