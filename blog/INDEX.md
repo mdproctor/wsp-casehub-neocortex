@@ -87,3 +87,4 @@
 | [2026-11-09-mdp02-wanting-to-think-vs-being-able.md](2026-11-09-mdp02-wanting-to-think-vs-being-able.md) | 2026-11-09 | Intelligence capacity layer: why personality models conflate motivation and ability, and the architecture that separates them |
 | [2026-11-09-mdp03-you-cant-unit-test-emergence.md](2026-11-09-mdp03-you-cant-unit-test-emergence.md) | 2026-11-09 | Why structural tests can't prove cognitive self-descriptions causally influence LLM behaviour — the echo approach evaluation design |
 | [2026-11-09-mdp04-not-everything-breaks-at-once.md](2026-11-09-mdp04-not-everything-breaks-at-once.md) | 2026-11-09 | Per-parameter Yerkes-Dodson peaks — creative association degrades before focused search under pressure |
+| [2026-11-10-mdp01-one-brain-one-budget.md](2026-11-10-mdp01-one-brain-one-budget.md) | 2026-11-10 | Why cognitive systems should share a fatigue pool — Hockey's compensatory control, the ego depletion debate, cross-system coupling |

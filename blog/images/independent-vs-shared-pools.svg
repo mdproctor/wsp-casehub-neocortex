@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 300" font-family="system-ui, -apple-system, sans-serif">
+  <!-- Left panel: Independent pools -->
+  <text x="180" y="24" text-anchor="middle" font-size="14" font-weight="600" fill="#1a1a2e">Independent Pools</text>
+
+  <!-- Search fatigue pool -->
+  <rect x="40" y="45" width="130" height="90" rx="8" fill="#e8eaf6" stroke="#5c6bc0" stroke-width="1.5"/>
+  <text x="105" y="68" text-anchor="middle" font-size="11" font-weight="500" fill="#283593">Search Fatigue</text>
+  <rect x="55" y="78" width="100" height="14" rx="3" fill="#fff" stroke="#9fa8da" stroke-width="1"/>
+  <rect x="55" y="78" width="65" height="14" rx="3" fill="#7986cb"/>
+  <text x="105" y="107" text-anchor="middle" font-size="9" fill="#5c6bc0">arousal-driven</text>
+  <text x="105" y="120" text-anchor="middle" font-size="9" fill="#5c6bc0">depletion</text>
+
+  <!-- Regulation fatigue pool -->
+  <rect x="190" y="45" width="130" height="90" rx="8" fill="#fce4ec" stroke="#e91e63" stroke-width="1.5"/>
+  <text x="255" y="68" text-anchor="middle" font-size="11" font-weight="500" fill="#880e4f">Regulation Fatigue</text>
+  <rect x="205" y="78" width="100" height="14" rx="3" fill="#fff" stroke="#f48fb1" stroke-width="1"/>
+  <rect x="205" y="78" width="40" height="14" rx="3" fill="#f06292"/>
+  <text x="255" y="107" text-anchor="middle" font-size="9" fill="#e91e63">willpower</text>
+  <text x="255" y="120" text-anchor="middle" font-size="9" fill="#e91e63">depletion</text>
+
+  <!-- No connection -->
+  <text x="180" y="158" text-anchor="middle" font-size="10" fill="#999">no cross-talk</text>
+  <line x1="170" y1="135" x2="170" y2="145" stroke="#ccc" stroke-width="1" stroke-dasharray="3,3"/>
+  <line x1="190" y1="135" x2="190" y2="145" stroke="#ccc" stroke-width="1" stroke-dasharray="3,3"/>
+
+  <!-- Effects -->
+  <text x="105" y="185" text-anchor="middle" font-size="10" fill="#283593">→ search budget</text>
+  <text x="105" y="198" text-anchor="middle" font-size="10" fill="#283593">per-parameter effects</text>
+  <text x="255" y="185" text-anchor="middle" font-size="10" fill="#880e4f">→ regulation alpha</text>
+  <text x="255" y="198" text-anchor="middle" font-size="10" fill="#880e4f">effectiveness</text>
+
+  <!-- Problem callout -->
+  <rect x="60" y="220" width="240" height="50" rx="6" fill="#fff3e0" stroke="#ff9800" stroke-width="1"/>
+  <text x="180" y="240" text-anchor="middle" font-size="10" fill="#e65100">regulation-exhausted agent</text>
+  <text x="180" y="254" text-anchor="middle" font-size="10" font-weight="600" fill="#e65100">explores at full capacity?</text>
+
+  <!-- Divider -->
+  <line x1="360" y1="15" x2="360" y2="285" stroke="#e0e0e0" stroke-width="1" stroke-dasharray="5,5"/>
+
+  <!-- Right panel: Shared pool -->
+  <text x="540" y="24" text-anchor="middle" font-size="14" font-weight="600" fill="#1a1a2e">Shared Pool</text>
+
+  <!-- Sources -->
+  <rect x="410" y="45" width="110" height="36" rx="6" fill="#e8eaf6" stroke="#5c6bc0" stroke-width="1.5"/>
+  <text x="465" y="68" text-anchor="middle" font-size="10" fill="#283593">Search intensity</text>
+
+  <rect x="560" y="45" width="110" height="36" rx="6" fill="#fce4ec" stroke="#e91e63" stroke-width="1.5"/>
+  <text x="615" y="68" text-anchor="middle" font-size="10" fill="#880e4f">Regulation effort</text>
+
+  <!-- Arrows into pool -->
+  <line x1="465" y1="81" x2="500" y2="110" stroke="#5c6bc0" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
+  <line x1="615" y1="81" x2="580" y2="110" stroke="#e91e63" stroke-width="1.5" marker-end="url(#arrow-pink)"/>
+
+  <!-- Shared pool -->
+  <rect x="460" y="110" width="160" height="55" rx="10" fill="#e0f2f1" stroke="#009688" stroke-width="2"/>
+  <text x="540" y="132" text-anchor="middle" font-size="12" font-weight="600" fill="#004d40">Cognitive Resource</text>
+  <text x="540" y="147" text-anchor="middle" font-size="12" font-weight="600" fill="#004d40">Pool</text>
+  <rect x="478" y="152" width="124" height="8" rx="2" fill="#fff" stroke="#80cbc4" stroke-width="1"/>
+  <rect x="478" y="152" width="80" height="8" rx="2" fill="#4db6ac"/>
+
+  <!-- Arrows out of pool -->
+  <line x1="500" y1="165" x2="465" y2="195" stroke="#5c6bc0" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
+  <line x1="580" y1="165" x2="615" y2="195" stroke="#e91e63" stroke-width="1.5" marker-end="url(#arrow-pink)"/>
+
+  <!-- Consumers -->
+  <rect x="400" y="195" width="130" height="36" rx="6" fill="#e8eaf6" stroke="#5c6bc0" stroke-width="1.5"/>
+  <text x="465" y="212" text-anchor="middle" font-size="10" fill="#283593">depth / breadth /</text>
+  <text x="465" y="224" text-anchor="middle" font-size="10" fill="#283593">laterality / convergence</text>
+
+  <rect x="550" y="195" width="130" height="36" rx="6" fill="#fce4ec" stroke="#e91e63" stroke-width="1.5"/>
+  <text x="615" y="218" text-anchor="middle" font-size="10" fill="#880e4f">regulation alpha</text>
+
+  <!-- Benefit callout -->
+  <rect x="430" y="248" width="220" height="36" rx="6" fill="#e8f5e9" stroke="#4caf50" stroke-width="1"/>
+  <text x="540" y="266" text-anchor="middle" font-size="10" fill="#1b5e20">regulation effort degrades exploration</text>
+  <text x="540" y="278" text-anchor="middle" font-size="10" fill="#1b5e20">search intensity degrades regulation</text>
+
+  <!-- Arrow markers -->
+  <defs>
+    <marker id="arrow-blue" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#5c6bc0"/>
+    </marker>
+    <marker id="arrow-pink" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#e91e63"/>
+    </marker>
+  </defs>
+</svg>
