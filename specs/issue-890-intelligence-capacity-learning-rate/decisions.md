@@ -35,3 +35,48 @@
 **Sources:** User directive
 **Exploration:** quick
 **Status:** captured
+
+## D4: Dimension-to-site mapping
+
+**Choice:** Single capacity dimension per site, mapped by cognitive substrate relevance:
+- CapsWeightUpdater → relationalComplexity (cause-effect pattern depth; Halford 1998)
+- CbrOutcome.adjustConfidence → workingMemorySpan (multi-factor outcome evaluation; Engle & Kane 2004)
+- DriveAdaptationPhase → associativeReach (drive-outcome connection breadth; Mednick 1962)
+- StrategyLearningOrchestrator → workingMemorySpan (multi-dimensional strategy tracking; Engle & Kane 2004)
+- DefaultGraduationScorer → relationalComplexity (abstracting from experience; Halford 1998)
+- PersonalityEvolutionOrchestrator → relationalComplexity (self-model complexity; Halford 1998)
+**Alternatives:**
+- Composite (weighted combination of dimensions per site) — more nuanced but harder to explain and test; one dimension per site is already a strong signal
+- All sites use same dimension — ignores that the three dimensions measure distinct cognitive substrates
+**Rationale:** Each capacity dimension maps to a distinct cognitive operation (Halford = depth, Mednick = breadth, Engle & Kane = context retention). Each learning site has a primary cognitive demand that aligns with one dimension.
+**Trade-offs:** Loses multi-dimensional interaction effects (e.g., relational complexity AND working memory jointly affecting CAPS learning). Acceptable as a first realization — composite can be added later without API changes.
+**Sources:** Halford (1998), Mednick (1962), Engle & Kane (2004), Cattell (1971)
+**Exploration:** quick
+**Status:** captured
+
+## D5: CBR wiring — learningRateMultiplier on CbrOutcome
+
+**Choice:** Add nullable `Double learningRateMultiplier` field to `CbrOutcome` record. Existing single-arg constructor defaults to null. Store implementations multiply schema's learningRate by the multiplier when non-null. Cognitive-layer callers (BehavioralSynthesisPhase) set it from agent's capacity.
+**Depends on:** D4 (CBR uses workingMemorySpan)
+**Alternatives:**
+- Decorator on CbrRecordStore — introduces cognitive-index dependency into memory layer; decorator can't easily intercept the internal adjustConfidence call
+- Per-agent schemas — caseType × agent proliferation; schemas are meant to be structural, not per-agent tuning
+**Rationale:** CbrOutcome is a value object in memory-api (tier 1). Adding a nullable field is backwards-compatible — null means no modulation (existing behavior). The cognitive layer sets the field; the store layer applies it. Clean separation.
+**Trade-offs:** Every CbrRecordStore implementation needs updating to check the multiplier. Acceptable — there are 4 implementations, and the change is 3 lines per.
+**Sources:** CbrOutcome.java, InMemoryCbrRecordStore, QdrantCbrRecordStore, SqliteMemoryStore recordOutcome sections
+**Exploration:** quick
+**Status:** captured
+
+## D6: CAPS and graduation wiring
+
+**Choice:** Two site-specific wiring changes:
+1. **CapsWeightUpdater** — add `double capacityMultiplier` parameter to `update()`. BehavioralSynthesisPhase resolves relationalComplexity from CognitiveDefaultsRegistry and passes it. Multiplies `baseAlpha` (not `salienceMultiplier` — salience is attention, not learning capacity).
+2. **DefaultGraduationScorer** — add `Double capacityMultiplier` field to `GraduationContext`. ExperienceConsolidationPhase resolves relationalComplexity and sets it. Scorer multiplies the `minCorroboration` threshold inversely (higher capacity = lower bar for graduation).
+**Depends on:** D4 (CAPS uses relationalComplexity, graduation uses relationalComplexity)
+**Alternatives:**
+- Inject CognitiveDefaultsRegistry into CapsWeightUpdater/DefaultGraduationScorer directly — higher coupling, harder to test, violates the current pattern where these are pure computation classes
+**Rationale:** Both sites are pure computation called by higher-level orchestrators. The orchestrators already have access to agent context. Passing capacity as a parameter keeps the computation classes dependency-free.
+**Trade-offs:** Adds a parameter to `update()` — all callers need updating. Only one non-test caller (BehavioralSynthesisPhase), so impact is minimal.
+**Sources:** CapsWeightUpdater:48-66, DefaultGraduationScorer:33-41, BehavioralSynthesisPhase, ExperienceConsolidationPhase
+**Exploration:** quick
+**Status:** captured
