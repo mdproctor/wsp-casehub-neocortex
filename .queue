@@ -1,11 +1,11 @@
 # Work Plan — signal-propagation-tests
 
 ## State
-branch: issue-922-appraisal-drive-modulation
+branch: issue-923-personality-memory-drive-sources
 status: active
 issue-repo: casehubio/neocortex
-covers: casehubio/neocortex#922
-Current: casehubio/neocortex#922 — appraisal-drive-modulation-pathway
+covers: casehubio/neocortex#923
+Current: casehubio/neocortex#923 — personality-memory-drive-sources
 date: 2026-11-08
 
 ## Queue
@@ -14,3 +14,4 @@ date: 2026-11-08
 - [ ] casehubio/neocortex#902 — distress-trajectory-prompt-enrichment
 - [ ] casehubio/neocortex#919 — appraisal-mood-drive-propagation
 - [ ] casehubio/neocortex#922 — appraisal-drive-modulation-pathway
+- [ ] casehubio/neocortex#923 — personality-memory-drive-sources
