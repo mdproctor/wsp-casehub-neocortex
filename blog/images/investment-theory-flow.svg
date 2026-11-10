@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 440" font-family="system-ui, -apple-system, sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#64748b"/>
+    </marker>
+    <marker id="arrow-blue" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#3b82f6"/>
+    </marker>
+  </defs>
+
+  <style>
+    .title { font-size: 15px; font-weight: 600; fill: #1e293b; }
+    .label { font-size: 12px; fill: #334155; }
+    .dim-label { font-size: 11px; font-weight: 600; fill: #1e40af; }
+    .site-label { font-size: 10px; fill: #475569; }
+    .formula { font-size: 10px; fill: #64748b; font-family: 'SF Mono', 'Fira Code', monospace; }
+    .box { rx: 6; ry: 6; }
+    .capacity-box { fill: #dbeafe; stroke: #3b82f6; stroke-width: 1.5; }
+    .dim-box { fill: #ede9fe; stroke: #7c3aed; stroke-width: 1.2; }
+    .site-box { fill: #f1f5f9; stroke: #94a3b8; stroke-width: 1; }
+    .multiplier-box { fill: #fef3c7; stroke: #f59e0b; stroke-width: 1.2; }
+  </style>
+
+  <text x="400" y="28" text-anchor="middle" class="title">Cattell's Investment Theory — Capacity → Learning Rate</text>
+  <text x="400" y="46" text-anchor="middle" class="formula">Fluid intelligence (Gf) modulates crystallized intelligence (Gc) acquisition speed</text>
+
+  <!-- CognitiveCapacityConfig box -->
+  <rect x="270" y="65" width="260" height="55" class="box capacity-box"/>
+  <text x="400" y="85" text-anchor="middle" class="label" font-weight="600">CognitiveCapacityConfig</text>
+  <text x="400" y="103" text-anchor="middle" class="formula">[0.55, 0.95] after CDE compression</text>
+
+  <!-- Three dimension boxes -->
+  <rect x="40" y="160" width="200" height="40" class="box dim-box"/>
+  <text x="140" y="184" text-anchor="middle" class="dim-label">relationalComplexity</text>
+
+  <rect x="300" y="160" width="200" height="40" class="box dim-box"/>
+  <text x="400" y="184" text-anchor="middle" class="dim-label">associativeReach</text>
+
+  <rect x="560" y="160" width="200" height="40" class="box dim-box"/>
+  <text x="660" y="184" text-anchor="middle" class="dim-label">workingMemorySpan</text>
+
+  <!-- Arrows from capacity to dimensions -->
+  <line x1="340" y1="120" x2="160" y2="157" stroke="#64748b" stroke-width="1" marker-end="url(#arrow)"/>
+  <line x1="400" y1="120" x2="400" y2="157" stroke="#64748b" stroke-width="1" marker-end="url(#arrow)"/>
+  <line x1="460" y1="120" x2="640" y2="157" stroke="#64748b" stroke-width="1" marker-end="url(#arrow)"/>
+
+  <!-- Site boxes - relationalComplexity column -->
+  <rect x="20" y="240" width="220" height="32" class="box site-box"/>
+  <text x="130" y="260" text-anchor="middle" class="site-label">DefaultGraduationScorer</text>
+
+  <rect x="20" y="285" width="220" height="32" class="box site-box"/>
+  <text x="130" y="305" text-anchor="middle" class="site-label">PersonalityEvolutionOrchestrator</text>
+
+  <!-- Site boxes - associativeReach column -->
+  <rect x="290" y="240" width="220" height="32" class="box site-box"/>
+  <text x="400" y="260" text-anchor="middle" class="site-label">CapsWeightUpdater (alpha)</text>
+
+  <rect x="290" y="285" width="220" height="32" class="box site-box"/>
+  <text x="400" y="305" text-anchor="middle" class="site-label">DriveAdaptationPhase (LR)</text>
+
+  <!-- Site boxes - workingMemorySpan column -->
+  <rect x="550" y="240" width="220" height="32" class="box site-box"/>
+  <text x="660" y="260" text-anchor="middle" class="site-label">CbrRecordStore (EMA rate)</text>
+
+  <rect x="550" y="285" width="220" height="32" class="box site-box"/>
+  <text x="660" y="305" text-anchor="middle" class="site-label">StrategyLearningOrchestrator</text>
+
+  <!-- Arrows from dimensions to sites -->
+  <line x1="140" y1="200" x2="130" y2="237" stroke="#7c3aed" stroke-width="1" marker-end="url(#arrow)"/>
+  <line x1="140" y1="200" x2="130" y2="282" stroke="#7c3aed" stroke-width="1" marker-end="url(#arrow)"/>
+
+  <line x1="400" y1="200" x2="400" y2="237" stroke="#7c3aed" stroke-width="1" marker-end="url(#arrow)"/>
+  <line x1="400" y1="200" x2="400" y2="282" stroke="#7c3aed" stroke-width="1" marker-end="url(#arrow)"/>
+
+  <line x1="660" y1="200" x2="660" y2="237" stroke="#7c3aed" stroke-width="1" marker-end="url(#arrow)"/>
+  <line x1="660" y1="200" x2="660" y2="282" stroke="#7c3aed" stroke-width="1" marker-end="url(#arrow)"/>
+
+  <!-- Formulas -->
+  <rect x="40" y="345" width="220" height="44" class="box multiplier-box"/>
+  <text x="150" y="363" text-anchor="middle" class="formula">score × relationalComplexity</text>
+  <text x="150" y="378" text-anchor="middle" class="formula">ceiling × relationalComplexity</text>
+
+  <rect x="290" y="345" width="220" height="44" class="box multiplier-box"/>
+  <text x="400" y="363" text-anchor="middle" class="formula">baseAlpha × associativeReach</text>
+  <text x="400" y="370" text-anchor="middle" class="formula"> </text>
+  <text x="400" y="378" text-anchor="middle" class="formula">effectiveLR × associativeReach</text>
+
+  <rect x="550" y="345" width="220" height="44" class="box multiplier-box"/>
+  <text x="660" y="363" text-anchor="middle" class="formula">schemaLR × workingMemorySpan</text>
+  <text x="660" y="378" text-anchor="middle" class="formula">maxDelta × workingMemorySpan</text>
+
+  <!-- Arrows to formulas -->
+  <line x1="130" y1="317" x2="150" y2="342" stroke="#f59e0b" stroke-width="1" marker-end="url(#arrow)"/>
+  <line x1="400" y1="317" x2="400" y2="342" stroke="#f59e0b" stroke-width="1" marker-end="url(#arrow)"/>
+  <line x1="660" y1="317" x2="660" y2="342" stroke="#f59e0b" stroke-width="1" marker-end="url(#arrow)"/>
+
+  <!-- Legend -->
+  <text x="400" y="420" text-anchor="middle" class="formula">Halford 1998 · Mednick 1962 · Engle &amp; Kane 2004 · Rescorla &amp; Wagner 1972</text>
+</svg>

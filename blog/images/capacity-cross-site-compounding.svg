@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 320" font-family="system-ui, -apple-system, sans-serif">
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#64748b"/>
+    </marker>
+  </defs>
+
+  <style>
+    .title { font-size: 14px; font-weight: 600; fill: #1e293b; }
+    .label { font-size: 11px; fill: #334155; }
+    .val { font-size: 13px; font-weight: 600; fill: #1e40af; font-family: 'SF Mono', 'Fira Code', monospace; }
+    .dim { font-size: 10px; fill: #7c3aed; font-weight: 600; }
+    .note { font-size: 10px; fill: #64748b; font-style: italic; }
+    .box { rx: 6; ry: 6; }
+  </style>
+
+  <text x="360" y="24" text-anchor="middle" class="title">Cross-Site Compounding: Independent Dimensions, Not Double-Counting</text>
+
+  <!-- Agent profile -->
+  <rect x="30" y="50" width="180" height="80" class="box" fill="#f0fdf4" stroke="#22c55e" stroke-width="1.2"/>
+  <text x="120" y="72" text-anchor="middle" class="label" font-weight="600">Agent Profile</text>
+  <text x="120" y="90" text-anchor="middle" class="dim">relationalComplexity: 0.55</text>
+  <text x="120" y="105" text-anchor="middle" class="dim">associativeReach: 0.90</text>
+  <text x="120" y="120" text-anchor="middle" class="dim">workingMemorySpan: 0.75</text>
+
+  <!-- Stage 1: Graduation -->
+  <rect x="260" y="50" width="190" height="55" class="box" fill="#fef3c7" stroke="#f59e0b" stroke-width="1"/>
+  <text x="355" y="70" text-anchor="middle" class="label" font-weight="600">Graduation Score</text>
+  <text x="355" y="88" text-anchor="middle" class="val">0.8 × 0.55 = 0.44</text>
+  <text x="355" y="100" text-anchor="middle" class="dim">← relationalComplexity</text>
+
+  <!-- Stage 2: CAPS -->
+  <rect x="260" y="130" width="190" height="55" class="box" fill="#dbeafe" stroke="#3b82f6" stroke-width="1"/>
+  <text x="355" y="150" text-anchor="middle" class="label" font-weight="600">CAPS baseAlpha</text>
+  <text x="355" y="168" text-anchor="middle" class="val">alpha × 0.90</text>
+  <text x="355" y="180" text-anchor="middle" class="dim">← associativeReach</text>
+
+  <!-- Arrows -->
+  <line x1="210" y1="80" x2="257" y2="75" stroke="#64748b" stroke-width="1" marker-end="url(#arr)"/>
+  <line x1="210" y1="105" x2="257" y2="155" stroke="#64748b" stroke-width="1" marker-end="url(#arr)"/>
+
+  <!-- graduation-score → outcomeIntensity (β) -->
+  <line x1="450" y1="78" x2="500" y2="78" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arr)"/>
+  <text x="530" y="68" text-anchor="middle" class="label">outcomeIntensity</text>
+  <text x="530" y="82" text-anchor="middle" class="note">(β in ΔW = α × β × PE)</text>
+
+  <!-- Effective ΔW -->
+  <rect x="490" y="130" width="210" height="55" class="box" fill="#fce7f3" stroke="#ec4899" stroke-width="1.2"/>
+  <text x="595" y="150" text-anchor="middle" class="label" font-weight="600">Effective Weight Update</text>
+  <text x="595" y="168" text-anchor="middle" class="val">ΔW ∝ 0.55 × 0.90 = 0.495</text>
+  <text x="595" y="180" text-anchor="middle" class="note">NOT 0.55² = 0.30</text>
+
+  <line x1="530" y1="82" x2="560" y2="127" stroke="#ec4899" stroke-width="1" marker-end="url(#arr)"/>
+  <line x1="450" y1="155" x2="487" y2="155" stroke="#ec4899" stroke-width="1" marker-end="url(#arr)"/>
+
+  <!-- Explanation -->
+  <rect x="30" y="215" width="660" height="85" class="box" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="50" y="238" class="label" font-weight="600">Why this isn't double-counting:</text>
+  <text x="50" y="258" class="label">• Graduation (relationalComplexity) measures abstraction quality — can the agent extract useful patterns?</text>
+  <text x="50" y="275" class="label">• CAPS alpha (associativeReach) measures association speed — how fast can it form stimulus-response links?</text>
+  <text x="50" y="292" class="label">• An agent strong at association (0.90) but weak at abstraction (0.55) learns fast from weak inputs</text>
+</svg>
