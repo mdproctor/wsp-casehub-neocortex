@@ -1,13 +1,14 @@
 # Work Plan — signal-propagation-tests
 
 ## State
-branch: issue-853-capacity-modulation-function
+branch: issue-902-distress-trajectory-prompt-enrichment
 state: active
 issue-repo: casehubio/neocortex
-covers: casehubio/neocortex#853
-Current: casehubio/neocortex#853 — capacity-modulation-function
+covers: casehubio/neocortex#902
+Current: casehubio/neocortex#902 — distress-trajectory-prompt-enrichment
 date: 2026-11-08
 
 ## Queue
 - [x] casehubio/neocortex#791 — TDD-regression-tests-signal-propagation
 - [ ] casehubio/neocortex#853 — capacity-modulation-function
+- [ ] casehubio/neocortex#902 — distress-trajectory-prompt-enrichment
