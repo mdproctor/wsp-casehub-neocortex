@@ -1,10 +1,20 @@
 # Session Handover — neocortex (slot 196)
 
-**Date:** 2026-11-06
-**Branch:** `main` (all #818 work landed)
-**Queue next:** #830 → #829 → #819
+**Date:** 2026-11-10
+**Branch:** `main` (#902 + #919 landed)
+**Queue:** drained
 
-## What was done (this session)
+## What was done (2026-11-10 session)
+
+### #902 — Distress trajectory prompt enrichment (CLOSED → f167a74b)
+
+Added `RegulationTracker` distress trajectories to the LLM generation phase prompt for extrinsic strategies (CO_REGULATION, DELIBERATE_PROVOCATION). Renders IMPROVING/STABLE/WORSENING + delta for each interacting agent in the social regulation context section. Threaded through `EmotionRegulationTickParticipant` → `EmotionRegulationGenerationPhase` → `buildUserMessage`.
+
+### #919 — Appraisal→mood→drive propagation (CLOSED → cbe8b1bd)
+
+Fixed timing bug: appraisal (DERIVED phase) recorded MoodSignals via `bridgeToMood` but they weren't processed until the next tick cycle, causing MoodPromptSection to render "emotionally even" after high-intensity distress. Fix: added post-DERIVED re-tick of mood and drives in `CognitionCore.tick()` (8 lines production code).
+
+## Prior work
 
 ### #818 — Automatic regulation predictor (CLOSED)
 
