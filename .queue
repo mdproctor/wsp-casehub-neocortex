@@ -1,7 +1,7 @@
 # Work Plan — Work Plan —
 
 ## State
-branch: issue-890-intelligence-capacity-learning-rate
+branch: 
 issue-repo: casehubio/neocortex
 status: active
 covers: 841
@@ -13,6 +13,11 @@ flyway-next-v: unknown
 check: 878
 
 ## Queue
+- [x] casehubio/neocortex#916 — QdrantCbrRecordStore 4-arg recordOutcome
+- [x] casehubio/neocortex#917 — Fix cognition test compilation from 880
+- [x] casehubio/neocortex#918 — Capacity modulation observability
+- [ ] casehubio/neocortex#894 — Eval pipeline coherence trace chain validation ← active
+- [ ] casehubio/neocortex#905 — Run and calibrate exploration + capacity eval suite
 - [x] casehubio/neocortex#825 — Search budget foundation
 - [x] casehubio/neocortex#596 — Information-gap curiosity
 - [x] casehubio/neocortex#826 — Recurring thought continuum
@@ -28,21 +33,6 @@ check: 878
 - [x] casehubio/neocortex#879 — Search budget separate amplification threshold
 - [x] casehubio/neocortex#880 — Search budget shared fatigue substrate
 - [x] casehubio/neocortex#890 — Intelligence capacity learning rate modulation
-- [ ] casehubio/neocortex#891 — Intelligence capacity convergence ceiling ← active
-  - [x] Batch 1: CAPS Foundation
-    - [x] Task 1: WeightUpdateContext + alpha modulation
-  - [x] Batch 2: Memory Layer
-    - [x] Task 2: CBR recordOutcome overload
-    - [x] Task 3: GraduationContext agentId + scorer modulation
-  - [x] Batch 3: Cognition Layer
-    - [x] Task 4: Drive + personality modulation
-    - [x] Task 5: Strategy ceiling + LLM prompt
-  - [x] Batch 4: Wiring
-    - [x] Task 6: BehavioralSynthesisPhase capacity wiring
-    - [x] Task 7: Cross-site integration test
-- [ ] casehubio/neocortex#892 — Intelligence capacity appraisal frustration pathway
-- [ ] casehubio/neocortex#894 — Eval pipeline coherence trace chain validation
-- [ ] casehubio/neocortex#905 — Run and calibrate exploration + capacity eval suite
-- [ ] casehubio/neocortex#916 — QdrantCbrRecordStore 4-arg recordOutcome
-- [ ] casehubio/neocortex#917 — Fix cognition test compilation from 880
-- [ ] casehubio/neocortex#918 — Capacity modulation observability
+- [x] casehubio/neocortex#891 — Intelligence capacity convergence ceiling
+- [x] casehubio/neocortex#892 — Intelligence capacity appraisal frustration pathway
+- [ ] casehubio/neocortex#920 — Eval signal — RPI stale strategy persistence
