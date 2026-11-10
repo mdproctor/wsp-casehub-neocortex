@@ -29,17 +29,17 @@ check: 878
 - [x] casehubio/neocortex#880 — Search budget shared fatigue substrate
 - [x] casehubio/neocortex#890 — Intelligence capacity learning rate modulation
 - [ ] casehubio/neocortex#891 — Intelligence capacity convergence ceiling ← active
-  - [ ] Batch 1: CAPS Foundation
-    - [ ] Task 1: WeightUpdateContext + alpha modulation
-  - [ ] Batch 2: Memory Layer
-    - [ ] Task 2: CBR recordOutcome overload
-    - [ ] Task 3: GraduationContext agentId + scorer modulation
-  - [ ] Batch 3: Cognition Layer
-    - [ ] Task 4: Drive + personality modulation
-    - [ ] Task 5: Strategy ceiling + LLM prompt
-  - [ ] Batch 4: Wiring
-    - [ ] Task 6: BehavioralSynthesisPhase capacity wiring
-    - [ ] Task 7: Cross-site integration test
+  - [x] Batch 1: CAPS Foundation
+    - [x] Task 1: WeightUpdateContext + alpha modulation
+  - [x] Batch 2: Memory Layer
+    - [x] Task 2: CBR recordOutcome overload
+    - [x] Task 3: GraduationContext agentId + scorer modulation
+  - [x] Batch 3: Cognition Layer
+    - [x] Task 4: Drive + personality modulation
+    - [x] Task 5: Strategy ceiling + LLM prompt
+  - [x] Batch 4: Wiring
+    - [x] Task 6: BehavioralSynthesisPhase capacity wiring
+    - [x] Task 7: Cross-site integration test
 - [ ] casehubio/neocortex#892 — Intelligence capacity appraisal frustration pathway
 - [ ] casehubio/neocortex#894 — Eval pipeline coherence trace chain validation
 - [ ] casehubio/neocortex#905 — Run and calibrate exploration + capacity eval suite
