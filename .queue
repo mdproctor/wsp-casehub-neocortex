@@ -27,6 +27,13 @@ check: 878
 - [x] casehubio/neocortex#878 — Search budget per-parameter extreme peaks
 - [x] casehubio/neocortex#879 — Search budget separate amplification threshold
 - [ ] casehubio/neocortex#880 — Search budget shared fatigue substrate ← active
+  - [ ] Batch 1: Foundation
+    - [ ] Task 1: Config + SPI + Rename
+    - [ ] Task 2: Pool SPI + Implementation
+  - [ ] Batch 2: Integration
+    - [ ] Task 3: Wire SearchBudget
+    - [ ] Task 4: Wire Regulation
+    - [ ] Task 5: CDE split + cross-consumer test
 - [ ] casehubio/neocortex#890 — Intelligence capacity learning rate modulation
 - [ ] casehubio/neocortex#891 — Intelligence capacity convergence ceiling
 - [ ] casehubio/neocortex#892 — Intelligence capacity appraisal frustration pathway
