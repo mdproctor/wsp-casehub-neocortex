@@ -1,16 +1,13 @@
 # Work Plan — issue-882-html-positional-markdown-parser
 
 ## State
-branch: issue-895-web-corpus-final
-status: landed
+branch: issue-908-web-capture-bridge
+status: active
 issue-repo: casehubio/neocortex
 covers: 875
 
 ## Queue
-- [x] casehubio/neocortex#899 — End-to-end smoke test
-- [x] casehubio/neocortex#898 — Agent integration guide
-- [x] casehubio/neocortex#882 — HTML to positional markdown parser ← active
-- [x] casehubio/neocortex#883 — Web capture store integration
-- [x] casehubio/neocortex#884 — Web capture MCP tool
-- [x] casehubio/neocortex#885 — PDF visual archive
-- [x] casehubio/neocortex#886 — TTL-based curation
+- [ ] casehubio/neocortex#908 — Bridge CorpusApiBean to WebPlatform ← active
+- [ ] casehubio/neocortex#909 — Config properties for web capture
+- [ ] casehubio/neocortex#910 — MCP tools for web cache management
+- [ ] casehubio/neocortex#911 — Error handling on fetch failure
