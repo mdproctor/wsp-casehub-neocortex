@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 380">
+  <defs>
+    <style>
+      text { font-family: -apple-system, 'Segoe UI', sans-serif; }
+      .title { font-size: 13px; font-weight: 600; fill: #1a1a2e; }
+      .label { font-size: 11px; fill: #1a1a2e; }
+      .sublabel { font-size: 10px; fill: #6b7280; }
+      .year { font-size: 11px; fill: #6366f1; font-weight: 600; }
+      .arrow-text { font-size: 10px; fill: #9ca3af; font-style: italic; }
+      .box-factor { fill: #e0e7ff; stroke: #6366f1; stroke-width: 1.5; rx: 6; }
+      .box-common { fill: #dbeafe; stroke: #3b82f6; stroke-width: 2; rx: 6; }
+      .box-specific { fill: #f0fdf4; stroke: #22c55e; stroke-width: 1.5; rx: 6; }
+      .box-absorbed { fill: #fef3c7; stroke: #f59e0b; stroke-width: 1.5; rx: 6; stroke-dasharray: 4 3; }
+      .box-gone { fill: #fee2e2; stroke: #ef4444; stroke-width: 1.5; rx: 6; stroke-dasharray: 6 3; }
+      .line-corr { stroke: #9ca3af; stroke-width: 1; stroke-dasharray: 4 3; }
+      .line-loads { stroke: #3b82f6; stroke-width: 1.5; }
+      .arrow-evol { stroke: #6366f1; stroke-width: 2; fill: none; marker-end: url(#arrowhead); }
+    </style>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#6366f1"/>
+    </marker>
+  </defs>
+
+  <!-- 2000 Model -->
+  <text x="160" y="24" text-anchor="middle" class="title">Three-Factor Model</text>
+  <text x="160" y="40" text-anchor="middle" class="year">Miyake et al. 2000</text>
+
+  <rect x="40" y="55" width="110" height="36" class="box-factor"/>
+  <text x="95" y="72" text-anchor="middle" class="label">Inhibition</text>
+  <text x="95" y="84" text-anchor="middle" class="sublabel">prepotent response</text>
+
+  <rect x="165" y="55" width="110" height="36" class="box-factor"/>
+  <text x="220" y="72" text-anchor="middle" class="label">Updating</text>
+  <text x="220" y="84" text-anchor="middle" class="sublabel">working memory</text>
+
+  <rect x="165" y="105" width="110" height="36" class="box-factor"/>
+  <text x="220" y="122" text-anchor="middle" class="label">Shifting</text>
+  <text x="220" y="134" text-anchor="middle" class="sublabel">task switching</text>
+
+  <!-- Correlations -->
+  <line x1="150" y1="73" x2="165" y2="73" class="line-corr"/>
+  <line x1="95" y1="91" x2="220" y2="105" class="line-corr"/>
+  <line x1="220" y1="91" x2="220" y2="105" class="line-corr"/>
+  <text x="30" y="160" class="sublabel">r = .42–.63</text>
+  <text x="30" y="172" class="sublabel">"separable"</text>
+
+  <!-- Evolution arrow -->
+  <path d="M 320 100 L 440 100" class="arrow-evol"/>
+  <text x="380" y="88" text-anchor="middle" class="arrow-text">2004 + 2017</text>
+  <text x="380" y="120" text-anchor="middle" class="arrow-text">inhibition loses</text>
+  <text x="380" y="132" text-anchor="middle" class="arrow-text">its own factor</text>
+
+  <!-- 2017 Model -->
+  <text x="620" y="24" text-anchor="middle" class="title">Bifactor Model</text>
+  <text x="620" y="40" text-anchor="middle" class="year">Friedman &amp; Miyake 2017</text>
+
+  <rect x="505" y="55" width="230" height="40" class="box-common"/>
+  <text x="620" y="72" text-anchor="middle" class="label" font-weight="600">Common EF</text>
+  <text x="620" y="86" text-anchor="middle" class="sublabel">goal maintenance under interference</text>
+
+  <rect x="505" y="110" width="108" height="36" class="box-specific"/>
+  <text x="559" y="127" text-anchor="middle" class="label">Updating-</text>
+  <text x="559" y="139" text-anchor="middle" class="label">Specific</text>
+
+  <rect x="627" y="110" width="108" height="36" class="box-specific"/>
+  <text x="681" y="127" text-anchor="middle" class="label">Shifting-</text>
+  <text x="681" y="139" text-anchor="middle" class="label">Specific</text>
+
+  <rect x="552" y="160" width="136" height="30" class="box-gone"/>
+  <text x="620" y="180" text-anchor="middle" class="sublabel">no Inhibiting-Specific</text>
+
+  <!-- Loading lines -->
+  <line x1="559" y1="95" x2="559" y2="110" class="line-loads"/>
+  <line x1="681" y1="95" x2="681" y2="110" class="line-loads"/>
+
+  <!-- Bottom: What this means -->
+  <rect x="40" y="220" width="720" height="140" fill="#f9fafb" stroke="#e5e7eb" stroke-width="1" rx="8"/>
+  <text x="60" y="244" class="title">What this means for convergence</text>
+
+  <rect x="60" y="260" width="200" height="36" class="box-absorbed"/>
+  <text x="160" y="278" text-anchor="middle" class="label">Inhibitory control</text>
+  <text x="160" y="290" text-anchor="middle" class="sublabel">→ Common EF (absorbed)</text>
+
+  <text x="280" y="280" class="label">+</text>
+
+  <rect x="300" y="260" width="200" height="36" class="box-factor"/>
+  <text x="400" y="278" text-anchor="middle" class="label">NFCC personality</text>
+  <text x="400" y="290" text-anchor="middle" class="sublabel">→ already modelled</text>
+
+  <text x="520" y="280" class="label">+</text>
+
+  <rect x="540" y="260" width="200" height="36" class="box-factor"/>
+  <text x="640" y="278" text-anchor="middle" class="label">Working memory</text>
+  <text x="640" y="290" text-anchor="middle" class="sublabel">→ already modelled</text>
+
+  <text x="400" y="332" text-anchor="middle" class="sublabel">convergence resistance = motivation (NFCC) + capacity (WM) + goal maintenance (Common EF)</text>
+  <text x="400" y="348" text-anchor="middle" class="sublabel">No unique variance left for a separate convergenceCeiling dimension</text>
+</svg>

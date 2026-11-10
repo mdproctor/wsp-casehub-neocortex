@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 260">
+  <defs>
+    <style>
+      text { font-family: -apple-system, 'Segoe UI', sans-serif; }
+      .title { font-size: 13px; font-weight: 600; fill: #1a1a2e; }
+      .label { font-size: 11px; fill: #1a1a2e; }
+      .sublabel { font-size: 10px; fill: #6b7280; }
+      .code { font-size: 10px; fill: #1a1a2e; font-family: 'SF Mono', 'Fira Code', monospace; }
+      .box-search { fill: #ede9fe; stroke: #8b5cf6; stroke-width: 1.5; rx: 6; }
+      .box-gap { fill: #fef3c7; stroke: #f59e0b; stroke-width: 1.5; rx: 6; }
+      .box-emotion { fill: #fee2e2; stroke: #ef4444; stroke-width: 1.5; rx: 6; }
+      .box-mood { fill: #dbeafe; stroke: #3b82f6; stroke-width: 1.5; rx: 6; }
+      .arrow { stroke: #6b7280; stroke-width: 1.5; fill: none; marker-end: url(#arr); }
+    </style>
+    <marker id="arr" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#6b7280"/>
+    </marker>
+  </defs>
+
+  <text x="360" y="20" text-anchor="middle" class="title">Capacity gap → frustration → mood pathway</text>
+
+  <!-- Search Budget -->
+  <rect x="20" y="40" width="160" height="70" class="box-search"/>
+  <text x="100" y="60" text-anchor="middle" class="label" font-weight="600">SearchBudget</text>
+  <text x="100" y="76" text-anchor="middle" class="code">motivation: 0.8</text>
+  <text x="100" y="90" text-anchor="middle" class="code">capacity: 0.5</text>
+  <text x="100" y="104" text-anchor="middle" class="sublabel">laterality capped</text>
+
+  <!-- Gap computation -->
+  <path d="M 180 75 L 220 75" class="arrow"/>
+
+  <rect x="220" y="45" width="130" height="60" class="box-gap"/>
+  <text x="285" y="66" text-anchor="middle" class="label" font-weight="600">Gap detected</text>
+  <text x="285" y="82" text-anchor="middle" class="code">lateralityGap = 0.3</text>
+  <text x="285" y="96" text-anchor="middle" class="sublabel">motivation − capacity</text>
+
+  <!-- Appraisal -->
+  <path d="M 350 75 L 390 75" class="arrow"/>
+
+  <rect x="390" y="40" width="150" height="70" class="box-emotion"/>
+  <text x="465" y="58" text-anchor="middle" class="label" font-weight="600">Frustration</text>
+  <text x="465" y="74" text-anchor="middle" class="code">ANGER intensity=0.3</text>
+  <text x="465" y="88" text-anchor="middle" class="sublabel">P=−0.15 A=+0.18 D=+0.08</text>
+  <text x="465" y="102" text-anchor="middle" class="sublabel">source: INTRINSIC</text>
+
+  <!-- Mood bridge -->
+  <path d="M 540 75 L 580 75" class="arrow"/>
+
+  <rect x="580" y="50" width="120" height="50" class="box-mood"/>
+  <text x="640" y="72" text-anchor="middle" class="label" font-weight="600">Mood shift</text>
+  <text x="640" y="88" text-anchor="middle" class="sublabel">displeasure + arousal</text>
+
+  <!-- Depth row -->
+  <rect x="220" y="130" width="130" height="36" class="box-gap"/>
+  <text x="285" y="148" text-anchor="middle" class="code">depthGap = 0.2</text>
+  <text x="285" y="160" text-anchor="middle" class="sublabel">relational complexity</text>
+
+  <path d="M 350 148 L 390 148" class="arrow"/>
+
+  <rect x="390" y="130" width="150" height="36" class="box-emotion"/>
+  <text x="465" y="148" text-anchor="middle" class="code">DISAPPOINTMENT 0.2</text>
+  <text x="465" y="160" text-anchor="middle" class="sublabel">P=−0.06 A=+0.02 D=−0.08</text>
+
+  <!-- Breadth row -->
+  <rect x="220" y="180" width="130" height="36" class="box-gap"/>
+  <text x="285" y="198" text-anchor="middle" class="code">breadthGap = 0.1</text>
+  <text x="285" y="210" text-anchor="middle" class="sublabel">working memory span</text>
+
+  <path d="M 350 198 L 390 198" class="arrow"/>
+
+  <rect x="390" y="180" width="150" height="36" class="box-emotion"/>
+  <text x="465" y="198" text-anchor="middle" class="code">DISAPPOINTMENT 0.1</text>
+  <text x="465" y="210" text-anchor="middle" class="sublabel">P=−0.03 A=+0.01 D=−0.04</text>
+
+  <!-- Summary -->
+  <text x="360" y="248" text-anchor="middle" class="sublabel">Laterality → frustration (ANGER): "I sense the gap but can't bridge it"</text>
+  <text x="360" y="260" text-anchor="middle" class="sublabel">Depth/breadth → disappointment: "I can't go as far as I want"</text>
+</svg>
