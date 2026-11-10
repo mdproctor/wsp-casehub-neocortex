@@ -49,7 +49,7 @@
 
 ## D5: FatigueConfig handling — REVISED
 
-**Choice:** Rename `FatigueConfig` to `SearchFatigueEffects`. Remove pool parameters (maxTicks, recoveryRate). Retains only the 4 search-budget-specific per-parameter effects. `SearchBudgetConfig.fatigueEffects()` returns `SearchFatigueEffects`.
+**Choice:** Rename `SearchFatigueEffects` to `SearchFatigueEffects`. Remove pool parameters (maxTicks, recoveryRate). Retains only the 4 search-budget-specific per-parameter effects. `SearchBudgetConfig.fatigueEffects()` returns `SearchFatigueEffects`.
 **Alternatives:**
 - Keep FatigueConfig name — less churn but known-misleading name is technical debt
 - Absorb into SearchBudgetConfig — flattens nesting but SearchBudgetConfig already has 14 params

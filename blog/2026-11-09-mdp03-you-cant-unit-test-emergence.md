@@ -99,4 +99,4 @@ If the results show compliance instead of fidelity — the LLM mechanically refu
 
 The eval infrastructure exists to find out which one it is. The answer determines whether the capacity layer's design stands or needs fundamental revision.
 
-That's the point of Tier 3 testing. You can't unit-test emergence. You can only set up the conditions, let the system run, and measure what comes out.
+That's the point of Tier 3 testing. You can't unit-test emergence. You can only set up the conditions, let the system run, and measure what comes out.e

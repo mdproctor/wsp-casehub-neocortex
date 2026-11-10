@@ -11,7 +11,7 @@
 
 **Goal:** Unify search fatigue and regulation fatigue into a shared cognitive resource pool, implementing Hockey's (1997) compensatory control theory where all effortful cognitive activity draws from a limited processing resource.
 
-**Architecture:** A `CognitiveResourcePool` SPI in `cognition-api` tracks shared per-agent cognitive depletion. Two initial sources contribute effort: search intensity (when above extremePeak) and emotion regulation (proportional to regulation effort). Consumers read depletion level and apply their own effects. `FatigueConfig` is renamed to `SearchFatigueEffects` (retaining only the 4 per-parameter effects), `RegulationFatigueTracker` is deleted. Pool config is personality-derived via `CognitiveDerivationEngine`.
+**Architecture:** A `CognitiveResourcePool` SPI in `cognition-api` tracks shared per-agent cognitive depletion. Two initial sources contribute effort: search intensity (when above extremePeak) and emotion regulation (proportional to regulation effort). Consumers read depletion level and apply their own effects. `SearchFatigueEffects` is renamed to `SearchFatigueEffects` (retaining only the 4 per-parameter effects), `RegulationFatigueTracker` is deleted. Pool config is personality-derived via `CognitiveDerivationEngine`.
 
 **Tech Stack:** Java 21, Quarkus CDI, JUnit 5
 
@@ -33,10 +33,10 @@
 **Files:**
 - Create: `cognitive-api/src/main/java/io/casehub/neocortex/cognitive/CognitiveResourcePoolConfig.java`
 - Create: `cognitive-api/src/test/java/io/casehub/neocortex/cognitive/CognitiveResourcePoolConfigTest.java`
-- Rename: `FatigueConfig` → `SearchFatigueEffects` (use `ide_refactor_rename`)
+- Rename: `SearchFatigueEffects` → `SearchFatigueEffects` (use `ide_refactor_rename`)
 - Modify: `cognitive-api/src/main/java/io/casehub/neocortex/cognitive/SearchBudgetConfig.java` — rename `fatigue()` → `fatigueEffects()`, type `SearchFatigueEffects`
 - Modify: `cognitive-api/src/test/java/io/casehub/neocortex/cognitive/SearchFatigueEffectsTest.java` (auto-renamed from FatigueConfigTest) — remove pool param tests, update remaining tests
-- Modify: `cognitive-api/src/test/java/io/casehub/neocortex/cognitive/SearchBudgetConfigTest.java` — update `withFatigue` → `withFatigueEffects`
+- Modify: `cognitive-api/src/test/java/io/casehub/neocortex/cognitive/SearchBudgetConfigTest.java` — update `withFatigueEffects` → `withFatigueEffects`
 
 **Interfaces:**
 - Produces: `CognitiveResourcePoolConfig(int maxEffort, double recoveryRate)` with `defaults()`, `withMaxEffort(int)`, `withRecoveryRate(double)`, validation
@@ -133,7 +133,7 @@ Expected: PASS
 
 - [ ] **Step 5: Rename FatigueConfig → SearchFatigueEffects**
 
-Use `ide_refactor_rename` on `FatigueConfig` class → `SearchFatigueEffects`. This updates all references project-wide.
+Use `ide_refactor_rename` on `SearchFatigueEffects` class → `SearchFatigueEffects`. This updates all references project-wide.
 
 - [ ] **Step 6: Remove pool parameters from SearchFatigueEffects**
 
@@ -185,7 +185,7 @@ public record SearchFatigueEffects(
 
 - [ ] **Step 7: Rename SearchBudgetConfig.fatigue() → fatigueEffects()**
 
-Use `ide_refactor_rename` on the `fatigue` field/accessor in `SearchBudgetConfig` → `fatigueEffects`. Update `withFatigue()` → `withFatigueEffects()`. Fix any compilation errors from the 6→4 param constructor change in `SearchBudgetConfig.defaults()` and `withFatigueEffects()`.
+Use `ide_refactor_rename` on the `fatigue` field/accessor in `SearchBudgetConfig` → `SearchFatigueEffects`. Update `withFatigue()` → `withFatigueEffects()`. Fix any compilation errors from the 6→4 param constructor change in `SearchBudgetConfig.defaults()` and `withFatigueEffects()`.
 
 - [ ] **Step 8: Update SearchFatigueEffectsTest (formerly FatigueConfigTest)**
 
@@ -196,7 +196,7 @@ Remove tests for removed fields: `maxTicks_must_be_positive`, `negative_maxTicks
 After the rename and field removal, fix compilation errors in:
 - `SearchBudgetTickParticipant.java` — `config.fatigue()` → `config.fatigueEffects()`, `fatigueConfig.maxTicks()` and `fatigueConfig.recoveryRate()` references need temporary stubs or removal (will be replaced by pool in Task 4)
 - `CognitiveDerivationEngine.java` — `new FatigueConfig(6 params)` → `new SearchFatigueEffects(4 params)` (pool params extracted to separate construction)
-- `SearchBudgetConfigTest.java` — `withFatigue` → `withFatigueEffects`
+- `SearchBudgetConfigTest.java` — `withFatigueEffects` → `withFatigueEffects`
 - Test files referencing `FatigueConfig.defaults()` → `SearchFatigueEffects.defaults()`
 
 - [ ] **Step 10: Build cognitive-api module**
@@ -705,7 +705,7 @@ var fatigueEffects = new SearchFatigueEffects(
         conscientiousness * 0.2 - anxiousness * 0.15);
 ```
 
-The `poolConfig` is set on the returned `CognitiveDefaults` via `.withCognitiveResourcePoolConfig(poolConfig)`. The `fatigueEffects` goes into `SearchBudgetConfig` via `.withFatigueEffects(fatigueEffects)`.
+The `poolConfig` is set on the returned `CognitiveDefaults` via `.withCognitiveResourcePoolConfig(poolConfig)`. The `SearchFatigueEffects` goes into `SearchBudgetConfig` via `.withFatigueEffects(fatigueEffects)`.
 
 - [ ] **Step 2: Update CognitiveDerivationEngineTest**
 
@@ -819,7 +819,7 @@ Expected: BUILD SUCCESS, all tests pass
 
 - [ ] **Step 7: Update CLAUDE.md**
 
-Update the `FatigueConfig` reference in the Key config records line to `SearchFatigueEffects`. Add `CognitiveResourcePoolConfig` to the list. Update the cognition module description to mention `CognitiveResourcePool` SPI and `DefaultCognitiveResourcePool`. Update `CognitiveDefaults` field count from 21 to 22.
+Update the `SearchFatigueEffects` reference in the Key config records line to `SearchFatigueEffects`. Add `CognitiveResourcePoolConfig` to the list. Update the cognition module description to mention `CognitiveResourcePool` SPI and `DefaultCognitiveResourcePool`. Update `CognitiveDefaults` field count from 21 to 22.
 
 - [ ] **Step 8: Commit**
 

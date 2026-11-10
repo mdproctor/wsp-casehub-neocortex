@@ -472,7 +472,7 @@ Full-pipeline scenario with different personality profiles at extreme intensity.
 | Component | Module | Rationale |
 |---|---|---|
 | `ExtremeInteractionConfig` | cognitive-api | Per-agent config, alongside SearchBudgetConfig |
-| `FatigueConfig` | cognitive-api | Per-agent config, alongside SearchBudgetConfig |
+| `SearchFatigueEffects` | cognitive-api | Per-agent config, alongside SearchBudgetConfig |
 | `SearchBudgetConfig` changes | cognitive-api | Existing location |
 | `SearchBudget` changes (`extremeActivation`) | cognition-api | Existing location |
 | `activationWithDecay()` | cognition (TickParticipant) | Tick-time computation |

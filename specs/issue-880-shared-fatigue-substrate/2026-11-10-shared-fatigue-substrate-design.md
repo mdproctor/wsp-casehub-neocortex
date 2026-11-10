@@ -227,7 +227,7 @@ The ordering delta is one tick's worth of effort — negligible in practice. No 
 - `RegulationFatigueTrackerTest`: delete (class deleted)
 - New integration test: cross-consumer depletion — regulation effort degrades search budget, search intensity degrades regulation alpha
 - `CognitiveDerivationEngineTest`: verify derivation split produces equivalent pool config + fatigue effects
-- `FatigueConfigTest`: rename to `SearchFatigueEffectsTest`, update for 4-field record
+- `SearchFatigueEffectsTest`: rename to `SearchFatigueEffectsTest`, update for 4-field record
 
 ## References
 

@@ -11,7 +11,7 @@
 
 **Goal:** Replace uniform logistic activation with personality-modulated activation functions that maintain personality differentiation at extreme motivation intensity via three mechanisms: inverted-U decline, modulation scaling, and fatigue reallocation.
 
-**Architecture:** Three interaction effects applied in sequence: (1) exponential decay past personality-specific peak replaces bare logistic, (2) drive modulations scale with intensity via per-parameter amplification rates, (3) sustained fatigue reallocates budget per-parameter based on Hockey's compensatory control model. All parameterised via `ExtremeInteractionConfig` and `FatigueConfig` sub-records on `SearchBudgetConfig`, CDE-derived from PID-5 facets.
+**Architecture:** Three interaction effects applied in sequence: (1) exponential decay past personality-specific peak replaces bare logistic, (2) drive modulations scale with intensity via per-parameter amplification rates, (3) sustained fatigue reallocates budget per-parameter based on Hockey's compensatory control model. All parameterised via `ExtremeInteractionConfig` and `SearchFatigueEffects` sub-records on `SearchBudgetConfig`, CDE-derived from PID-5 facets.
 
 **Tech Stack:** Java 21, Quarkus 3.32.2, Mockito (tests), JUnit 5
 
@@ -37,7 +37,7 @@
 
 **Interfaces:**
 - Produces: `ExtremeInteractionConfig` record (8 fields: depthDecay, breadthDecay, lateralityDecay, convergenceDecay, depthAmplification, breadthAmplification, lateralityAmplification, convergenceAmplification) with `defaults()`, `withX()` for all fields
-- Produces: `FatigueConfig` record (6 fields: maxTicks, recoveryRate, depthEffect, breadthEffect, lateralityEffect, convergenceEffect) with `defaults()`, `withX()` for all fields
+- Produces: `SearchFatigueEffects` record (6 fields: maxTicks, recoveryRate, depthEffect, breadthEffect, lateralityEffect, convergenceEffect) with `defaults()`, `withX()` for all fields
 
 - [ ] **Step 1: Write failing test for ExtremeInteractionConfig validation**
 
@@ -116,7 +116,7 @@ feat(#839): add ExtremeInteractionConfig and FatigueConfig records
 - Modify: `cognition-api/src/test/java/io/casehub/neocortex/cognition/search/SearchBudgetTest.java`
 
 **Interfaces:**
-- Consumes: `ExtremeInteractionConfig`, `FatigueConfig` from Task 1
+- Consumes: `ExtremeInteractionConfig`, `SearchFatigueEffects` from Task 1
 - Produces: `SearchBudgetConfig` with 3 new fields: `extremePeak` (double), `extremeInteraction` (ExtremeInteractionConfig, nullable), `fatigue` (FatigueConfig, nullable); `defaults()` returns `extremePeak=0.85, null, null`; `withExtremePeak()`, `withExtremeInteraction()`, `withFatigue()` copy methods
 - Produces: `SearchBudget` with new `extremeActivation` boolean field (6th field, before `evaluatedAt`)
 
@@ -191,7 +191,7 @@ feat(#839): add extremePeak, extremeInteraction, fatigue to SearchBudgetConfig; 
 - Create: `cognitive-index/src/test/java/io/casehub/neocortex/cognitive/index/SearchBudgetExtremeInteractionTest.java`
 
 **Interfaces:**
-- Consumes: `ExtremeInteractionConfig`, `FatigueConfig`, `SearchBudgetConfig` from Tasks 1-2
+- Consumes: `ExtremeInteractionConfig`, `SearchFatigueEffects`, `SearchBudgetConfig` from Tasks 1-2
 - Produces: `deriveSearchBudgetDefaults()` returns `SearchBudgetConfig` with all 14 fields populated from personality facets
 
 - [ ] **Step 1: Write failing quality test — personality differentiation at extreme intensity**
@@ -281,7 +281,7 @@ double convergenceAmplification = -(anxiousness * 2.0 - conscientiousness * 0.8)
 var extremeInteraction = new ExtremeInteractionConfig(depthDecay, breadthDecay, lateralityDecay, convergenceDecay, depthAmplification, breadthAmplification, lateralityAmplification, convergenceAmplification);
 ```
 
-3. Add `FatigueConfig` derivation:
+3. Add `SearchFatigueEffects` derivation:
 ```java
 int fatigueMaxTicks = (int)(6 + conscientiousness * 8);
 double fatigueRecovery = 0.3 + conscientiousness * 0.4;
@@ -320,7 +320,7 @@ feat(#839): add CDE derivation for extremePeak, ExtremeInteractionConfig, Fatigu
 - Modify: `cognition/src/test/java/io/casehub/neocortex/cognition/search/SearchBudgetTickParticipantTest.java`
 
 **Interfaces:**
-- Consumes: `SearchBudgetConfig` (with new fields), `ExtremeInteractionConfig`, `FatigueConfig` from Tasks 1-2
+- Consumes: `SearchBudgetConfig` (with new fields), `ExtremeInteractionConfig`, `SearchFatigueEffects` from Tasks 1-2
 - Produces: `SearchBudget` results with `extremeActivation` flag set correctly; `activationWithDecay()` static method; `FatigueState` per-agent accumulator
 
 - [ ] **Step 1: Create FatigueState value holder**
@@ -569,7 +569,7 @@ feat(#839): add extreme-intensity prose generation and prompt section selection
 
 - [ ] **Step 1: Update CLAUDE.md**
 
-Add `ExtremeInteractionConfig` and `FatigueConfig` to the SearchBudgetConfig documentation in the cognition section. Add fatigue dynamics summary.
+Add `ExtremeInteractionConfig` and `SearchFatigueEffects` to the SearchBudgetConfig documentation in the cognition section. Add fatigue dynamics summary.
 
 - [ ] **Step 2: Run full module build**
 

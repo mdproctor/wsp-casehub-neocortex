@@ -101,7 +101,7 @@
 
 † Impulsivity→positive laterality is a second-order prediction (from review R1-11). Supported by inference (impulsivity = weak executive control + degraded control → random associations) but not directly validated experimentally. Easterbrook would predict narrowing for everyone. Flag as speculative in quality tests — if empirical testing shows narrowing instead, set to negative.
 
-**Config:** Bundled as `FatigueConfig` sub-record on `SearchBudgetConfig` (nullable, like `channelModulation`):
+**Config:** Bundled as `SearchFatigueEffects` sub-record on `SearchBudgetConfig` (nullable, like `channelModulation`):
 ```java
 FatigueConfig(int maxTicks, double recoveryRate,
               double depthEffect, double breadthEffect,
@@ -170,7 +170,7 @@ Total: 1 (peak) + 8 (interaction) + 6 (fatigue) = 15 new fields. SearchBudgetCon
 
 ## D6: Config construction — withX() copy methods
 
-**Choice:** Add `withX()` copy methods to `SearchBudgetConfig`, `ExtremeInteractionConfig`, and `FatigueConfig`. Construction: `SearchBudgetConfig.defaults().withExtremePeak(0.6).withExtremeInteraction(ExtremeInteractionConfig.defaults().withDepthDecay(0.0))`.
+**Choice:** Add `withX()` copy methods to `SearchBudgetConfig`, `ExtremeInteractionConfig`, and `SearchFatigueEffects`. Construction: `SearchBudgetConfig.defaults().withExtremePeak(0.6).withExtremeInteraction(ExtremeInteractionConfig.defaults().withDepthDecay(0.0))`.
 
 **Revision (from review R1-09):** Changed from builder pattern to `withX()` copy methods, following the established `CognitiveDefaults` convention. No config record in `cognitive-api` uses builders — `CognitiveDefaults` at 19 fields uses `withX()` methods. Introducing builders selectively for `SearchBudgetConfig` would create an inconsistency.
 
