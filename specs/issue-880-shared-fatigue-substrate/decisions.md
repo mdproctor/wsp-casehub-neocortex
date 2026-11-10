@@ -46,3 +46,16 @@
 **Sources:** CognitiveDefaults record, CognitiveDerivationEngine.java:818-826
 **Exploration:** quick
 **Status:** captured
+
+## D5: FatigueConfig handling
+
+**Choice:** Keep `FatigueConfig` name, remove pool parameters (maxTicks, recoveryRate). It retains only the 4 search-budget-specific per-parameter effects. `SearchBudgetConfig.fatigue()` continues to return `FatigueConfig`.
+**Alternatives:**
+- Rename to SearchFatigueEffects — clearer name but more downstream churn
+- Absorb into SearchBudgetConfig — flattens nesting but SearchBudgetConfig already has 14 params
+**Rationale:** Minimal churn. FatigueConfig still describes "how fatigue affects search parameters" — the name works even without the pool params.
+**Trade-offs:** Name is slightly misleading (it's effects, not fatigue configuration). Acceptable given the alternatives.
+**Depends on:** D4 (pool config placement)
+**Sources:** FatigueConfig.java, SearchBudgetConfig.java
+**Exploration:** quick
+**Status:** captured
