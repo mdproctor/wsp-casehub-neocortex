@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 340" font-family="system-ui, -apple-system, sans-serif">
+  <style>
+    .title { font-size: 14px; font-weight: 600; fill: #1a1a2e; }
+    .label { font-size: 12px; fill: #1a1a2e; }
+    .sublabel { font-size: 10px; fill: #666; }
+    .scenario-label { font-size: 11px; font-weight: 500; }
+    .box { rx: 6; stroke-width: 1.5; }
+    .obs { fill: #fff3e0; stroke: #ff9800; }
+    .appr { fill: #e8f5e9; stroke: #4caf50; }
+    .reg { fill: #e3f2fd; stroke: #2196f3; }
+    .drive { fill: #fce4ec; stroke: #e91e63; }
+    .prompt { fill: #f3e5f5; stroke: #9c27b0; }
+    .channel { fill: #e0f2f1; stroke: #009688; }
+    .arrow { stroke: #555; stroke-width: 1.5; fill: none; marker-end: url(#arr); }
+    .scenario-line { stroke-width: 2; fill: none; opacity: 0.7; }
+    .s1 { stroke: #2196F3; }
+    .s2 { stroke: #4CAF50; }
+    .s4 { stroke: #FF9800; }
+  </style>
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#555"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="390" y="28" text-anchor="middle" class="title" font-size="15">Within-Tick Coherence — What We Actually Test</text>
+
+  <!-- Nodes -->
+  <rect x="40" y="60" width="120" height="40" class="box obs"/>
+  <text x="100" y="84" text-anchor="middle" class="label">Observation</text>
+
+  <rect x="220" y="60" width="120" height="40" class="box appr"/>
+  <text x="280" y="84" text-anchor="middle" class="label">Appraisal</text>
+
+  <rect x="400" y="40" width="120" height="40" class="box reg"/>
+  <text x="460" y="64" text-anchor="middle" class="label">Regulation</text>
+
+  <rect x="400" y="100" width="120" height="40" class="box drive"/>
+  <text x="460" y="124" text-anchor="middle" class="label">Drives</text>
+
+  <rect x="580" y="100" width="140" height="40" class="box channel"/>
+  <text x="650" y="124" text-anchor="middle" class="label">Channel Weights</text>
+
+  <rect x="400" y="170" width="320" height="40" class="box prompt"/>
+  <text x="560" y="194" text-anchor="middle" class="label">Prompt Sections</text>
+
+  <!-- Structural arrows -->
+  <path d="M 160 80 L 220 80" class="arrow"/>
+  <path d="M 340 70 L 400 60" class="arrow"/>
+  <path d="M 340 90 L 400 120" class="arrow"/>
+  <path d="M 520 120 L 580 120" class="arrow"/>
+  <path d="M 460 140 L 460 170" class="arrow"/>
+  <path d="M 650 140 L 650 170" class="arrow"/>
+  <path d="M 460 80 L 460 170" class="arrow"/>
+
+  <!-- Scenario legend -->
+  <rect x="40" y="240" width="700" height="90" rx="8" fill="#fafafa" stroke="#ddd"/>
+  <text x="60" y="265" class="scenario-label" fill="#2196F3">Scenario 1 — Shame → Regulation</text>
+  <text x="60" y="282" class="sublabel">observation → appraisal (shame) → regulation (RESPONSE_MODULATION) → prompt</text>
+
+  <text x="60" y="300" class="scenario-label" fill="#4CAF50">Scenario 2 — Curiosity → Exploration</text>
+  <text x="60" y="317" class="sublabel">observation → appraisal (novelty) → drives (curiosity) → channel weights → prompt</text>
+
+  <text x="420" y="265" class="scenario-label" fill="#FF9800">Scenario 4 — Appraisal → Channel Weight</text>
+  <text x="420" y="282" class="sublabel">observation → appraisal (high arousal) → channel weights → prompt</text>
+
+  <!-- Scenario path highlights -->
+  <rect x="40" y="60" width="120" height="40" rx="6" fill="none" stroke="#2196F3" stroke-width="2.5" opacity="0.4"/>
+  <rect x="220" y="60" width="120" height="40" rx="6" fill="none" stroke="#2196F3" stroke-width="2.5" opacity="0.4"/>
+  <rect x="400" y="40" width="120" height="40" rx="6" fill="none" stroke="#2196F3" stroke-width="2.5" opacity="0.4"/>
+</svg>
