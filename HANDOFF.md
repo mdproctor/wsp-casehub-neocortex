@@ -2,58 +2,44 @@
 
 ## Last Session
 
-Completed #890 (Intelligence capacity: learning rate modulation via Cattell's Investment Theory). Implemented capacity modulation at 6 learning sites — each mapped to a single cognitive capacity dimension:
+Cleared five issues from the epic #841 queue — two XS, three S — then wrote a blog entry on the literature-grounded decision to reject a 4th capacity dimension.
 
-- **CapsWeightUpdater** — `baseAlpha *= associativeReach` (Mednick 1962). Introduced `WeightUpdateContext` record in caps-api to replace the 6-param `updateWeights()` SPI.
-- **CbrRecordLifecycle** — 4-arg `recordOutcome` with `learningRateOverride` (default method). `DelegatingCbrRecordStore` forwards. `InMemoryCbrRecordStore` overrides. BehavioralSynthesisPhase passes `schemaLR * workingMemorySpan` (Engle & Kane 2004).
-- **DefaultGraduationScorer** — `score *= relationalComplexity` (Halford 1998). `GraduationContext` gains nullable `agentId` field. Formative memories exempt.
-- **DriveAdaptationPhase** — `effectiveLR *= associativeReach`, applied unconditionally after conditional satisfaction modulation.
-- **StrategyLearningOrchestrator** — `maxDimensionDelta *= workingMemorySpan` (ceiling). Both the delta clamp and LLM system prompt use the effective value.
-- **PersonalityEvolutionOrchestrator** — `l2Ceiling *= relationalComplexity` (ceiling).
+### Issues completed
 
-Landed on main as `add80816`, docs promoted as `676db1b0`. Blog written: `2026-11-10-mdp02-smarter-agents-learn-faster.md`.
+| # | Title | Scale | Outcome |
+|---|-------|-------|---------|
+| #917 | Fix cognition test compilation from #880 | XS | Closed — not a real bug (stale Maven artifacts, full reactor build compiles fine) |
+| #916 | QdrantCbrRecordStore 4-arg recordOutcome | XS | Landed `badb55a0` — overrides 4-arg `recordOutcome` with `learningRateOverride` resolution, matching InMemoryCbrRecordStore pattern |
+| #891 | Intelligence capacity: convergence ceiling | S | Closed — literature disconfirms. Friedman & Miyake 2017 bifactor model absorbs inhibition into Common EF; no unique Inhibiting-Specific factor. Detailed literature synthesis in issue comment |
+| #892 | Capacity→appraisal frustration pathway | S | Landed `9655b6df` — AppraisalTickParticipant generates frustration (ANGER) for laterality gaps and DISAPPOINTMENT for depth/breadth gaps, proportional to gap magnitude. 5 tests |
+| #918 | Capacity modulation observability | S | Landed `fbea4fc5` — CapacityModulationReport diagnostic showing base rate × capacity dimension = effective rate per modulation site. 6 tests |
 
-## Follow-Up Issues Created
+### New issue created
 
 | # | Title | Scale | Complexity | Status |
 |---|-------|-------|------------|--------|
-| #916 | QdrantCbrRecordStore 4-arg recordOutcome | XS | Low | Open — queue |
-| #917 | Fix cognition test compilation from #880 | XS | Low | Open — queue |
-| #918 | Capacity modulation observability | S | Med | Open — queue |
+| #920 | Eval signal: RPI stale strategy persistence | S | Med | Open — tracking only, no impl until eval evidence surfaces |
 
-## Pre-Existing Issue
+### Blog entry written
 
-cognition module test compilation fails — `CognitiveResourcePool` SPI moved in #880 but test imports not updated. Tracked in #917. Production code compiles and works. Does not block any other work.
+`2026-11-10-mdp03-the-dimension-that-wasnt.md` — literature synthesis on Miyake framework evolution (2000→2004→2017), why inhibitory control lost its separate factor, and how the frustration pathway replaced a 4th dimension. Two SVGs.
 
 ## Immediate Next Step
 
-`work continue` — next in queue is #891 (Intelligence capacity: convergence ceiling). Same domain, continues the capacity series.
+`work continue` — next in queue is #894 (Eval pipeline coherence trace chain validation). M/High — validates coherence across the full cognitive pipeline.
 
 ## Remaining Queue (Epic #841)
 
 | # | Title | Scale | Complexity | Status |
 |---|-------|-------|------------|--------|
-| #891 | Intelligence capacity: convergence ceiling | S | Med | Next |
-| #892 | Intelligence capacity: appraisal frustration pathway | S | Med | Open |
-| #894 | Eval pipeline coherence trace chain validation | M | High | Open |
+| #894 | Eval pipeline coherence trace chain validation | M | High | Active — next |
 | #905 | Run and calibrate exploration + capacity eval suite | L | High | Open |
-| #916 | QdrantCbrRecordStore 4-arg recordOutcome | XS | Low | Open |
-| #917 | Fix cognition test compilation from #880 | XS | Low | Open |
-| #918 | Capacity modulation observability | S | Med | Open |
+| #920 | Eval signal: RPI stale strategy persistence | S | Med | Tracking only |
 
 ## Key Files Modified This Session
 
-- `caps-api/.../WeightUpdateContext.java` — new record (6 fields incl. capacityMultiplier)
-- `caps-api/.../CapsEngine.java` — `updateWeights(state, context)` replaces 6-param signature
-- `caps-engine/.../CapsWeightUpdater.java` — `baseAlpha *= context.capacityMultiplier()` before precision division
-- `memory-api/.../CbrRecordLifecycle.java` — 4-arg `recordOutcome` default method
-- `memory-api/.../DelegatingCbrRecordStore.java` — forwards 4-arg call
-- `memory-api/.../GraduationContext.java` — gains `String agentId` (4th field, nullable)
-- `memory-cbr-inmem/.../InMemoryCbrRecordStore.java` — 4-arg override with learningRateOverride
-- `mindmap-intelligence/.../DefaultGraduationScorer.java` — CognitiveDefaultsRegistry injection, `score *= relationalComplexity`
-- `mindmap-intelligence/.../ExperienceConsolidationPhase.java` — passes agentId in GraduationContext
-- `mindmap-intelligence/.../BehavioralSynthesisPhase.java` — passes capacity to WeightUpdateContext and 4-arg recordOutcome
-- `cognition/.../DriveAdaptationPhase.java` — `effectiveLR *= associativeReach`
-- `cognition/.../PersonalityEvolutionOrchestrator.java` — `effectiveCeiling = l2Ceiling * relationalComplexity`
-- `cognition/.../StrategyLearningOrchestrator.java` — `effectiveMaxDelta = maxDelta * workingMemorySpan`, `systemPrompt(agentId)`
-- 18 new tests: 5 CAPS alpha, 2 CBR contract, 6 graduation scorer, 5 integration
+- `memory-qdrant/.../QdrantCbrRecordStore.java` — 4-arg `recordOutcome` override (#916)
+- `cognition/.../AppraisalTickParticipant.java` — `setSearchBudgetAccessor()`, `generateCapacityFrustration()` (#892)
+- `cognition/.../CognitionCore.java` — wires search budget accessor into appraisal (#892)
+- `cognitive-observability-core/.../CapacityModulationReport.java` — new diagnostic report (#918)
+- `cognitive-observability-core/.../CognitionInspectService.java` — `inspectCapacity()` (#918)
