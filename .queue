@@ -16,8 +16,8 @@ check: 878
 - [x] casehubio/neocortex#916 — QdrantCbrRecordStore 4-arg recordOutcome
 - [x] casehubio/neocortex#917 — Fix cognition test compilation from 880
 - [x] casehubio/neocortex#918 — Capacity modulation observability
-- [ ] casehubio/neocortex#894 — Eval pipeline coherence trace chain validation ← active
-- [ ] casehubio/neocortex#905 — Run and calibrate exploration + capacity eval suite
+- [x] casehubio/neocortex#894 — Eval pipeline coherence trace chain validation
+- [ ] casehubio/neocortex#905 — Run and calibrate exploration + capacity eval suite ← active
 - [x] casehubio/neocortex#825 — Search budget foundation
 - [x] casehubio/neocortex#596 — Information-gap curiosity
 - [x] casehubio/neocortex#826 — Recurring thought continuum
