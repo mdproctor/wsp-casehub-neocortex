@@ -1,75 +1,81 @@
 # Session Handover — neocortex (slot 196)
 
 **Date:** 2026-11-10
-**Branch:** `main` (#902 + #919 landed)
-**Queue:** drained
+**Branch:** `main` (all work pushed)
+**Queue:** drained — no active issues
 
-## What was done (2026-11-10 session)
+## Current state
 
-### #902 — Distress trajectory prompt enrichment (CLOSED → f167a74b)
+Pipeline coherence arc complete. Appraisal emotions now propagate through mood and drives within the same tick cycle. Pipeline coherence eval (#894) scores 4+/5 across all 4 scenarios (was 2/5 at session start).
 
-Added `RegulationTracker` distress trajectories to the LLM generation phase prompt for extrinsic strategies (CO_REGULATION, DELIBERATE_PROVOCATION). Renders IMPROVING/STABLE/WORSENING + delta for each interacting agent in the social regulation context section. Threaded through `EmotionRegulationTickParticipant` → `EmotionRegulationGenerationPhase` → `buildUserMessage`.
+The cognitive pipeline has three propagation pathways from appraisal:
+1. **Appraisal→mood** via `bridgeAppraisalToMood` in CognitionCore (post-DERIVED re-tick)
+2. **Appraisal→drives** via `AppraisalDriveModulator` (Frijda 1986 action tendencies)
+3. **Appraisal→regulation** via `EmotionRegulationTickParticipant` (existing, now with distress trajectories)
 
-### #919 — Appraisal→mood→drive propagation (CLOSED → cbe8b1bd)
+Drive sources are no longer stubs — `MindMapDriveSource` reads from COGNITIVE subgraph with personality-derived fallbacks.
 
-Fixed timing bug: appraisal (DERIVED phase) recorded MoodSignals via `bridgeToMood` but they weren't processed until the next tick cycle, causing MoodPromptSection to render "emotionally even" after high-intensity distress. Fix: added post-DERIVED re-tick of mood and drives in `CognitionCore.tick()` (8 lines production code).
+## What was done (2026-11-10)
 
-## Prior work
+8 issues closed:
 
-### #818 — Automatic regulation predictor (CLOSED)
+| # | What | Key change |
+|---|------|------------|
+| 902 | Distress trajectory prompt enrichment | `RegulationTracker` trajectories in generation phase prompt for extrinsic strategies |
+| 919 | Appraisal→mood→drive timing fix | Post-DERIVED re-tick + bridge relocation to CognitionCore |
+| 922 | Appraisal→drive modulator | `AppraisalDriveModulator` — Frijda action tendencies → SDT drives |
+| 923 | MindMapDriveSource | Personality+memory-driven drive baselines from COGNITIVE subgraph |
+| 927 | Drive trigger descriptions | Personality-derived trigger text at cold start |
+| 928 | Eval judge criteria | Full pipeline coherence rubric (mood+drives+regulation) |
+| 931 | Generate override audit | Fixed 2 silent signature mismatches from #902 |
+| 204 | Wacky-manor API alignment | CuriosityDrive constructor + CorpusStore.append→write (examples repo) |
 
-Built `RegulationStrategyPredictor` — maps (DispositionAxes × EmotionType) → regulation strategy mechanically, constraining the LLM's strategy reasoning while leaving narrative generation fully emergent.
+## What to pick up next
 
-**Key design:** The predictor pins the strategy; the LLM generates the embodied experience via Barrett four-channel rendering. No templates, no hardcoded text. The predictor tells cognition HOW to regulate; the LLM generates WHAT it feels like.
+### Priority 1: #932 — Smoke scenario (M/Med)
 
-**Quality gate:** LLM judge plausibility scoring. Floor 4/5, mean 4.6/5 across 8 judge runs. Distribution: [4, 5, 4, 5, 5].
+Real pipeline integration test: 20-30 ticks, 2-3 agents, real LLM calls, real eval judge. No mocks, no stubs. Fills the gap between unit tests and the 300-tick run. This is the test that validates the full cognitive model, not just the plumbing.
 
-**Empirical findings (documented in research doc + blog):**
+**Issue:** casehubio/neocortex#932
+**Why:** Current tests use pre-set appraisal results and (until this session) stub drives. The smoke scenario exercises the actual system — real appraisal, real regulation, real drives, real mood. If something is silently broken, this catches it.
 
-1. **Personality coherence determines predictability.** Mixed-signal personalities (avoidant BUT flexible) score 2-3 regardless of strategy. Coherent personalities (all signals one direction) score 4-5. The predictor checks coherence: `isSuppressor` requires suppressor signals ≥3 AND CC-enabling signals <2.
+### Priority 2: #930 — 300-tick validation (M/Med)
 
-2. **Shame is mechanically unresolvable for suppressors.** 7 judge runs: RM=2-3, CC=2-3, AD=3. Shame is self-evaluative — needs CC, but suppressors can't execute it.
+The post-DERIVED re-tick doubles mood and drive ticks per cycle when appraisal is enabled. Validated via unit tests and eval, NOT validated at scale. Could cause mood overshoot or drive drift over 300 ticks × 17 characters.
 
-3. **LLM strategy selection is non-deterministic.** Same inputs → different strategies across runs. Agreement-based quality gates are unreliable.
+**Issue:** casehubio/neocortex#930
+**Baseline:** BASELINE0 (mean 3.93 in docs/eval/)
 
-### #828 — Regulation predictor observability (CLOSED)
+### Other open work
 
-FINE-level logging in `EmotionRegulationTickParticipant`: logs predictor hits (agent, emotion, strategy, confidence) and falls-through (agent, emotion, personality axes).
+- **Traitors scenario** — mentioned as a direction for richer scenario testing
+- #921 — Prediction calibration analysis (S/Med, regulation — check slot 211 overlap)
+- #904 — Integration test: social context to goal (regulation-adjacent)
+- #903 — Feature toggle for social regulation
 
-### Documentation
+### Slot 211 overlap — do not pick up
 
-- Post-era6 research doc updated: `docs/research/2026-11-05-post-era6-regulation-and-identity.md`
-- Blog written: `wsp-casehub/blog/2026-11-05-mdp01-when-personality-isnt-enough.md`
-- Issues created: #830 (predictor quality), #831 (coherence generalisation), #832 (capacity gap generalisation)
+#905 (eval calibration) and #920 (RPI stale strategy) are queued in slot 211.
 
-## What the next session must do
+## Background reading
 
-### #830 — Predictor quality: address shame fall-through
-
-Three approaches to try (all documented in the issue):
-
-1. **Temporal regulation** — suppress now, reappraise later. Add temporal framing to the pinned strategy constraint. Test through judge.
-
-2. **LLM system prompt improvement** — add personality-aware shame guidance to `EmotionRegulationGenerationPhase.SYSTEM_PROMPT`. Improves the fall-through path.
-
-3. **CognitiveDerivationEngine continuous weights** — add `deriveRegulationDefaults(DispositionAxes)` pathway. Pattern: static `Map<String, Double>` lookup tables (like `deriveMoodBaseline`). Returns `RegulationDefaults(suppressionCapacity, reappraisalCapacity, redirectTendency)`. Entry point: `derive()` at line 141.
-
-### Then #829 — Scenario validation
-
-Run a short scenario with the improved predictor active. Verify it fires, check rendered output quality, measure LLM call savings. Requires #828 observability logging to see what happens.
+| Document | Location | What it covers |
+|----------|----------|----------------|
+| Post-era6 research doc | `neocortex/docs/research/2026-11-05-post-era6-regulation-and-identity.md` | Full arc — regulation, identity, search budget, pipeline coherence (Stream 10 added this session) |
+| Pipeline coherence eval results | `neocortex/docs/eval/pipeline-coherence-eval-923.json` | Latest eval scores — all 4 scenarios at 4+/5 |
+| Blog: When Emotions Go Nowhere | `wsp-casehub-neocortex/blog/2026-11-10-mdp01-when-emotions-go-nowhere.md` | Narrative of the pipeline coherence work — timing, Frijda, silent overrides |
+| Design spec: MindMapDriveSource | `wsp-casehub-neocortex/specs/issue-923-personality-memory-drive-sources/2026-11-10-personality-memory-drive-sources-design.md` | 4 decisions, data flow, wiring |
+| Implementation plan | `wsp-casehub-neocortex/plans/2026-11-10-personality-memory-drive-sources.md` | 4 tasks, 2 batches |
 
 ## Key files
 
 | File | What it does |
 |------|-------------|
-| `cognition/.../regulation/RegulationStrategyPredictor.java` | Strategy prediction — personality coherence + emotion category |
-| `cognition/.../regulation/EmotionRegulationTickParticipant.java` | Integration — tries predictor, passes strategy hint to generation phase |
-| `cognition/.../regulation/EmotionRegulationGenerationPhase.java` | LLM call — accepts optional `pinnedStrategy` parameter |
-| `caps-llm-classifier/.../eval/RegulationPredictorBackTest.java` | LLM judge eval — writes results to `target/regulation-predictor-judge-results.json` |
-| `cognitive-index/.../CognitiveDerivationEngine.java` | Derivation pattern for approach 3 (lines 141-167 entry point, 243-254 example pathway) |
-
-## Test status
-
-- cognition regulation tests: 20 pass (predictor + tick participant)
-- caps-llm-classifier judge eval: passes (floor 4, mean 4.6)
-- All repos synced: canonical, slot, origin (casehubio), fork (mdproctor)
+| `cognition/.../core/CognitionCore.java` | Pipeline orchestrator — post-DERIVED propagation block (lines ~320-340) |
+| `cognition/.../drive/AppraisalDriveModulator.java` | Frijda emotion→drive mapping (22 emotion types) |
+| `cognition/.../drive/MindMapDriveSource.java` | Personality+memory-driven DriveSource — reads COGNITIVE subgraph |
+| `cognition/.../drive/DriveOrchestrator.java` | `recordAppraisalModulation` + pending modulation queue |
+| `cognition/.../regulation/EmotionRegulationGenerationPhase.java` | 13-param generate with distressTrajectories (#902) |
+| `cognition/.../eval/CognitionTestHarness.java` | Test harness — now uses MindMapDriveSource, no stubs |
+| `caps-llm-classifier/.../eval/PipelineCoherenceEvalTest.java` | Pipeline coherence eval — 4 scenarios, gate 4/5 |
+| `cognitive-index/.../CognitiveDerivationEngine.java` | CDE — now preserves descriptor on derive() |
