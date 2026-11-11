@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 280">
+  <style>
+    text { font-family: -apple-system, 'Segoe UI', sans-serif; }
+    .title { font-size: 13px; font-weight: 600; fill: #1a1a2e; }
+    .label { font-size: 11px; fill: #2d2d44; }
+    .sublabel { font-size: 10px; fill: #6b7280; }
+    .quote { font-size: 10px; fill: #4b5563; font-style: italic; }
+    .box-desc { fill: #f3f4f6; stroke: #9ca3af; }
+    .box-proc { fill: #dbeafe; stroke: #3b82f6; }
+    .box-result { fill: #d1fae5; stroke: #059669; }
+    .arrow { stroke: #4b5563; stroke-width: 1.5; fill: none; marker-end: url(#arrowhead); }
+  </style>
+  <defs>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#4b5563"/>
+    </marker>
+  </defs>
+
+  <text x="360" y="24" text-anchor="middle" class="title">Three Prompting Approaches for Cognitive Limitation</text>
+
+  <!-- Approach 1: Descriptive -->
+  <rect x="20" y="44" width="210" height="100" rx="8" class="box-desc" stroke-width="1.5"/>
+  <text x="125" y="62" text-anchor="middle" class="label" font-weight="600">Descriptive</text>
+  <text x="125" y="80" text-anchor="middle" class="quote">"Long chains are hard for you."</text>
+  <text x="125" y="96" text-anchor="middle" class="quote">"You struggle with analogies."</text>
+  <text x="125" y="120" text-anchor="middle" class="sublabel">LLM ignores — solves fluently</text>
+  <text x="125" y="134" text-anchor="middle" class="sublabel" fill="#dc2626" font-weight="600">Score: 0/5</text>
+
+  <!-- Approach 2: Few-shot -->
+  <rect x="255" y="44" width="210" height="100" rx="8" class="box-desc" stroke-width="1.5"/>
+  <text x="360" y="62" text-anchor="middle" class="label" font-weight="600">Few-Shot Primed</text>
+  <text x="360" y="80" text-anchor="middle" class="quote">"Your thinking sounds like:</text>
+  <text x="360" y="96" text-anchor="middle" class="quote">'wait, was it C or D?'"</text>
+  <text x="360" y="120" text-anchor="middle" class="sublabel">LLM mimics style, not substance</text>
+  <text x="360" y="134" text-anchor="middle" class="sublabel" fill="#d97706" font-weight="600">Score: 1/5</text>
+
+  <!-- Approach 3: Process constraint -->
+  <rect x="490" y="44" width="210" height="100" rx="8" class="box-proc" stroke-width="1.5"/>
+  <text x="595" y="62" text-anchor="middle" class="label" font-weight="600">Process Constraint</text>
+  <text x="595" y="80" text-anchor="middle" class="quote">"Hold only 2 relations at once.</text>
+  <text x="595" y="96" text-anchor="middle" class="quote">State what slipped after each step."</text>
+  <text x="595" y="120" text-anchor="middle" class="sublabel">Forces visible effort in thinking</text>
+  <text x="595" y="134" text-anchor="middle" class="sublabel" fill="#059669" font-weight="600">Score: 3/5</text>
+
+  <!-- Arrow showing progression -->
+  <path d="M 230 94 L 255 94" class="arrow"/>
+  <path d="M 465 94 L 490 94" class="arrow"/>
+
+  <!-- Bottom insight -->
+  <rect x="100" y="170" width="520" height="80" rx="8" class="box-result" stroke-width="1.5"/>
+  <text x="360" y="194" text-anchor="middle" class="label" font-weight="600">The Insight (Milicka et al. 2024)</text>
+  <text x="360" y="214" text-anchor="middle" class="label">Describing a limitation tells the LLM WHAT to simulate.</text>
+  <text x="360" y="232" text-anchor="middle" class="label">Constraining the process tells it HOW to simulate.</text>
+
+  <path d="M 360 144 L 360 170" class="arrow"/>
+</svg>

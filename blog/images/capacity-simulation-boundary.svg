@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 340">
+  <style>
+    text { font-family: -apple-system, 'Segoe UI', sans-serif; }
+    .title { font-size: 13px; font-weight: 600; fill: #1a1a2e; }
+    .label { font-size: 11px; fill: #2d2d44; }
+    .sublabel { font-size: 10px; fill: #6b7280; }
+    .works { fill: #d1fae5; stroke: #059669; }
+    .fails { fill: #fde8e8; stroke: #dc2626; }
+    .partial { fill: #fef3c7; stroke: #d97706; }
+    .arrow { stroke: #4b5563; stroke-width: 1.5; fill: none; marker-end: url(#arrowhead); }
+  </style>
+  <defs>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#4b5563"/>
+    </marker>
+  </defs>
+
+  <text x="360" y="24" text-anchor="middle" class="title">What LLMs Can and Cannot Simulate via Prompt Engineering</text>
+
+  <!-- Works well column -->
+  <text x="180" y="56" text-anchor="middle" class="label" font-weight="600">Style &amp; Affect</text>
+  <text x="180" y="70" text-anchor="middle" class="sublabel">(shapes HOW, not WHETHER)</text>
+
+  <rect x="40" y="84" width="280" height="36" rx="6" class="works" stroke-width="1.5"/>
+  <text x="180" y="107" text-anchor="middle" class="label">Exploration style (bold vs cautious)</text>
+
+  <rect x="40" y="128" width="280" height="36" rx="6" class="works" stroke-width="1.5"/>
+  <text x="180" y="151" text-anchor="middle" class="label">Emotional state (mood, anxiety, fixation)</text>
+
+  <rect x="40" y="172" width="280" height="36" rx="6" class="works" stroke-width="1.5"/>
+  <text x="180" y="195" text-anchor="middle" class="label">Attention pattern (focused vs scattered)</text>
+
+  <rect x="40" y="216" width="280" height="36" rx="6" class="works" stroke-width="1.5"/>
+  <text x="180" y="239" text-anchor="middle" class="label">Recurring thought (fixation → rumination)</text>
+
+  <!-- Fails column -->
+  <text x="540" y="56" text-anchor="middle" class="label" font-weight="600">Capability &amp; Capacity</text>
+  <text x="540" y="70" text-anchor="middle" class="sublabel">(demands WHETHER, not HOW)</text>
+
+  <rect x="400" y="84" width="280" height="36" rx="6" class="fails" stroke-width="1.5"/>
+  <text x="540" y="107" text-anchor="middle" class="label">Reduced reasoning depth</text>
+
+  <rect x="400" y="128" width="280" height="36" rx="6" class="fails" stroke-width="1.5"/>
+  <text x="540" y="151" text-anchor="middle" class="label">Weaker analogical bridging</text>
+
+  <rect x="400" y="172" width="280" height="36" rx="6" class="partial" stroke-width="1.5"/>
+  <text x="540" y="195" text-anchor="middle" class="label">Working memory limits (with process constraints)</text>
+
+  <rect x="400" y="216" width="280" height="36" rx="6" class="fails" stroke-width="1.5"/>
+  <text x="540" y="239" text-anchor="middle" class="label">Cognitive load → strategy simplification</text>
+
+  <!-- Legend -->
+  <rect x="180" y="280" width="16" height="12" rx="3" class="works" stroke-width="1"/>
+  <text x="202" y="291" class="sublabel">Prompt-steerable</text>
+
+  <rect x="320" y="280" width="16" height="12" rx="3" class="partial" stroke-width="1"/>
+  <text x="342" y="291" class="sublabel">Partially steerable</text>
+
+  <rect x="480" y="280" width="16" height="12" rx="3" class="fails" stroke-width="1"/>
+  <text x="502" y="291" class="sublabel">Resistant to prompting</text>
+
+  <!-- Divider -->
+  <line x1="360" y1="80" x2="360" y2="260" stroke="#d1d5db" stroke-width="1" stroke-dasharray="4,4"/>
+</svg>
