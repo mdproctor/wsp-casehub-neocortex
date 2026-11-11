@@ -108,6 +108,12 @@ Determine the dominant strategy from RegulationDefaults:
   remorse) → the existing avoidant-shame logic already handles this via
   SITUATION_SELECTION guidance (lines 577-596). No additional constraint needed.
 
+- **Tie-breaking:** When two capacities are equal (e.g., suppression and
+  reappraisal both at 0.80), do not render a process constraint — let the
+  LLM choose freely. The existing temporal staging logic handles
+  controllable-negative emotions with high reappraisal; the process constraint
+  targets clear personality-driven preferences, not ambiguous cases.
+
 **Interaction with existing temporal staging:** The existing temporal staging
 block (lines 527-541) handles the case where controllable-negative emotions
 meet high reappraisal capacity. The process constraint should NOT fire when
