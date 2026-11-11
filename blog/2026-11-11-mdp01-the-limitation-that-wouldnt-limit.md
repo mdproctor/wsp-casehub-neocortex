@@ -27,6 +27,8 @@ Anthropic's Functional Emotions paper (2026) established that emotion concepts i
 
 Cognitive capacity is different. When I tell Claude "you can only hold two relations at once," I'm asking it to produce *worse output* — lose track of premises, fail to bridge domains, forget earlier threads. The model's actual attention mechanism processes all tokens in parallel. There is no working memory bottleneck to simulate. The instruction describes a limitation; the architecture has no mechanism to implement it.
 
+There's a deeper reason this fails. RLHF gives LLMs a massive "helpful/optimal" prior. The model has been trained, extensively, to produce the best possible answer. Telling it to be suboptimal is like telling a supercomputer to "try harder to be slow" — it will simulate the aesthetics of slowness while computing at full speed. The model's training objective actively fights the persona instruction.
+
 This is the simulation boundary: LLMs can role-play *style* (how you explore, how you feel, where your attention goes) but cannot role-play *capability* (how well you reason, how far your associations reach, how many things you hold at once). Style is preference expressed through word choice. Capability is computation expressed through correctness.
 
 ## What the Research Says
@@ -55,20 +57,26 @@ The shift is from persona description to process instruction. The model isn't as
 
 This works because process constraints operate at the generation level, not the persona level. The model follows the instruction to "state what slipped" the same way it follows any other instruction. It doesn't need to simulate reduced capacity — it just needs to follow a constrained reasoning procedure, and the constrained procedure naturally produces output that looks like limited capacity.
 
-## What This Means for Agent Builders
+## The Cognitive Sandbox
 
-If you're building character AI or cognitive agents with personality-shaped reasoning, here's what I learned:
+The process constraint technique generalises into an architectural pattern. Stop treating the LLM as a roleplayer. Treat it as a constrained engine wrapped in three layers:
 
-**Emotions and exploration style are genuinely prompt-steerable.** The Functional Emotions paper is right — mood, curiosity, attention patterns, fixation, rumination all work through system prompt descriptions. Write the cognitive state as felt experience and the LLM will embody it. This is the easy win.
+**State Tracker** — an external system that holds variables the LLM is bad at tracking on its own: fatigue level, habituation count, available working memory slots, strategy cost budgets. In our pipeline, this is `CognitiveResourcePool` for fatigue, `HabituationState` for exposure counts, `DriveOrchestrator` for motivational profile. The state tracker is deterministic code, not LLM inference.
 
-**Cognitive capacity is not prompt-steerable through description.** Telling an LLM it has limited reasoning ability does not limit its reasoning. The architecture doesn't have modular cognitive systems that can be independently throttled.
+**Constraint Injector** — a pre-processing step that reads the state tracker and modifies the prompt accordingly. Not by describing the state ("you are fatigued") but by restricting the reasoning procedure: deleting context, restricting the strategy menu, capping reasoning steps, or forcing a specific heuristic. In our pipeline, this is `SearchBudgetPromptSection` and the capacity trait renderer. This is where the process constraint technique lives.
 
-**Process constraints bridge the gap.** Instead of "you're bad at this," write "here is how you must reason about this." Limit the working set, require visible state tracking, force sequential processing with declared memory. The output won't be genuine limitation, but it will be distinguishable from unconstrained reasoning — which is what evaluation systems need.
+**Engine** — the LLM itself. It executes the constrained process. It doesn't need to pretend to be tired or limited. The prompt literally doesn't contain the information or computational freedom required to be "smart." The limitation is real, not simulated.
 
-**Some dimensions are fundamentally harder than others.** Working memory limits (thread tracking) were the easiest to simulate via process constraints. Associative reach (analogy quality) was intermediate. Relational complexity (chain reasoning) was the hardest — formal logic is so deeply embedded in LLM training that even process constraints barely dent the fluency.
+The same pattern applies beyond capacity. For emotion regulation: don't ask the LLM which strategy to use — restrict the available strategies based on the trait profile. "High neuroticism + high extraversion → only suppression or distraction available. Reappraisal is not in the menu." For fatigue: maintain an explicit effort counter that increments with each multi-step inference, and gate strategy complexity on the counter value. For personality differentiation: replace trait labels ("act with high conscientiousness") with trait process rules ("you must generate a concrete plan, check it against a standard, and express discomfort if the plan is incomplete").
 
-**Evaluate process, not outcome.** For capacity-constrained agents, score the thinking field for effort markers (double-checking, backtracking, acknowledged difficulty) rather than answer correctness. An LLM that shows the right reasoning process but arrives at the correct answer is closer to the target than one that simply fails.
+The golden rule: if you want an LLM to exhibit a human limitation, do not ask it to simulate the limitation. Impose the limitation on the prompt's information, structure, or reasoning procedure, and let the LLM do its best within those narrowed bounds.
 
-The cognitive pipeline now passes 25 of 26 exploration and capacity scenarios. The one persistent failure — a branching logic chain with low relational complexity — sits right at the boundary of what prompt engineering can achieve. I suspect it will stay there until models have modular reasoning systems that can be independently constrained, or until someone finds a prompting technique I haven't tried.
+## What This Means
 
-The boundary is real, but it's narrower than I expected. Most of what matters for character-differentiated agents — how they explore, what grabs their attention, how they feel about what they find — lives on the steerable side of the line.
+The cognitive pipeline now passes 25 of 26 exploration and capacity scenarios. The one persistent failure — a branching logic chain with low relational complexity — sits right at the boundary of what prompt engineering can achieve. Formal logic is so deeply embedded in LLM training that even process constraints barely dent the fluency.
+
+Working memory limits (thread tracking) were the easiest to simulate via process constraints. Associative reach (analogy quality) was intermediate. Relational complexity (chain reasoning) was the hardest. Some dimensions are fundamentally harder because the model's actual capability in that domain is stronger.
+
+For evaluation: score the thinking field for process compliance (double-checking, backtracking, acknowledged difficulty, slot tracking) rather than answer correctness. An LLM that follows the constrained procedure but arrives at the correct answer is closer to the target than one that simply fails.
+
+The boundary is real, but it's narrower than I expected. Most of what matters for character-differentiated agents — how they explore, what grabs their attention, how they feel about what they find, which strategies they reach for — lives on the steerable side of the line. The Cognitive Sandbox pattern extends the steerable region further than description alone ever could.
