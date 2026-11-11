@@ -2,44 +2,59 @@
 
 ## Last Session
 
-Cleared five issues from the epic #841 queue — two XS, three S — then wrote a blog entry on the literature-grounded decision to reject a 4th capacity dimension.
+Completed #933 (L/High) — applied process constraint technique from #905 to the wider eval suite. Closed as `376441c8`. Filed five follow-up issues (#937-#941) and reordered the queue by dependency chain. Revised the "Limitation That Wouldn't Limit" blog entry with #933's regulation applications. Added research doc.
 
-### Issues completed
+### Issue completed
 
 | # | Title | Scale | Outcome |
 |---|-------|-------|---------|
-| #917 | Fix cognition test compilation from #880 | XS | Closed — not a real bug (stale Maven artifacts, full reactor build compiles fine) |
-| #916 | QdrantCbrRecordStore 4-arg recordOutcome | XS | Landed `badb55a0` — overrides 4-arg `recordOutcome` with `learningRateOverride` resolution, matching InMemoryCbrRecordStore pattern |
-| #891 | Intelligence capacity: convergence ceiling | S | Closed — literature disconfirms. Friedman & Miyake 2017 bifactor model absorbs inhibition into Common EF; no unique Inhibiting-Specific factor. Detailed literature synthesis in issue comment |
-| #892 | Capacity→appraisal frustration pathway | S | Landed `9655b6df` — AppraisalTickParticipant generates frustration (ANGER) for laterality gaps and DISAPPOINTMENT for depth/breadth gaps, proportional to gap magnitude. 5 tests |
-| #918 | Capacity modulation observability | S | Landed `fbea4fc5` — CapacityModulationReport diagnostic showing base rate × capacity dimension = effective rate per modulation site. 6 tests |
+| #933 | Apply process constraint technique to wider eval suite failures | L | Landed `376441c8` — cognitive load, fatigue, strategy differentiation constraints + drive description fallback |
 
-### New issue created
+### Key findings
 
-| # | Title | Scale | Complexity | Status |
-|---|-------|-------|------------|--------|
-| #920 | Eval signal: RPI stale strategy persistence | S | Med | Open — tracking only, no impl until eval evidence surfaces |
+**Process constraints generalize beyond capacity.** The technique from #905 (constraining reasoning procedure rather than describing limitations) works for emotion regulation, fatigue degradation, and personality-based strategy selection. Four interventions implemented in `EmotionRegulationGenerationPhase.buildUserMessage()`.
 
-### Blog entry written
+**DriveProfilePipelineTest root cause was simpler than expected.** The 12/12 failure was a missing description fallback in `CognitionObservationBuilder` (3-line fix), not a CAPS classification discrimination problem. The underlying overlap filtering architecture is sound — resting activation alone passes high-intensity drives, and the gaps for others are trivially small.
 
-`2026-11-10-mdp03-the-dimension-that-wasnt.md` — literature synthesis on Miyake framework evolution (2000→2004→2017), why inhibitory control lost its separate factor, and how the frustration pathway replaced a 4th dimension. Two SVGs.
+### Issues filed
+
+| # | Title | Scale | Complexity | Queue position |
+|---|-------|-------|------------|----------------|
+| #937 | Verify process constraint effectiveness via LLM eval suite | S | Low | After #940 |
+| #938 | PipelineCoherenceEvalTest — cross-stage narrative continuity | M | Med | After #939 |
+| #939 | CAPS classifier empty-result fallback masks drive discrimination | S | Low | After #924 |
+| #940 | DriveProfilePipelineTest fragile verbatim detection | XS | Low | After #920 |
+| #941 | Drive profile personality-specific situation reasoning | M | High | End of queue |
+
+### Artifacts
+
+- Blog: `2026-11-11-mdp01-the-limitation-that-wouldnt-limit.md` — revised with #933 regulation applications
+- Research: `docs/research/2026-11-11-process-constraint-regulation-findings.md` — technique generalization findings
+- SVG: `blog/images/regulation-process-constraints.svg` — regulation pipeline constraint diagram
 
 ## Immediate Next Step
 
-`work continue` — next in queue is #894 (Eval pipeline coherence trace chain validation). M/High — validates coherence across the full cognitive pipeline.
+`work continue` — next in queue is #920 (Eval signal: RPI stale strategy persistence). S/Med.
 
 ## Remaining Queue (Epic #841)
 
 | # | Title | Scale | Complexity | Status |
 |---|-------|-------|------------|--------|
-| #894 | Eval pipeline coherence trace chain validation | M | High | Active — next |
-| #905 | Run and calibrate exploration + capacity eval suite | L | High | Open |
-| #920 | Eval signal: RPI stale strategy persistence | S | Med | Tracking only |
+| #920 | Eval signal — RPI stale strategy persistence | S | Med | Active — next |
+| #940 | DriveProfilePipelineTest fragile verbatim detection | XS | Low | Open |
+| #937 | Verify process constraint effectiveness via LLM eval suite | S | Low | Open — needs `ANTHROPIC_API_KEY` |
+| #924 | two-tier CoherenceJudge | ? | ? | Open |
+| #939 | CAPS classifier empty-result fallback masks drive discrimination | S | Low | Open |
+| #938 | PipelineCoherenceEvalTest — cross-stage narrative continuity | M | Med | Depends on #937 |
+| #925 | CAPS consolidation coherence scenario | ? | ? | Open |
+| #926 | unify test harnesses | ? | ? | Open |
+| #941 | Drive profile personality-specific situation reasoning | M | High | Research — last |
 
 ## Key Files Modified This Session
 
-- `memory-qdrant/.../QdrantCbrRecordStore.java` — 4-arg `recordOutcome` override (#916)
-- `cognition/.../AppraisalTickParticipant.java` — `setSearchBudgetAccessor()`, `generateCapacityFrustration()` (#892)
-- `cognition/.../CognitionCore.java` — wires search budget accessor into appraisal (#892)
-- `cognitive-observability-core/.../CapacityModulationReport.java` — new diagnostic report (#918)
-- `cognitive-observability-core/.../CognitionInspectService.java` — `inspectCapacity()` (#918)
+- `cognition/.../EmotionRegulationGenerationPhase.java` — process constraints for load, fatigue, strategy
+- `cognition/.../CognitionObservationBuilder.java` — 3-line drive description fallback
+- `cognition/.../EmotionRegulationTickParticipant.java` — constructor reconciliation, WeightUpdateContext
+- `cognition/.../CognitionCore.java` — constructor arity fix
+- `caps-llm-classifier/.../CognitiveLoadStrategyEvalTest.java` — process constraint in inline prompt
+- 3 new test files: load, fatigue, strategy constraint tests
