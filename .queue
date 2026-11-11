@@ -1,7 +1,7 @@
 # Work Plan — Work Plan —
 
 ## State
-branch: issue-933-process-constraints-eval
+branch: 
 issue-repo: casehubio/neocortex
 status: active
 covers: 841
@@ -17,15 +17,7 @@ check: 878
 - [x] casehubio/neocortex#917 — Fix cognition test compilation from 880
 - [x] casehubio/neocortex#918 — Capacity modulation observability
 - [x] casehubio/neocortex#894 — Eval pipeline coherence trace chain validation
-- [ ] casehubio/neocortex#905 — Run and calibrate exploration + capacity eval suite ← active
-  - [ ] Batch 1: Rendering+load
-    - [ ] Task 1: Drive rendering fallback
-    - [ ] Task 2: Cognitive load process constraint
-  - [ ] Batch 2: Fatigue+strategy
-    - [ ] Task 3: Fatigue process constraint
-    - [ ] Task 4: Strategy differentiation constraint
-  - [ ] Batch 3: Verification
-    - [ ] Task 5: Build verify + coherence assessment
+- [x] casehubio/neocortex#905 — Run and calibrate exploration + capacity eval suite
 - [x] casehubio/neocortex#825 — Search budget foundation
 - [x] casehubio/neocortex#596 — Information-gap curiosity
 - [x] casehubio/neocortex#826 — Recurring thought continuum
@@ -43,7 +35,12 @@ check: 878
 - [x] casehubio/neocortex#890 — Intelligence capacity learning rate modulation
 - [x] casehubio/neocortex#891 — Intelligence capacity convergence ceiling
 - [x] casehubio/neocortex#892 — Intelligence capacity appraisal frustration pathway
-- [ ] casehubio/neocortex#920 — Eval signal — RPI stale strategy persistence
+- [ ] casehubio/neocortex#920 — Eval signal — RPI stale strategy persistence ← active
 - [ ] casehubio/neocortex#924 — two-tier CoherenceJudge
 - [ ] casehubio/neocortex#925 — CAPS consolidation coherence scenario
 - [ ] casehubio/neocortex#926 — unify test harnesses
+- [ ] casehubio/neocortex#937 — Verify process constraint effectiveness via LLM eval suite
+- [ ] casehubio/neocortex#938 — PipelineCoherenceEvalTest — cross-stage narrative continuity
+- [ ] casehubio/neocortex#939 — CAPS classifier empty-result fallback masks drive discrimination
+- [ ] casehubio/neocortex#940 — DriveProfilePipelineTest fragile verbatim detection
+- [ ] casehubio/neocortex#941 — Drive profile personality-specific situation reasoning
