@@ -1,118 +1,97 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 420">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 520">
   <style>
     text { font-family: -apple-system, 'Segoe UI', sans-serif; }
-    .title { font-size: 13px; font-weight: 600; fill: #1a1a2e; }
+    .title { font-size: 14px; font-weight: 600; fill: #1a1a2e; }
+    .section { font-size: 12px; font-weight: 600; fill: #1a1a2e; }
     .label { font-size: 11px; fill: #2d2d44; }
     .sublabel { font-size: 10px; fill: #6b7280; }
     .quote { font-size: 9.5px; fill: #4b5563; font-style: italic; }
-    .gate-label { font-size: 10px; font-weight: 600; fill: #92400e; }
-    .box-input { fill: #f3f4f6; stroke: #9ca3af; }
-    .box-gate { fill: #fef3c7; stroke: #d97706; }
-    .box-output { fill: #d1fae5; stroke: #059669; }
-    .box-detail { fill: #fff7ed; stroke: #f59e0b; stroke-dasharray: 3 2; }
-    .arrow { stroke: #4b5563; stroke-width: 1.5; fill: none; marker-end: url(#arrowhead); }
-    .pipe { stroke: #cbd5e1; stroke-width: 2; fill: none; }
+    .box-before { fill: #fef2f2; stroke: #ef4444; stroke-width: 1.5; }
+    .box-after { fill: #eff6ff; stroke: #3b82f6; stroke-width: 1.5; }
+    .box-insight { fill: #f0fdf4; stroke: #16a34a; stroke-width: 1.5; }
+    .connector { stroke: #9ca3af; stroke-width: 1.2; fill: none; }
+    .arrow { stroke: #4b5563; stroke-width: 1.5; fill: none; marker-end: url(#ah); }
+    .divider { stroke: #e5e7eb; stroke-width: 1; stroke-dasharray: 4 3; }
   </style>
   <defs>
-    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+    <marker id="ah" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
       <polygon points="0 0, 8 3, 0 6" fill="#4b5563"/>
     </marker>
   </defs>
 
-  <text x="410" y="22" text-anchor="middle" class="title">Process Constraint Pipeline for Emotion Regulation</text>
+  <text x="380" y="24" text-anchor="middle" class="title">Process Constraints Applied to Emotion Regulation</text>
 
-  <!-- Input box -->
-  <rect x="10" y="130" width="100" height="90" rx="8" class="box-input" stroke-width="1.5"/>
-  <text x="60" y="158" text-anchor="middle" class="label" font-weight="600">Emotional</text>
-  <text x="60" y="172" text-anchor="middle" class="label" font-weight="600">State</text>
-  <text x="60" y="192" text-anchor="middle" class="sublabel">+ Personality</text>
-  <text x="60" y="206" text-anchor="middle" class="sublabel">+ Appraisal</text>
+  <!-- Row 1: Cognitive Load -->
+  <text x="30" y="56" class="section">Cognitive Load</text>
+  <rect x="30" y="64" width="330" height="56" rx="6" class="box-before"/>
+  <text x="195" y="82" text-anchor="middle" class="sublabel" font-weight="600">Descriptive (before)</text>
+  <text x="195" y="100" text-anchor="middle" class="quote">"HIGH load → prefer ATTENTIONAL_DEPLOYMENT"</text>
+  <text x="195" y="112" text-anchor="middle" class="sublabel" fill="#dc2626">LLM ignores — picks COGNITIVE_CHANGE anyway</text>
 
-  <!-- Arrow: input → gate 1 -->
-  <path d="M 110 175 L 138 175" class="arrow"/>
+  <path d="M 370 92 L 395 92" class="arrow"/>
 
-  <!-- Gate 1: Cognitive Load -->
-  <rect x="140" y="46" width="170" height="258" rx="8" class="box-gate" stroke-width="1.5"/>
-  <text x="225" y="66" text-anchor="middle" class="gate-label">GATE 1: COGNITIVE LOAD</text>
+  <rect x="400" y="64" width="330" height="56" rx="6" class="box-after"/>
+  <text x="565" y="82" text-anchor="middle" class="sublabel" font-weight="600">Process Constraint (after)</text>
+  <text x="565" y="100" text-anchor="middle" class="quote">"You cannot hold the multi-step reasoning chain.</text>
+  <text x="565" y="112" text-anchor="middle" class="quote">Only ATTENTIONAL_DEPLOYMENT and RESPONSE_MODULATION exist."</text>
 
-  <rect x="152" y="80" width="146" height="50" rx="5" class="box-detail" stroke-width="1"/>
-  <text x="225" y="96" text-anchor="middle" class="sublabel" font-weight="600">HIGH load</text>
-  <text x="225" y="110" text-anchor="middle" class="quote">Menu restricted to 2 reflexive</text>
-  <text x="225" y="122" text-anchor="middle" class="quote">strategies. "You MUST choose."</text>
+  <!-- Divider -->
+  <line x1="30" y1="134" x2="730" y2="134" class="divider"/>
 
-  <rect x="152" y="140" width="146" height="50" rx="5" class="box-detail" stroke-width="1"/>
-  <text x="225" y="156" text-anchor="middle" class="sublabel" font-weight="600">MODERATE load</text>
-  <text x="225" y="170" text-anchor="middle" class="quote">Complex strategies available</text>
-  <text x="225" y="182" text-anchor="middle" class="quote">but noted as effortful</text>
+  <!-- Row 2: Fatigue -->
+  <text x="30" y="156" class="section">Regulation Fatigue</text>
+  <rect x="30" y="164" width="330" height="56" rx="6" class="box-before"/>
+  <text x="195" y="182" text-anchor="middle" class="sublabel" font-weight="600">Descriptive (before)</text>
+  <text x="195" y="200" text-anchor="middle" class="quote">"Regulation fatigue: 70%"</text>
+  <text x="195" y="212" text-anchor="middle" class="sublabel" fill="#dc2626">A number — LLM has no mechanism to comply</text>
 
-  <rect x="152" y="200" width="146" height="50" rx="5" class="box-detail" stroke-width="1"/>
-  <text x="225" y="216" text-anchor="middle" class="sublabel" font-weight="600">LOW load</text>
-  <text x="225" y="230" text-anchor="middle" class="quote">All 5 strategies available.</text>
-  <text x="225" y="242" text-anchor="middle" class="quote">"Your mind is clear."</text>
+  <path d="M 370 192 L 395 192" class="arrow"/>
 
-  <text x="225" y="290" text-anchor="middle" class="sublabel">Gross 1998 + Petter 2025</text>
+  <rect x="400" y="164" width="330" height="56" rx="6" class="box-after"/>
+  <text x="565" y="182" text-anchor="middle" class="sublabel" font-weight="600">Graded Process Constraint (after)</text>
+  <text x="565" y="196" text-anchor="middle" class="quote">50%: "Reappraisal capacity running low — each attempt slower"</text>
+  <text x="565" y="208" text-anchor="middle" class="quote">70%: "Reappraisal depleted. MUST choose ATTENTIONAL_DEPLOYMENT"</text>
+  <text x="565" y="218" text-anchor="middle" class="sublabel" fill="#2563eb">Strategies degrade, then vanish from the menu</text>
 
-  <!-- Arrow: gate 1 → gate 2 -->
-  <path d="M 310 175 L 338 175" class="arrow"/>
+  <!-- Divider -->
+  <line x1="30" y1="236" x2="730" y2="236" class="divider"/>
 
-  <!-- Gate 2: Fatigue -->
-  <rect x="340" y="46" width="170" height="258" rx="8" class="box-gate" stroke-width="1.5"/>
-  <text x="425" y="66" text-anchor="middle" class="gate-label">GATE 2: FATIGUE</text>
+  <!-- Row 3: Personality -->
+  <text x="30" y="258" class="section">Personality Differentiation</text>
+  <rect x="30" y="266" width="330" height="56" rx="6" class="box-before"/>
+  <text x="195" y="284" text-anchor="middle" class="sublabel" font-weight="600">Descriptive (before)</text>
+  <text x="195" y="300" text-anchor="middle" class="quote">"Suppression capacity: 0.80, Reappraisal capacity: 0.35"</text>
+  <text x="195" y="312" text-anchor="middle" class="sublabel" fill="#dc2626">Numbers — all characters choose reappraisal regardless</text>
 
-  <rect x="352" y="80" width="146" height="50" rx="5" class="box-detail" stroke-width="1"/>
-  <text x="425" y="96" text-anchor="middle" class="sublabel" font-weight="600">&gt;70% depleted</text>
-  <text x="425" y="110" text-anchor="middle" class="quote">"Reappraisal capacity is spent.</text>
-  <text x="425" y="122" text-anchor="middle" class="quote">MUST use attentional deployment."</text>
+  <path d="M 370 294 L 395 294" class="arrow"/>
 
-  <rect x="352" y="140" width="146" height="50" rx="5" class="box-detail" stroke-width="1"/>
-  <text x="425" y="156" text-anchor="middle" class="sublabel" font-weight="600">50-70% depleted</text>
-  <text x="425" y="170" text-anchor="middle" class="quote">"Alternative interpretations</text>
-  <text x="425" y="182" text-anchor="middle" class="quote">won't form — they collapse."</text>
+  <rect x="400" y="266" width="330" height="56" rx="6" class="box-after"/>
+  <text x="565" y="284" text-anchor="middle" class="sublabel" font-weight="600">Inner Monologue Constraint (after)</text>
+  <text x="565" y="300" text-anchor="middle" class="quote">"You feel the emotion but your face stays steady.</text>
+  <text x="565" y="312" text-anchor="middle" class="quote">You are containing, not processing. Choose RESPONSE_MODULATION."</text>
 
-  <rect x="352" y="200" width="146" height="50" rx="5" class="box-detail" stroke-width="1"/>
-  <text x="425" y="216" text-anchor="middle" class="sublabel" font-weight="600">&lt;50% depleted</text>
-  <text x="425" y="230" text-anchor="middle" class="quote">Descriptive fatigue level only.</text>
-  <text x="425" y="242" text-anchor="middle" class="quote">No procedural constraint.</text>
+  <!-- Divider -->
+  <line x1="30" y1="338" x2="730" y2="338" class="divider"/>
 
-  <text x="425" y="290" text-anchor="middle" class="sublabel">Hockey 1997 compensatory control</text>
+  <!-- Row 4: Drive Profiles -->
+  <text x="30" y="360" class="section">Drive Profiles</text>
+  <rect x="30" y="368" width="330" height="56" rx="6" class="box-before"/>
+  <text x="195" y="386" text-anchor="middle" class="sublabel" font-weight="600">Missing Rendering (before)</text>
+  <text x="195" y="402" text-anchor="middle" class="quote">"GALLANTRY (0.9)"</text>
+  <text x="195" y="414" text-anchor="middle" class="sublabel" fill="#dc2626">Bare label — no personality-specific description</text>
 
-  <!-- Arrow: gate 2 → gate 3 -->
-  <path d="M 510 175 L 538 175" class="arrow"/>
+  <path d="M 370 396 L 395 396" class="arrow"/>
 
-  <!-- Gate 3: Personality -->
-  <rect x="540" y="46" width="170" height="258" rx="8" class="box-gate" stroke-width="1.5"/>
-  <text x="625" y="66" text-anchor="middle" class="gate-label">GATE 3: PERSONALITY</text>
-
-  <rect x="552" y="80" width="146" height="50" rx="5" class="box-detail" stroke-width="1"/>
-  <text x="625" y="96" text-anchor="middle" class="sublabel" font-weight="600">High suppression</text>
-  <text x="625" y="110" text-anchor="middle" class="quote">"Your face stays steady, voice</text>
-  <text x="625" y="122" text-anchor="middle" class="quote">level. Containing, not processing."</text>
-
-  <rect x="552" y="140" width="146" height="50" rx="5" class="box-detail" stroke-width="1"/>
-  <text x="625" y="156" text-anchor="middle" class="sublabel" font-weight="600">High reappraisal</text>
-  <text x="625" y="170" text-anchor="middle" class="quote">"A second, more measured reading</text>
-  <text x="625" y="182" text-anchor="middle" class="quote">forms. The alternative feels right."</text>
-
-  <rect x="552" y="200" width="146" height="50" rx="5" class="box-detail" stroke-width="1"/>
-  <text x="625" y="216" text-anchor="middle" class="sublabel" font-weight="600">High redirect</text>
-  <text x="625" y="230" text-anchor="middle" class="quote">"Attention slides away before</text>
-  <text x="625" y="242" text-anchor="middle" class="quote">you decide to look away."</text>
-
-  <text x="625" y="290" text-anchor="middle" class="sublabel">Dispositional weighting</text>
-
-  <!-- Arrow: gate 3 → output -->
-  <path d="M 710 175 L 718 175" class="arrow"/>
-
-  <!-- Output box -->
-  <rect x="720" y="130" width="90" height="90" rx="8" class="box-output" stroke-width="1.5"/>
-  <text x="765" y="158" text-anchor="middle" class="label" font-weight="600">Constrained</text>
-  <text x="765" y="172" text-anchor="middle" class="label" font-weight="600">Strategy</text>
-  <text x="765" y="192" text-anchor="middle" class="sublabel">Procedural,</text>
-  <text x="765" y="206" text-anchor="middle" class="sublabel">not descriptive</text>
+  <rect x="400" y="368" width="330" height="56" rx="6" class="box-after"/>
+  <text x="565" y="386" text-anchor="middle" class="sublabel" font-weight="600">Description Fallback (after)</text>
+  <text x="565" y="402" text-anchor="middle" class="quote">"GALLANTRY (0.9): When she is present, your attention</text>
+  <text x="565" y="414" text-anchor="middle" class="quote">organises around her wellbeing before you consciously choose it."</text>
 
   <!-- Bottom insight -->
-  <rect x="140" y="330" width="570" height="70" rx="8" class="box-output" stroke-width="1.5"/>
-  <text x="425" y="354" text-anchor="middle" class="label" font-weight="600">Each gate narrows the reasoning procedure, not the character description.</text>
-  <text x="425" y="374" text-anchor="middle" class="label">The LLM doesn't simulate reduced capacity — it follows a constrained process</text>
-  <text x="425" y="390" text-anchor="middle" class="label">and the constrained process naturally produces differentiated output.</text>
+  <rect x="100" y="448" width="560" height="56" rx="8" class="box-insight"/>
+  <text x="380" y="470" text-anchor="middle" class="label" font-weight="600">The Pattern</text>
+  <text x="380" y="486" text-anchor="middle" class="label">Don't describe traits. Describe what the mind does when the trait activates.</text>
+  <text x="380" y="500" text-anchor="middle" class="label">The LLM follows the procedure; the procedure IS the personality.</text>
+
+  <path d="M 380 424 L 380 448" class="arrow"/>
 </svg>

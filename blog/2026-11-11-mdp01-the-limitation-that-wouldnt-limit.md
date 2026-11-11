@@ -5,8 +5,8 @@ date: 2026-11-11
 entry_type: article
 subtype: diary
 projects: [casehubio/neocortex]
-tags: [cognitive-architecture, capacity, eval, prompt-engineering, functional-emotions, process-constraints, literature-grounded]
-series: issue-905-calibrate-eval-suite
+tags: [cognitive-architecture, capacity, eval, prompt-engineering, functional-emotions, process-constraints, emotion-regulation, personality-differentiation, literature-grounded]
+series: cognitive-eval-suite
 ---
 
 # The Limitation That Wouldn't Limit
@@ -71,12 +71,80 @@ The same pattern applies beyond capacity. For emotion regulation: don't ask the 
 
 The golden rule: if you want an LLM to exhibit a human limitation, do not ask it to simulate the limitation. Impose the limitation on the prompt's information, structure, or reasoning procedure, and let the LLM do its best within those narrowed bounds.
 
+## From Capacity to Character
+
+The capacity work proved the technique. What happened next proved the technique scales.
+
+The cognitive pipeline includes an emotion regulation system based on Gross's (1998) process model — five strategies that people use to manage emotions, from avoiding the trigger entirely (situation selection) to controlling the outward expression (response modulation). The eval tests for this system were failing across the board. The LLM knew all five strategies and their theoretical properties, and chose between them more or less at random regardless of the character's personality profile, cognitive load, or fatigue state.
+
+The descriptive prompt read like a textbook:
+
+> Cognitive load constrains strategy: HIGH load → prefer ATTENTIONAL_DEPLOYMENT or RESPONSE_MODULATION (low cognitive cost); LOW load → COGNITIVE_CHANGE or SITUATION_SELECTION are viable (require deliberation)
+
+Claude understood this perfectly — and ignored it. The model has no reason to prefer a "low cognitive cost" strategy because it has no cognitive costs. The instruction is advice for a human; the LLM has no mechanism to comply.
+
+### Load and Fatigue
+
+The fix followed the same pattern as the capacity work. Replace description with procedure.
+
+For cognitive load, the process constraint eliminates strategies from the menu:
+
+> Under HIGH cognitive load, you cannot hold the multi-step reasoning chain needed for COGNITIVE_CHANGE or the environmental assessment needed for SITUATION_SELECTION/MODIFICATION. These strategies require deliberation you don't have capacity for right now. Only ATTENTIONAL_DEPLOYMENT and RESPONSE_MODULATION are executable — they're reflexive, not deliberative. You MUST choose one of these two.
+
+The model is no longer being asked to prefer simpler strategies. The complex strategies are gone. They're not in the prompt. The constraint is structural, not advisory.
+
+Regulation fatigue needed a graded approach — three tiers rather than a binary gate. At low fatigue, the prompt reports a percentage. At moderate fatigue (50-70%), the constraint is softer:
+
+> Your reappraisal capacity is running low. COGNITIVE_CHANGE requires deliberate effort to find alternative interpretations — each attempt is slower and less convincing than the last. You can still try, but the cognitive work feels heavy. ATTENTIONAL_DEPLOYMENT and RESPONSE_MODULATION require less effort.
+
+At severe fatigue (above 70%), the constraint becomes mandatory:
+
+> Your reappraisal capacity is depleted. Trying to reframe the situation no longer works — the cognitive effort required for COGNITIVE_CHANGE has run dry. Only ATTENTIONAL_DEPLOYMENT remains as a regulation tool — shifting your focus is reflexive and doesn't require the cognitive resources you've exhausted. You MUST choose ATTENTIONAL_DEPLOYMENT.
+
+The grading matters. A binary "fatigued or not" switch produces unnatural transitions. The three-tier approach models a realistic degradation curve: strategies don't vanish at a threshold — they become effortful, then unreliable, then unavailable. The LLM follows the same trajectory because each tier tells it how the process has changed, not how the character feels about the process.
+
+### Personality as Procedure
+
+The hardest part was personality differentiation. Five characters, each with a disposition profile that maps to regulation capacities — reappraisal, suppression, redirect. Before process constraints, all five characters chose strategies with roughly equal probability regardless of their profiles. A competitive character with high suppression chose cognitive reappraisal as often as a cooperative character with high reappraisal.
+
+Descriptive personality prompts don't work for the same reason descriptive capacity limits don't work. "You have high suppression capacity" is metadata. The LLM files it away and picks whatever strategy sounds most sophisticated in context — usually cognitive reappraisal, because it's the most intellectually interesting strategy to describe.
+
+The process constraint for each dominant capacity renders as an inner monologue that constrains how the character *processes* emotion:
+
+For a character with high suppression capacity:
+
+> Your instinct is to control the outward expression. You feel the emotion fully inside but your face stays steady, your voice stays level. You manage the display, not the feeling. Choose RESPONSE_MODULATION.
+
+For a character with high reappraisal capacity:
+
+> Your instinct is to step back and reframe. You search for an alternative interpretation — why might this not mean what it first seemed? The reappraisal comes naturally. Choose COGNITIVE_CHANGE.
+
+For a character with high redirect tendency:
+
+> Your instinct is to shift what you're focusing on. Not to leave, not to suppress — but to redirect attention away from the triggering stimulus. Choose ATTENTIONAL_DEPLOYMENT.
+
+These aren't descriptions of personality. They're descriptions of *what the character's mind does* when emotion arrives. The LLM follows the procedural instruction — "search for an alternative interpretation" — and the resulting output naturally reads as a reappraisal-dominant personality. It doesn't need to understand personality theory. It just needs to follow the procedure.
+
+![Process constraints applied to emotion regulation pipeline](images/regulation-process-constraints.svg)
+
+### The Bug That Wasn't
+
+Not everything was a process constraint problem. The drive profile differentiation test — twelve scenarios testing whether three characters produced distinct internal states — failed 12 out of 12. Hours went into investigating CAPS overlap coefficients, situation classification discrimination, and whether the LLM classifier was producing sufficiently differentiated activation patterns.
+
+The root cause was three lines of missing code. The rendering pipeline looked for LLM-generated drive descriptions, found none (the test never seeded them), and rendered each drive as a bare label — "GALLANTRY (0.9)" — without the personality-specific description text. The test checked whether the full description appeared in the output. It never did.
+
+The fix was a fallback: if no generated description exists, use the drive's own description from the character data. Three lines. The architecture was working correctly the entire time — the CAPS overlap filtering, the situation classification, the personality differentiation pipeline. All sound. The output pipeline just wasn't rendering what the pipeline computed.
+
+The lesson: when behaviour isn't differentiating, check the rendering pipeline before the reasoning pipeline. The most sophisticated cognitive model in the world is invisible if the prompt section that carries its output to the LLM drops the content on the floor.
+
 ## What This Means
 
-The cognitive pipeline now passes 25 of 26 exploration and capacity scenarios. The one persistent failure — a branching logic chain with low relational complexity — sits right at the boundary of what prompt engineering can achieve. Formal logic is so deeply embedded in LLM training that even process constraints barely dent the fluency.
+The cognitive pipeline now passes 25 of 26 exploration and capacity scenarios. The regulation pipeline has process constraints for cognitive load, fatigue degradation, and personality-based strategy selection. The drive profile rendering pipeline correctly differentiates three distinct characters across twelve scenarios.
 
-Working memory limits (thread tracking) were the easiest to simulate via process constraints. Associative reach (analogy quality) was intermediate. Relational complexity (chain reasoning) was the hardest. Some dimensions are fundamentally harder because the model's actual capability in that domain is stronger.
+Working memory limits (thread tracking) were the easiest to simulate via process constraints. Associative reach (analogy quality) was intermediate. Relational complexity (chain reasoning) was the hardest. Some dimensions are fundamentally harder because the model's actual capability in that domain is stronger. Emotion regulation strategy selection proved surprisingly tractable — once the process constraint reframes the choice from "which strategy is theoretically optimal" to "which strategy your mind reaches for first," the LLM follows the procedural instruction reliably.
 
-For evaluation: score the thinking field for process compliance (double-checking, backtracking, acknowledged difficulty, slot tracking) rather than answer correctness. An LLM that follows the constrained procedure but arrives at the correct answer is closer to the target than one that simply fails.
+For evaluation: score the thinking field for process compliance (double-checking, backtracking, acknowledged difficulty, slot tracking) rather than answer correctness. An LLM that follows the constrained procedure but arrives at the correct answer is closer to the target than one that simply fails. For regulation specifically: score whether the character's strategy matches their personality profile, not whether the regulation narrative is emotionally compelling.
 
-The boundary is real, but it's narrower than I expected. Most of what matters for character-differentiated agents — how they explore, what grabs their attention, how they feel about what they find, which strategies they reach for — lives on the steerable side of the line. The Cognitive Sandbox pattern extends the steerable region further than description alone ever could.
+The pattern has a practical implication for anyone building character-differentiated LLM agents. Stop writing personality descriptions. Write personality procedures. Don't say "this character is impulsive and direct." Say "when a decision point arrives, you commit to the first option that exceeds a low bar. You do not generate alternatives. You do not weigh trade-offs." The LLM will produce impulsive output — not because it understands impulsivity, but because the procedure it's following doesn't include the deliberation steps that produce careful output.
+
+The simulation boundary is real, but it's narrower than I expected. Most of what matters for character-differentiated agents — how they explore, what grabs their attention, how they feel about what they find, which strategies they reach for, how they handle emotion — lives on the steerable side of the line. The Cognitive Sandbox pattern, extended from capacity to regulation to personality, pushes the steerable region further than description alone ever could. What's left on the other side — genuine reasoning degradation, true working memory limits — matters less than I thought. Characters are defined by their procedures, not their limitations.
