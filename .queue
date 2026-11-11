@@ -35,8 +35,8 @@ check: 878
 - [x] casehubio/neocortex#890 — Intelligence capacity learning rate modulation
 - [x] casehubio/neocortex#891 — Intelligence capacity convergence ceiling
 - [x] casehubio/neocortex#892 — Intelligence capacity appraisal frustration pathway
-- [ ] casehubio/neocortex#920 — Eval signal — RPI stale strategy persistence ← active
-- [ ] casehubio/neocortex#940 — DriveProfilePipelineTest fragile verbatim detection
+- [x] casehubio/neocortex#920 — Eval signal — RPI stale strategy persistence
+- [ ] casehubio/neocortex#940 — DriveProfilePipelineTest fragile verbatim detection ← active
 - [ ] casehubio/neocortex#937 — Verify process constraint effectiveness via LLM eval suite
 - [ ] casehubio/neocortex#924 — two-tier CoherenceJudge
 - [ ] casehubio/neocortex#939 — CAPS classifier empty-result fallback masks drive discrimination
