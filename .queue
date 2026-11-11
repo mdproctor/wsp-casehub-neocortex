@@ -1,7 +1,7 @@
 # Work Plan — Work Plan —
 
 ## State
-branch: 
+branch: issue-933-process-constraints-eval
 issue-repo: casehubio/neocortex
 status: active
 covers: 841
@@ -18,6 +18,14 @@ check: 878
 - [x] casehubio/neocortex#918 — Capacity modulation observability
 - [x] casehubio/neocortex#894 — Eval pipeline coherence trace chain validation
 - [ ] casehubio/neocortex#905 — Run and calibrate exploration + capacity eval suite ← active
+  - [ ] Batch 1: Rendering+load
+    - [ ] Task 1: Drive rendering fallback
+    - [ ] Task 2: Cognitive load process constraint
+  - [ ] Batch 2: Fatigue+strategy
+    - [ ] Task 3: Fatigue process constraint
+    - [ ] Task 4: Strategy differentiation constraint
+  - [ ] Batch 3: Verification
+    - [ ] Task 5: Build verify + coherence assessment
 - [x] casehubio/neocortex#825 — Search budget foundation
 - [x] casehubio/neocortex#596 — Information-gap curiosity
 - [x] casehubio/neocortex#826 — Recurring thought continuum
