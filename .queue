@@ -1,7 +1,7 @@
 # Work Plan — Work Plan —
 
 ## State
-branch: issue-938-pipeline-coherence-eval
+branch: 
 issue-repo: casehubio/neocortex
 status: active
 covers: 841
@@ -40,8 +40,8 @@ check: 878
 - [x] casehubio/neocortex#937 — Verify process constraint effectiveness via LLM eval suite
 - [x] casehubio/neocortex#924 — two-tier CoherenceJudge
 - [x] casehubio/neocortex#939 — CAPS classifier empty-result fallback masks drive discrimination
-- [ ] casehubio/neocortex#938 — PipelineCoherenceEvalTest — cross-stage narrative continuity ← active
-- [ ] casehubio/neocortex#925 — CAPS consolidation coherence scenario
+- [x] casehubio/neocortex#938 — PipelineCoherenceEvalTest — cross-stage narrative continuity
+- [ ] casehubio/neocortex#925 — CAPS consolidation coherence scenario ← active
 - [ ] casehubio/neocortex#926 — unify test harnesses
 - [ ] casehubio/neocortex#941 — Drive profile personality-specific situation reasoning
 - [ ] casehubio/neocortex#957 — SEC→OCC emotion mapping arousal and taxonomy gaps
