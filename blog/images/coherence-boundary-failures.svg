@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 340" font-family="system-ui, -apple-system, sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#64748b"/>
+    </marker>
+    <marker id="arrow-red" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#dc2626"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="420" y="28" text-anchor="middle" font-size="15" font-weight="600" fill="#1e293b">Five coherence failures — all at stage boundaries</text>
+
+  <!-- Pipeline stages -->
+  <rect x="20" y="60" width="120" height="50" rx="6" fill="#f1f5f9" stroke="#94a3b8"/>
+  <text x="80" y="90" text-anchor="middle" font-size="12" fill="#334155">Observation</text>
+
+  <rect x="180" y="60" width="120" height="50" rx="6" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="240" y="90" text-anchor="middle" font-size="12" fill="#1e40af">Appraisal</text>
+
+  <rect x="340" y="60" width="120" height="50" rx="6" fill="#fef3c7" stroke="#f59e0b"/>
+  <text x="400" y="90" text-anchor="middle" font-size="12" fill="#92400e">Regulation</text>
+
+  <rect x="500" y="60" width="120" height="50" rx="6" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="560" y="90" text-anchor="middle" font-size="12" fill="#166534">Drives</text>
+
+  <rect x="700" y="60" width="120" height="50" rx="6" fill="#faf5ff" stroke="#a855f7"/>
+  <text x="760" y="90" text-anchor="middle" font-size="12" fill="#6b21a8">Prompt</text>
+
+  <!-- Arrows between stages -->
+  <line x1="140" y1="85" x2="178" y2="85" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="300" y1="85" x2="338" y2="85" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="460" y1="85" x2="498" y2="85" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="620" y1="85" x2="698" y2="85" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Failure markers at boundaries -->
+  <!-- 1. Session contamination: Observation → Appraisal -->
+  <circle cx="160" cy="85" r="12" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+  <text x="160" y="89" text-anchor="middle" font-size="11" font-weight="700" fill="#dc2626">1</text>
+  <line x1="160" y1="97" x2="160" y2="140" stroke="#dc2626" stroke-width="1" stroke-dasharray="3,3"/>
+  <text x="160" y="155" text-anchor="middle" font-size="10" fill="#dc2626">Session</text>
+  <text x="160" y="167" text-anchor="middle" font-size="10" fill="#dc2626">contamination</text>
+  <text x="160" y="184" text-anchor="middle" font-size="9" fill="#64748b" font-style="italic">LLM anchors on</text>
+  <text x="160" y="195" text-anchor="middle" font-size="9" fill="#64748b" font-style="italic">previous response</text>
+
+  <!-- 2. Missing propagation: Regulation → Prompt -->
+  <circle cx="640" cy="85" r="12" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+  <text x="640" y="89" text-anchor="middle" font-size="11" font-weight="700" fill="#dc2626">2</text>
+  <line x1="640" y1="97" x2="640" y2="140" stroke="#dc2626" stroke-width="1" stroke-dasharray="3,3"/>
+  <text x="660" y="155" text-anchor="middle" font-size="10" fill="#dc2626">Missing</text>
+  <text x="660" y="167" text-anchor="middle" font-size="10" fill="#dc2626">propagation</text>
+  <text x="660" y="184" text-anchor="middle" font-size="9" fill="#64748b" font-style="italic">Regulation narrative</text>
+  <text x="660" y="195" text-anchor="middle" font-size="9" fill="#64748b" font-style="italic">invisible in prompt</text>
+
+  <!-- 3. Trigger text mismatch: Drives → Prompt -->
+  <circle cx="560" cy="140" r="12" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+  <text x="560" y="144" text-anchor="middle" font-size="11" font-weight="700" fill="#dc2626">3</text>
+  <line x1="560" y1="152" x2="560" y2="215" stroke="#dc2626" stroke-width="1" stroke-dasharray="3,3"/>
+  <text x="560" y="230" text-anchor="middle" font-size="10" fill="#dc2626">Trigger text</text>
+  <text x="560" y="242" text-anchor="middle" font-size="10" fill="#dc2626">mismatch</text>
+  <text x="560" y="259" text-anchor="middle" font-size="9" fill="#64748b" font-style="italic">"no mental models"</text>
+  <text x="560" y="270" text-anchor="middle" font-size="9" fill="#64748b" font-style="italic">for shame-driven autonomy</text>
+
+  <!-- 4. Coarse vocabulary: Mood → Prompt (shown below mood) -->
+  <rect x="500" y="210" width="120" height="34" rx="4" fill="#fff7ed" stroke="#ea580c" stroke-dasharray="4,2"/>
+  <text x="560" y="232" text-anchor="middle" font-size="11" fill="#c2410c">MoodSection</text>
+  <line x1="560" y1="110" x2="560" y2="210" stroke="#ea580c" stroke-width="1" stroke-dasharray="3,3"/>
+  <circle cx="760" cy="140" r="12" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+  <text x="760" y="144" text-anchor="middle" font-size="11" font-weight="700" fill="#dc2626">4</text>
+  <line x1="760" y1="152" x2="760" y2="215" stroke="#dc2626" stroke-width="1" stroke-dasharray="3,3"/>
+  <text x="760" y="230" text-anchor="middle" font-size="10" fill="#dc2626">Coarse</text>
+  <text x="760" y="242" text-anchor="middle" font-size="10" fill="#dc2626">vocabulary</text>
+  <text x="760" y="259" text-anchor="middle" font-size="9" fill="#64748b" font-style="italic">"displeased" for</text>
+  <text x="760" y="270" text-anchor="middle" font-size="9" fill="#64748b" font-style="italic">intense shame</text>
+
+  <!-- 5. Serialization off-by-one -->
+  <rect x="20" y="230" width="120" height="50" rx="6" fill="#fef2f2" stroke="#dc2626" stroke-dasharray="4,2"/>
+  <text x="80" y="250" text-anchor="middle" font-size="10" fill="#dc2626" font-weight="600">5  Off-by-one</text>
+  <text x="80" y="264" text-anchor="middle" font-size="9" fill="#64748b" font-style="italic">Init tick consumed</text>
+  <text x="80" y="276" text-anchor="middle" font-size="9" fill="#64748b" font-style="italic">obsIndex, misaligning</text>
+  <text x="80" y="288" text-anchor="middle" font-size="9" fill="#64748b" font-style="italic">all trace pairings</text>
+  <line x1="80" y1="110" x2="80" y2="230" stroke="#dc2626" stroke-width="1" stroke-dasharray="3,3"/>
+
+  <!-- Legend -->
+  <rect x="200" y="300" width="440" height="30" rx="4" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="420" y="320" text-anchor="middle" font-size="10" fill="#64748b">Each stage works internally. Every failure is at a boundary between stages.</text>
+</svg>
