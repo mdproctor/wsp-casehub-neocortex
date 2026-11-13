@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 420" font-family="system-ui, -apple-system, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto-start-auto">
+      <path d="M 0 0 L 10 3.5 L 0 7 z" fill="#64748b"/>
+    </marker>
+    <marker id="arrow-green" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto-start-auto">
+      <path d="M 0 0 L 10 3.5 L 0 7 z" fill="#16a34a"/>
+    </marker>
+  </defs>
+
+  <text x="390" y="24" text-anchor="middle" font-size="14" font-weight="600" fill="#1e293b">Consolidation→Tick coherence pipeline</text>
+  <text x="390" y="42" text-anchor="middle" font-size="11" fill="#64748b">Four transition boundaries tested by Scenario 5</text>
+
+  <!-- Phase labels -->
+  <rect x="20" y="56" width="360" height="22" rx="3" fill="#f1f5f9"/>
+  <text x="200" y="71" text-anchor="middle" font-size="10" font-weight="600" fill="#475569">CONSOLIDATION (between ticks)</text>
+  <rect x="400" y="56" width="360" height="22" rx="3" fill="#ecfdf5"/>
+  <text x="580" y="71" text-anchor="middle" font-size="10" font-weight="600" fill="#166534">TICK (current turn)</text>
+
+  <!-- Stage 1: Graduated Experience Nodes -->
+  <rect x="30" y="90" width="160" height="80" rx="6" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="110" y="112" text-anchor="middle" font-size="11" font-weight="600" fill="#334155">Graduated Nodes</text>
+  <text x="110" y="128" text-anchor="middle" font-size="9" fill="#64748b">COGNITIVE subgraph</text>
+  <text x="110" y="142" text-anchor="middle" font-size="9" fill="#64748b">source-memory-id</text>
+  <text x="110" y="156" text-anchor="middle" font-size="9" fill="#64748b">agent-id, cognitiveKind</text>
+
+  <!-- Transition 1 arrow -->
+  <line x1="190" y1="130" x2="220" y2="130" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Stage 2: CAPS Classification -->
+  <rect x="228" y="90" width="160" height="80" rx="6" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="308" y="112" text-anchor="middle" font-size="11" font-weight="600" fill="#1e40af">CAPS Classification</text>
+  <text x="308" y="128" text-anchor="middle" font-size="9" fill="#64748b">LlmSituationClassifier</text>
+  <text x="308" y="142" text-anchor="middle" font-size="9" fill="#64748b">→ input activations</text>
+  <text x="308" y="156" text-anchor="middle" font-size="9" fill="#3b82f6">rejection: 0.85</text>
+
+  <!-- Transition 1 label -->
+  <rect x="60" y="182" width="120" height="20" rx="10" fill="#16a34a" opacity="0.12"/>
+  <text x="120" y="196" text-anchor="middle" font-size="9" font-weight="600" fill="#16a34a">T1: nodes → input</text>
+
+  <!-- Stage 3: Network Settling -->
+  <rect x="30" y="220" width="160" height="80" rx="6" fill="#fefce8" stroke="#ca8a04" stroke-width="1.5"/>
+  <text x="110" y="242" text-anchor="middle" font-size="11" font-weight="600" fill="#854d0e">Network Settling</text>
+  <text x="110" y="258" text-anchor="middle" font-size="9" fill="#64748b">CapsEngine.settle()</text>
+  <text x="110" y="272" text-anchor="middle" font-size="9" fill="#64748b">→ behavioral attractors</text>
+  <text x="110" y="286" text-anchor="middle" font-size="9" fill="#ca8a04">CONVERGED, 14 iter</text>
+
+  <!-- Arrow from classification down to settling -->
+  <path d="M 308 170 L 308 195 Q 308 210 293 210 L 195 210 Q 180 210 180 225 L 180 218" stroke="#64748b" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- Transition 2 label -->
+  <rect x="250" y="182" width="120" height="20" rx="10" fill="#16a34a" opacity="0.12"/>
+  <text x="310" y="196" text-anchor="middle" font-size="9" font-weight="600" fill="#16a34a">T2: input → settling</text>
+
+  <!-- Stage 4: Attractor Nodes -->
+  <rect x="228" y="220" width="160" height="80" rx="6" fill="#faf5ff" stroke="#9333ea" stroke-width="1.5"/>
+  <text x="308" y="242" text-anchor="middle" font-size="11" font-weight="600" fill="#6b21a8">Attractor Nodes</text>
+  <text x="308" y="258" text-anchor="middle" font-size="9" fill="#64748b">BEHAVIORAL subgraph</text>
+  <text x="308" y="272" text-anchor="middle" font-size="9" fill="#64748b">CapsGenerated trait</text>
+  <text x="308" y="286" text-anchor="middle" font-size="9" fill="#9333ea">strength, category</text>
+
+  <!-- Arrow from settling to attractors -->
+  <line x1="190" y1="260" x2="220" y2="260" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Stage 5: Prompt Rendering (tick side) -->
+  <rect x="430" y="90" width="175" height="80" rx="6" fill="#ecfdf5" stroke="#16a34a" stroke-width="1.5"/>
+  <text x="517" y="112" text-anchor="middle" font-size="11" font-weight="600" fill="#166534">BehavioralPromptSection</text>
+  <text x="517" y="128" text-anchor="middle" font-size="9" fill="#64748b">Reads BEHAVIORAL subgraph</text>
+  <text x="517" y="142" text-anchor="middle" font-size="9" fill="#64748b">Renders attractor prose</text>
+  <text x="517" y="156" text-anchor="middle" font-size="9" fill="#166534">"deeply ingrained withdrawal"</text>
+
+  <!-- Arrow from attractors to prompt -->
+  <path d="M 388 260 Q 420 260 420 200 Q 420 130 428 130" stroke="#64748b" stroke-width="1.5" fill="none" stroke-dasharray="6,3" marker-end="url(#arrow)"/>
+
+  <!-- Tick boundary label -->
+  <text x="420" y="195" font-size="8" fill="#94a3b8" text-anchor="middle" transform="rotate(-90,420,195)">tick boundary</text>
+
+  <!-- Transition 3 label -->
+  <rect x="448" y="182" width="140" height="20" rx="10" fill="#16a34a" opacity="0.12"/>
+  <text x="518" y="196" text-anchor="middle" font-size="9" font-weight="600" fill="#16a34a">T3: settling → prompt</text>
+
+  <!-- Stage 6: PipelineTrace -->
+  <rect x="430" y="220" width="175" height="80" rx="6" fill="#f0fdf4" stroke="#22c55e" stroke-width="1.5"/>
+  <text x="517" y="242" text-anchor="middle" font-size="11" font-weight="600" fill="#15803d">PipelineTrace</text>
+  <text x="517" y="258" text-anchor="middle" font-size="9" fill="#64748b">capsInputActivations</text>
+  <text x="517" y="272" text-anchor="middle" font-size="9" fill="#64748b">capsSettling snapshot</text>
+  <text x="517" y="286" text-anchor="middle" font-size="9" fill="#64748b">promptSections map</text>
+
+  <!-- Arrow from prompt to trace -->
+  <line x1="517" y1="170" x2="517" y2="218" stroke="#22c55e" stroke-width="1.5" marker-end="url(#arrow-green)"/>
+
+  <!-- Transition 4: full coherence -->
+  <rect x="170" y="330" width="440" height="32" rx="6" fill="#16a34a" opacity="0.08" stroke="#16a34a" stroke-width="1" stroke-dasharray="4,2"/>
+  <text x="390" y="350" text-anchor="middle" font-size="10" font-weight="600" fill="#16a34a">T4: full-consolidation-coherence (graduated nodes → all stages → prompt output)</text>
+
+  <!-- Experience descriptions -->
+  <rect x="630" y="90" width="135" height="210" rx="6" fill="#fff7ed" stroke="#f97316" stroke-width="1"/>
+  <text x="697" y="110" text-anchor="middle" font-size="10" font-weight="600" fill="#c2410c">Seeded Experiences</text>
+  <line x1="640" y1="118" x2="755" y2="118" stroke="#fed7aa"/>
+  <text x="640" y="134" font-size="8" fill="#78350f">1. Excluded from team</text>
+  <text x="640" y="147" font-size="8" fill="#78350f">   planning meeting</text>
+  <line x1="640" y1="158" x2="755" y2="158" stroke="#fed7aa"/>
+  <text x="640" y="174" font-size="8" fill="#78350f">2. Proposal publicly</text>
+  <text x="640" y="187" font-size="8" fill="#78350f">   criticized — dismissed</text>
+  <text x="640" y="200" font-size="8" fill="#78350f">   as naive</text>
+  <line x1="640" y1="211" x2="755" y2="211" stroke="#fed7aa"/>
+  <text x="640" y="227" font-size="8" fill="#78350f">3. Collaborator moved</text>
+  <text x="640" y="240" font-size="8" fill="#78350f">   projects — found out</text>
+  <text x="640" y="253" font-size="8" fill="#78350f">   from org chart</text>
+  <line x1="640" y1="264" x2="755" y2="264" stroke="#fed7aa"/>
+  <text x="697" y="284" text-anchor="middle" font-size="8" fill="#92400e">→ rejection, exclusion,</text>
+  <text x="697" y="296" text-anchor="middle" font-size="8" fill="#92400e">  social_threat inputs</text>
+
+  <!-- Legend -->
+  <rect x="30" y="370" width="10" height="10" rx="2" fill="#16a34a" opacity="0.15"/>
+  <text x="46" y="379" font-size="9" fill="#64748b">Tested transition (LLM judge, 0-5 scale, gate ≥4.0)</text>
+  <line x1="250" y1="375" x2="280" y2="375" stroke="#64748b" stroke-width="1.5" stroke-dasharray="6,3"/>
+  <text x="286" y="379" font-size="9" fill="#64748b">Cross-boundary read (tick reads consolidation state)</text>
+</svg>
