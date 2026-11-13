@@ -1,0 +1,146 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 520" font-family="system-ui, -apple-system, sans-serif">
+  <style>
+    .title { font-size: 15px; font-weight: 600; fill: #1a1a2e; }
+    .label { font-size: 11px; fill: #1a1a2e; }
+    .sublabel { font-size: 10px; fill: #666; }
+    .null-label { font-size: 10px; fill: #b71c1c; font-style: italic; }
+    .real-label { font-size: 10px; fill: #1b5e20; }
+    .harness-a { fill: #e8f4f8; stroke: #2196F3; stroke-width: 1.5; rx: 8; }
+    .harness-b { fill: #fff3e0; stroke: #ef6c00; stroke-width: 1.5; rx: 8; }
+    .orch-real { fill: #e8f5e9; stroke: #4caf50; stroke-width: 1; rx: 4; }
+    .orch-null { fill: #ffebee; stroke: #ef5350; stroke-width: 1; rx: 4; stroke-dasharray: 4,3; }
+    .core-box { fill: #f3e5f5; stroke: #9c27b0; stroke-width: 1.5; rx: 6; }
+    .drive-real { fill: #e8f5e9; stroke: #4caf50; stroke-width: 1; rx: 4; }
+    .drive-stub { fill: #ffebee; stroke: #ef5350; stroke-width: 1; rx: 4; stroke-dasharray: 4,3; }
+    .section-label { font-size: 12px; font-weight: 600; }
+    .blue-label { fill: #1565C0; }
+    .orange-label { fill: #e65100; }
+    .connector { stroke: #999; stroke-width: 1; fill: none; marker-end: url(#arrow); }
+    .problem-zone { fill: #fff8e1; stroke: #ffa000; stroke-width: 1; rx: 6; stroke-dasharray: 6,4; }
+  </style>
+  <defs>
+    <marker id="arrow" markerWidth="7" markerHeight="5" refX="7" refY="2.5" orient="auto">
+      <polygon points="0 0, 7 2.5, 0 5" fill="#999"/>
+    </marker>
+  </defs>
+
+  <text x="410" y="28" text-anchor="middle" class="title">Before: Two Harnesses, Two Wiring Paths</text>
+
+  <!-- Harness A: CognitionCoreTestBuilder -->
+  <rect x="20" y="50" width="370" height="450" class="harness-a"/>
+  <text x="205" y="72" text-anchor="middle" class="section-label blue-label">CognitionCoreTestBuilder</text>
+  <text x="205" y="86" text-anchor="middle" class="sublabel">caps-llm-classifier/src/test</text>
+
+  <!-- Harness A orchestrators -->
+  <rect x="40" y="100" width="140" height="28" class="orch-real"/>
+  <text x="110" y="118" text-anchor="middle" class="label">UserModelOrch</text>
+  <text x="190" y="118" class="real-label">real</text>
+
+  <rect x="40" y="134" width="140" height="28" class="orch-real"/>
+  <text x="110" y="152" text-anchor="middle" class="label">MentalModelOrch</text>
+  <text x="190" y="152" class="real-label">real</text>
+
+  <rect x="40" y="168" width="140" height="28" class="orch-real"/>
+  <text x="110" y="186" text-anchor="middle" class="label">StrategyOrch</text>
+  <text x="190" y="186" class="real-label">real</text>
+
+  <rect x="40" y="202" width="140" height="28" class="orch-real"/>
+  <text x="110" y="220" text-anchor="middle" class="label">NarrativeOrch</text>
+  <text x="190" y="220" class="real-label">real</text>
+
+  <rect x="40" y="236" width="140" height="28" class="orch-real"/>
+  <text x="110" y="254" text-anchor="middle" class="label">GoalProposalOrch</text>
+  <text x="190" y="254" class="real-label">real</text>
+
+  <rect x="40" y="270" width="140" height="28" class="orch-real"/>
+  <text x="110" y="288" text-anchor="middle" class="label">InnerLifeOrch</text>
+  <text x="190" y="288" class="real-label">real</text>
+
+  <!-- Harness A drives -->
+  <rect x="40" y="316" width="155" height="28" class="drive-real"/>
+  <text x="117" y="334" text-anchor="middle" class="label">CompetenceDrive</text>
+  <text x="206" y="334" class="real-label">orch-backed</text>
+
+  <rect x="40" y="350" width="155" height="28" class="drive-real"/>
+  <text x="117" y="368" text-anchor="middle" class="label">AffiliationDrive</text>
+  <text x="206" y="368" class="real-label">orch-backed</text>
+
+  <rect x="40" y="384" width="155" height="28" class="drive-real"/>
+  <text x="117" y="402" text-anchor="middle" class="label">AutonomyDrive</text>
+  <text x="206" y="402" class="real-label">orch-backed</text>
+
+  <!-- Harness A: Core -->
+  <rect x="60" y="430" width="300" height="36" class="core-box"/>
+  <text x="210" y="452" text-anchor="middle" class="label">CognitionCore (bare — no wrapper API)</text>
+
+  <!-- Harness A: SessionPipeline -->
+  <rect x="260" y="100" width="110" height="28" class="orch-real"/>
+  <text x="315" y="118" text-anchor="middle" class="label">SessionPipeline</text>
+  <text x="315" y="140" text-anchor="middle" class="real-label">LLM access</text>
+
+  <!-- Problem: no tick(), no renderPrompt(), no observe() -->
+  <rect x="250" y="320" width="130" height="68" class="problem-zone"/>
+  <text x="315" y="340" text-anchor="middle" class="null-label">No tick()</text>
+  <text x="315" y="355" text-anchor="middle" class="null-label">No observe()</text>
+  <text x="315" y="370" text-anchor="middle" class="null-label">No renderPrompt()</text>
+  <text x="315" y="385" text-anchor="middle" class="null-label">No state access</text>
+
+  <!-- Harness B: CognitionTestHarness -->
+  <rect x="430" y="50" width="370" height="450" class="harness-b"/>
+  <text x="615" y="72" text-anchor="middle" class="section-label orange-label">CognitionTestHarness</text>
+  <text x="615" y="86" text-anchor="middle" class="sublabel">cognition/src/test</text>
+
+  <!-- Harness B orchestrators — all null -->
+  <rect x="450" y="100" width="140" height="28" class="orch-null"/>
+  <text x="520" y="118" text-anchor="middle" class="label">UserModelOrch</text>
+  <text x="600" y="118" class="null-label">null</text>
+
+  <rect x="450" y="134" width="140" height="28" class="orch-null"/>
+  <text x="520" y="152" text-anchor="middle" class="label">MentalModelOrch</text>
+  <text x="600" y="152" class="null-label">null</text>
+
+  <rect x="450" y="168" width="140" height="28" class="orch-null"/>
+  <text x="520" y="186" text-anchor="middle" class="label">StrategyOrch</text>
+  <text x="600" y="186" class="null-label">null</text>
+
+  <rect x="450" y="202" width="140" height="28" class="orch-null"/>
+  <text x="520" y="220" text-anchor="middle" class="label">NarrativeOrch</text>
+  <text x="600" y="220" class="null-label">null</text>
+
+  <rect x="450" y="236" width="140" height="28" class="orch-null"/>
+  <text x="520" y="254" text-anchor="middle" class="label">GoalProposalOrch</text>
+  <text x="600" y="254" class="null-label">null</text>
+
+  <rect x="450" y="270" width="140" height="28" class="orch-null"/>
+  <text x="520" y="288" text-anchor="middle" class="label">InnerLifeOrch</text>
+  <text x="600" y="288" class="null-label">null</text>
+
+  <!-- Harness B drives — MindMapDriveSource stubs -->
+  <rect x="450" y="316" width="155" height="28" class="drive-stub"/>
+  <text x="527" y="334" text-anchor="middle" class="label">MindMapDriveSource</text>
+  <text x="616" y="334" class="null-label">returns 0.0</text>
+
+  <rect x="450" y="350" width="155" height="28" class="drive-stub"/>
+  <text x="527" y="368" text-anchor="middle" class="label">MindMapDriveSource</text>
+  <text x="616" y="368" class="null-label">returns 0.0</text>
+
+  <rect x="450" y="384" width="155" height="28" class="drive-stub"/>
+  <text x="527" y="402" text-anchor="middle" class="label">MindMapDriveSource</text>
+  <text x="616" y="402" class="null-label">returns 0.0</text>
+
+  <!-- Harness B: Rich wrapper -->
+  <rect x="470" y="430" width="300" height="36" class="core-box"/>
+  <text x="620" y="452" text-anchor="middle" class="label">CognitionCore + rich wrapper API</text>
+
+  <!-- Harness B: No SessionPipeline -->
+  <rect x="670" y="100" width="110" height="28" class="orch-null"/>
+  <text x="725" y="118" text-anchor="middle" class="label">SessionPipeline</text>
+  <text x="725" y="140" text-anchor="middle" class="null-label">not supported</text>
+
+  <!-- Problem: rich API but phantom wiring -->
+  <rect x="660" y="320" width="130" height="68" class="problem-zone"/>
+  <text x="725" y="340" text-anchor="middle" class="real-label">tick()</text>
+  <text x="725" y="355" text-anchor="middle" class="real-label">observe()</text>
+  <text x="725" y="370" text-anchor="middle" class="real-label">renderPrompt()</text>
+  <text x="725" y="385" text-anchor="middle" class="real-label">searchBudget()</text>
+</svg>
