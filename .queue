@@ -41,8 +41,8 @@ check: 878
 - [x] casehubio/neocortex#924 — two-tier CoherenceJudge
 - [x] casehubio/neocortex#939 — CAPS classifier empty-result fallback masks drive discrimination
 - [x] casehubio/neocortex#938 — PipelineCoherenceEvalTest — cross-stage narrative continuity
-- [ ] casehubio/neocortex#925 — CAPS consolidation coherence scenario ← active
-- [ ] casehubio/neocortex#926 — unify test harnesses
+- [x] casehubio/neocortex#925 — CAPS consolidation coherence scenario
+- [ ] casehubio/neocortex#926 — unify test harnesses ← active
 - [ ] casehubio/neocortex#941 — Drive profile personality-specific situation reasoning
 - [ ] casehubio/neocortex#957 — SEC→OCC emotion mapping arousal and taxonomy gaps
 - [ ] casehubio/neocortex#958 — Drive activation from single-tick appraisal curiosity gap
