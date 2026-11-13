@@ -1,7 +1,7 @@
 # Work Plan — Work Plan —
 
 ## State
-branch: 
+branch: issue-941-personality-situation-classification
 issue-repo: casehubio/neocortex
 status: active
 covers: 841
@@ -42,8 +42,17 @@ check: 878
 - [x] casehubio/neocortex#939 — CAPS classifier empty-result fallback masks drive discrimination
 - [x] casehubio/neocortex#938 — PipelineCoherenceEvalTest — cross-stage narrative continuity
 - [x] casehubio/neocortex#925 — CAPS consolidation coherence scenario
-- [ ] casehubio/neocortex#926 — unify test harnesses ← active
-- [ ] casehubio/neocortex#941 — Drive profile personality-specific situation reasoning
+- [x] casehubio/neocortex#926 — unify test harnesses
+- [ ] casehubio/neocortex#941 — Drive profile personality-specific situation reasoning ← active
+  - [x] Batch 1: Foundation
+    - [x] Task 1: DispositionTension
+    - [x] Task 2: PersonalityPromptBuilder
+  - [x] Batch 2: Integration
+    - [x] Task 3: LlmSituationClassifier routing
+    - [x] Task 4: BehavioralSynthesisPhase metadata
+    - [x] Task 5: CbrCachingSituationDecorator fix
+  - [x] Batch 3: Evaluation
+    - [x] Task 6: PersonalityClassificationEvalTest
 - [ ] casehubio/neocortex#957 — SEC→OCC emotion mapping arousal and taxonomy gaps
 - [ ] casehubio/neocortex#958 — Drive activation from single-tick appraisal curiosity gap
 - [ ] casehubio/neocortex#959 — Cross-tick trajectory negative attractor lock
