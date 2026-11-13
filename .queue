@@ -37,10 +37,10 @@ check: 878
 - [x] casehubio/neocortex#892 — Intelligence capacity appraisal frustration pathway
 - [x] casehubio/neocortex#920 — Eval signal — RPI stale strategy persistence
 - [x] casehubio/neocortex#940 — DriveProfilePipelineTest fragile verbatim detection
-- [ ] casehubio/neocortex#937 — Verify process constraint effectiveness via LLM eval suite ← active
-- [ ] casehubio/neocortex#924 — two-tier CoherenceJudge
-- [ ] casehubio/neocortex#939 — CAPS classifier empty-result fallback masks drive discrimination
-- [ ] casehubio/neocortex#938 — PipelineCoherenceEvalTest — cross-stage narrative continuity
+- [x] casehubio/neocortex#937 — Verify process constraint effectiveness via LLM eval suite
+- [x] casehubio/neocortex#924 — two-tier CoherenceJudge
+- [x] casehubio/neocortex#939 — CAPS classifier empty-result fallback masks drive discrimination
+- [ ] casehubio/neocortex#938 — PipelineCoherenceEvalTest — cross-stage narrative continuity ← active
 - [ ] casehubio/neocortex#925 — CAPS consolidation coherence scenario
 - [ ] casehubio/neocortex#926 — unify test harnesses
 - [ ] casehubio/neocortex#941 — Drive profile personality-specific situation reasoning

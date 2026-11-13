@@ -2,59 +2,54 @@
 
 ## Last Session
 
-Completed #933 (L/High) — applied process constraint technique from #905 to the wider eval suite. Closed as `376441c8`. Filed five follow-up issues (#937-#941) and reordered the queue by dependency chain. Revised the "Limitation That Wouldn't Limit" blog entry with #933's regulation applications. Added research doc.
+Closed 4 issues: #920 (eval signal review — no RPI evidence), #940 (fragile drive detection fix), #937 (process constraint eval — 10/11 passed), #889 (literature Javadoc citations cherry-picked). Also reconciled local/upstream main divergence from mega-squash issue — canonical main rewritten by fixer slot, local main synced.
 
-### Issue completed
+### Issues completed
 
 | # | Title | Scale | Outcome |
 |---|-------|-------|---------|
-| #933 | Apply process constraint technique to wider eval suite failures | L | Landed `376441c8` — cognitive load, fatigue, strategy differentiation constraints + drive description fallback |
+| #920 | Eval signal — RPI stale strategy persistence | S | Closed — zero instances in eval traces, existing anti-RPI mechanisms catalogued |
+| #940 | DriveProfilePipelineTest fragile verbatim detection | XS | Landed `de8cb4a2` — replaced verbatim description matching with drive type label detection |
+| #937 | Verify process constraint effectiveness via LLM eval suite | S | Closed — 10/11 passed (91%), gate 80%. Results in `docs/eval/process-constraint-eval-937.json` |
+| #924 | Two-tier CoherenceJudge | — | Closed by another slot |
+| #939 | CAPS classifier empty-result fallback | — | Closed by another slot |
+
+### Pending branch
+
+`issue-889-literature-javadoc-cherry` — 6 commits on top of main:
+- 4 cherry-picked Javadoc `@see` literature citation commits (#889)
+- Stream 11 research doc additions (#920, #937 findings)
+- Process constraint findings verification section
+
+**Needs landing** via work-end when git history is stable.
 
 ### Key findings
 
-**Process constraints generalize beyond capacity.** The technique from #905 (constraining reasoning procedure rather than describing limitations) works for emotion regulation, fatigue degradation, and personality-based strategy selection. Four interventions implemented in `EmotionRegulationGenerationPhase.buildUserMessage()`.
+**RPI eval signal (#920):** Current eval suite lacks temporal dimension for RPI detection. All evals test single-turn congruence, not multi-turn strategy persistence under context change. #938 (cross-stage narrative continuity) is the natural surface point for RPI signals.
 
-**DriveProfilePipelineTest root cause was simpler than expected.** The 12/12 failure was a missing description fallback in `CognitionObservationBuilder` (3-line fix), not a CAPS classification discrimination problem. The underlying overlap filtering architecture is sound — resting activation alone passes high-intensity drives, and the gaps for others are trivially small.
+**Process constraints verified (#937):** All three #933 targets passed — cognitive load biases strategy selection, fatigue transitions to AD, per-strategy personality congruence holds. One pre-existing failure (proactive avoidance goals) unrelated to process constraints.
 
-### Issues filed
+### Research docs updated
 
-| # | Title | Scale | Complexity | Queue position |
-|---|-------|-------|------------|----------------|
-| #937 | Verify process constraint effectiveness via LLM eval suite | S | Low | After #940 |
-| #938 | PipelineCoherenceEvalTest — cross-stage narrative continuity | M | Med | After #939 |
-| #939 | CAPS classifier empty-result fallback masks drive discrimination | S | Low | After #924 |
-| #940 | DriveProfilePipelineTest fragile verbatim detection | XS | Low | After #920 |
-| #941 | Drive profile personality-specific situation reasoning | M | High | End of queue |
-
-### Artifacts
-
-- Blog: `2026-11-11-mdp01-the-limitation-that-wouldnt-limit.md` — revised with #933 regulation applications
-- Research: `docs/research/2026-11-11-process-constraint-regulation-findings.md` — technique generalization findings
-- SVG: `blog/images/regulation-process-constraints.svg` — regulation pipeline constraint diagram
+- `docs/research/2026-11-05-post-era6-regulation-and-identity.md` — added Stream 11 (process constraint verification + RPI eval signal)
+- `docs/research/2026-11-11-process-constraint-regulation-findings.md` — added verification section with eval pass rates
 
 ## Immediate Next Step
 
-`work continue` — next in queue is #920 (Eval signal: RPI stale strategy persistence). S/Med.
+`work continue` — next in queue is #938 (PipelineCoherenceEvalTest cross-stage narrative continuity). M/Med.
 
 ## Remaining Queue (Epic #841)
 
 | # | Title | Scale | Complexity | Status |
 |---|-------|-------|------------|--------|
-| #920 | Eval signal — RPI stale strategy persistence | S | Med | Active — next |
-| #940 | DriveProfilePipelineTest fragile verbatim detection | XS | Low | Open |
-| #937 | Verify process constraint effectiveness via LLM eval suite | S | Low | Open — needs `ANTHROPIC_API_KEY` |
-| #924 | two-tier CoherenceJudge | ? | ? | Open |
-| #939 | CAPS classifier empty-result fallback masks drive discrimination | S | Low | Open |
-| #938 | PipelineCoherenceEvalTest — cross-stage narrative continuity | M | Med | Depends on #937 |
-| #925 | CAPS consolidation coherence scenario | ? | ? | Open |
-| #926 | unify test harnesses | ? | ? | Open |
-| #941 | Drive profile personality-specific situation reasoning | M | High | Research — last |
+| #938 | PipelineCoherenceEvalTest — cross-stage narrative continuity | M | Med | Active — next |
+| #925 | CAPS consolidation coherence scenario | M | Med | Open |
+| #926 | Unify test harnesses | M | Med | Open |
+| #941 | Drive profile personality-specific situation reasoning | M | High | Open — last |
 
-## Key Files Modified This Session
+## Git State
 
-- `cognition/.../EmotionRegulationGenerationPhase.java` — process constraints for load, fatigue, strategy
-- `cognition/.../CognitionObservationBuilder.java` — 3-line drive description fallback
-- `cognition/.../EmotionRegulationTickParticipant.java` — constructor reconciliation, WeightUpdateContext
-- `cognition/.../CognitionCore.java` — constructor arity fix
-- `caps-llm-classifier/.../CognitiveLoadStrategyEvalTest.java` — process constraint in inline prompt
-- 3 new test files: load, fatigue, strategy constraint tests
+- **neocortex:** on branch `issue-889-literature-javadoc-cherry` (6 commits ahead of main)
+- **Local main:** synced with upstream/main (`325237ab`)
+- 63 old feature branches are stamped (safe to clean up)
+- `issue-937-process-constraint-eval` and `issue-937-clean` can be deleted (work on main)
