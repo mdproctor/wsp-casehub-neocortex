@@ -14,17 +14,17 @@
 
 ## D2: Prompt design — dual path
 
-**Choice:** Path A (user prompt) appends axis values + instruction after description. Path C (system prompt) rebuilds the opening with personality frame + tension narrative before topology listing.
+**Choice:** Path A (user prompt) appends axis values + instruction after description. Path C (system prompt) rebuilds the opening with personality frame + tension narrative before topology listing; path C's user prompt ALSO includes all axis values (same as path A), ensuring secondary tensions and full personality data remain visible to the LLM even when the system prompt frames only the highest tension.
 **Alternatives:**
 - User prompt only for all agents — misses interpretive framing for complex personalities
 - System prompt only for all agents — unnecessary cost for simple personalities
 - Post-processing weights instead of prompt framing — can't capture interpretive differences (multiplication doesn't equal perception)
 **Rationale:** Path A is a lightweight filter: "Classify as this character would perceive it." Sufficient when axes don't conflict. Path C embeds a tension narrative that tells the LLM HOW the conflict shapes perception — the LLM inhabits the frame rather than applying it. Static narrative lookup table (6 entries) keyed by tension pair. System prompt is rebuilt per agent; per-agent sessions already exist so no additional cache cost.
-**Trade-offs:** Path C requires per-agent system prompt construction (minor cost). Tension narratives are hand-written (bounded to ~6 entries, each 1-2 sentences).
+**Trade-offs:** Path C requires per-agent system prompt construction (minor cost). Tension narratives are hand-written (bounded to ~6 entries, each 1-2 sentences). When multiple tensions co-exist, only the highest-tension narrative frames the system prompt; secondary tensions are present as axis values in the user prompt but lack dedicated interpretive framing.
 **Depends on:** D1 (tension score determines which path)
 **Sources:** LlmSituationClassifier.java prompt templates, appraisal theory (Lazarus — personality as lens, not filter)
 **Exploration:** deep-analysis (first-principles: system prompt = identity, user prompt = instruction)
-**Status:** captured
+**Status:** revised (R2: clarified path C user prompt includes axis values; multi-tension narrative behavior specified)
 
 ## D3: Personality data flow
 
@@ -34,10 +34,10 @@
 - Pass full CognitiveDefaults through ClassificationContext — couples the SPI to cognitive-index types, heavy for what's needed
 - Pass DispositionAxes through ClassificationContext — lighter but still couples SPI to cognitive-index types
 **Rationale:** The metadata map is already designed for passing extensible context to classifiers and is stringly-typed by design (it already carries event-type, cognitiveKind, salience-multiplier as string key-value pairs). Axis values are categorical string labels by nature. The classifier owns all personality-to-prompt logic (tension scoring, narrative lookup, path routing) — the caller only provides raw axis data, not pre-processed tension info. No new module dependencies. No SPI signature changes. Works for any SituationClassifier implementation. The 4 production call sites using `ClassificationContext.of(tenantId)` are: BehavioralSynthesisPhase.java L145/L436 and DriveProfileDerivationPhase.java L196/L214. CognitionObservationBuilder.java L520 already passes agentId via `ClassificationContext.of(tenantId, agentId)`. See D6 for which call sites get personality-aware metadata.
-**Trade-offs:** Stringly-typed axis data — mitigated by well-known key naming convention (`disposition.*`) and the classifier logging warnings for unrecognized axis values in the tension lookup. Requires each personality-aware call site to extract axes from CognitiveDefaults and put them in the metadata map.
+**Trade-offs:** Stringly-typed axis data — mitigated by well-known key naming convention (`disposition.*`) and the classifier logging warnings for unrecognized axis values in the tension lookup. Requires each personality-aware call site to extract axes from CognitiveDefaults and put them in the metadata map. `CbrCachingSituationDecorator` (`caps-situation-cbr`, `@Decorator @Priority(60)`, enabled by default) caches classification results keyed by `SHA-256(description + eventType + cognitiveKind)` — disposition metadata is NOT currently in the cache key. This is a mandatory fix: `computeCaseId()` must include `disposition.*` metadata values in the hash, and `lookupCbr()`/`storeCbr()` must include them as CBR categorical features and query filters. Without this, different personalities silently receive the same cached classification. The fix is local to `CbrCachingSituationDecorator` — no new module dependencies (`caps-situation-cbr` already reads from the metadata map).
 **Sources:** ClassificationContext.java, SituationClassifier.java, BehavioralSynthesisPhase.java L145/L436, DriveProfileDerivationPhase.java L196/L214, CognitionObservationBuilder.java L520, caps-llm-classifier/pom.xml (no cognitive-index dependency)
 **Exploration:** quick → revised after review
-**Status:** revised (R1: metadata approach accepted over registry injection — eliminates caps-llm-classifier → cognitive-index dependency, keeps SPI implementation-agnostic)
+**Status:** revised (R1: metadata approach; R2: CBR caching interaction documented — mandatory computeCaseId fix in CbrCachingSituationDecorator)
 
 ## D4: Eval test design
 
