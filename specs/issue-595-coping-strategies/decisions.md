@@ -10,3 +10,16 @@
 **Sources:** Marsella & Gratch (2009) EMA paper; existing SchererAppraisalStrategy.java, EmotionRegulationStrategy.java (10 strategies)
 **Exploration:** quick
 **Status:** captured
+
+## D2: Coping subsumes regulation
+
+**Choice:** EMA coping IS the strategy selection layer. The existing EmotionRegulationStrategy becomes a downstream execution mechanism that enacts the selected coping strategy.
+**Alternatives:**
+- Separate layers, coping constrains — keeps coping and regulation as distinct selections, coping narrows the regulation space. But creates two independent strategy selectors for overlapping territory.
+- Merge into unified taxonomy — single expanded strategy enum combining EMA + Gross. Requires reworking existing regulation code for unclear benefit.
+**Rationale:** EMA's 12 strategies and Gross's 10 strategies overlap significantly (COGNITIVE_CHANGE ≈ positive reinterpretation, SITUATION_SELECTION ≈ avoidance, SOCIAL_SUPPORT_SEEKING ≈ seek instrumental support). Two independent selectors would fight over the same territory. Coping selects "positive reinterpretation"; regulation enacts it via COGNITIVE_CHANGE. Clean layering: coping decides what to change, regulation executes the change.
+**Trade-offs:** RegulationStrategyPredictor and EmotionRegulationGenerationPhase need refactoring to receive coping strategy as input rather than independently selecting. Existing regulation tests may need updating.
+**Depends on:** D1 (full EMA provides the rich strategy taxonomy that makes subsumption natural)
+**Sources:** Marsella & Gratch (2009) EMA coping taxonomy; existing EmotionRegulationStrategy.java (10 strategies)
+**Exploration:** quick
+**Status:** captured
