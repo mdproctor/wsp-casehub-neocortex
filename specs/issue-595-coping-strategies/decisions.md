@@ -36,3 +36,17 @@
 **Sources:** Marsella & Gratch (2009) §Coping — continuous reappraisal model
 **Exploration:** quick
 **Status:** captured
+
+## D4: Narrative as causal interpretation in CopingState
+
+**Choice:** The interpretation narrative is the mutable causal interpretation. CopingState carries: reinterpretable narrative (starts as raw situation, transformed each iteration by LLM), working SEC dimensions (re-derived mechanically each iteration), working emotions, and accumulated persistent effects (goal operations, drive modulations, attention directives) dispatched after convergence.
+**Alternatives:**
+- Extend AppraisalContext — AppraisalContext is immutable, doesn't naturally carry reinterpretation. Some coping effects must persist, so treating all as ephemeral is unfaithful.
+- MindMap as causal interpretation — writing intermediate coping experiments to persistent storage is expensive and polluting. Wishful thinking shouldn't permanently change beliefs.
+- New CopingInterpretation record — ends up being the same as CopingState but without the clear rationale for why narrative is the core.
+**Rationale:** In an LLM-based architecture, "how the character sees the situation" is naturally text. LLM transforms the narrative (semantic work), SEC checks evaluate the transformed text (mechanical on resolved interpretation). This follows the semantic resolution boundary: LLM resolves semantics, mechanical computation evaluates resolved values. Persistent effects accumulate during the loop but only dispatch after convergence — no pollution of durable state with intermediate coping experiments.
+**Trade-offs:** Reappraisal requires re-running SEC checks on each reinterpreted narrative (LLM cost per iteration). But this is bounded by the iteration cap from D3.
+**Depends on:** D3 (intra-tick micro-loop defines the loop that CopingState serves)
+**Sources:** Marsella & Gratch (2009) §Causal interpretation; D4-exploration.md (deep analysis)
+**Exploration:** deep-analysis
+**Status:** captured
