@@ -23,3 +23,16 @@
 **Sources:** Marsella & Gratch (2009) EMA coping taxonomy; existing EmotionRegulationStrategy.java (10 strategies)
 **Exploration:** quick
 **Status:** captured
+
+## D3: Intra-tick micro-loop for reappraisal
+
+**Choice:** Within a single tick, run appraisal → coping selection → modify interpretation → re-evaluate, max N iterations, converging when no new coping opportunity exceeds threshold.
+**Alternatives:**
+- Cross-tick accumulation — coping effects visible only next tick. Simpler but coping responses are always one tick delayed; a character can't reappraise and adjust within the same moment.
+- Hybrid single reappraisal — exactly 2 passes max. Captures first-order effect but misses strategy chaining (try planning → fail → shift to acceptance).
+**Rationale:** Faithful to EMA's continuous model where coping modifies the causal interpretation and appraisal feature detectors automatically re-evaluate. The iteration cap bounds cost. Strategy chaining (try → fail → try different strategy) is a key behavioral differentiator.
+**Trade-offs:** More complex pipeline execution; needs convergence detection and iteration cap to prevent runaway. But bounded cost and richer behavioral dynamics.
+**Depends on:** D1 (full EMA requires strategy chaining), D2 (coping drives regulation, so the loop controls the full coping→regulation flow)
+**Sources:** Marsella & Gratch (2009) §Coping — continuous reappraisal model
+**Exploration:** quick
+**Status:** captured
