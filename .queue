@@ -1,13 +1,13 @@
-# Work Plan — signal-propagation-tests
 
 ## State
-branch: issue-923-personality-memory-drive-sources
-status: active
+branch: issue-595-coping-strategies
 issue-repo: casehubio/neocortex
+status: active
 covers: casehubio/neocortex#923
 Current: casehubio/neocortex#923 — personality-memory-drive-sources
 date: 2026-11-08
 
+## Deferred
 ## Queue
 - [x] casehubio/neocortex#791 — TDD-regression-tests-signal-propagation
 - [ ] casehubio/neocortex#853 — capacity-modulation-function
