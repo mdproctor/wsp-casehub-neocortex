@@ -50,3 +50,29 @@
 **Sources:** Marsella & Gratch (2009) §Causal interpretation; D4-exploration.md (deep analysis)
 **Exploration:** deep-analysis
 **Status:** captured
+
+## D5: Strategy-to-execution table for regulation mapping
+
+**Choice:** A static mapping table: each EMA coping strategy maps to one or more EmotionRegulationStrategy values as its execution mechanism. Coping decides WHAT to change, regulation executes HOW.
+**Alternatives:**
+- LLM produces both — loses clean layering, existing regulation code becomes dead
+- Coping replaces regulation entirely — discards working code and Gross-theoretical grounding
+**Rationale:** Clean separation of concerns. The mapping is well-defined by the overlap between the two taxonomies (positive reinterpretation → COGNITIVE_CHANGE, avoidance → SITUATION_SELECTION, seek support → SOCIAL_SUPPORT_SEEKING). The regulation execution infrastructure (prompts, effectiveness tracking, fatigue) remains valuable.
+**Trade-offs:** The mapping may not be 1:1 for all strategies. Some EMA strategies (wishful thinking, shift responsibility) don't have clean Gross equivalents — these produce direct narrative effects rather than routing through regulation.
+**Depends on:** D2 (coping subsumes regulation — this decision defines the interface)
+**Sources:** EMA coping taxonomy (12 strategies); EmotionRegulationStrategy enum (10 values)
+**Exploration:** quick
+**Status:** captured
+
+## D6: Hybrid CopingDefaults + LLM for personality-coping mapping
+
+**Choice:** CopingDefaults derived from Big Five via CDE (following RegulationDefaults pattern), feeding a CopingStrategyPredictor that filters by controllability then applies personality bias. LLM makes final selection with full situational context, optionally pinned by the predictor.
+**Alternatives:**
+- CopingDefaults only (no LLM) — personality signal alone can't assess situational viability. A conscientious character can't plan their way out of an uncontrollable situation. Violates semantic resolution boundary.
+- LLM prompt only (no predictor) — personality→coping mapping becomes implicit and variable across calls. Loses observability and consistency. Ignores that personality tendency is already numerically resolved.
+**Rationale:** Strategy selection involves two independently-resolvable signals: personality disposition (numeric, stable → mechanical) and situational viability (semantic, variable → LLM). The predictor handles the numeric signal, the LLM handles the semantic. This matches EMA's selection sequence (filter viable → personality resolves ties) and our architecture's established pattern (RegulationStrategyPredictor → EmotionRegulationGenerationPhase). Published Big Five→coping correlations are moderate-to-strong (same quality as Barańczuk 2019 for regulation).
+**Trade-offs:** One more component to maintain (CopingStrategyPredictor + CopingDefaults). But follows established pattern and provides observability.
+**Depends on:** D1 (full EMA strategy set), D2 (coping subsumes regulation), D4 (CopingState carries the context for selection)
+**Sources:** Marsella & Gratch (2009) §Strategy selection; Connor-Smith & Flachsbart (2007) Big Five→coping meta-analysis; existing RegulationDefaults.java pattern; D6-exploration.md (deep analysis)
+**Exploration:** deep-analysis
+**Status:** captured
