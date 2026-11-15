@@ -33,11 +33,11 @@ Tick Event
 
 ### CopingState — The Micro-Loop Working State
 
-The interpretation narrative is the mutable causal interpretation. CopingState is created at micro-loop entry and discarded after convergence dispatch.
+The interpretation narrative is the causal interpretation — evolved through wither-pattern copies at each iteration. CopingState is created at micro-loop entry and discarded after convergence dispatch.
 
 ```java
 public record CopingState(
-    String interpretationNarrative,           // mutable: starts as raw situation, reinterpreted each iteration
+    String interpretationNarrative,           // starts as raw situation, reinterpreted each iteration via withX()
     Map<String, Double> secDimensions,        // re-derived from each reinterpretation via keyword SEC checks
     List<CognitiveEmotion> workingEmotions,   // re-derived from SEC dimensions via EmotionMapper
     int iteration,                            // current micro-loop pass (0-indexed)
@@ -94,15 +94,15 @@ function copingMicroLoop(appraisalContext, appraisalResult, copingDefaults, maxI
 ```
 
 **Convergence criteria:**
-- No emotion in workingEmotions exceeds the coping opportunity threshold (intensity has dropped through reinterpretation)
-- Iteration cap reached (maxIterations, default 3)
+- No emotion in workingEmotions exceeds the coping opportunity threshold (intensity has dropped through reinterpretation). The threshold is a configurable `CognitionConfig.copingOpportunityThreshold()` value (default 0.6 — same scale as emotion intensity 0.0-1.0). Emotions below this intensity don't warrant active coping.
+- Iteration cap reached (maxIterations, configurable via `CognitionConfig.copingMaxIterations()`, default 3)
 - Same strategy selected twice in a row (oscillation detection)
 
 **Cost:** +1 LLM call per iteration (narrative reinterpretation). Keyword SEC checks are zero-cost. Typical convergence in 1-2 iterations. Worst case with N=3: +3 LLM calls per tick (total tick: 4-7 LLM calls vs current 4-5 without coping).
 
 ## EMA Coping Strategy Taxonomy
 
-12 strategies organized by the mental representation they target, mapped from Marsella & Gratch (2009):
+14 strategies organized by the mental representation they target, mapped from Marsella & Gratch (2009). EMA's original taxonomy groups some strategies (e.g., "wishful thinking / denial"); we split them where the computational effects differ:
 
 ### Attention-Related
 
@@ -116,7 +116,8 @@ function copingMicroLoop(appraisalContext, appraisalResult, copingDefaults, maxI
 | Strategy | Computational Effect | Personality Bias |
 |---|---|---|
 | **Shift responsibility** | Narrative transformation: reframe causal attribution | Neuroticism ↑, Agreeableness ↓ |
-| **Wishful thinking / Denial** | Narrative transformation: alter perceived likelihood | Neuroticism ↑ |
+| **Wishful thinking** | Narrative transformation: alter perceived likelihood | Neuroticism ↑ |
+| **Denial** | Narrative transformation: refuse to acknowledge stressor | Neuroticism ↑ |
 
 ### Desire-Related
 
@@ -131,9 +132,12 @@ function copingMicroLoop(appraisalContext, appraisalResult, copingDefaults, maxI
 |---|---|---|
 | **Planning** | GoalOperation: create plan goal | Conscientiousness ↑ |
 | **Seek instrumental support** | GoalOperation: create social support goal | Agreeableness ↑, Extraversion ↑ |
+| **Seek emotional support** | Regulation: SOCIAL_SHARING | Agreeableness ↑, Extraversion ↑ |
 | **Active confrontation** | GoalOperation: create confrontation goal | Extraversion ↑, Agreeableness ↓ |
+| **Suppression** | Regulation: RESPONSE_MODULATION | Conscientiousness ↑ |
 | **Procrastination** | GoalOperation: defer goal to future | Conscientiousness ↓ |
-| **Resignation / Acceptance** | GoalOperation: drop goal; DriveModulation: reduce intensity | Neuroticism ↓ (acceptance) or ↑ (resignation) |
+| **Resignation** | GoalOperation: drop goal | Neuroticism ↑ |
+| **Acceptance** | DriveModulation: reduce intensity + narrative | Neuroticism ↓ |
 | **Avoidance** | GoalOperation: create avoidance action | Neuroticism ↑ |
 
 ## Strategy-to-Regulation Execution Mapping
