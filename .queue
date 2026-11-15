@@ -1,3 +1,4 @@
+# Work Plan — 
 
 ## State
 branch: issue-595-coping-strategies
@@ -7,7 +8,6 @@ covers: casehubio/neocortex#923
 Current: casehubio/neocortex#923 — personality-memory-drive-sources
 date: 2026-11-08
 
-## Deferred
 ## Queue
 - [x] casehubio/neocortex#791 — TDD-regression-tests-signal-propagation
 - [ ] casehubio/neocortex#853 — capacity-modulation-function
@@ -19,3 +19,12 @@ date: 2026-11-08
 - [ ] casehubio/neocortex#928 — eval-judge-criteria
 - [ ] casehubio/neocortex#929 — production-drive-source-wiring
 - [ ] casehubio/neocortex#931 — audit-generate-overrides
+- [ ] casehubio/neocortex#991 — CopingDefaults-CDE
+- [ ] casehubio/neocortex#992 — CopingStrategyPredictor
+- [ ] casehubio/neocortex#993 — CopingGenerationPhase
+- [ ] casehubio/neocortex#994 — CopingMicroLoop
+- [ ] casehubio/neocortex#995 — regulation-refactoring
+- [ ] casehubio/neocortex#996 — goal-dispatch-keywords
+- [ ] casehubio/neocortex#997 — CAPS-coping-attractors
+- [ ] casehubio/neocortex#998 — emergence-eval
+- [ ] casehubio/neocortex#999 — CognitiveDefaults-refactoring
