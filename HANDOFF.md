@@ -1,27 +1,35 @@
 # HANDOFF — neocortex (slot 196)
 
 **Date:** 2026-11-16
-**Branch:** `issue-991-coping-defaults-cde`
-**Queue:** 7 issues (#993-#999) remaining, #1002 filed
+**Branch:** `issue-995-regulation-refactoring`
+**Queue:** 5 issues (#997-#999, #1002) remaining
 
 ## Last Session
 
-Implemented Batch 2 of the EMA coping strategies epic (#595):
-- **#991 CopingDefaults derivation** — `CopingDefaults` record (planfulTendency, reinterpretationTendency, avoidanceTendency, supportSeekingTendency, acceptanceTendency) derived from PID-5→Big Five composites via CDE using Connor-Smith & Flachsbart (2007) meta-analysis correlations. New field on CognitiveDefaults, wired into derive() and deriveAndMerge() pipelines. 10 tests, 457 module tests green.
-- **#992 CopingStrategyPredictor** — 6-stage mechanical predictor: cognitive load gate, controllability-based filtering (EMA core), mild distress override, Nathanson 1992 self-conscious emotion refinement, personality bias resolution with family-aware output. 18 tests, 922 module tests green.
-- Code review: copyright header, SecDimensions constant, immutable lists, SHIFT_RESPONSIBILITY mapping fix (avoidance not acceptance).
-- Research doc updated: era7-personality-trait-integration-research.md — deriveCopingDefaults moved from Planned to Implemented.
-- Blog: "Personality Shapes How Agents Cope" with pipeline SVG.
-- Filed #1002 (strategy ordering within families).
+Implemented Batch 4 Tasks 7-8 of the EMA coping strategies epic (#595):
+- **#995 Regulation refactoring (L/High)** — wires coping into the regulation pipeline:
+  - `@Deprecated` on `RegulationStrategyPredictor` (intelligence migrated to CopingStrategyPredictor in #992)
+  - `AppraisalTickParticipant.currentContext()` — exposes AppraisalContext for CopingMicroLoop
+  - `EmotionRegulationGenerationPhase.generateForCoping()` — coping-aware regulation execution (strategy pre-selected, receives reinterpreted narrative, assesses effectiveness only)
+  - `EmotionRegulationTickParticipant`: coping path gated by `copingEnabled` — PreCopingSafetyGate → CopingMicroLoop → regulation-routed strategies call generateForCoping, direct-effect strategies skip regulation
+  - `handleRegulationResult()` extracted for shared post-regulation processing
+  - 4 new tests (safety gate, regulation-routed, direct-effect, prompt construction), 979 module tests green
+- **#996 Goal operations dispatch + keyword expansion (M/Med)** — two changes:
+  - `GoalProposalOrchestrator.requestAbandonment()` and `requestDemotion()` — queue-based coping-driven goal lifecycle, merges with existing drive-stale/failure abandonments and narrative-driven demotions
+  - `CopingCheck` keyword expansion: 14 → 51 keywords (26 agency + 25 helplessness) for LLM-generated narrative coverage
+  - 7 new tests (2 orchestrator, 5 CopingCheck), 979 module tests green
+
+Prior sessions completed Batches 1-3 (#991-#994).
 
 ## Immediate Next Step
 
-Execute Batch 3: #993 CopingGenerationPhase (LLM-based coping selection and narrative reinterpretation) and #994 CopingMicroLoop (appraise→select→reinterpret→re-evaluate convergence loop).
+- **#997 CAPS coping attractors** — new "coping" attractor category, weight updates from regulation outcomes, retire "regulation" category when copingEnabled
+- Branch needs squash (4 WIP commits for #995, 1 feat commit for #996)
 
 ## References
 
 - `specs/issue-595-coping-strategies/2026-11-15-coping-strategies-design.md` — design spec (post-review)
 - `specs/issue-595-coping-strategies/decisions.md` — 9 design decisions
 - `plans/2026-11-15-coping-strategies.md` — implementation plan (10 tasks, 6 batches)
-- Batches 1-2 complete (Tasks 1-4), Batches 3-6 remaining (Tasks 5-10)
-- Open issues: #993-#999 (plan tasks), #1002 (strategy ordering refinement)
+- Batches 1-4 complete (Tasks 1-8), Batches 5-6 remaining (Tasks 9-10)
+- Open issues: #997-#999, #1002
