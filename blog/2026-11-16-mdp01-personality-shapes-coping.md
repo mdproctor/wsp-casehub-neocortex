@@ -13,7 +13,7 @@ series: issue-595-coping-strategies
 
 Two characters face the same crisis. One plans an escape route. The other shuts down and waits for it to pass. Both responses are psychologically coherent — they follow directly from personality. The question is whether a cognitive agent architecture can produce that differentiation mechanically, without asking an LLM to improvise every time.
 
-We built three pieces that answer that question: a personality-to-coping derivation engine, a mechanical predictor that selects coping strategies from the EMA taxonomy, and an LLM generation phase that produces the reinterpreted narrative. The structural selection is personality-driven and deterministic. The LLM's job is confined to the part that actually requires semantic understanding — reinterpreting what the situation means to this character, in this moment.
+We built four pieces that answer that question: a personality-to-coping derivation engine, a mechanical predictor that selects coping strategies from the EMA taxonomy, an LLM generation phase that produces the reinterpreted narrative, and a micro-loop orchestrator that runs the full appraisal-coping-reappraisal cycle until emotions converge. The structural selection is personality-driven and deterministic. The LLM's job is confined to the part that actually requires semantic understanding — reinterpreting what the situation means to this character, in this moment. The orchestrator wires all four layers together and iterates until the character's emotional state stabilises.
 
 ## Why Coping Needs Its Own Layer
 
@@ -98,9 +98,9 @@ This isn't about constraining the LLM's creativity. It's about closing the feedb
 
 The semantic resolution boundary shows up here more clearly than anywhere else in the pipeline. The predictor works because controllability and personality are already numbers — resolved signals. The generation phase works because narrative reinterpretation is irreducibly semantic. You can't produce "I've been looking at this wrong; there's a path I haven't considered" from a matrix multiplication. The keyword constraint is the bridge: the LLM produces semantically rich narrative, shaped so that downstream mechanical checks can read the signal back out.
 
-## The Full Cascade
+## The Full Cascade — Now Wired
 
-The coping layer runs inside each tick as a micro-loop between appraisal and regulation. Four layers, each with a clear role:
+The coping layer runs inside each tick as a micro-loop between appraisal and regulation. `CopingMicroLoop` orchestrates the cycle: create initial state from the appraisal result, check whether any emotion exceeds the coping threshold (default 0.6), then cascade through the four layers. Four layers, each with a clear role:
 
 ![Coping micro-loop — the full appraisal-coping-reappraisal cascade](svg/coping-cascade-micro-loop.svg)
 
@@ -112,7 +112,9 @@ The coping layer runs inside each tick as a micro-loop between appraisal and reg
 
 **LLM generation** — situational context + narrative reinterpretation. This is where the semantic work happens — and only here. The cascade ensures that by the time the LLM is invoked, the strategy space has been narrowed from 16 possibilities to a pinned strategy or a small family. The LLM call is focused, not open-ended.
 
-After the LLM produces a reinterpretation, keyword SEC checks re-evaluate controllability on the new narrative. If emotions are still above the coping threshold, the loop iterates with a different strategy. Strategy repeat detection prevents oscillation — if DENIAL was tried on iteration 0 and the loop circles back to DENIAL, it breaks. Typical convergence is 1-2 iterations. Hard cap at 3. Cost: +1 LLM call per iteration, zero-cost keyword checks.
+After the LLM produces a reinterpretation, the orchestrator creates a synthetic `AppraisalContext` with the new narrative and re-runs all four keyword SEC checks — relevance, implication, coping, normative. These are deterministic and zero-cost. The updated dimensions feed back into `EmotionMapper.mapEmotions`, which recalculates the working emotions. If any emotion still exceeds the coping threshold, the loop iterates with a different strategy.
+
+Three convergence criteria, checked in order: no emotion exceeds the threshold (the reinterpretation actually reduced distress). Iteration cap reached (default 3 — hard stop). Strategy repeat detected — if DENIAL was tried on iteration 0 and the loop circles back to DENIAL, it breaks. This catches both A→A and A→B→A oscillation patterns. Typical convergence is 1-2 iterations. Cost: +1 LLM call per iteration, zero-cost keyword checks.
 
 ## What This Means
 
@@ -120,4 +122,4 @@ The same crisis — a collapsing plan, a betrayal, an uncontrollable threat — 
 
 The architecture is heading toward a place where personality drives behaviour at every level — from what you notice, to how you appraise it, to how you cope with it, to how you regulate what's left. Each layer is mechanical where signals are already resolved, and LLM-based where semantic context is genuinely needed. The coping layer makes that boundary explicit: four cascade layers, three of them pure computation, one of them an LLM call that receives a focused prompt rather than an open question.
 
-What's next: the micro-loop orchestrator that wires these layers into the tick pipeline, the CAPS attractor integration that lets characters learn from their coping history, and the regulation refactor that receives coping output instead of selecting strategy independently. Three of ten tasks done. The hardest design decisions are behind us — what remains is wiring and integration.
+What's next: goal operations dispatch (so coping can create, defer, and drop goals), the regulation refactor that receives coping output instead of selecting strategy independently, and the CAPS attractor integration that lets characters learn from their coping history. Four of ten tasks done. The core loop is running — what remains is connecting it to the goal lifecycle, teaching it from experience, and proving it differentiates characters in the eval suite.
