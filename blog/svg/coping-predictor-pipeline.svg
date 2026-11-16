@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 520" font-family="system-ui, -apple-system, sans-serif">
+  <style>
+    .box { stroke-width: 1.5; rx: 6; ry: 6; }
+    .input { fill: #e8f0fe; stroke: #4285f4; }
+    .stage { fill: #fef7e0; stroke: #f9ab00; }
+    .output { fill: #e6f4ea; stroke: #34a853; }
+    .skip { fill: #fce8e6; stroke: #ea4335; }
+    .label { font-size: 11px; fill: #333; font-weight: 600; }
+    .detail { font-size: 9.5px; fill: #555; }
+    .arrow { stroke: #666; stroke-width: 1.2; fill: none; marker-end: url(#arrowhead); }
+    .dim { stroke: #999; stroke-width: 0.8; stroke-dasharray: 4,3; fill: none; }
+  </style>
+  <defs>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#666"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="360" y="24" text-anchor="middle" font-size="14" font-weight="700" fill="#222">CopingStrategyPredictor — 6-Stage Selection Pipeline</text>
+
+  <!-- Inputs row -->
+  <rect class="box input" x="20" y="44" width="130" height="44"/>
+  <text class="label" x="85" y="62" text-anchor="middle">CopingDefaults</text>
+  <text class="detail" x="85" y="76" text-anchor="middle">planful · reinterp · avoid</text>
+
+  <rect class="box input" x="170" y="44" width="130" height="44"/>
+  <text class="label" x="235" y="62" text-anchor="middle">SEC Dimensions</text>
+  <text class="detail" x="235" y="76" text-anchor="middle">controllability 0–1</text>
+
+  <rect class="box input" x="320" y="44" width="130" height="44"/>
+  <text class="label" x="385" y="62" text-anchor="middle">Emotions</text>
+  <text class="detail" x="385" y="76" text-anchor="middle">type + intensity</text>
+
+  <rect class="box input" x="470" y="44" width="110" height="44"/>
+  <text class="label" x="525" y="62" text-anchor="middle">Disposition</text>
+  <text class="detail" x="525" y="76" text-anchor="middle">conflict mode</text>
+
+  <rect class="box input" x="600" y="44" width="100" height="44"/>
+  <text class="label" x="650" y="62" text-anchor="middle">Cog Load</text>
+  <text class="detail" x="650" y="76" text-anchor="middle">LOW · MOD · HIGH</text>
+
+  <!-- Arrow down to stage 1 -->
+  <path class="arrow" d="M360,88 L360,108"/>
+
+  <!-- Stage 1: Cognitive Load Gate -->
+  <rect class="box stage" x="160" y="110" width="400" height="40"/>
+  <text class="label" x="360" y="128" text-anchor="middle">1. Cognitive Load Gate</text>
+  <text class="detail" x="360" y="140" text-anchor="middle">HIGH → retain only: suppression, avoidance, disengagement, resignation</text>
+
+  <path class="arrow" d="M360,150 L360,170"/>
+
+  <!-- Stage 2: Controllability Filter -->
+  <rect class="box stage" x="160" y="172" width="400" height="52"/>
+  <text class="label" x="360" y="190" text-anchor="middle">2. Controllability Filter (EMA)</text>
+  <text class="detail" x="360" y="204" text-anchor="middle">ctrl &gt; 0.6 → INTENTION only</text>
+  <text class="detail" x="360" y="216" text-anchor="middle">ctrl &lt; 0.3 → BELIEF + DESIRE only</text>
+
+  <path class="arrow" d="M360,224 L360,244"/>
+
+  <!-- Stage 3: Mild Distress Override -->
+  <rect class="box stage" x="160" y="246" width="400" height="40"/>
+  <text class="label" x="360" y="264" text-anchor="middle">3. Mild Distress Override</text>
+  <text class="detail" x="360" y="278" text-anchor="middle">intensity &lt; 0.40 + uncontrollable → widen to all categories</text>
+
+  <path class="arrow" d="M360,286 L360,306"/>
+
+  <!-- Stage 4: Self-Conscious Refinement -->
+  <rect class="box stage" x="160" y="308" width="400" height="40"/>
+  <text class="label" x="360" y="326" text-anchor="middle">4. Self-Conscious Emotion (Nathanson 1992)</text>
+  <text class="detail" x="360" y="340" text-anchor="middle">SHAME/REMORSE + avoidant personality → pin AVOIDANCE</text>
+
+  <!-- Early exit arrow -->
+  <path class="arrow" d="M560,328 L620,328"/>
+  <rect class="box skip" x="622" y="314" width="80" height="30"/>
+  <text class="label" x="662" y="334" text-anchor="middle">Early exit</text>
+
+  <path class="arrow" d="M360,348 L360,368"/>
+
+  <!-- Stage 5: Personality Bias Resolution -->
+  <rect class="box stage" x="100" y="370" width="520" height="52"/>
+  <text class="label" x="360" y="388" text-anchor="middle">5. Personality Bias Resolution</text>
+  <text class="detail" x="360" y="402" text-anchor="middle">highest CopingDefaults dimension among viable strategies wins</text>
+  <text class="detail" x="360" y="414" text-anchor="middle">single strategy → high confidence · family tie → lower confidence + label</text>
+
+  <path class="arrow" d="M360,422 L360,450"/>
+
+  <!-- Output -->
+  <rect class="box output" x="200" y="452" width="320" height="44"/>
+  <text class="label" x="360" y="470" text-anchor="middle">CopingPrediction</text>
+  <text class="detail" x="360" y="484" text-anchor="middle">strategy + confidence + familyLabel → LLM resolves ties</text>
+
+  <!-- Side annotation: Big Five derivation -->
+  <rect class="dim" x="20" y="370" width="70" height="52"/>
+  <text class="detail" x="55" y="388" text-anchor="middle">Big Five</text>
+  <text class="detail" x="55" y="400" text-anchor="middle">from</text>
+  <text class="detail" x="55" y="412" text-anchor="middle">PID-5</text>
+  <path class="dim" d="M90,396 L100,396"/>
+</svg>
