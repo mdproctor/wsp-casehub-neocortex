@@ -443,11 +443,20 @@ Attention directives dispatch to `AttentionPromptSection` as context hints for t
 - GoalOperation and DriveModulation dispatch after convergence
 - CognitionConfig.copingEnabled() gating
 
-**Emergence tests (LLM eval):**
-- Personality differentiation: high-conscientiousness character plans, high-neuroticism character avoids/denies
-- Strategy chaining: character tries planning → uncontrollable situation → shifts to acceptance
-- Reinterpretation quality: LLM produces narratively coherent reinterpretations
-- Convergence behavior: intensity reduction across micro-loop iterations
+**Emergence tests (LLM eval) — #998 complete, floor score 4/5:**
+
+| Test | Personality | Controllability | Result |
+|------|------------|-----------------|--------|
+| Conscientiousness → PLANNING | planful=0.85 | 0.80 (HIGH → INTENTION only) | Floor 4 |
+| Neuroticism → defensive cascade | avoidance=0.85 | 0.15 (LOW → BELIEF+DESIRE) | Floor 4 |
+| Strategy chaining | reinterp=0.70, planful=0.55 | 0.45 (MEDIUM → all viable) | Floor 4 |
+| Reinterpretation coherence | reinterp=0.85 | 0.30 (borderline) | Floor 4 |
+| Convergence | planful=0.65 | 0.40 (MEDIUM) | Floor 4 |
+
+Key findings from eval tuning:
+- Judge criteria must evaluate behavioural patterns (defensive trajectory, agentic planning), not specific strategy names — multiple EMA strategies are psychologically equivalent per personality
+- Drive-narrative alignment is critical: RelevanceCheck sustains emotions only when drive names/triggers appear in the LLM's vocabulary. Drive names must match scenario language.
+- Strategy chaining emerges from keyword feedback: reinterpretation produces agency-saturated narrative → CopingCheck shifts controllability up → predictor filters to INTENTION → different personality dimension wins → cross-category chain
 
 ## References
 
