@@ -2,42 +2,43 @@
 
 **Date:** 2026-11-16
 **Branch:** `issue-995-regulation-refactoring`
-**Queue:** 4 issues (#998-#999, #1002) remaining
+**Queue:** #998, #999 remaining from plan; #1017, #1018, #1019 filed this session
 
 ## Last Session
 
-Implemented Batch 4-5 of the EMA coping strategies epic (#595) — three issues in one session:
+Implemented Batches 4-5 of the EMA coping strategies epic (#595) — three issues, code review, blog revision:
 
-### #995 Regulation refactoring (L/High)
-- `@Deprecated` on `RegulationStrategyPredictor` (intelligence migrated to CopingStrategyPredictor)
-- `AppraisalTickParticipant.currentContext()` — exposes AppraisalContext for CopingMicroLoop
-- `EmotionRegulationGenerationPhase.generateForCoping()` — coping-aware regulation execution
-- `EmotionRegulationTickParticipant`: coping path gated by `copingEnabled` — PreCopingSafetyGate → CopingMicroLoop → regulation-routed/direct-effect routing
-- `handleRegulationResult()` extracted for shared post-regulation processing
+### Implementation
+- **#995 Regulation refactoring (L/High)** — coping path in TickParticipant, generateForCoping, @Deprecated predictor, handleRegulationResult extraction
+- **#996 Goal operations dispatch (M/Med)** — requestAbandonment/requestDemotion on GoalProposalOrchestrator, CopingCheck 14→51 keywords
+- **#997 CAPS coping attractors (L/High)** — 16 coping output nodes in topology, Layer 2 settling in CopingMicroLoop, Rescorla-Wagner weight update, GoalOperation dispatch from CopingState
 
-### #996 Goal operations dispatch + keyword expansion (M/Med)
-- `GoalProposalOrchestrator.requestAbandonment()` and `requestDemotion()` — coping-driven goal lifecycle
-- `CopingCheck` keywords: 14 → 51 (26 agency + 25 helplessness)
+### Code Review Fixes
+- CAPS settling: pass social context inputs (not empty map)
+- CAPS weight update: use social context inputs (not strategy name map)
+- Thread safety: CopyOnWriteArrayList for requested abandonments/demotions
+- Goal intensity: derive from peak emotion (not hardcoded 0.5)
+- CAPS resolution: moved before loop (stable across iterations)
 
-### #997 CAPS coping attractors and pipeline wiring (L/High)
-- caps-topology.yaml: new "coping" output category with 16 EMA strategy nodes
-- CopingMicroLoop: CapsEngine injection, Layer 2 coping attractor resolution
-- TickParticipant: CAPS weight update on coping attractor (Rescorla-Wagner)
-- TickParticipant: GoalProposalOrchestrator injection, dispatchCopingEffects() for CREATE/DROP/DEFER
-- execute() overload with tenantId for CAPS state loading
+### Filed Issues
+- **#1017** — DriveModulation + AttentionDirective dispatch from CopingState (S/Low)
+- **#1018** — Seed CAPS coping attractor weights from CopingDefaults on agent init (S/Med)
+- **#1019** — CAPS topology connections from mediating nodes to coping outputs (M/Med)
 
-979 cognition module tests green across all three issues.
+### Documentation
+- Research doc (era7-personality-trait-integration-research.md) updated
+- Blog revised: "Personality Shapes How Agents Cope" — added 4 sections (coping meets regulation, CAPS experience learning, goal operations, keyword loop) + pipeline SVG
 
-## Immediate Next Step
+979 cognition module tests green. Branch has 8 commits — needs squash.
 
-- **#998 emergence-eval** — evaluation tests for the coping pipeline
-- **#999 CognitiveDefaults refactoring** — structural cleanup
-- Branch needs squash before merge (7 commits)
+## Next Steps
+
+- **#998** — Emergence eval: personality differentiation + strategy chaining (LLM eval tests)
+- **#999** — CognitiveDefaults structural decomposition into nested config groups
+- **#1017-#1019** — Pipeline wiring completions (dispatch, seeding, topology connections)
 
 ## References
 
 - `specs/issue-595-coping-strategies/2026-11-15-coping-strategies-design.md` — design spec
-- `specs/issue-595-coping-strategies/decisions.md` — 9 design decisions
-- `plans/2026-11-15-coping-strategies.md` — implementation plan (10 tasks, 6 batches)
-- Batches 1-5 complete (Tasks 1-9), Batch 6 remaining (Task 10)
-- Open issues: #998-#999, #1002
+- `plans/2026-11-15-coping-strategies.md` — implementation plan
+- Batches 1-5 complete (Tasks 1-9), Batch 6 remaining (Task 10: #998)
