@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 740 620" font-family="system-ui, -apple-system, sans-serif">
+  <style>
+    .box { stroke-width: 1.5; rx: 6; ry: 6; }
+    .gate { fill: #fce8e6; stroke: #ea4335; }
+    .layer { fill: #fef7e0; stroke: #f9ab00; }
+    .llm { fill: #e8f0fe; stroke: #4285f4; }
+    .check { fill: #f3e8fd; stroke: #9334e6; }
+    .output { fill: #e6f4ea; stroke: #34a853; }
+    .skip { fill: #fce8e6; stroke: #ea4335; }
+    .label { font-size: 11px; fill: #333; font-weight: 600; }
+    .detail { font-size: 9.5px; fill: #555; }
+    .sublabel { font-size: 9px; fill: #777; font-style: italic; }
+    .arrow { stroke: #666; stroke-width: 1.2; fill: none; marker-end: url(#arrowhead); }
+    .loop { stroke: #9334e6; stroke-width: 1.2; fill: none; stroke-dasharray: 5,3; marker-end: url(#looparrow); }
+    .dim { stroke: #999; stroke-width: 0.8; stroke-dasharray: 4,3; fill: none; }
+  </style>
+  <defs>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#666"/>
+    </marker>
+    <marker id="looparrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#9334e6"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="370" y="24" text-anchor="middle" font-size="14" font-weight="700" fill="#222">Coping Micro-Loop — Appraisal-Coping-Reappraisal Cascade</text>
+
+  <!-- Entry: Appraisal Result -->
+  <rect class="box output" x="220" y="42" width="300" height="36"/>
+  <text class="label" x="370" y="58" text-anchor="middle">Scherer Appraisal Result</text>
+  <text class="detail" x="370" y="70" text-anchor="middle">emotions + SEC dimensions + narrative</text>
+
+  <path class="arrow" d="M370,78 L370,100"/>
+
+  <!-- Layer 0: Safety Gate -->
+  <rect class="box gate" x="180" y="102" width="380" height="40"/>
+  <text class="label" x="370" y="120" text-anchor="middle">Safety Gate</text>
+  <text class="detail" x="370" y="134" text-anchor="middle">fatigue &gt; 0.7 OR intensity &gt; 0.75 → skip coping entirely</text>
+
+  <!-- Skip path -->
+  <path class="arrow" d="M560,122 L620,122"/>
+  <rect class="box skip" x="622" y="108" width="100" height="30"/>
+  <text class="label" x="672" y="120" text-anchor="middle" font-size="9">Pin ATTENTIONAL</text>
+  <text class="label" x="672" y="132" text-anchor="middle" font-size="9">DEPLOYMENT</text>
+
+  <path class="arrow" d="M370,142 L370,162"/>
+
+  <!-- Layer 1: CAPS -->
+  <rect class="box layer" x="180" y="164" width="380" height="40"/>
+  <text class="label" x="370" y="182" text-anchor="middle">CAPS Coping Attractors</text>
+  <text class="detail" x="370" y="196" text-anchor="middle">learned preferences from prior coping outcomes (Rescorla-Wagner)</text>
+  <text class="sublabel" x="120" y="186" text-anchor="end">experience</text>
+
+  <path class="arrow" d="M370,204 L370,224"/>
+
+  <!-- Layer 2: Predictor -->
+  <rect class="box layer" x="180" y="226" width="380" height="40"/>
+  <text class="label" x="370" y="244" text-anchor="middle">CopingStrategyPredictor</text>
+  <text class="detail" x="370" y="258" text-anchor="middle">personality + controllability + cognitive load → strategy or family</text>
+  <text class="sublabel" x="120" y="248" text-anchor="end">disposition</text>
+
+  <path class="arrow" d="M370,266 L370,286"/>
+
+  <!-- Layer 3: LLM Generation -->
+  <rect class="box llm" x="150" y="288" width="440" height="52"/>
+  <text class="label" x="370" y="306" text-anchor="middle">CopingGenerationPhase (LLM)</text>
+  <text class="detail" x="370" y="320" text-anchor="middle">16 EMA strategies + situation + personality → reinterpreted narrative</text>
+  <text class="detail" x="370" y="332" text-anchor="middle">CopingResult: strategy + narrative + goal ops + drive mods + attention</text>
+  <text class="sublabel" x="96" y="312" text-anchor="end">cognition</text>
+
+  <path class="arrow" d="M370,340 L370,364"/>
+
+  <!-- SEC Re-evaluation -->
+  <rect class="box check" x="180" y="366" width="380" height="50"/>
+  <text class="label" x="370" y="384" text-anchor="middle">Keyword SEC Re-evaluation</text>
+  <text class="detail" x="370" y="398" text-anchor="middle">agency/helplessness vocabulary detection on reinterpreted narrative</text>
+  <text class="detail" x="370" y="410" text-anchor="middle">zero-cost: 4 keyword checks → updated controllability + emotions</text>
+
+  <path class="arrow" d="M370,416 L370,440"/>
+
+  <!-- Convergence check -->
+  <rect class="box check" x="230" y="442" width="280" height="40"/>
+  <text class="label" x="370" y="460" text-anchor="middle">Converge?</text>
+  <text class="detail" x="370" y="474" text-anchor="middle">emotions below threshold · iteration cap · strategy repeat</text>
+
+  <!-- Iterate loop arrow -->
+  <path class="loop" d="M510,462 L660,462 L660,182 L560,182"/>
+  <text class="sublabel" x="670" y="330" text-anchor="start">iterate</text>
+
+  <!-- Converge arrow -->
+  <path class="arrow" d="M370,482 L370,510"/>
+
+  <!-- Dispatch Effects -->
+  <rect class="box output" x="160" y="512" width="420" height="40"/>
+  <text class="label" x="370" y="530" text-anchor="middle">Dispatch Effects</text>
+  <text class="detail" x="370" y="544" text-anchor="middle">GoalOps → GoalProposalOrchestrator · DriveMods → AppraisalDriveModulator</text>
+
+  <path class="arrow" d="M370,552 L370,574"/>
+
+  <!-- Regulation Execution -->
+  <rect class="box output" x="200" y="576" width="340" height="30"/>
+  <text class="label" x="370" y="596" text-anchor="middle">Regulation Execution (strategy + reinterpreted narrative)</text>
+
+  <!-- Side annotations: mechanical vs LLM boundary -->
+  <rect class="dim" x="14" y="100" width="74" height="174"/>
+  <text class="detail" x="51" y="118" text-anchor="middle">mechanical</text>
+  <text class="detail" x="51" y="132" text-anchor="middle">resolved</text>
+  <text class="detail" x="51" y="146" text-anchor="middle">signals</text>
+
+  <rect class="dim" x="14" y="286" width="74" height="56"/>
+  <text class="detail" x="51" y="310" text-anchor="middle">semantic</text>
+  <text class="detail" x="51" y="324" text-anchor="middle">context</text>
+
+  <rect class="dim" x="14" y="364" width="74" height="56"/>
+  <text class="detail" x="51" y="388" text-anchor="middle">keyword</text>
+  <text class="detail" x="51" y="402" text-anchor="middle">bridge</text>
+</svg>
