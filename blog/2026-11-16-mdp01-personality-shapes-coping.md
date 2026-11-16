@@ -116,10 +116,67 @@ After the LLM produces a reinterpretation, the orchestrator creates a synthetic 
 
 Three convergence criteria, checked in order: no emotion exceeds the threshold (the reinterpretation actually reduced distress). Iteration cap reached (default 3 — hard stop). Strategy repeat detected — if DENIAL was tried on iteration 0 and the loop circles back to DENIAL, it breaks. This catches both A→A and A→B→A oscillation patterns. Typical convergence is 1-2 iterations. Cost: +1 LLM call per iteration, zero-cost keyword checks.
 
+## Coping Meets Regulation
+
+The coping micro-loop produces a strategy and a reinterpretation. But some strategies need regulation to execute — positive reinterpretation is a coping decision, but actually reappraising an emotion is regulation work. The design spec maps seven of the sixteen strategies to regulation targets:
+
+| Coping Strategy | Regulation Target |
+|---|---|
+| Positive reinterpretation | COGNITIVE_CHANGE |
+| Seek instrumental support | SOCIAL_SUPPORT_SEEKING |
+| Seek emotional support | SOCIAL_SHARING |
+| Avoidance | SITUATION_SELECTION |
+| Mental disengagement | ATTENTIONAL_DEPLOYMENT |
+| Suppression | RESPONSE_MODULATION |
+| Active confrontation | SITUATION_MODIFICATION |
+
+The remaining nine strategies — planning, acceptance, denial, wishful thinking, shift responsibility, resignation, procrastination, seek information, suppress information — produce direct effects: goal operations, drive modulations, or attention directives. They never enter the regulation pipeline.
+
+`EmotionRegulationGenerationPhase.generateForCoping()` handles the regulation-routed path. It receives the coping strategy, the mapped regulation target, and the reinterpreted narrative. It does *not* re-select a strategy — the cognitive work is already done by the coping layer. Its job is narrower: assess effectiveness, compute regulated intensity, produce the experiential narrative, and track fatigue. The prompt is explicit: "COPING-ROUTED REGULATION — strategy is pre-selected. Do NOT choose a different strategy."
+
+The old `RegulationStrategyPredictor` — the mechanical layer that used emotion categories as controllability proxies — is now deprecated. Its intelligence migrated into `CopingStrategyPredictor`: the cognitive load gate, mild distress override, and self-conscious emotion refinement all moved to the coping predictor where they operate on direct controllability signals rather than emotion-type proxies. The class remains for utility methods (`emotionCategory()`) and the non-coping code path, but its strategy selection role is retired.
+
+## CAPS: Coping Through Experience
+
+Personality shapes initial coping preferences. But people learn. A character who tries planning and fails repeatedly should shift toward acceptance — not because their personality changed, but because their coping history weighted the evidence differently.
+
+The CAPS (Connectionist Appraisal Processing System) network already drives regulation attractor resolution through connectionist settling. The network topology — input nodes representing social situations, mediating nodes representing internal models, output nodes representing behavioural responses — settles into attractor basins that represent learned associations between situations and responses.
+
+Sixteen coping attractor nodes now sit alongside the existing regulation outputs in the topology. The settling mechanism is identical: social context inputs activate mediating nodes, activations propagate through weighted connections, and the network settles into whichever coping attractor basin has the strongest pull. If a coping attractor dominates (strength above the confidence threshold with sufficient margin over the runner-up), it pins that coping strategy before the mechanical predictor or LLM are consulted. Experience overrides disposition.
+
+The learning signal comes from regulation outcomes. After each regulation-routed coping strategy executes, the Rescorla-Wagner weight update fires:
+
+- **Outcome intensity** = |peak original intensity - regulated intensity|
+- **Outcome valence** = effectiveness > 0.5 means positive, otherwise negative
+- **Salience multiplier** = peak original intensity (emotional events teach more)
+- **Schedule** = variable ratio (most resistant to extinction — matching how real coping habits consolidate)
+
+The weight update applies to the *coping* strategy's attractor node, not the regulation strategy's. The character learns "reinterpretation worked in this social context," not "cognitive change worked." The coping decision is the level at which experience accumulates.
+
+## Goal Operations: Coping Changes What You Want
+
+Nine of the sixteen coping strategies produce direct effects — no regulation call. The most significant: goal lifecycle changes.
+
+- **PLANNING** creates a goal (`GoalProposalOrchestrator.appendGoals`)
+- **RESIGNATION** drops a goal (`requestAbandonment`)
+- **PROCRASTINATION** defers a goal to secondary priority (`requestDemotion`)
+
+These methods follow the existing goal lifecycle patterns. `requestAbandonment` queues a goal name for the next tick's abandonment list, merging with the drive-stale and failure abandonments that already exist. `requestDemotion` queues a priority adjustment, merging with narrative-driven demotions. The coping reason string carries through — "resignation: perceived as uncontrollable" in the abandonment record, "procrastination: deferring to reduce cognitive load" in the demotion reason.
+
+The implication: a character who perceives a situation as uncontrollable doesn't just *feel* differently — they *stop pursuing the goal*. Resignation isn't a narrative flourish; it's a goal lifecycle event. The goal is dropped, the drive that sustained it decays, and the character's behaviour shifts because the thing they were working toward is no longer active. This is where the coping layer connects to the rest of the cognitive pipeline: emotions don't exist in isolation from motivation.
+
+## Closing the Keyword Loop
+
+The coping micro-loop's feedback mechanism depends on keyword-based SEC checks detecting the reinterpretation shift. The original CopingCheck used 14 keywords — 7 for agency, 7 for helplessness. That vocabulary was tuned for scenario descriptions, not LLM-generated reinterpretations. LLMs produce richer vocabulary: "empowered" instead of "able," "confined" instead of "trapped."
+
+The expanded set: 26 agency keywords, 25 helplessness keywords. The additions follow the same pattern as the originals — concrete, direct language that signals controllability shifts. "Capable," "navigate," "overcome," "resolve" for agency. "Powerless," "futile," "defeated," "vulnerable" for helplessness. The prompt constraint works in concert: the LLM is instructed to express reinterpretations in direct language that signals the intended appraisal shift. Not hardcoded keywords — but a vocabulary that overlaps naturally with the SEC detection set.
+
+The expanded set also improves the initial appraisal. Every SEC evaluation of a narrative — not just the coping micro-loop's re-evaluation — benefits from a richer vocabulary. An initial scenario description that says the character feels "cornered and hopeless" now registers higher helplessness, which feeds into more accurate controllability scores upstream.
+
 ## What This Means
 
-The same crisis — a collapsing plan, a betrayal, an uncontrollable threat — now produces different coping responses from different characters, without any per-character prompt engineering. A high-conscientiousness character plans. A high-neuroticism character avoids. A high-openness character reframes. The differences emerge from the personality profile that was derived at character creation, flow through the CDE, and resolve mechanically in the predictor. The LLM generates the narrative content for whichever strategy the mechanical layers selected.
+The same crisis — a collapsing plan, a betrayal, an uncontrollable threat — now produces different coping responses from different characters, routes those responses through the appropriate execution pathway, updates the character's learned coping history, and dispatches changes to the goal lifecycle. Without any per-character prompt engineering.
 
-The architecture is heading toward a place where personality drives behaviour at every level — from what you notice, to how you appraise it, to how you cope with it, to how you regulate what's left. Each layer is mechanical where signals are already resolved, and LLM-based where semantic context is genuinely needed. The coping layer makes that boundary explicit: four cascade layers, three of them pure computation, one of them an LLM call that receives a focused prompt rather than an open question.
+A high-conscientiousness character plans — and a PLANNING goal enters the goal lifecycle. A high-neuroticism character avoids — and regulation executes SITUATION_SELECTION with fatigue tracking. A high-openness character reframes — and the reinterpretation feeds back through keyword checks to recalculate controllability. The differences emerge mechanically from personality, execute through the regulation or direct-effect pathway, and teach the CAPS network which coping strategies worked. Next time, the network settles faster.
 
-What's next: goal operations dispatch (so coping can create, defer, and drop goals), the regulation refactor that receives coping output instead of selecting strategy independently, and the CAPS attractor integration that lets characters learn from their coping history. Four of ten tasks done. The core loop is running — what remains is connecting it to the goal lifecycle, teaching it from experience, and proving it differentiates characters in the eval suite.
+Personality drives behaviour at every level — from what you notice, to how you appraise it, to how you cope with it, to how you regulate what's left, to whether you keep pursuing the goal that started it. Each layer is mechanical where signals are already resolved and LLM-based where semantic context is genuinely needed. Nine of ten implementation tasks complete. What remains: emergence evaluation proving that the pipeline produces measurably different coping behaviours across personality profiles, and a structural refactoring of CognitiveDefaults that has grown from a manageable record to a 24-field behemoth.
