@@ -1,14 +1,14 @@
 format_version: 1
-state: SPEC_WRITING
-entered: 2026-11-17T01:00:00Z
+state: PLANNING
+entered: 2026-11-17T18:40:00Z
 decision_count: 6
-dimensions_completed: 0
-dimensions_total: 0
+dimensions_completed: 4
+dimensions_total: 4
 ordered: false
-dimensions_done:
+dimensions_done: coherence,structure,robustness,crosscutting
 current_dimension:
-workspace_structure:
-workspace_coherence:
-workspace_robustness:
-workspace_crosscutting:
+workspace_structure: /Users/mdproctor/reviews/casehub-slots/unified-personality-evolution-structure-20261117-164403
+workspace_coherence: /Users/mdproctor/reviews/casehub-slots/unified-personality-evolution-coherence-20261117-164358
+workspace_robustness: /Users/mdproctor/reviews/casehub-slots/unified-personality-evolution-robustness-20261117-164408
+workspace_crosscutting: /Users/mdproctor/reviews/casehub-slots/unified-personality-evolution-crosscutting-20261117-175134
 workspace_decision:
