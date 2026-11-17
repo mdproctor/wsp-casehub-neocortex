@@ -386,7 +386,24 @@ private <E> void record(E ev, String tenantId, String agentId):
   - This makes the JPAF path non-inert in production without waiting for #1102.
   - Dedup: `InteractionAppraised` and `RelationshipRecorded` are distinct event types, and the latter is NEUTRAL today. When #1102 valences `RelationshipRecorded`, the one-source-per-derivation-chain rule decides which event carries the activation (noted on #1102).
 - **[R] Dimension namespace.** Both sources emit terms taken from the descriptor's own `dispositionProfile` (dominant or auxiliary by weight), so their spelling is canonical by construction. The profile-membership check, together with debug log and the counter `personality.signal.dropped{reason=unknown-term}`, guards future sources.
-- **Concurrency.** An activation recorded between a reflection's `probe` and its `clear` is consumed by that evolution. This is the intended semantics: the transition closes the signal epoch. No lock is needed. The scheduler serialises phase runs under its own lock on one executor thread, and the signal stores are safe to call concurrently (JPA row-transactional; in-memory concurrent maps).
+- **Concurrency.** An activation recorded between a reflection's `probe` and its `clear` is consumed by that evolution. This is the intended semantics: the transition closes the signal epoch. Neocortex needs no lock of its own, because the scheduler serialises phase runs under its own lock on one executor thread.
+- **[R2] The Eidos signal stores are *not* concurrency-safe today (R1-08; eidos#241).** The rev 2 claim that they were is withdrawn.
+  - `JpaDispositionSignalStore.recordActivation` is `em.find` then `count++` or `persist`, and `DispositionSignalEntity` has no `@Version`. Concurrent activations for one term lose increments, and concurrent *first* activations raise a primary-key violation.
+  - `decay` is SELECT → mutate → flush, so it overwrites activations committed in between.
+  - `InMemoryDispositionSignalStore` races in `decay`, `removeIf` and `clear`, and uses an aliasing `agentId:tenancyId` key.
+
+  Concurrent writers are real: per-turn `InteractionAppraised` from several speech sessions, plus `RelationshipRecorded`. Until eidos#241 lands, the effect on this design is bounded and one-directional. A lost increment, or a swallowed primary-key violation (recorder totality), **under-counts**. Under-counting delays evolution and can never cause a spurious transition, so the crash-point principle still holds. Counts are therefore a lower bound, and §Calibration's "≈ 4 retained activations" is a minimum event count, not an exact one. eidos#241 is listed in §Prerequisites as not blocking.
+- **[R2] Transaction isolation (R2-05).** `JpaDispositionSignalStore.recordActivation` is `@Transactional(REQUIRED)`. Neocortex's memory and cognition modules contain no `@Transactional` (verified). However, a transactional memory backend or an agency caller could fire `RelationshipRecorded`, or call `recordInteraction`, inside a JTA transaction. A JPA failure crossing the store's interceptor would then mark the **caller's** transaction rollback-only, and the recorder's try/catch cannot undo that.
+  - The recorder therefore performs all signal-store writes in its own `@Transactional(REQUIRES_NEW)` method, `writeActivations(tenant, agent, terms)`.
+  - Without `quarkus-narayana-jta` on the classpath the annotation binds no interceptor, and no outer transaction can exist to be poisoned.
+  - The store side of the same fix (`REQUIRES_NEW` on `recordActivation`) is in eidos#241, so both layers are safe independently.
+  - **Test:** with an active outer transaction, a forced signal-store failure leaves the outer transaction committable.
+- **[R2] Hot-path cost (R2-05).** Each non-NEUTRAL interaction turn costs:
+  1. `stateService.read`, which on a cache hit is lock-free and does no I/O;
+  2. one `agentRegistry.findById`, an indexed read;
+  3. one short `REQUIRES_NEW` JPA write.
+
+  NEUTRAL turns return at `relevant()` with no I/O. A cache miss loads the node under the per-agent lock (§[S2] `read`). That happens once per agent after 24 h of idleness, or after a restart. The worst case on a miss is one MindMap node read, plus waiting for at most one in-flight `transition` of the *same agent*, whose critical section is one MindMap property write. No lock is taken on the hit path. The halt check deliberately goes through `read` rather than a cache-only peek, because under (A) the same `read` supplies the lived profile that ranks dominant and auxiliary (§(A) lived descriptor). A cache-only peek would rank against the authored profile on every miss, which is exactly the wrong-function defect R2-02 describes.
 
 #### `TraitPressureSource<E>` kept; `TraitActivation` loses its valence [S2]
 
@@ -702,6 +719,7 @@ All gates are wall-clock: reflection grid, interval, dwell, and integrator hours
 | #1102: valenced relationship and goal-outcome signals | **[R] Not blocking** (was: hard for JPAF non-inertness) | `InteractionAppraised` from `CognitionCore.recordInteraction` carries live production valence. #1102 adds further valenced sources |
 | casehubio/agency#487: remove orchestrator producers, wire the new beans | Same change window | Agency fails to compile |
 | casehubio/eidos#237: fractional activation weights | Not blocking | Integer truncation biases low counts; the reflection grid limits the damage |
+| **[R2]** casehubio/eidos#241: signal-store concurrency (atomic upsert, bulk decay, `REQUIRES_NEW`, in-memory races and keys) | Not blocking | Concurrent activations under-count, which only delays evolution and never double-counts. Counts are a lower bound until it lands |
 | **[S2]** casehubio/eidos#239: canonical `AmpdFacet` names | **Hard under (B)**; hygiene under (A) | (B): `updateFacets` keyed by an uncanonicalised name appends a duplicate facet or misses the stored spelling |
 
 **What #1060 closes:** the structural defect. Evolution is evaluated on a durable wall-clock cadence. Its result is committed to one store of record, which R1-01 chooses. It reaches `EffectiveCognitiveDefaults` through one path for both families. *[C2]* That path exists in production only because this issue also delivers the `EffectiveCognitiveDefaults` producer and a real `PersonalityStateSource` (Problem 5, §Production wiring).
