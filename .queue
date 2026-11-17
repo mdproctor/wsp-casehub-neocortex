@@ -11,8 +11,8 @@ design-repo: project
 design-section-hashes: 
 flyway-next-v: unknown
 check: 878
-done: 1048,1051,1042
-active: 1052
+done: 1048,1051,1042,1052
+active: 1041
 
 ## Queue
 - [x] casehubio/neocortex#916 — QdrantCbrRecordStore 4-arg recordOutcome
