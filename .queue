@@ -1,7 +1,7 @@
 # Work Plan —
 
 ## State
-branch: issue-1048-caps-coping-initializeAgent-wiring
+branch: issue-1051-orphaned-output-node-audit
 issue-repo: casehubio/neocortex
 status: active
 covers: 1050
@@ -12,7 +12,7 @@ design-section-hashes:
 flyway-next-v: unknown
 check: 878
 done: 1048
-active: 
+active: 1051
 
 ## Queue
 - [x] casehubio/neocortex#916 — QdrantCbrRecordStore 4-arg recordOutcome
