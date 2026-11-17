@@ -4,7 +4,7 @@
 **Refs:** #712 (situational modulation, Era 7b), #1055 (EffectiveCognitiveDefaults), #126 (JPAF orchestrator), #1080 (absorbed)
 **Prerequisites:** #1082, #1063; under option (B) only: casehubio/eidos#235, casehubio/eidos#239 (see §Prerequisites; R1-01)
 **Follow-ups:** #1102, #1104 (single-instance deployment contract), #1089 (eviction; not closed here), #1107 (verify R3 amendments after collapse), casehubio/agency#487, casehubio/eidos#237, casehubio/eidos#242 (swap dead zone)
-**Date:** 2026-11-17 (rev 2, after the round-1 structure review; robustness amendments marked **[R]**, after the round-1 robustness review; structure round-2 amendments marked **[S2]**; cross-cutting round-1 amendments marked **[X1]**; round-2 amendments marked **[X2]**)
+**Date:** 2026-11-17 (rev 2, after the round-1 structure review; robustness amendments marked **[R]**, after the round-1 robustness review; structure round-2 amendments marked **[S2]**; cross-cutting round-1 amendments marked **[X1]**; round-2 amendments marked **[X2]**; round-3 amendments marked **[X3]**)
 
 ## Problem
 
@@ -251,7 +251,7 @@ The two families store lived results with different semantics, and the differenc
     | Observation at a due reflection (`livedProfile ≠ null`) | Action |
     |---|---|
     | authored fp ≠ lived fp, and `reauthor` absent or for a different fp | `reauthor := (fp, now, false)`; journal `DispositionReauthored(old, new)` |
-    | same mismatch held for ≥ one `reflectionPeriod`, unconfirmed | **confirm**: `transition(lastTransitionAt := now, confirmed := true)`. Confirmation counts as a transition for the [R] rate bound |
+    | same mismatch held for ≥ one `reflectionPeriod`, unconfirmed | **confirm**: `transition(lastTransitionAt := now, confirmed := true)`, and **[X3]** in the same write `reversalStreak := 0`, `lastTransitionFromLabel := null`. The authored reference changed, so a later return to a pre-edit label is not a reversal of anything the agent evolved under this profile. Confirmation counts as a transition for the [R] rate bound |
     | authored fp = lived fp again | `reauthor := null`; journal `DispositionReauthorReverted`. The lived profile is active again |
     | unconfirmed mismatch, and the reflection yields `Evolved` | `Deferred`, with `eligibleAt = since + P`. Nothing is committed against an authored profile that may still be reverted |
 
@@ -423,8 +423,25 @@ So under constant one-sided or leaning conditions the type has a **fixed point**
 **Rule 3 [X2]: reversals are observed directly (R2-01).** A committed transition whose `newLabel` equals the type label in force *before* the previous committed transition is a **reversal** (A→B→A).
 - **State.** `ReflectionLedger.lastTransitionFromLabel` holds the `previousLabel` of the last committed transition. `closeEpoch` copies it from the intent, which already carries both labels for the CBR case.
 - **At `closeEpoch`,** which runs exactly once per committed transition (on the commit path or in recovery), if `intent.newLabel == lastTransitionFromLabel`:
-  - journal `DispositionReversal(tenantId, agentId, ref, at, previousLabel, newLabel, sinceLastTransition)`;
-  - increment `personality.disposition.reversals{tenant}`.
+  - journal `DispositionReversal(tenantId, agentId, ref, at, previousLabel, newLabel, sinceLastTransition, streak)`;
+  - increment `personality.disposition.reversals{tenant}`. This counter is informational, because a single reversal is often healthy (below).
+- **[X3] A reversal is not by itself a defect (R3-01).** D23 *designs* adapt-and-return: strain moves the agent to the adapted type, and comfort brings it back. One A→B→A is that lifecycle, so the defect cannot be "a reversal". The eidos#242 signature is different: **consecutive** reversals, each committed at the rate bound, because in the dead zone the reverse transition is pending from the first period after each commit. The ledger therefore keeps a streak:
+  - `ReflectionLedger.reversalStreak` (int, initially 0) is updated in the same `closeEpoch` write:
+    - **reversal and near the bound** (`intent.at − lastTransitionAt ≤ 2 · intent.interval`): `streak := streak + 1`;
+    - **reversal after a longer stay:** `streak := 1`;
+    - **non-reversal:** `streak := 0`.
+  - `intent.interval` is `minTransitionInterval / rc` at commit time. It is recorded in the intent so that recovery, which has no rc in hand, applies the same rule.
+  - **Alerting:** the counter `personality.disposition.oscillations{tenant}` increments only when the new streak is **≥ 2** (A→B→A→B, the intermediate stays each no longer than two bounds).
+
+  What each lifecycle produces:
+
+  | Lifecycle | Streak sequence | Oscillations |
+  |---|---|---|
+  | adapt, then return | 0, 1 | 0 |
+  | seasonal: adapt, return, adapt again after > 2 bounds | 0, 1, 1 | 0 |
+  | dead zone (eidos#242), transitions every bound | 0, 1, 2, 3, … | from the third transition on |
+
+  Why spacing as well as the streak: a streak alone would alert on a year of legitimate hard-winter / easy-summer cycles (A→B→A→B months apart). Spacing at the bound is what separates "the reverse was pending all along" from "conditions changed".
 - **No behaviour changes** (D6: whether the transition is valid is Eidos's call), so this is observability only.
 
 Why this and not the reviewer's precondition gauge (journal once per tenant when T > 0.50):
@@ -452,10 +469,11 @@ A reversal is exactly the defect, whatever causes it, and every input needed to 
   - recording never suppressed (every activation counted);
   - no attention signal other than `PERSONALITY_EVOLVED`.
 - **Mixed 3 POS + 5 NEG:** swap within 2 periods (rc = 1), then stable.
-- **Positive after adaptation:** an adapted agent given pure POSITIVE returns to the authored type exactly once.
+- **Positive after adaptation:** an adapted agent given pure POSITIVE returns to the authored type exactly once. **[X3]** That return journals one `DispositionReversal` with `streak = 1`, and `personality.disposition.oscillations` is unchanged.
+- **[X3] Seasonal:** pure NEGATIVE for 40 d, pure POSITIVE for 70 d, then pure NEGATIVE again (rc = 1). This gives three transitions with streaks 0, 1, 1, and no oscillation increment.
 - **rc = 0.8 with 2 NEG per period:** the swap occurs (it was blocked by the halt before).
-- **Dead zone, 5 + 5 and [X2] 12 + 10:** transitions are spaced ≥ `minTransitionInterval / rc` apart, and every second one journals `DispositionReversal`. The test is marked to flip to "0 reversals" when eidos#242 lands.
-- **[X2] Threshold sweep (R2-01):** with the tenant preference T = 0.55, 10+12, 8+10 and 20+22 alternate (`DispositionReversal` on each return). With T = 0.60, 25+35 alternates too. At T = 0.50 each of these settles after one transition. Marked to flip to "0 reversals" when eidos#242 lands.
+- **Dead zone, 5 + 5 and [X2] 12 + 10:** transitions are spaced ≥ `minTransitionInterval / rc` apart. **[X3] Corrected count (R3-01):** every transition from the second onward journals `DispositionReversal`, with streaks 1, 2, 3, …, and `personality.disposition.oscillations` increments from the third transition onward. The test is marked to flip to "0 oscillations" when eidos#242 lands.
+- **[X2] Threshold sweep (R2-01):** with the tenant preference T = 0.55, 10+12, 8+10 and 20+22 alternate, with `DispositionReversal` on every transition from the second and oscillations from the third. With T = 0.60, 25+35 alternates too. At T = 0.50 each of these settles after one transition. Marked to flip to "0 oscillations" when eidos#242 lands.
 
 #### `DispositionEvolutionPhase` (cognition, `cognition.personality`)
 
@@ -480,7 +498,8 @@ for agentId in effectiveDefaults.agentIds(tenantId) ∪ stateService.agentIds(te
         s = stateService.transition(..., st -> st.withReflection(st.reflection().closeEpoch()))
             // (5) one write: pendingEvolution := null, lastTransitionAt := intent.at,
             //     auditOutbox += intent.case; PERSONALITY_EVOLVED is emitted on this commit;
-            //     [X2] Rule 3: reversal := (intent.newLabel == st.reflection().lastTransitionFromLabel),
+            //     [X2] Rule 3: reversal := (intent.newLabel == st.reflection().lastTransitionFromLabel);
+            //     [X3] reversalStreak per Rule 3 (uses intent.at, st.lastTransitionAt, intent.interval),
             //     then lastTransitionFromLabel := intent.previousLabel. closeEpoch runs exactly once per
             //     transition (here or on the commit path), so DispositionReversal is never journaled twice
     s = flushAuditOutbox(s)                                              // (4) bounded retries, §Transition audit outbox
@@ -698,6 +717,7 @@ There is no separate ledger store. `DispositionEvolutionLedgerStore` and its `ev
 - **[R3]** *(A)* `reauthor` (`Reauthor(fingerprint, since, confirmed)`, nullable): tracks an authored-profile mismatch that has not been confirmed or reverted yet (R3-02). It is encoded as `jpaf.reauthor.*` properties. **[X2]** Only for agents with a lived profile.
 - **[X2]** `epochFingerprint` (`String`, nullable until the first due reflection): the authored fingerprint the current signal epoch is being recorded under (R2-02). It applies to every agent. Step 0a(b) clears the epoch when it differs from the current authored fingerprint.
 - **[X2]** `lastTransitionFromLabel` (`String`, nullable): the `previousLabel` of the last committed transition, copied by `closeEpoch`. Rule 3 uses it to flag reversals (R2-01).
+- **[X3]** `reversalStreak` (`int`, default 0): consecutive reversals each committed within two rate bounds of the previous transition. It is updated by `closeEpoch`, and Rule 3 alerts at ≥ 2 (R3-01). `pendingEvolution` also carries `interval`, the rc-scaled bound at commit, so that recovery applies the same rule.
 - **[R2]** `auditOutbox` (list of `AuditEntry(intentId, case, attempts, nextAttemptAt)`): pending CBR transition cases (R2-04). Encoded as `jpaf.audit.<intentId>.*` properties.
 - **[R2]** `inert` (boolean): the edge-trigger memory for `DispositionInputInert` (R2-09). The phase writes it in step 4's `transition`.
   - The per-period counts it is derived from are **not** state. The recorder keeps them in its own in-memory `ConcurrentHashMap<TenantAgentKey, InputCounts>` (two `LongAdder`s: seen and relevant). The phase drains them at each due reflection, so the recorder hot path never touches `PersonalityState`, and §[S2]'s transition-only rule holds.
@@ -832,7 +852,7 @@ private <E> void record(E ev, String tenantId, String agentId):
     | Runtime | `IsolatedTransactions` implementation | Selected by |
     |---|---|---|
     | Quarkus with JTA (narayana) | `JtaIsolatedTransactions(jakarta.transaction.TransactionManager)`: `suspend()` → `begin()` → run → `commit()` (`rollback()` on throw) → `resume()` | `@Produces @DefaultBean` in `CognitionDefaultBeans` when `Instance<TransactionManager>` resolves |
-    | Quarkus without JTA | `DirectIsolatedTransactions`: runs inline. No JTA means no outer transaction exists to join or poison | same producer, otherwise |
+    | Quarkus without JTA | `DirectIsolatedTransactions`: runs inline. No JTA means no outer transaction exists to join or poison. **[X3]** There is no rollback, so the writer's add-back after a throw and the decay compensation are exact only if the store does not throw mid-batch. The only non-JTA store, `InMemoryDispositionSignalStore`, does not throw after its first mutation. This is the same assumption [R3] states for decay compensation | same producer, otherwise |
     | Spring (agency-spring) | `TransactionTemplate` with `PROPAGATION_REQUIRES_NEW` over the application's `PlatformTransactionManager` | `@Bean` in `AgencyAutoConfiguration` (agency#487) |
 
     `JtaIsolatedTransactions` uses only `jakarta.transaction-api`, a compile-scope dependency of cognition, so cognition gains no Narayana or Spring dependency.
@@ -1075,7 +1095,7 @@ There is no cross-family drift norm. Weight-simplex deltas and facet-scale offse
 - `PersonalityPromotionCapped(tenantId, agentId, ref, at, facet, homeOffset, cumulativePromoted)`: **[R2]** on entry to the capped state only, with `PersonalityPromotionUncapped(tenantId, agentId, ref, at, facet)` on exit (`FacetState.cappedSince` edge)
 - **[R2]** `ReflectionClockRegressed`, `DispositionTransitionStalled`, `DispositionTransitionAuditFailed`: each once per event (§JPAF commit ordering, §Clock regression)
 - **[X2]** `DispositionSignalEpochReset(tenantId, agentId, ref, at, oldFingerprint, newFingerprint)`: once per detected authored-profile change, for every agent (§[S3] (b))
-- **[X2]** `DispositionReversal(tenantId, agentId, ref, at, previousLabel, newLabel, sinceLastTransition)`: once per committed A→B→A transition (§[X1] Rule 3), with the counter `personality.disposition.reversals{tenant}`
+- **[X2]** `DispositionReversal(tenantId, agentId, ref, at, previousLabel, newLabel, sinceLastTransition, streak)`: once per committed A→B→A transition (§[X1] Rule 3). It comes with the informational counter `personality.disposition.reversals{tenant}` and, **[X3]** at `streak ≥ 2` only, the alerting counter `personality.disposition.oscillations{tenant}`
 
 **Attention signals.** **[X1]** One value, `PERSONALITY_EVOLVED`, is added to `io.casehub.neocortex.mindmap.SignalCategory` (mindmap-api). `PERSONALITY_HALT` is dropped with the halt (D24). This is the enum used by `ConsolidationPhase.signals()` / `AttentionSignal` and consumed by `ConsolidationScheduler`. The `mindmap.intelligence.SignalCategory` enum is not touched.
 
@@ -1366,7 +1386,7 @@ See `decisions.md`. *[C3: complete index]*
 | D27 | Signal epoch keyed on `epochFingerprint` for every agent (amends D22) | [X2] |
 | D28 | Coalesced recorder activations; no hot-path wait, no drop (amends D20) | [X2] |
 | D29 | Freshness on a quantised composition version (amends D25) | [X2] |
-| D30 | D23 precondition on Eidos parameters; reversals observed (amends D23) | [X2] |
+| D30 | D23 precondition on Eidos parameters; reversals observed; **[X3]** oscillation = reversal streak ≥ 2 at the bound (amends D23) | [X2], [X3] |
 
 The store-of-record choice (R1-01) is deliberately not a numbered decision until the human makes it.
 

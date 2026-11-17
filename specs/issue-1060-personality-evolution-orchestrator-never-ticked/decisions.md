@@ -489,3 +489,15 @@ The PEO rationale for rc ("tolerating larger personality adjustments") concerns 
 The reversal signal is exactly the defect, whatever causes it.
 
 **Status:** captured (cross-cutting round 2)
+
+**Cross-cutting round 3 amendment to D30 (R3-01).** A single reversal is the adapt-and-return lifecycle that D23 designs, so it is not a defect.
+- `DispositionReversal` stays as an informational journal entry and counter.
+- `ReflectionLedger.reversalStreak` counts consecutive reversals, each committed within two rc-scaled bounds of the previous transition. A reversal after a longer stay restarts the streak at 1, and a non-reversal resets it to 0.
+- Re-author confirmation resets the streak and `lastTransitionFromLabel`.
+- Only `streak ≥ 2` increments the alerting counter `personality.disposition.oscillations`.
+
+**Alternatives:**
+- **The reviewer's streak without spacing.** *Rejected:* it alerts on legitimate seasonal cycles, such as an A→B→A→B sequence months apart.
+- **Renaming to `DispositionReturned` with no alerting.** *Rejected:* it loses the symptom signal that made Rule 3 preferable to a parameter check.
+
+**Status:** amended (cross-cutting round 3)
