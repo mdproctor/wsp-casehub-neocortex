@@ -3,8 +3,8 @@
 **Issue:** casehubio/neocortex#1060
 **Refs:** #712 (situational modulation, Era 7b), #1055 (EffectiveCognitiveDefaults), #126 (JPAF orchestrator), #1080 (absorbed)
 **Prerequisites:** casehubio/eidos#235, #1082, #1063 (see §Prerequisites)
-**Follow-ups:** #1102, casehubio/agency#487, casehubio/eidos#237
-**Date:** 2026-11-17 (rev 2, after the round-1 structure review)
+**Follow-ups:** #1102, #1104 (single-instance deployment contract), casehubio/agency#487, casehubio/eidos#237
+**Date:** 2026-11-17 (rev 2, after the round-1 structure review; robustness amendments marked **[R]**, after the round-1 robustness review)
 
 ## Problem
 
@@ -14,7 +14,8 @@ All of the following were verified in code.
 2. **Identity writes are discarded.** On evolution, the orchestrator calls `DispositionProfileStore.update()`. The only implementation is `NoOpDispositionProfileStore`, and the SPI has no facet write.
 3. **The base layer has exactly one owner, the Eidos descriptor.** `CognitionCore.tick()` calls `effectiveDefaults.updateBase(tenantId, toDescriptorView(descriptor), …)` on every tick (`CognitionCore.java:288-291`). `EidosDescriptorViewSource` reads the same `AgentRegistry`. A lasting change written anywhere other than the registry is reverted on the next tick.
 4. **PID-5 lasting drift already exists and has an owner.** `PersonalityStateIntegrator.closeHour()` moves `homeOffset` from the signed exposure integral (TESSERA slow drift). It is bounded by `dMax` (0.10) and decays back toward 0 over `tauSetpoint` (180 d). `SituationalDeformationPhase` runs this at consolidation cadence and persists it through `SituationalStateService`. Era 7b key decision 1 is "one model, not overlay". The one missing PID-5 step is graduation of persistent `homeOffset` into the identity baseline.
-5. **Upstream infrastructure is unwired or starved.** The situational pipeline has no production wiring (#1082). `ConsolidationScheduler` starves busy deployments and forgets tenants on restart (#1063). Every production `RelationshipRecorded` is `QualitySignal.NEUTRAL` (`RelationshipProcessor:39-42`), so the JPAF path receives no signals (#1102).
+5. **[R] The propagation target itself has no production bean.** No producer for `EffectiveCognitiveDefaults` exists in neocortex or agency. The only construction is `EffectiveCognitiveDefaults.forTesting`, and agency consumes it only as `Optional`. `PersonalityStateSource`'s only production implementation, `DefaultPersonalityStateSource`, returns `Optional.empty()`. So even a correct `updateBase`/`updateState` call reaches nothing in production, and an evicted or restarted slot never sees `homeOffset`.
+6. **Upstream infrastructure is unwired or starved.** The situational pipeline has no production wiring (#1082). `ConsolidationScheduler` starves busy deployments and forgets tenants on restart (#1063). Every production `RelationshipRecorded` is `QualitySignal.NEUTRAL` (`RelationshipProcessor:39-42`), so the JPAF path receives no signals (#1102).
 
 The first revision of this spec rested on three false premises:
 
@@ -133,23 +134,76 @@ Neither eidos#235 nor this spec handles it. The defect is noted on eidos#235.
 
 Until this is decided, the propagation table above is correct only for an uninterrupted process lifetime.
 
+**[S2] Structure-review evidence for the decision.** Round 2 of the structure review raised five findings. Four of them come from evolution results crossing a store boundary: R2-01 (cross-store double count), R2-02 (publication order across two layers), R2-03 (facet-key contract on writes) and R2-05 (three-store JPAF commit).
+
+- **Under (A):** every evolution result commits in **one** `PersonalityStateService.transition` (§Lived personality state). The only remaining cross-store step is clearing the Eidos signal store, and it is ordered so that a failure under-counts.
+- **Under (B):** each of those findings needs its own protocol (intent/replay, ordered publication, canonical-key writes, registry locking). Those protocols are specified below for (B), but they are cost that (A) does not pay.
+
+Structure therefore also recommends **(A)**. It is the option with one owner per kind of data:
+- **Eidos** owns *authored* identity. Boot re-registration from YAML is then correct by construction.
+- **Neocortex** owns the *lived* personality state vector (Era 7b decision 1).
+
+Wherever a protocol below differs between the options, it is tagged *(A)* / *(B)*.
+
+### [S2] Lived personality state: one owner for all per-agent evolution state
+
+**Defect, verified in code.** `PersonalityState` has two read-modify-write writers on different threads, with no serialisation:
+- `SituationalPersonalityParticipant.tick()` runs on the tick thread: `loadOrCreate` → `advance` → `pull` → `persist`.
+- `SituationalDeformationPhase.run()` runs on the consolidation thread: `currentState` → `advance` → `persist`.
+
+`persist` is a blind MindMap write followed by `stateCache.put`. `loadOrCreate`'s create path is unguarded, so two concurrent first loads both `addNode`. Before this issue a lost write cost a few self-healing hours of `advance`. Once promotion and the reflection ledger live in this state, a lost write is a permanent identity error: a double-counted promotion or a bypassed budget.
+
+**Fix.** `SituationalStateService` is renamed **`PersonalityStateService`**. It now holds more than situational state: the reflection ledger under both options, and the lived profile under (A). It becomes the sole owner of serialisation, not only of storage:
+
+```java
+/** Sole mutation path: per-agent lock; load-or-create, apply fn, version++, persist, replace cache — all under the lock. */
+PersonalityState transition(String tenantId, String agentId, Instant now, UnaryOperator<PersonalityState> fn);
+/** Read path: cache hit, else load-or-create under the same per-agent lock (first sight is persisted). */
+PersonalityState read(String tenantId, String agentId, Instant now);
+```
+
+- **No other path.** `persist`, `loadOrCreate` and `currentState` become private. Every writer goes through `transition`:
+  - the participant;
+  - `SituationalDeformationPhase`;
+  - `DispositionEvolutionPhase` (reflection ledger; lived profile under A).
+
+  `DispositionSignalRecorder` only calls `read`.
+- **`fn` is pure.** Callers gather evidence (appraisal, mood, descriptor) before calling `transition`.
+- **Version-ordered publication.** A persisted monotonic `version` becomes `PersonalityStateSnapshot.stateVersion`, replacing `System.nanoTime()`. `EffectiveCognitiveDefaults` already keeps the higher `stateVersion`, so a snapshot of an older state can never replace a newer one, even when it is published after the lock is released.
+- **Robustness additions** (failure atomicity, `TenantAgentKey`, persisted enumeration, eviction, `PersonalityStateSource`) are under §Promotion transaction → [R]. Multi-instance deployments are covered by #1104.
+- **One store for all per-agent evolution state.** The reflection ledger is a component of `PersonalityState` (§Reflection ledger), not a separate store. There is then one owner of the `PERSONALITY_STATE` subgraph, one node per agent, one lock and one version. Under (A), the JPAF intent, the lived profile and the ledger are literally one node write, which the [R] JPAF commit ordering relies on.
+
+**Interleaving test.** A participant tick is injected (via a latch inside the mutation) between the deformation phase's load and its commit. After both commit, `promoted + homeOffset` equals the pre-promotion `homeOffset` plus the tick's own drift. Both writers' effects survive, and none is applied twice.
+
+**[R] Robustness evidence for (A).** The round-1 robustness review counted every path by which a lasting change is lost or reverted. Under (B), five independent conditions must all hold for an evolution to survive:
+
+1. eidos#235 lands, with lost-update protection.
+2. Boot re-registration preserves evolved fields.
+3. Every `CognitionCore.tick` caller re-reads the registry each tick (agency#487 item 4; nothing enforces this).
+4. The two-store intent protocol (D8, plus the JPAF equivalent below) never loses an intent.
+5. `IdentityChangePropagator` observes every write, including in-memory registries outside JTA.
+
+Under (A), lived state has one durable home: the per-agent `PersonalityState` node, written by one serialized owner (§[S2] `PersonalityStateService.transition`). It is composed over whatever base the tick passes in, so 1–5 are not required. JPAF result and ledger become a single atomic node write, and the two-store crash windows disappear.
+
+(A) still needs the shared prerequisite above: a production `EffectiveCognitiveDefaults` and a real `PersonalityStateSource` (§Production wiring). Under (A), lived personality survives `CognitionCore` re-base, idle eviction and restart by construction. The end-to-end test in §Testing (tick → evict → restart) is written so it fails under any path that loses lived state.
+
 ### Disposition-profile evolution (JPAF family)
 
 #### `DispositionEvolutionPhase` (cognition, `cognition.personality`)
 
 `@ApplicationScoped @Priority(50)`. Implements the `mindmap-intelligence` `ConsolidationPhase` SPI, following the precedent of `SituationalDeformationPhase`, `RelationalSchemaEvolutionPhase` (@20), `RelationshipStagePhase` (@18), `DriveAdaptationPhase` (@17) and `BeliefRevisionPhase` (@14). It lives in `cognition` because `cognition` depends on `mindmap-intelligence` (`cognition/pom.xml:66`) and not the other way round.
 
-It injects the Eidos SPIs `DispositionSignalStore`, `DispositionHealth`, `DispositionEvolution`, `DispositionProfileStore` and `AgentRegistry`. It also injects `CbrRecordStore`, `EffectiveCognitiveDefaults` (read-only, for `relationalComplexity`), `DispositionEvolutionLedgerStore` and `Clock`.
+It injects the Eidos SPIs `DispositionSignalStore`, `DispositionHealth`, `DispositionEvolution`, `DispositionProfileStore` and `AgentRegistry`. It also injects `CbrRecordStore`, `EffectiveCognitiveDefaults` (read-only, for `relationalComplexity`), `PersonalityStateService` (owner of the reflection ledger; see [S2]) and `Clock`.
 
 **`run(tenantId, subgraphPriority)`:**
 
 ```
 for agentId in effectiveDefaults.agentIds(tenantId):
-    ledger = ledgerStore.load(tenantId, agentId)          // persisted; see below
+    ledger = stateService.read(tenantId, agentId, now).reflection()   // persisted on first sight
     n = floor((now - ledger.lastReflectionAt) / config.reflectionPeriod)
     if n == 0: continue                                    // wall-clock gate
-    descriptor = agentRegistry.findById(agentId, tenantId) // the owner's view
-    if descriptor has no dispositionProfile: advance ledger; continue
+    descriptor = agentRegistry.findById(agentId, tenantId) // the owner's view (A: + lived profile)
+    if descriptor has no dispositionProfile: advance ledger via transition; continue
 
     // 1. Decay: wall-clock, catch-up exact for missed periods
     signalStore.decay(agentId, tenantId, config.retentionPerReflection ^ n)
@@ -165,18 +219,58 @@ for agentId in effectiveDefaults.agentIds(tenantId):
                                 Evolved e  -> Evolved(e, p.type)       (halt := false)
                                 Dampened x -> Dampened(x.decayFactor)  (halt := true)
 
-    // 3. Commit: only after the decision is final
-    Evolved:  profileStore.update(agentId, tenantId, e.newProfile)     // identity write
-              cbrStore.store(transition case, trigger_type = p.type)   // PersonalityTransitionSchema
-              signalStore.clear(agentId, tenantId)
+    // 3. Commit: only after the decision is final  [R] intent-first, see "JPAF commit ordering"
+    Evolved & now - ledger.lastTransitionAt < minTransitionInterval:
+              -> Deferred (no commit; signals keep decaying; halt := false)    [R] rate bound
+    Evolved:  stateService.transition(..., s -> s.withReflection(ledger.withPendingEvolution(e.newProfile, case)))  // (1) intent
+              profileStore.update(agentId, tenantId, e.newProfile)     // (2) identity write (absolute); (A): lived profile, same update as (1)
+              signalStore.clear(agentId, tenantId)                     // (3) close the signal epoch
+              cbrStore.store(transition case, trigger_type = p.type)   // (4) derived record
+              ledger := ledger.withoutPendingEvolution().withLastTransitionAt(now)   // (5) intent cleared
     Dampened: signalStore.decay(agentId, tenantId, x.decayFactor)
 
     // 4. Record
     ledger := ledger.advancedBy(n * reflectionPeriod).withHalted(halt)
-    ledgerStore.persist(ledger)
+    stateService.transition(tenantId, agentId, now, s -> s.withReflection(ledger))   // [R] per [S2]
     journal.record(DispositionReflected(...outcome...))
-    signals: Evolved -> PERSONALITY_EVOLVED (1.0); Halted -> PERSONALITY_HALT (0.9)
+    signals: Evolved -> PERSONALITY_EVOLVED (1.0)
+             Halted  -> PERSONALITY_HALT (0.9) only when ledger.halted was false   [R] edge-triggered
 ```
+
+**[R] Per-agent isolation.** The body of the per-agent loop runs inside `try/catch (RuntimeException)`. A failure:
+- logs WARN with tenant and agent;
+- journals `DispositionEvolutionFailed(tenantId, agentId, phase step, message)`;
+- increments `personality.evolution.failures`;
+- continues with the next agent.
+
+Without this, one agent's exception (for example an Eidos `DispositionValue` validation failure or a registry error) aborts evolution for every later agent of the tenant on every run, because `ConsolidationScheduler.runPhases` catches only per phase. `findById` returning empty (agent deleted, or known only to the explicit layer) is a debug-logged skip that leaves the ledger untouched. It is not an exception.
+
+**[R] Pending intent first.** If `ledger.pendingEvolution` is present at the start of an agent's run, the phase replays steps (2)–(5) before anything else. Step (2) is absolute, so the replay is idempotent. The phase never probes while an intent is pending.
+
+**[R] JPAF commit ordering.** Rev 2's original order was identity write → CBR → clear. A crash after the identity write and before `clear` makes the next reflection probe the *new* identity with the *old* counts, which can commit a spurious second transition. Persisting the intent first and closing the signal epoch before the derived CBR write removes that path:
+- A CBR failure leaves the intent in place, and the next run retries it.
+- A duplicate CBR case is possible only from a crash between (4) and (5). The case carries the ledger's intent id, so it is identifiable, and the guarantee is at-least-once.
+
+Under store-of-record option (A), the intent, the lived profile and the ledger all live in the same `PersonalityState` node, so (1), (2) and (5) collapse into one atomic node write.
+
+**[S2] Crash-point table (one failure principle for both families: a cross-store failure may under-count or be retried, never double-count or overshoot).**
+
+| Crash point | Effect | Class |
+|---|---|---|
+| after decay, before the ledger `transition` | next run decays the same periods again | under-count (signals weaker); accepted |
+| after (1), before (2) | intent replayed next run; (2) is absolute | retried, idempotent |
+| after (2), before (3) | replay re-applies (2) and then clears. The phase never probes while an intent is pending, so new-profile/old-epoch evaluation is impossible | no double count |
+| after (3), before (5) | replay re-runs (4); the duplicate CBR case is identifiable by the intent id | at-least-once audit only |
+
+This is the same principle as D8 for PID-5. Structure R2-05 proposed `clear → update` as a simpler order, but the [R] intent ordering is strictly better: it never loses a transition, whereas `clear → update` loses one on a crash between the two steps.
+
+**[R] Transition rate bound.** `minTransitionInterval` (default 30 d) caps committed JPAF transitions at one per agent per interval, independent of event rate. It gates only *when* an `Evolved` result is committed (neocortex's role under D6), and leaves *what* is valid to Eidos. Without the bound, the transition rate depends on traffic. Under default Eidos preferences (δ = 0.06; dominant 0.35, auxiliary 0.20), a swap needs effective(aux) ≥ 0.35, which is about **4 retained auxiliary activations**. A busy agent with ≥ 4 negative interactions in one reflection period (24 h) would therefore swap type daily. See §Calibration.
+
+**[R] Ceiling edge case.** `relationalComplexity` is validated to [0,1] (`CognitiveCapacityConfig`), so `l2Ceiling·rc` can be 0. In that case the agent is **evolution-disabled**: the recorder skips it, the phase skips reflection, and the ledger records `disabled` once and journals it once. Without this, rc = 0 flaps every period: halt, then decay to Aligned, then unhalt, then the next activation halts again, with a signal each time.
+
+**Halt is not sticky in this model.** Rev 2's drift is Eidos's L2 between the base and the *count-adjusted* effective weights. It measures pending pressure, not applied change. While halted, the recorder drops activations and the counts decay by `retention^n`, so drift falls and the halt clears at a later reflection. The robustness review's sticky-halt and restart-ratchet failure modes applied to rev 1, where drift was measured over applied changes and halt was held in memory.
+
+**[R] Enumeration cost.** `effectiveDefaults.agentIds(tenant)` performs one registry `find(all)` per run. Per-agent work is the cached ledger read, and `findById` happens only for agents whose reflection is due. That is O(registered agents) cheap reads per consolidation plus O(due agents) lookups, which is accepted at current scale (tens of agents per tenant).
 
 This keeps the orchestrator's semantics exactly, which the existing `PersonalityEvolutionOrchestratorTest` scenarios specify (stable, drifting, halted, evolved, dampened). It changes the parts that were wrong:
 
@@ -185,13 +279,21 @@ This keeps the orchestrator's semantics exactly, which the existing `Personality
 - **Wall-clock reflection grid.** This is the JPAF "reflection at episode boundaries" model with batched periodic probing and a time-based decay anchor (issue-126 D3), and it matches the integrator's hourly-grid pattern. Decay per reflection is `retentionPerReflection`. Missed periods catch up exactly as `retention^n`. Signal half-life is therefore independent of scheduler cadence, idle gating, `consolidateNow` bursts or starvation. A coarse grid, rather than continuous `factor^(Δt/τ)` on every run, is required by the store: `DispositionSignalStore` counts are integers and `JpaDispositionSignalStore.decay` truncates (`(int)(count·f)`), so frequent small decays would wipe signals. eidos#237 tracks moving to fractional weights. Once that lands, the grid could become continuous without any structural change here.
 - **Persisted reflection ledger.** `lastReflectionAt` and `halted` are persisted per agent, so a restart neither resets the reflection clock nor clears a halt.
 
-#### `DispositionEvolutionLedgerStore` (cognition, `cognition.personality`)
+#### Reflection ledger: a component of `PersonalityState` [S2]
 
-One MindMap node per agent (`evo-ledger:<hash(agentId)>`) in the `PERSONALITY_STATE` subgraph, using the same subgraph resolution and node-naming scheme as `SituationalStateService`. Properties are `lastReflectionAt` and `halted`. It keeps a write-through in-memory cache, which the recorder reads on its hot path.
+There is no separate ledger store. `DispositionEvolutionLedgerStore` and its `evo-ledger:` node from rev 2 are removed. `PersonalityState` gains a `ReflectionLedger reflection` record with these fields:
+- `lastReflectionAt` and `halted`;
+- **[R]** `lastTransitionAt` (rate bound);
+- **[R]** `pendingEvolution` (the intent: absolute new profile, transition-case features, intent id);
+- **[R]** `disabled` (rc = 0).
+
+The ledger is persisted as `jpaf.*` properties on the agent's existing `PERSONALITY_STATE` node (`sit-state:`), and is written only through `PersonalityStateService.transition`. The failure-atomicity and `TenantAgentKey` requirements under §Promotion transaction therefore apply to it unchanged.
 
 - **Writer:** `DispositionEvolutionPhase` only.
-- **Readers:** the phase, and `DispositionSignalRecorder` (halt check).
-- An agent with no ledger starts with `lastReflectionAt = now`, so its first reflection happens one period after first sight.
+- **Readers:** the phase, and `DispositionSignalRecorder`. The recorder checks halt through `stateService.read`, which is cache-first.
+- **First sight is persisted (structure R2-06).** An agent with no node is created by `read`/`transition` under the per-agent lock, with `reflection.lastReflectionAt = now`, and the node is written immediately. A restart inside the first `reflectionPeriod` keeps the original clock, so a deployment that restarts more often than the period still reflects.
+- **One subgraph owner (structure R2-07).** Only `PersonalityStateService` resolves the `PERSONALITY_STATE` subgraph. No second list-then-create resolver exists, so two stores can no longer race to create two subgraphs of the same type. In-process first resolution per tenant is serialised by the existing `computeIfAbsent`. Cross-instance creation is covered by #1104.
+- **Why co-located.** The ledger is per-agent lived personality-evolution state, so it belongs with the rest of that state vector (Era 7b decision 1), under the same lock and version. The participant's facet transitions never touch `reflection`, and the JPAF phase never touches facets, so co-location adds no contention beyond the per-agent lock's short critical section.
 
 #### `DispositionSignalRecorder` (cognition, `cognition.personality`)
 
@@ -203,11 +305,11 @@ An `@ApplicationScoped` CDI observer. It replaces `PersonalityEvolutionOrchestra
     source = sources.forEventType(RelationshipEvent.class)   // at most one, see dedup rule
     if source == null || !source.relevant(ev): return          // NEUTRAL short-circuits here,
                                                                 // before any registry lookup
-    if ledgerStore.isHalted(ev.tenantId(), ev.agentId()): return
+    if stateService.read(ev.tenantId(), ev.agentId(), now).reflection().halted(): return
     descriptor = agentRegistry.findById(ev.agentId(), ev.tenantId())   // lazy, only when needed
     for a in source.translate(ev, descriptor):
         if a.functionTerm() in descriptor profile terms:
-            signalStore.recordActivation(agentId, tenantId, a.functionTerm(), a.valence())
+            signalStore.recordActivation(agentId, tenantId, a.functionTerm())   // [S2] 3-arg: no valence
         else:
             debug-log the dropped term (vocabulary mismatch is visible, not silent)
 ```
@@ -215,11 +317,27 @@ An `@ApplicationScoped` CDI observer. It replaces `PersonalityEvolutionOrchestra
 - **Signal units (activation, not valence).** One translated activation adds one count to the term. In `DefaultDispositionHealth.probe`, the effective weight is `normalise(base + count × REINFORCEMENT_DELTA)`, where `REINFORCEMENT_DELTA` is an Eidos tenant preference with default 0.06. No `DispositionSignalStore` honours `SignalValence`: `InMemoryDispositionSignalStore` and `JpaDispositionSignalStore` implement only the 3-arg `recordActivation`, and the 4-arg default drops valence. So every activation *reinforces* its term. `RelationshipPressureSource` maps NEGATIVE to the auxiliary, meaning the auxiliary is engaged under relational strain, as JPAF describes. That is what makes `DOMINANT_AUXILIARY_SWAP` reachable. This is the existing, intended semantics and is kept unchanged. Thresholds are therefore calibrated by the Eidos preferences (`REINFORCEMENT_DELTA`, `OVER_REINFORCEMENT_THRESHOLD`), not by a neocortex magnitude scale.
 - **One event type only.** It observes only `RelationshipRecorded`, the only event with a concrete pressure source. `ExperienceRecorded` is **not** observed. `RelationshipRecorded` is derived from it (`RelationshipProcessor.onExperienceRecorded`), so observing both would double-count one experience.
 - **Dedup rule.** Each event type in a derivation chain binds to at most one `TraitPressureSource`. The recorder builds a `Map<Class<?>, TraitPressureSource<?>>` at startup and **fails fast** if two sources declare the same `eventType()`. That replaces the orchestrator's order-dependent "first match wins". A future source for a primary event (`ExperienceRecorded`) must exclude experiences that produce a derived `RelationshipRecorded`. #1102 tracks the valenced sources.
+- **[R] Totality.** `RelationshipRecorded` is fired synchronously inside `RelationshipProcessor`'s try block, *after* the memory is stored. A synchronous observer exception would skip the remaining observers and be logged there as a misleading "Relationship memory store failed". The recorder is therefore total:
+  - The body is wrapped in `try/catch (RuntimeException)`, which logs WARN with tenant and agent and increments `personality.signal.record.failures`.
+  - `findById` returning empty is a debug-logged skip.
+  - The same applies to the `InteractionAppraised` path below.
+- **[R] Live valenced source: `InteractionAppraised`.** Production `RelationshipRecorded` is always NEUTRAL (#1102), but production interactions already carry valence. `CognitionCore.recordInteraction` (`:411-428`) computes a `QualitySignal` for every interaction: the impact-supplied value, else `deriveQualitySignal`, which is mood-based (`:566-581`). Agency calls it in production with `impact = null` (`CognitionAvatarAdapter.recordInteraction` ← `SpeechSession`).
+  - `CognitionCore.recordInteraction` emits `InteractionAppraised(tenantId, agentId, subjectId, quality, at)` to the recorder via `CognitivePipelineBuilder.dispositionSignalRecorder(...)`, inside `safeRun`. It does so regardless of `userModelEnabled`.
+  - `InteractionPressureSource implements TraitPressureSource<InteractionAppraised>` uses the same JPAF mapping as `RelationshipPressureSource`: POSITIVE activates the dominant, NEGATIVE activates the auxiliary, NEUTRAL is filtered out by `relevant()`.
+  - This makes the JPAF path non-inert in production without waiting for #1102.
+  - Dedup: `InteractionAppraised` and `RelationshipRecorded` are distinct event types, and the latter is NEUTRAL today. When #1102 valences `RelationshipRecorded`, the one-source-per-derivation-chain rule decides which event carries the activation (noted on #1102).
+- **[R] Dimension namespace.** Both sources emit terms taken from the descriptor's own `dispositionProfile` (dominant or auxiliary by weight), so their spelling is canonical by construction. The profile-membership check, together with debug log and the counter `personality.signal.dropped{reason=unknown-term}`, guards future sources.
 - **Concurrency.** An activation recorded between a reflection's `probe` and its `clear` is consumed by that evolution. This is the intended semantics: the transition closes the signal epoch. No lock is needed. The scheduler serialises phase runs under its own lock on one executor thread, and the signal stores are safe to call concurrently (JPA row-transactional; in-memory concurrent maps).
 
-#### `TraitPressureSource<E>` / `TraitActivation`: kept
+#### `TraitPressureSource<E>` kept; `TraitActivation` loses its valence [S2]
 
-Their shape (an Eidos `AgentDescriptor` in, a `(profileTerm, SignalValence)` activation out) is exactly what `DispositionSignalStore.recordActivation` consumes. One addition:
+**Polarity is encoded by target selection, never by a valence flag.** Eidos JPAF is a reinforcement-by-use model. `effective = normalise(base + count × REINFORCEMENT_DELTA)`, and no store honours `SignalValence` (§Signal units). `TraitActivation(functionTerm, SignalValence)` therefore promised a semantics the accumulator does not have. A source that emits `(dominant, NEGATIVE)` meaning "weaken the dominant" would *reinforce* it instead.
+
+`TraitActivation` becomes `TraitActivation(String functionTerm)`. The recorder calls the 3-arg `recordActivation`. A source expresses polarity by choosing **which** profile term to activate. For example, `RelationshipPressureSource` and `InteractionPressureSource` map NEGATIVE to the auxiliary, the engaged function under strain. This rule is recorded on #1102 for future sources.
+
+Signed accumulator weights (the reviewer's alternative) are rejected. They would change Eidos's JPAF theory (functions are reinforced by use, never weakened by signals) inside a storage-format issue. If weakening is ever wanted, it is a JPAF model change with its own design. Whether the Eidos SPI's no-op valence overload and `valenceCounts` are removed is noted on eidos#237 for Eidos to decide.
+
+`TraitPressureSource<E>` keeps its shape: an Eidos `AgentDescriptor` in, `List<TraitActivation>` out. One addition:
 
 ```java
 default boolean relevant(E event) { return true; }   // cheap pre-filter, no descriptor needed
@@ -234,12 +352,29 @@ public record DispositionEvolutionConfig(
     Duration reflectionPeriod,        // JPAF reflection grid (default 24h; issue-126 D3)
     double retentionPerReflection,    // signal retention per reflection period (default 0.8,
                                       //   unchanged from PersonalityEvolutionConfig.DEFAULT_DECAY_FACTOR)
-    double l2Ceiling                  // drift ceiling on the JPAF weight simplex (default 0.15),
+    double l2Ceiling,                 // drift ceiling on the JPAF weight simplex (default 0.15),
                                       //   scaled by relationalComplexity
+    Duration minTransitionInterval    // [R] committed-transition rate bound per agent (default 30d)
 ) {}
 ```
 
-Validation (compact constructor): `reflectionPeriod` positive, `retentionPerReflection ∈ [0, 1]`, `l2Ceiling > 0`. `defaults()` returns `(24h, 0.8, 0.15)`. Source: MicroProfile config keys `casehub.cognition.personality.reflection-period`, `.retention-per-reflection` and `.l2-ceiling`, falling back to `defaults()`. This follows the `@ConfigProperty` style of the sibling cognition phases, for example `RelationalSchemaEvolutionPhase`.
+Validation (compact constructor):
+- `reflectionPeriod` is positive.
+- `retentionPerReflection ∈ [0, 1)`. **[R]** 1 is excluded: with no decay, a halted agent's counts never fall, so the halt could never clear.
+- `l2Ceiling > 0`.
+- **[R]** `minTransitionInterval ≥ reflectionPeriod`.
+
+`defaults()` returns `(24h, 0.8, 0.15, 30d)`.
+
+**[R] Promotion parameters** (`promoteFraction` 0.8, `promoteDwell` 30 d, `promotionBudget` 0.20) are added to `DynamicsConfig`, the integrator's config record. It currently has no validation, so a compact constructor is added. It rejects:
+- `promoteFraction ∉ (0, 1]`
+- `promoteDwell ≤ 0`
+- `promotionBudget ∉ (0, 1]`
+- `dMax ∉ (0, 0.5]`
+- `sMax ≤ 0`
+- `epsilonPublish ≥ promoteFraction·dMax` (a promotable `homeOffset` must also be publishable)
+
+Each of these breaks a stated invariant. For example, `promoteFraction > 1` makes promotion unreachable, which is exactly the rev 1 defect. Source: MicroProfile config keys `casehub.cognition.personality.reflection-period`, `.retention-per-reflection` and `.l2-ceiling`, falling back to `defaults()`. This follows the `@ConfigProperty` style of the sibling cognition phases, for example `RelationalSchemaEvolutionPhase`.
 
 `dampeningFactor` is removed. The orchestrator never read it: the dampened path uses `EvolutionResult.Dampened.decayFactor()`, which comes from the Eidos tenant preference `DispositionPreferenceKeys.DECAY_FACTOR`. Dampening strength stays an Eidos-owned preference.
 
@@ -311,6 +446,19 @@ effectiveDefaults.updateState(snapshot)   // existing; published after (2)
 - **Continuity.** Before promotion, the resting score is `baseline + homeOffset`. After it, the score is `(baseline + delta) + (homeOffset − delta)`. Derived cognition sees no jump.
 - **Failure between (1) and (2).** The resting score is low by `delta` until the next run replays the pending absolute write. That is conservative: identity never overshoots.
 - **No double count.** The identity write is absolute, and the state reduction happens before it.
+- **[R] Per-agent isolation.** The same try/catch / journal / continue contract as `DispositionEvolutionPhase` applies here. A promotion that fails for one agent cannot stop deformation or promotion for the rest of the tenant.
+- **[R] Bounded arithmetic.**
+  - `targetScore` is `round(100·clamp01(...))`, so the identity write is always a valid AMPD score.
+  - `delta` is computed from the clamped target, so any excess that the clamp cuts off stays in `homeOffset` and is never discarded.
+  - Resting composition (`EffectiveCognitiveDefaults.composeFacets`) already clamps to [0,1], so `PersonalityFacet` validation cannot throw.
+
+**[R] Robustness requirements on `PersonalityStateService`.** These are additions to §[S2]'s `transition` primitive, and every writer, including each step of this transaction, goes through `transition`. Steps (1) and (3) above are two `transition` calls, and the identity write (2) runs between them, outside the lock.
+
+- **Failure atomicity.** If `fn` or the persist throws, the cache is untouched, the version is not consumed, and the exception propagates to the caller's per-agent catch.
+- **Keys (R1-18).** The lock map, the cache, and the node's stored identity all use a `TenantAgentKey` record. Today's `slotKey = agentId + ":" + tenantId` with `endsWith(":" + tenant)` matching (`SituationalStateService:85-94`, `:192-194`) aliases agent `"x:a"` in tenant `"b"` with agent `"x"` in tenant `"a:b"`.
+- **Enumeration survives restart.** `cachedAgentIds(tenant)` is replaced by `agentIds(tenant)`, which reads the persisted `PERSONALITY_STATE` nodes. Each node stores `agentId` as a property. Without this, the cache is empty after a restart and the deformation/promotion phase skips every agent until it next ticks, including any agent with a pending promotion intent, so D8's replay would never run.
+- **Cache eviction.** Idle entries (24 h, aligned with `EffectiveCognitiveDefaults.evictIdle`) are evicted together with their unheld lock. This is safe because reads are load-through, and it closes the state-service half of #1089.
+- **State source.** `PersonalityStateService` implements `PersonalityStateSource`, and `DefaultPersonalityStateSource` (always empty) is deleted. An evicted or restarted `EffectiveCognitiveDefaults` slot then composes persisted `homeOffset`/`promoted` (and, under (A), the lived profile) instead of silently dropping them (§Production wiring).
 
 **Integrator baseline.** `PersonalityStateIntegrator.baselineFor` currently returns a hard-coded 0.5 when it clamps displacement. Promotion needs real baselines, and so does correct clamping. The integrator therefore takes per-facet baselines from the `DescriptorView`:
 
@@ -350,6 +498,8 @@ There is no cross-family drift norm. Weight-simplex deltas and facet-scale offse
 
 Signal fields. The emitting phase collects the run's signals and returns them from `ConsolidationPhase.signals()`, which already exists as a default method returning `List.of()`.
 
+**[R] Drain on read.** `signals()` swaps out the pending list and returns it, as `ExperienceConsolidationPhase` does (`:137-141`). `ConsolidationScheduler.tick` calls `beginTick()` once and then runs every tenant, calling `signals()` after each tenant's `run`. A phase that clears only in `beginTick()` would therefore leak tenant A's signals into tenant B's batch. `PERSONALITY_HALT` is edge-triggered on the ledger's `halted` false → true transition, so a halted agent emits one signal per halt episode, not one per reflection.
+
 | Field | Value |
 |---|---|
 | `principalId` | `agentId` |
@@ -375,6 +525,9 @@ No signal is emitted for ordinary hourly `homeOffset` drift. It changes every ho
 | Promotion (`FacetState` fields, `promotionCandidates`, baselines) | cognition (`cognition.situational`) | state owner |
 | Promotion step, `@Priority(45)` | cognition (`SituationalDeformationPhase`) | |
 | `IdentityChangePropagator` | cognitive-eidos | absorbs #1080 |
+| **[R]** `InteractionAppraised`, `InteractionPressureSource` | cognition (`cognition.personality`) | live valenced source; emitted by `CognitionCore.recordInteraction` |
+| **[R]** `PersonalityStateService`: `TenantAgentKey` keys, persisted `agentIds`, eviction, and the `PersonalityStateSource` impl (on top of §[S2] `transition`) | cognition | single serialised state owner |
+| **[R]** `EffectiveCognitiveDefaults`, `PersonalityStateService`, `PersonalityStateIntegrator`, `DynamicsConfig` producers | cognition (`CognitionDefaultBeans`) | first production wiring; `DefaultPersonalityStateSource` deleted |
 | Journal entry types | alongside `CognitiveEntry` | |
 | `PERSONALITY_EVOLVED`, `PERSONALITY_HALT` | mindmap-api `SignalCategory` | |
 
@@ -388,7 +541,47 @@ No signal is emitted for ordinary hourly `homeOffset` drift. It changes every ho
 
 The Agency producers of the orchestrator are removed in agency#487, in the same change window.
 
-**Not deprecated:** `DispositionSignalStore`, `DispositionHealth`, `DispositionEvolution`, `SignalValence`. They remain the JPAF accumulator and evaluator (issue-126 D1, reaffirmed). `DispositionProfileStore` becomes real (eidos#235).
+**Not deprecated:** `DispositionSignalStore`, `DispositionHealth`, `DispositionEvolution`. They remain the JPAF accumulator and evaluator (issue-126 D1, reaffirmed). **[S2]** Neocortex stops using `SignalValence`: `TraitActivation.valence` is removed. The Eidos type itself is Eidos's to keep or remove (eidos#237 comment). `DispositionProfileStore` becomes real (eidos#235).
+
+### [R] Production wiring (in scope; #1060 does not close without it)
+
+#1060 was filed because a fully implemented component had no production caller. Unit tests with hand-wired collaborators cannot be its acceptance gate. These beans are delivered by this issue:
+
+| Bean | Producer | Notes |
+|---|---|---|
+| `EffectiveCognitiveDefaults` | `@Produces @DefaultBean @Singleton` in `CognitionDefaultBeans` | First production producer. It is built from the explicit `CognitiveDefaultsRegistry`, `EidosDescriptorViewSource`, and `PersonalityStateService` as `PersonalityStateSource`. It is already a required injection point (`CognitionDefaultBeans.cognitiveResourcePool`) and an `Instance<>` point in ≥ 6 phases and in `CognitionCoreFactory`. |
+| `PersonalityStateService` (§[S2]), `PersonalityStateIntegrator`, `DynamicsConfig` | `@Produces @DefaultBean @Singleton` (cognition) | The facet-name set comes from the `PersonalityFacet` constants. |
+| `SituationalDeformationPhase` | `@ApplicationScoped @Priority(45)` | This is pulled forward from #1082, because promotion and integrator advance must run in production even before the participant is registered. `agentIds` reads persisted nodes, so an empty cache is fine. |
+| `DispositionEvolutionPhase`, `DispositionSignalRecorder`, `DispositionEvolutionLedgerStore`, `InteractionPressureSource` | `@ApplicationScoped` (cognition, Jandex-indexed) | The phase is discovered by `ConsolidationScheduler`'s `Instance<ConsolidationPhase>`. |
+| Recorder → `CognitionCore` | `CognitionCoreFactory` → `CognitivePipelineBuilder.dispositionSignalRecorder(...)` | Feeds `InteractionAppraised`. |
+
+#1082 keeps the participant's registration in `CognitionCore`, which is blocked on eidos#234. Spring wiring is agency#487.
+
+### [R] Deployment assumptions
+
+ASSUMPTION: One active neocortex instance per tenant. `ConsolidationScheduler.knownTenants`, `SignificanceAccumulator`, the `EffectiveCognitiveDefaults` slots, and the per-agent locks in the state service and ledger all assume this. Two instances would split events across nodes and fork evolution. neocortex#1104 documents the contract and the options if that ever changes.
+
+### [R] Calibration (wall-clock, default parameters)
+
+**JPAF.** Each reflection is one 24 h period. A swap needs about 4 retained auxiliary activations. Decay is ×0.8 per period, truncated to an integer.
+
+| Sustained negative-interaction rate | Earliest swap | Next transition |
+|---|---|---|
+| ≥ 4 per period | next reflection (≤ 24 h) | ≥ 30 d later (`minTransitionInterval`) |
+| ~1–3 per period | a few periods: retained counts climb, since for c ≤ 5 `(int)(c·0.8)` loses exactly 1 per period | ≥ 30 d later |
+| sporadic (≤ 1 per several periods) | never (truncation returns 1 → 0) | — |
+
+The type-change rate is therefore bounded at ≤ 1 per 30 d by construction. Time to the *first* change is governed by Eidos preferences (`REINFORCEMENT_DELTA`) and the source's event granularity. Interaction-turn granularity is fine-grained; tenants that want slower first transitions tune δ (eidos preference). eidos#237 (fractional counts) removes the truncation cliff.
+
+**PID-5.**
+- Saturation requires `|homeOffset| ≥ 0.08` with `dMax = 0.10`. Reaching it takes hours to days at `sMax` displacement (#712 dynamics).
+- Promotion requires 30 d of continuous saturation.
+- Each promotion applies at most the current `homeOffset`, which is ≤ 0.10.
+- The cumulative budget is 0.20.
+
+So identity change per facet is ≥ 30 d per step, and ≤ 0.20 per lifetime.
+
+All gates are wall-clock: reflection grid, interval, dwell, and integrator hours. Consolidation cadence (idle gating, `consolidateNow` bursts, #1063 starvation) affects latency only, never rate.
 
 ### Prerequisites and sequencing
 
@@ -396,14 +589,18 @@ The Agency producers of the orchestrator are removed in agency#487, in the same 
 |---|---|---|
 | casehubio/eidos#235: registry-backed `DispositionProfileStore` + `updateFacets` | **Hard.** Lands first | Every identity change is discarded (NoOp). Nothing in this design changes identity |
 | #1063: scheduler starvation and restart tenant loss | **Hard for production effect** | Both phases are cadence-invariant (wall-clock grids with exact catch-up), so they are *correct* under any schedule. But they *never run* for busy deployments or unregistered tenants |
-| #1082: situational pipeline wiring | **Hard for PID-5 promotion** | `stateService.cachedAgentIds` is empty, so no PID-5 state exists to promote. The JPAF path does not depend on it |
-| #1102: valenced relationship and goal-outcome signals | **Hard for production non-inertness of JPAF** | The JPAF pipeline is wired and verified with synthetic valenced events, but production `RelationshipRecorded` is always NEUTRAL, so no activations occur |
+| #1082: situational participant registration | **Hard for PID-5 promotion in production** | Without the participant there is no displacement, so `homeOffset` never saturates. **[R]** The state service, integrator, deformation phase and promotion are production-wired by this issue, and only the displacement source remains in #1082 |
+| #1102: valenced relationship and goal-outcome signals | **[R] Not blocking** (was: hard for JPAF non-inertness) | `InteractionAppraised` from `CognitionCore.recordInteraction` carries live production valence. #1102 adds further valenced sources |
 | casehubio/agency#487: remove orchestrator producers, wire the new beans | Same change window | Agency fails to compile |
 | casehubio/eidos#237: fractional activation weights | Not blocking | Integer truncation biases low counts; the reflection grid limits the damage |
 
 **What #1060 closes:** the structural defect. Evolution is evaluated on a durable wall-clock cadence. Its result is written to the identity of record. It reaches `EffectiveCognitiveDefaults` through one path, for both families.
 
-**What it does not close:** signal starvation (#1102) and scheduler starvation (#1063). Those are tracked separately because their causes are upstream of evolution.
+**What it does not close:** additional valenced sources (#1102), scheduler starvation (#1063), and the situational participant's registration (#1082). Those are tracked separately because their causes are upstream of evolution.
+
+**[R] Close criterion.** #1060 closes when the production-wiring test and the end-to-end test (§Testing, items 7–8) pass against real CDI beans:
+- a real `CognitionCore.recordInteraction` produces a changed `EffectiveCognitiveDefaults.forAgent()`;
+- that change survives a following tick, idle eviction, and a restart.
 
 ### Testing strategy
 
@@ -436,6 +633,29 @@ The Agency producers of the orchestrator are removed in agency#487, in the same 
    - Events → activations → reflection → `Evolved` → registry descriptor changed → `EffectiveCognitiveDefaults.forAgent` reflects the new dominant function.
    - A following simulated `CognitionCore` tick with a registry-sourced descriptor does **not** revert it.
    - PID-5: sustained displacement over simulated weeks → saturation → promotion → registry `ampdFacets` updated → effective facet continuous across the promotion.
+   - **[R]** Uses the real `DefaultDispositionHealth`/`DefaultDispositionEvolution`, not mocks. `PersonalityEvolutionOrchestratorTest` mocks both, so "parity" with it specifies orchestration only.
+7. **[R] CDI production-wiring test (`@QuarkusTest`).** It must show all of the following:
+   - `EffectiveCognitiveDefaults` resolves, and its `PersonalityStateSource` is `PersonalityStateService`.
+   - `ConsolidationScheduler.manifest()` lists `disposition-evolution` and `situational-deformation`.
+   - A `CognitionCoreFactory`-built core has the recorder wired.
+   - No `DescriptorViewSource` or `PersonalityStateSource` is a stub.
+8. **[R] End-to-end, production beans, controllable clock.**
+   1. Drive `CognitionCore.recordInteraction` with forced-negative mood across reflection periods.
+   2. Consolidation runs and `forAgent()` shows the swapped type label.
+   3. A subsequent `CognitionCore.tick`, `evictIdle`, and a fresh service/EDC instance over the same stores each still show the change. This is the store-of-record regression test, and it must pass under whichever option is chosen.
+   4. Exactly one CBR transition case and one `PERSONALITY_EVOLVED` signal are produced.
+   5. A second transition is deferred until `minTransitionInterval` has passed.
+9. **[R] Robustness unit tests.** These cover:
+   - **Commit failures:** a crash injected after each JPAF commit step (1)–(5) and after each promotion step leaves no spurious second transition, no double count, and no lost intent. CBR failure leaves the intent to be retried.
+   - **Per-agent isolation:** a throwing agent does not stop later agents.
+   - **Recorder totality:** a throwing source or registry call does not propagate out of `RelationshipProcessor`, `recordInteraction`, or the remaining observers.
+   - **State concurrency:** concurrent participant and phase `update`s on one agent lose nothing, and versions strictly increase.
+   - **Key isolation:** `TenantAgentKey` isolation for the `"x:a"`/`"b"` vs `"x"`/`"a:b"` case.
+   - **rc boundary:** rc = 0 disables evolution without flapping.
+   - **Halt signal:** fires once per halt episode.
+   - **Signal drain:** `signals()` across two tenants in one tick has no cross-tenant carry-over.
+   - **Config:** every validation rule in both config records.
+   - **Promotion boundary:** a facet at 0.95, so the clamp limits the target and the excess stays in `homeOffset`.
 
 ## Decisions
 
