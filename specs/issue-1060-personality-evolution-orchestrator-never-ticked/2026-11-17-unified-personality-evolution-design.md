@@ -4,7 +4,7 @@
 **Refs:** #712 (situational modulation, Era 7b), #1055 (EffectiveCognitiveDefaults), #126 (JPAF orchestrator), #1080 (absorbed)
 **Prerequisites:** casehubio/eidos#235, #1082, #1063 (see §Prerequisites)
 **Follow-ups:** #1102, #1104 (single-instance deployment contract), casehubio/agency#487, casehubio/eidos#237
-**Date:** 2026-11-17 (rev 2, after the round-1 structure review; robustness amendments marked **[R]**, after the round-1 robustness review)
+**Date:** 2026-11-17 (rev 2, after the round-1 structure review; robustness amendments marked **[R]**, after the round-1 robustness review; structure round-2 amendments marked **[S2]**)
 
 ## Problem
 
@@ -414,7 +414,10 @@ The values are computed as follows:
 
 - `targetScore = round(100 · clamp01(baseline + homeOffset))` (Eidos AMPD scores are integer 0–100)
 - `delta = targetScore/100 − baseline`, which is the exact amount the identity write will apply
-- **Facet naming across the boundary.** `SituationalStateService` keys facets by the `PersonalityFacet` constants (title case, for example `"Risk Taking"`), which is the form `EidosCognitiveProfileBridge.titleCase` produces. Eidos `AmpdFacet.facet` is a free-form authored string. The phase maps each state key to the authored `AmpdFacet.facet` whose `titleCase` form equals it, and `updateFacets` is keyed by that **authored spelling**, so the identity write never introduces a second spelling of the same facet. A state facet with no authored counterpart is not promoted, because there is no baseline to promote into. It is skipped and logged at `FINE`.
+- **[S2] Facet-key contract: the identity owner owns it (structure R2-03).** The canonical AMPD facet names are the 13 title-case names already enforced by `AmpdFacetShift.VALID_FACETS`. Neocortex's `PersonalityFacet` constants and `SituationalStateService` keys are the same names. eidos#239 makes Eidos the single owner of the contract: `AmpdFacet` canonicalises its name on construction and on deserialisation, rejects unknown names, and rejects duplicate facets in a descriptor. After that, `EidosCognitiveProfileBridge.titleCase` is a no-op guard, not a load-bearing step.
+  - *(A):* no facet write crosses the boundary (promotion moves `homeOffset` into `FacetState.promoted`), so the contract is read-only. #239 is hygiene, not a prerequisite.
+  - *(B):* `updateFacets` is keyed by **canonical AMPD names only**, and eidos#239 is a **hard prerequisite** of B. The rev-2 workaround (map each state key to whatever authored spelling `titleCase`s to it) is superseded: it put an identity-boundary contract in the consumer, and it fails silently when two authored spellings collide.
+  - Either way, a state facet with no authored counterpart has no baseline to promote into. It is skipped and logged at `FINE`.
 
 **Why these defaults:** `dMax` is 0.10, so any promotion threshold above `dMax` is unreachable. Rev 1's 0.3 could never fire. Sustained near-saturation for a month is the TESSERA criterion: repeated states over a long period, not a transient. The 180-day `tauSetpoint` already treats `homeOffset` as lasting. Promotion makes it *identity*, which is not subject to setpoint decay. The cumulative budget caps lifetime identity drift per facet. Without it, re-saturation after each promotion would allow unbounded drift over years.
 
@@ -422,26 +425,42 @@ The values are computed as follows:
 
 Ordering is chosen so that every failure under-counts and never double-counts.
 
-```
-state = integrator.advance(state, now)                       // existing
-if state.pendingPromotions non-empty:                         // recover an interrupted run
-    profileStore.updateFacets(agent, tenant, pending absolute scores)   // idempotent
-    state = state.withPendingPromotions(empty); persist
+**[S2] Under (A)**, one transition, with no identity write and no intent:
 
-candidates = integrator.promotionCandidates(state, baselines(descriptorView), now)
+```
+s = stateService.transition(t, a, now, st -> {
+        st = integrator.advance(st, now)
+        c  = integrator.promotionCandidates(st, baselines(descriptorView), now)
+        return st.applyPromotions(c)          // homeOffset -= delta, promoted += delta, saturatedSince := null
+    })
+effectiveDefaults.updateState(snapshot(s))    // resting = baseline + promoted + homeOffset: unchanged by promotion
+journal / signal as below
+```
+
+**Under (B)** (rev 2 with the [R] and [S2] amendments):
+
+```
+s = stateService.transition(..., st -> integrator.advance(st, now))
+if s.pendingPromotions non-empty:                             // recover an interrupted run
+    effectiveDefaults.updateState(snapshot(s))                // [S2] reduced offset visible first
+    profileStore.updateFacets(agent, tenant, pending absolute scores)   // idempotent, canonical keys (#239)
+    s = stateService.transition(..., st -> st.withPendingPromotions(empty))
+
+candidates = integrator.promotionCandidates(s, baselines(descriptorView), now)
 if candidates non-empty:
-    state = state.applyPromotions(candidates)   // homeOffset -= delta, promoted += delta,
-                                                // saturatedSince := null,
-                                                // pendingPromotions := candidates
-    stateService.persist(tenant, agent, state)                // (1) durable intent
-    profileStore.updateFacets(agent, tenant, absolute scores) // (2) identity write → propagation
-    state = state.withPendingPromotions(empty)
-    stateService.persist(tenant, agent, state)                // (3) intent cleared
+    s = stateService.transition(..., st -> st.applyPromotions(candidates))
+                                                // (1) homeOffset -= delta, promoted += delta,
+                                                //     saturatedSince := null, pendingPromotions := candidates
+    effectiveDefaults.updateState(snapshot(s))                // (1b) [S2] publish the REDUCED offset before (2)
+    profileStore.updateFacets(agent, tenant, absolute scores) // (2) identity write → propagator → updateBase
+    s = stateService.transition(..., st -> st.withPendingPromotions(empty))   // (3) intent cleared
     journal.record(PersonalityFacetPromoted(...)); signal PERSONALITY_EVOLVED (0.8)
 for facets blocked only by the budget: journal.record(PersonalityPromotionCapped(...))
 
-effectiveDefaults.updateState(snapshot)   // existing; published after (2)
+effectiveDefaults.updateState(snapshot(s))    // final publication (higher version)
 ```
+
+**[S2] Publication order (structure R2-02).** Under (B), step (2) fires `AgentDescriptorUpdated`, and outside JTA (the in-memory registry) the propagator runs `updateBase(baseline + δ)` synchronously inside (2). `EffectiveCognitiveDefaults.recompute` carries the existing state snapshot across a base update. If the reduced snapshot had not already been published, derived cognition would compose `(baseline + δ) + h`, an **overshoot** of δ, until the final `updateState`. A failure in (3) or in the journal write would make that overshoot last until the next tick. Publishing the reduced snapshot at (1b) means the only possible transient is `baseline + (h − δ)`, an undershoot, which is consistent with D8. Under (A) the question does not arise: the base never changes and resting is continuous by construction.
 
 - **Continuity.** Before promotion, the resting score is `baseline + homeOffset`. After it, the score is `(baseline + delta) + (homeOffset − delta)`. Derived cognition sees no jump.
 - **Failure between (1) and (2).** The resting score is low by `delta` until the next run replays the pending absolute write. That is conservative: identity never overshoots.
@@ -504,7 +523,7 @@ Signal fields. The emitting phase collects the run's signals and returns them fr
 |---|---|
 | `principalId` | `agentId` |
 | `tenantId` | `tenantId` |
-| `sourceNodeId` | id of the agent's `PERSONALITY_STATE` node: the `sit-state:` node for promotion, the `evo-ledger:` node for JPAF events |
+| `sourceNodeId` | id of the agent's `PERSONALITY_STATE` node: the `sit-state:` node, for both promotion and JPAF events (the ledger lives on it; [S2]) |
 | `sourceName` | `"personality"` |
 | `reason` | JPAF transition: `"<previousLabel> -> <newLabel> (<triggerType>)"`; halt: `"drift <magnitude> >= ceiling <l2Ceiling·rc>"`; promotion: `"<facet> baseline <old> -> <new>"` |
 
@@ -518,7 +537,7 @@ No signal is emitted for ordinary hourly `homeOffset` drift. It changes every ho
 |---|---|---|
 | `DispositionEvolutionPhase` | cognition (`cognition.personality`) | `ConsolidationPhase` impl; `cognition` → `mindmap-intelligence` |
 | `DispositionSignalRecorder` | cognition (`cognition.personality`) | CDI observer |
-| `DispositionEvolutionLedgerStore` | cognition (`cognition.personality`) | MindMap-backed |
+| `ReflectionLedger` (component of `PersonalityState`) | cognition (`cognition.situational`, with `PersonalityState`) | [S2] replaces `DispositionEvolutionLedgerStore`; persisted on the `sit-state:` node |
 | `ReflectionOutcome` | cognition (`cognition.personality`) | replaces `EvolutionTick` |
 | `DispositionEvolutionConfig` | cognition-api | replaces `PersonalityEvolutionConfig` |
 | `TraitPressureSource.relevant` (default method) | cognition-api | SPI addition |
@@ -538,6 +557,8 @@ No signal is emitted for ordinary hourly `homeOffset` drift. It changes every ho
 | `PersonalityEvolutionOrchestrator` | `DispositionEvolutionPhase` + `DispositionSignalRecorder` |
 | `EvolutionTick` (cognition-api) | `ReflectionOutcome` (cognition) |
 | `PersonalityEvolutionConfig` (cognition-api) | `DispositionEvolutionConfig` |
+| **[S2]** `TraitActivation.valence` (`SignalValence` component) | nothing: polarity is encoded by target-term selection (D10) |
+| **[S2]** `SituationalStateService` (name) | `PersonalityStateService`. Public `persist` / `loadOrCreate` / `currentState` become private behind `transition` / `read` |
 
 The Agency producers of the orchestrator are removed in agency#487, in the same change window.
 
@@ -552,7 +573,7 @@ The Agency producers of the orchestrator are removed in agency#487, in the same 
 | `EffectiveCognitiveDefaults` | `@Produces @DefaultBean @Singleton` in `CognitionDefaultBeans` | First production producer. It is built from the explicit `CognitiveDefaultsRegistry`, `EidosDescriptorViewSource`, and `PersonalityStateService` as `PersonalityStateSource`. It is already a required injection point (`CognitionDefaultBeans.cognitiveResourcePool`) and an `Instance<>` point in ≥ 6 phases and in `CognitionCoreFactory`. |
 | `PersonalityStateService` (§[S2]), `PersonalityStateIntegrator`, `DynamicsConfig` | `@Produces @DefaultBean @Singleton` (cognition) | The facet-name set comes from the `PersonalityFacet` constants. |
 | `SituationalDeformationPhase` | `@ApplicationScoped @Priority(45)` | This is pulled forward from #1082, because promotion and integrator advance must run in production even before the participant is registered. `agentIds` reads persisted nodes, so an empty cache is fine. |
-| `DispositionEvolutionPhase`, `DispositionSignalRecorder`, `DispositionEvolutionLedgerStore`, `InteractionPressureSource` | `@ApplicationScoped` (cognition, Jandex-indexed) | The phase is discovered by `ConsolidationScheduler`'s `Instance<ConsolidationPhase>`. |
+| `DispositionEvolutionPhase`, `DispositionSignalRecorder`, `InteractionPressureSource` | `@ApplicationScoped` (cognition, Jandex-indexed) | The phase is discovered by `ConsolidationScheduler`'s `Instance<ConsolidationPhase>`. |
 | Recorder → `CognitionCore` | `CognitionCoreFactory` → `CognitivePipelineBuilder.dispositionSignalRecorder(...)` | Feeds `InteractionAppraised`. |
 
 #1082 keeps the participant's registration in `CognitionCore`, which is blocked on eidos#234. Spring wiring is agency#487.
@@ -593,6 +614,7 @@ All gates are wall-clock: reflection grid, interval, dwell, and integrator hours
 | #1102: valenced relationship and goal-outcome signals | **[R] Not blocking** (was: hard for JPAF non-inertness) | `InteractionAppraised` from `CognitionCore.recordInteraction` carries live production valence. #1102 adds further valenced sources |
 | casehubio/agency#487: remove orchestrator producers, wire the new beans | Same change window | Agency fails to compile |
 | casehubio/eidos#237: fractional activation weights | Not blocking | Integer truncation biases low counts; the reflection grid limits the damage |
+| **[S2]** casehubio/eidos#239: canonical `AmpdFacet` names | **Hard under (B)**; hygiene under (A) | (B): `updateFacets` keyed by an uncanonicalised name appends a duplicate facet or misses the stored spelling |
 
 **What #1060 closes:** the structural defect. Evolution is evaluated on a durable wall-clock cadence. Its result is written to the identity of record. It reaches `EffectiveCognitiveDefaults` through one path, for both families.
 
@@ -656,10 +678,18 @@ All gates are wall-clock: reflection grid, interval, dwell, and integrator hours
    - **Signal drain:** `signals()` across two tenants in one tick has no cross-tenant carry-over.
    - **Config:** every validation rule in both config records.
    - **Promotion boundary:** a facet at 0.95, so the clamp limits the target and the excess stays in `homeOffset`.
+10. **[S2] Structure round-2 tests:**
+    - **Interleaving (R2-01):** a participant tick is latched between the deformation phase's load and its commit. Afterwards, `promoted + homeOffset` equals the pre-promotion offset plus the tick's own drift, with no double count and no lost `promoted`.
+    - **First-sight race:** two concurrent first `read`s of a new agent create exactly one node.
+    - **Publication order (R2-02, option B):** sample `restingFor` after every step of the promotion transaction, including with (3) forced to throw. It never exceeds the pre-promotion resting score.
+    - **Ledger across restart (R2-06):** first sight, then a restart at 0.5 × `reflectionPeriod`, then another restart. The reflection fires one period after the *original* first sight.
+    - **Single subgraph (R2-07):** concurrent first use by the participant and `DispositionEvolutionPhase` for a new tenant yields exactly one `PERSONALITY_STATE` subgraph.
+    - **No valence (R2-04):** `TraitActivation` has no valence component. A NEGATIVE relationship increments the auxiliary's count, never decrements the dominant's.
+    - **Facet keys (R2-03, option B):** `updateFacets` is called only with names in the canonical AMPD set.
 
 ## Decisions
 
-See `decisions.md`. Rev 2 revises D3–D6 and adds D7–D8.
+See `decisions.md`. Rev 2 revises D3–D6 and adds D7–D8. **[S2]** D8 is generalised to both families and to the derived view. D12 (ledger in `PersonalityState`), D13 (polarity by target) and D14 (facet-key contract owned by Eidos) are added.
 
 ## References
 
