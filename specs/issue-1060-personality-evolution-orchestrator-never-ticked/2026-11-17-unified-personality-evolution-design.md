@@ -160,6 +160,73 @@ Structure therefore also recommends **(A)**. It is the option with one owner per
 
 Wherever a protocol below differs between the options, it is tagged *(A)* / *(B)*.
 
+### [S3] *(A)* Lived composition and authored edits
+
+This applies under option (A) only. It is written to drop into the collapsed spec verbatim (structure R3-02, R3-03). Under (B) the registry *is* the lived descriptor, and neither rule is needed.
+
+#### One owner of "authored ⊕ lived" (R3-03)
+
+**Rule.** The lived descriptor is the authored descriptor with two substitutions:
+- **Profile:** the lived profile replaces the authored one **only if** its stored authored fingerprint equals the fingerprint of the current authored profile (next subsection). Otherwise the authored profile stands.
+- **Facets:** each facet's resting score is `clamp01(baseline_authored + promoted + homeOffset)`. The effective score adds `displacement`.
+
+**One implementation.** Pure functions in `cognitive-index`, over neocortex-native types:
+
+```java
+public final class LivedComposition {
+    static String fingerprint(List<WeightedTerm> authoredProfile);   // terms sorted, weights to 4 dp, SHA-256
+    static List<WeightedTerm> profile(List<WeightedTerm> authoredProfile, LivedProfile lived);  // match ? lived : authored
+    static DescriptorView compose(DescriptorView authored, PersonalityStateSnapshot lived, boolean includeDisplacement);
+}
+public record LivedProfile(List<WeightedTerm> profile, String authoredFingerprint) {}
+```
+
+All three consumers delegate to it, across both type systems:
+
+| Consumer | Needs | Delegation |
+|---|---|---|
+| `EffectiveCognitiveDefaults.deriveSlot` | resting/effective `DescriptorView` | `LivedComposition.compose(base, snapshot, false/true)`. This **replaces** the private `composeFacets` |
+| `DispositionEvolutionPhase` (probe/evaluate) | Eidos `AgentDescriptor` | `LivedDescriptors.compose(authored, state)` |
+| `DispositionSignalRecorder` (dominant/auxiliary ranking for `translate`) | Eidos `AgentDescriptor` | `LivedDescriptors.compose(authored, state)` |
+
+`LivedDescriptors` (cognition, `cognition.personality`) is the single Eidos-facing composer. It delegates to `EidosCognitiveProfileBridge.livedDescriptor(AgentDescriptor authored, LivedProfile lived)` (cognitive-eidos). That method maps the authored `DispositionValue`s to `WeightedTerm`s (as `toDescriptorView` already does), calls `LivedComposition.profile`, maps back, and rebuilds through `toBuilder()`. The rule, including the fingerprint check, therefore exists exactly once. The phase and the recorder share one Eidos-side entry point, and `EffectiveCognitiveDefaults` uses the same function directly.
+
+**The snapshot carries raw lived state, not a composed profile.** `PersonalityStateSnapshot` gains `LivedProfile livedProfile` (nullable), and `FacetDisplacement` gains `promoted`. Composition happens in `EffectiveCognitiveDefaults` against the base it currently holds. That base is re-based every tick by `CognitionCore`. A profile composed when the snapshot is built would bake in whatever authored base the state service saw last, and the fingerprint check would then test the wrong base.
+
+**Test.** For one agent, the phase's probed descriptor, the recorder's ranking descriptor and `forAgent()`'s `DescriptorView` expose the same profile in each case: no lived profile, a matching lived profile, and a stale (re-authored) lived profile. `EffectiveCognitiveDefaults` has no composition code of its own.
+
+#### Authored edits: authored identity wins (R3-02)
+
+The two families store lived results with different semantics, and the difference follows the nature of each change (§Core principle):
+
+- **PID-5 `promoted` is a delta.** Like `homeOffset` and displacement, which #712 already composes over whatever authored baseline exists, it composes over a re-authored baseline. The operator's new baseline takes effect, and lived experience stays relative to it. No reconciliation is needed.
+- **The JPAF lived profile is absolute.** Transitions are canonical re-weightings (dominant 0.35, auxiliary 0.20, normalised), not increments. Re-applying them as deltas to a changed authored profile would produce a profile Eidos never evaluated. So the lived profile carries `authoredFingerprint`, which is `LivedComposition.fingerprint` of the authored profile it was evolved from. The phase writes it in the same `transition` as the lived profile and the intent.
+
+**Rule.** If the current authored fingerprint differs from the stored one, **the authored edit wins**:
+
+- **Readers, immediately.** `LivedComposition.profile` returns the authored profile, and it is pure, so every reader agrees at once. A term added by an author immediately joins the membership used for recording and probing.
+- **Durable cleanup** by the sole writer, `DispositionEvolutionPhase`, as step 0a of the agent's run, before pending-intent replay and before the [C3] enablement step:
+  1. `signalStore.clear`. The old epoch is dropped first, so a crash before step 2 only re-clears, an under-count.
+  2. `transition(livedProfile := null, pendingEvolution := null, lastTransitionAt := now)`. The pending intent was computed against the old authored base, so it is discarded rather than replayed. A re-authoring counts as a transition for the [R] rate bound.
+  3. Journal `DispositionReauthored(tenantId, agentId, ref, at, oldFingerprint, newFingerprint)`.
+- **Boot re-registration** of unchanged YAML yields the same fingerprint, so it is a no-op. That is the property that makes (A) correct under `AgentDescriptorYamlRegistrar`.
+- **Scope.** The fingerprint covers the profile's terms and weights only. A vocabulary change with an unchanged profile leaves the lived weighting valid. Only shadow resolution changes, and Eidos applies that at the next probe.
+
+The reviewer's alternative, per-term deltas mirroring PID-5, is rejected for the reason given above: JPAF results are not increments.
+
+**Tests.**
+- An authored profile edit after a transition: readers use the authored profile immediately; the next run clears signals, drops the lived profile and the intent, resets `lastTransitionAt`, and journals `DispositionReauthored`.
+- An added authored term is immediately recordable.
+- Unchanged YAML re-registration keeps the lived profile.
+- A facet re-authoring keeps `promoted` composed over the new baseline.
+
+**Collapse plan when (A) is chosen.** The edit is mechanical:
+- Delete §Identity of record and propagation, the (B) promotion block, `pendingPromotions`, the (1b) publication rule, every *(B)* bullet, the [C2] option table, and the eidos#235/#239 prerequisite rows.
+- Replace the JPAF pseudocode's `agentRegistry.findById` with `LivedDescriptors.compose`, and step (2) with the lived-profile write in the same `transition` as (1).
+- Add step 0a above.
+- Un-absorb #1080 (no longer the evolution propagation path; non-ticking agents only).
+- Add `LivedComposition`, `LivedProfile`, the snapshot fields and `LivedDescriptors` to §Module placement, and remove `IdentityChangePropagator`.
+
 ### [S2] Lived personality state: one owner for all per-agent evolution state
 
 **Defect, verified in code.** `PersonalityState` has two read-modify-write writers on different threads, with no serialisation:
@@ -214,55 +281,85 @@ It injects the Eidos SPIs `DispositionSignalStore`, `DispositionHealth`, `Dispos
 
 ```
 for agentId in effectiveDefaults.agentIds(tenantId):
-    ledger = stateService.read(tenantId, agentId, now).reflection()   // persisted on first sight
-    n = floor((now - ledger.lastReflectionAt) / config.reflectionPeriod)
-    if n == 0: continue                                    // wall-clock gate
-    descriptor = agentRegistry.findById(agentId, tenantId) // the owner's view (A: + lived profile)
+  try:                                                                   // [R] per-agent isolation
+    s = stateService.read(tenantId, agentId, now)                        // persisted on first sight
+    r = s.reflection()
+
+    // R. [R2] Recovery: every run, BEFORE the wall-clock gate (R2-04)
+    if r.pendingEvolution != null:                                       // committed decision, epoch not yet closed
+        (B) profileStore.update(agentId, tenantId, r.pendingEvolution.newProfile)   // absolute, idempotent
+            //  (A): nothing to do; the lived profile was written with the intent at (1)
+        signalStore.clear(agentId, tenantId)                             // (3) close the epoch
+        s = stateService.transition(..., st -> st.withReflection(st.reflection().closeEpoch()))
+            // (5) one write: pendingEvolution := null, lastTransitionAt := intent.at,
+            //     auditOutbox += intent.case; PERSONALITY_EVOLVED is emitted on this commit
+    s = flushAuditOutbox(s)                                              // (4) bounded retries, §Transition audit outbox
+    r = s.reflection()
+
+    // G. Wall-clock gate (R2-06)
+    if now < r.lastReflectionAt:                                         // clock regressed
+        stateService.transition(..., st -> st.withReflection(st.reflection().clampedTo(now)))
+        journal.record(ReflectionClockRegressed(...)) once per regression; continue
+    n = floor((now - r.lastReflectionAt) / P)
+    if n <= 0: continue
+    if r.pendingEvolution != null: continue                             // recovery failed above: never probe
+
+    authored = agentRegistry.findById(agentId, tenantId)                 // empty → debug skip, ledger untouched
+    descriptor = LivedDescriptors.compose(authored, s)                    // [R2] (A): lived profile; (B): identity
     if descriptor has no dispositionProfile: advance ledger via transition; continue
+
+    // D. [R2] Decay exactly once per period: marker first, then decay (R2-03)
+    k = n - floor((r.decayedThrough - r.lastReflectionAt) / P)           // periods not yet decayed, 0..n
+    if k > 0:
+        s = stateService.transition(..., st -> st.withReflection(
+                st.reflection().withDecayedThrough(r.lastReflectionAt + n·P)))
+        signalStore.decay(agentId, tenantId, retention ^ k)              // residual counts drain, enabled or not
 
     // 0. [C3] Enablement: recomputed every due reflection, never sticky
     rc = effectiveDefaults.restingFor(tenantId, agentId).capacityConfig()?.relationalComplexityOrDefault() ?: 1.0
     if config.l2Ceiling * rc == 0:                                      // evolution-disabled (rc = 0)
-        signalStore.decay(agentId, tenantId, config.retentionPerReflection ^ n)   // residual counts still drain
-        stateService.transition(..., s -> s.withReflection(
-            ledger.advancedBy(n * reflectionPeriod).withHalted(false).withDisabled(true)))
-        if !ledger.disabled: journal.record(DispositionEvolutionEnablementChanged(enabled = false, rc))
+        stateService.transition(..., st -> st.withReflection(
+            r.advancedBy(n * P).withHalted(false).withDisabled(true)))
+        if !r.disabled: journal.record(DispositionEvolutionEnablementChanged(enabled = false, rc))
         outcome Disabled(rc); continue                                  // no probe, no DispositionReflected
-    reenabled := ledger.disabled                                        // cleared by step 4's transition
+    reenabled := r.disabled                                             // cleared by step 4's transition
 
-    // 1. Decay: wall-clock, catch-up exact for missed periods
-    signalStore.decay(agentId, tenantId, config.retentionPerReflection ^ n)
-
-    // 2. Evaluate: pure, no side effects
-    status = health.probe(descriptor, REFLECTION_CONTEXT)   // [C2] constant, see "Probe context"
-    decision = switch status:
-        Aligned            -> Stable                                    (halt := false)
-        Drifted d          -> d.magnitude >= l2Ceiling * relationalComplexity
-                              ? Halted(d.magnitude)                    (halt := true)
-                              : Drifting(d.magnitude)                  (halt := false)
-        EvolutionPending p -> switch evolution.evaluate(descriptor, p):
-                                Evolved e  -> Evolved(e, p.type)       (halt := false)
-                                Dampened x -> Dampened(x.decayFactor)  (halt := true)
+    // 2. Evaluate: pure, no side effects. [R2] An evaluation exception yields Failed, not a retry loop.
+    try:
+        status = health.probe(descriptor, REFLECTION_CONTEXT)           // [C2] constant, see "Probe context"
+        decision = switch status:
+            Aligned            -> Stable                                    (halt := false)
+            Drifted d          -> d.magnitude >= l2Ceiling * rc
+                                  ? Halted(d.magnitude)                    (halt := true)
+                                  : Drifting(d.magnitude)                  (halt := false)
+            EvolutionPending p -> switch evolution.evaluate(descriptor, p):
+                                    Evolved e  -> Evolved(e, p.type)       (halt := false)
+                                    Dampened x -> Dampened(x.decayFactor)  (halt := true)
+    catch RuntimeException ex:
+        decision = Failed(step, ex.message)                                 (halt := r.halted)
 
     // 3. Commit: only after the decision is final  [R] intent-first, see "JPAF commit ordering"
-    Evolved & now - ledger.lastTransitionAt < minTransitionInterval:
+    Evolved & now - r.lastTransitionAt < minTransitionInterval:
               -> Deferred(previousLabel, newLabel, triggerType,
-                          eligibleAt = ledger.lastTransitionAt + minTransitionInterval)
+                          eligibleAt = r.lastTransitionAt + minTransitionInterval)
                  (no commit; signals keep decaying; halt := false; no attention signal)   [R] rate bound
-    Evolved:  stateService.transition(..., s -> s.withReflection(ledger.withPendingEvolution(e.newProfile, case)))  // (1) intent
-              profileStore.update(agentId, tenantId, e.newProfile)     // (2) identity write (absolute); (A): lived profile, same update as (1)
-              signalStore.clear(agentId, tenantId)                     // (3) close the signal epoch
-              cbrStore.store(transition case, trigger_type = p.type)   // (4) derived record
-              ledger := ledger.withoutPendingEvolution().withLastTransitionAt(now)   // (5) intent cleared
+    Evolved:  s = stateService.transition(..., st -> st.withReflection(
+                      st.reflection().withPendingEvolution(intentId, e.newProfile, case, at = now))
+                      (A): .withLivedProfile(e.newProfile, fingerprint(authored)))   // (1) intent (+ (2) under A)
+              (B) profileStore.update(agentId, tenantId, e.newProfile)            // (2) absolute identity write
+              signalStore.clear(agentId, tenantId)                                // (3) close the signal epoch
+              s = stateService.transition(..., st -> st.withReflection(st.reflection().closeEpoch()))   // (5)
+              s = flushAuditOutbox(s)                                             // (4) best effort, off the critical path
     Dampened: signalStore.decay(agentId, tenantId, x.decayFactor)
 
-    // 4. Record
-    ledger := ledger.advancedBy(n * reflectionPeriod).withHalted(halt)
-    stateService.transition(tenantId, agentId, now, s -> s.withReflection(ledger.withDisabled(false)))   // [R] per [S2]
+    // 4. Record: Failed advances the ledger too, so a persistent evaluation failure costs one journal entry per period
+    stateService.transition(..., st -> st.withReflection(
+        st.reflection().advancedBy(n * P).withHalted(halt).withDisabled(false)))   // [R] per [S2]
     if reenabled: journal.record(DispositionEvolutionEnablementChanged(enabled = true, rc))   // [C3]
-    journal.record(DispositionReflected(...outcome...))
-    signals: Evolved -> PERSONALITY_EVOLVED (1.0)
-             Halted  -> PERSONALITY_HALT (0.9) only when ledger.halted was false   [R] edge-triggered
+    journal.record(DispositionReflected(...outcome...))                 // Failed → DispositionEvolutionFailed
+    signals: Halted -> PERSONALITY_HALT (0.9) only when r.halted was false   [R] edge-triggered
+  catch RuntimeException:                                                // infrastructure failure (state, signal store)
+    WARN + personality.evolution.failures; retried next run, which is idempotent (see crash table)
 ```
 
 **[C2] Probe context.** A consolidation phase has no caller-supplied context. The phase passes the constant `REFLECTION_CONTEXT = CapabilityHealth.ProbeContext.of("personality-reflection")`, which has empty metadata. `DefaultDispositionHealth.probe` never reads its `context` argument: the outcome depends only on the descriptor, the signal counts and tenant preferences. So the constant changes no decision, and parity tests pass the same constant. The domain string only identifies the caller to a future context-sensitive `DispositionHealth`.
@@ -545,11 +642,13 @@ if s.pendingPromotions non-empty:                             // recover an inte
     profileStore.updateFacets(agent, tenant, pending absolute scores)   // idempotent, canonical keys (#239)
     s = stateService.transition(..., st -> st.withPendingPromotions(empty))
 
-candidates = integrator.promotionCandidates(s, baselines(descriptorView), now)
+baselines = baselines(descriptorView)                         // gathered before the transition (fn is pure)
+s = stateService.transition(..., st -> {                      // [S3] candidates computed on the CURRENT state, inside fn
+        c = integrator.promotionCandidates(st, baselines, now)
+        return st.applyPromotions(c)            // (1) homeOffset -= delta, promoted += delta,
+    })                                          //     saturatedSince := null, pendingPromotions := c
+candidates = s.pendingPromotions                              // the committed candidates drive (2)
 if candidates non-empty:
-    s = stateService.transition(..., st -> st.applyPromotions(candidates))
-                                                // (1) homeOffset -= delta, promoted += delta,
-                                                //     saturatedSince := null, pendingPromotions := candidates
     effectiveDefaults.updateState(snapshot(s))                // (1b) [S2] publish the REDUCED offset before (2)
     profileStore.updateFacets(agent, tenant, absolute scores) // (2) identity write → propagator → updateBase
     s = stateService.transition(..., st -> st.withPendingPromotions(empty))   // (3) intent cleared
@@ -647,7 +746,11 @@ No signal is emitted for ordinary hourly `homeOffset` drift. It changes every ho
 | `TraitPressureSource.relevant` (default method) | cognition-api | SPI addition |
 | Promotion (`FacetState` fields, `promotionCandidates`, baselines) | cognition (`cognition.situational`) | state owner |
 | Promotion step, `@Priority(46)` | cognition (`SituationalDeformationPhase`) | |
-| `IdentityChangePropagator` | cognitive-eidos | absorbs #1080 |
+| `IdentityChangePropagator` | cognitive-eidos | absorbs #1080 *(B only)* |
+| **[S3]** *(A)* `LivedComposition`, `LivedProfile` | cognitive-index | the one "authored ⊕ lived" rule; replaces `EffectiveCognitiveDefaults.composeFacets` |
+| **[S3]** *(A)* `PersonalityStateSnapshot` + `LivedProfile livedProfile`, `FacetDisplacement.promoted` | cognitive-index | raw lived state; composed in `EffectiveCognitiveDefaults` |
+| **[S3]** *(A)* `EidosCognitiveProfileBridge.livedDescriptor(AgentDescriptor, LivedProfile)` | cognitive-eidos | `DispositionValue` ↔ `WeightedTerm`, delegates to `LivedComposition.profile` |
+| **[S3]** *(A)* `LivedDescriptors` | cognition (`cognition.personality`) | single Eidos-facing composer for the phase and the recorder |
 | **[R]** `InteractionAppraised`, `InteractionPressureSource` | cognition (`cognition.personality`) | live valenced source; emitted by `CognitionCore.recordInteraction` |
 | **[R]** `PersonalityStateService`: `TenantAgentKey` keys, persisted `agentIds`, eviction, and the `PersonalityStateSource` impl (on top of §[S2] `transition`) | cognition | single serialised state owner |
 | **[R]** `EffectiveCognitiveDefaults`, `PersonalityStateService`, `PersonalityStateIntegrator`, `DynamicsConfig` producers | cognition (`CognitionDefaultBeans`) | first production wiring; `DefaultPersonalityStateSource` deleted |
@@ -684,7 +787,7 @@ The Agency producers of the orchestrator are removed in agency#487, in the same 
 
 ### [R] Deployment assumptions
 
-ASSUMPTION: One active neocortex instance per tenant. `ConsolidationScheduler.knownTenants`, `SignificanceAccumulator`, the `EffectiveCognitiveDefaults` slots, and the per-agent locks in the state service and ledger all assume this. Two instances would split events across nodes and fork evolution. neocortex#1104 documents the contract and the options if that ever changes.
+ASSUMPTION: One active neocortex instance per tenant. `ConsolidationScheduler.knownTenants`, `SignificanceAccumulator`, the `EffectiveCognitiveDefaults` slots, and the per-agent locks in `PersonalityStateService` (the ledger has no lock of its own since [S2]) all assume this. Two instances would split events across nodes and fork evolution. neocortex#1104 documents the contract and the options if that ever changes.
 
 ### [R] Calibration (wall-clock, default parameters)
 
@@ -797,6 +900,10 @@ All gates are wall-clock: reflection grid, interval, dwell, and integrator hours
     - **Single subgraph (R2-07):** concurrent first use by the participant and `DispositionEvolutionPhase` for a new tenant yields exactly one `PERSONALITY_STATE` subgraph.
     - **No valence (R2-04):** `TraitActivation` has no valence component. A NEGATIVE relationship increments the auxiliary's count, never decrements the dominant's.
     - **Facet keys (R2-03, option B):** `updateFacets` is called only with names in the canonical AMPD set.
+11. **[S3] Structure round-3 tests:**
+    - *(A)* **One composer (R3-03):** the phase's probed descriptor, the recorder's ranking descriptor and `forAgent()` expose the same profile for: no lived profile, a matching lived profile, and a stale lived profile.
+    - *(A)* **Authored edits (R3-02):** an edit after a transition makes readers use the authored profile at once, and the next run clears, drops the lived profile and intent, resets `lastTransitionAt` and journals `DispositionReauthored`. An added authored term is recordable. Unchanged YAML re-registration keeps the lived profile. A facet re-authoring keeps `promoted` over the new baseline.
+    - *(B)* **Candidates on current state (R3-04):** a participant tick that lowers `|homeOffset|` below the threshold between the advance `transition` and the promotion `transition` yields no promotion.
 
 ## Decisions
 
@@ -814,6 +921,8 @@ See `decisions.md`. *[C3: complete index]*
 | D12 | Reflection ledger is a component of `PersonalityState` | [S2] |
 | D13 | Polarity encoded by target selection; `TraitActivation` loses valence | [S2] |
 | D14 | The identity owner owns the facet-key contract | [S2] |
+| D15 | *(A)* One owner of "authored ⊕ lived": `LivedComposition` | [S3] |
+| D16 | *(A)* Authored edits win over the lived JPAF profile (fingerprint) | [S3] |
 
 The store-of-record choice (R1-01) is deliberately not a numbered decision until the human makes it.
 
