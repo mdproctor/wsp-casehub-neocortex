@@ -86,3 +86,4 @@ active: 1027
 - [ ] casehubio/neocortex#1040 — LlmAppraisalStrategy-action-targets-schema-cleanup
 - [ ] casehubio/neocortex#976 — DriveProfileDerivationPhase-personality-classification
 - [ ] casehubio/neocortex#977 — PID5-facet-extension-personality-classification
+- [ ] casehubio/neocortex#1048 — CapsEngineContractTest-coping-initializeAgent-wiring
