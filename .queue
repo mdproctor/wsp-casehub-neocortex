@@ -84,3 +84,5 @@ active: 1027
 - [ ] casehubio/neocortex#1034 — Attractor-filter-activation-function-aware
 - [ ] casehubio/neocortex#1039 — SchererAppraisalStrategyTest-pre-existing-failure
 - [ ] casehubio/neocortex#1040 — LlmAppraisalStrategy-action-targets-schema-cleanup
+- [ ] casehubio/neocortex#976 — DriveProfileDerivationPhase-personality-classification
+- [ ] casehubio/neocortex#977 — PID5-facet-extension-personality-classification
