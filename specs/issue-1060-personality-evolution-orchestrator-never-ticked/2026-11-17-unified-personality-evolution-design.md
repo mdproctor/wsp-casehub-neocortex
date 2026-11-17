@@ -442,7 +442,7 @@ Without this, one agent's exception (for example an Eidos `DispositionValue` val
 
 Rev 2's original order was identity write → CBR → clear. A crash after the identity write and before `clear` makes the next reflection probe the *new* identity with the *old* counts, which can commit a spurious second transition. The intent guards against this, because the phase never probes while an intent exists. *[C2 correction, preserved]* The intent is never cleared in the same write as (1), only after `clear` has succeeded.
 
-**[R2] Decay is exactly once per period, marker first (R2-03).** `ReflectionLedger.decayedThrough` records the end of the last decayed period. Step D computes `k`, the number of periods not yet decayed, and persists `decayedThrough` **before** calling `signalStore.decay(retention^k)`. Retries are therefore harmless:
+**[R2] Decay is exactly once per period, marker first (R2-03).** `ReflectionLedger.decayedThrough` records the end of the last decayed period. Step D computes `k`, the number of periods not yet decayed, and persists `decayedThrough` **before** calling `signalWriter.decay(retention^k)`. Retries are therefore harmless:
 - An evaluation failure, a failed ledger write or a crash after step D re-enters with `k = 0`, so nothing is decayed twice.
 - A probe that throws on every call becomes `ReflectionOutcome.Failed`, which still advances the ledger. A persistent evaluation fault therefore costs one `DispositionEvolutionFailed` entry per period, never a decay per consolidation run.
 
@@ -941,7 +941,7 @@ The Agency producers of the orchestrator are removed in agency#487, in the same 
 
 ### [R] Deployment assumptions
 
-ASSUMPTION: One active neocortex instance per tenant. `ConsolidationScheduler.knownTenants`, `SignificanceAccumulator`, the `EffectiveCognitiveDefaults` slots, and the per-agent locks in `PersonalityStateService` (the ledger has no lock of its own since [S2]) all assume this. Two instances would split events across nodes and fork evolution. neocortex#1104 documents the contract and the options if that ever changes.
+ASSUMPTION: One active neocortex instance per tenant. `ConsolidationScheduler.knownTenants`, `SignificanceAccumulator`, the `EffectiveCognitiveDefaults` slots, and the per-agent locks in `PersonalityStateService` (the ledger has no lock of its own since [S2]) and in `DispositionSignalWriter` ([R3]: its serialisation is what makes signal counts exact) all assume this. Two instances would split events across nodes and fork evolution. neocortex#1104 documents the contract and the options if that ever changes.
 
 ### [R] Calibration (wall-clock, default parameters)
 
