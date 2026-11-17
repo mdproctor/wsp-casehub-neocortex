@@ -235,3 +235,27 @@ It is persisted as `jpaf.*` properties on the agent's `PERSONALITY_STATE` node, 
 **Alternatives:** The rev-2 consumer-side mapping (map each state key to whichever authored spelling `titleCase`s to it). Superseded: it placed an identity-boundary contract in the consumer, and it fails silently on colliding spellings.
 
 **Status:** captured (structure round 2)
+
+## D15: Under (A), "authored ⊕ lived" has one owner (structure review R3-03)
+
+**Applies if** R1-01 chooses option (A).
+**Choice:**
+- Pure `LivedComposition` (cognitive-index) is the only implementation of the composition rule: fingerprint-gated profile substitution, plus resting facet = `baseline_authored + promoted + homeOffset`.
+- `EffectiveCognitiveDefaults` delegates to it, replacing its private `composeFacets`.
+- The phase and the recorder obtain lived Eidos descriptors only through `LivedDescriptors`, which delegates through `EidosCognitiveProfileBridge.livedDescriptor` to the same function.
+- `PersonalityStateSnapshot` carries raw lived state (`LivedProfile`, `promoted`), not a composed profile.
+
+**Alternatives:** The snapshot carries an already-composed profile. Rejected: composition must use the base that `EffectiveCognitiveDefaults` currently holds, which `CognitionCore` re-bases every tick. Composing at snapshot time bakes in a stale authored base and makes the fingerprint check test the wrong base.
+**Status:** captured (structure round 3), conditional on R1-01 = A
+
+## D16: Under (A), authored edits win over the lived JPAF profile (structure review R3-02)
+
+**Applies if** R1-01 chooses option (A).
+**Choice:**
+- The lived JPAF profile is stored with the fingerprint of the authored profile it evolved from. On mismatch, readers use the authored profile immediately (a pure check in `LivedComposition`).
+- `DispositionEvolutionPhase`, the sole writer, then: clears signals; drops the lived profile and any pending intent; sets `lastTransitionAt := now`; journals `DispositionReauthored`.
+- PID-5 `promoted` stays a delta over the authored baseline, consistent with `homeOffset`, so no reconciliation is needed.
+
+**Alternatives:** Per-term JPAF deltas. Rejected: JPAF transitions are canonical re-weightings, not increments. Re-normalising them against a changed base yields a profile Eidos never evaluated.
+**Rationale:** Under (A), "Eidos owns authored identity" must mean authored edits take effect. Unchanged boot re-registration keeps the same fingerprint, so it is a no-op.
+**Status:** captured (structure round 3), conditional on R1-01 = A
