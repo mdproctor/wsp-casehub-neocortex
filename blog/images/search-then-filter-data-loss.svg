@@ -117,7 +117,7 @@
   <text x="530" y="118" class="count" style="fill: #ff6b6b;">7 matches silently lost</text>
 
   <!-- Bottom: the fix -->
-  <line x1="20" y1="155" x2="700" y1="155" x2="700" stroke="#e0e0e0" stroke-width="1"/>
+  <line x1="20" y1="155" x2="700" y2="155" stroke="#e0e0e0" stroke-width="1"/>
   <text x="360" y="180" text-anchor="middle" class="title" style="fill: #2d8a4e;">Fix: raise limit to 2000 (or push filter into query)</text>
 
   <g transform="translate(20, 195)">
