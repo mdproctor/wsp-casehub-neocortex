@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 520" font-family="system-ui, -apple-system, sans-serif" font-size="13">
+  <defs>
+    <marker id="arrowG" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#4a9" stroke="none"/>
+    </marker>
+    <marker id="arrowR" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#c66" stroke="none"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="760" height="520" rx="8" fill="#1a1a2e"/>
+
+  <!-- Title -->
+  <text x="380" y="32" text-anchor="middle" fill="#e0e0e0" font-size="16" font-weight="bold">CognitiveJournal Coverage: Before and After</text>
+
+  <!-- BEFORE column -->
+  <text x="190" y="62" text-anchor="middle" fill="#c66" font-size="14" font-weight="bold">BEFORE</text>
+  <rect x="30" y="75" width="320" height="420" rx="6" fill="#1e1e32" stroke="#333" stroke-width="1"/>
+
+  <!-- CognitionCore.tick() box -->
+  <rect x="50" y="90" width="280" height="250" rx="4" fill="#252540" stroke="#444" stroke-width="1"/>
+  <text x="190" y="110" text-anchor="middle" fill="#aaa" font-size="12" font-weight="bold">CognitionCore.tick()</text>
+
+  <!-- Instrumented stages (green) -->
+  <rect x="70" y="122" width="240" height="22" rx="3" fill="#1a3a2a" stroke="#4a9" stroke-width="1"/>
+  <text x="190" y="137" text-anchor="middle" fill="#4a9" font-size="11">AttentionBriefed</text>
+  <rect x="70" y="150" width="240" height="22" rx="3" fill="#1a3a2a" stroke="#4a9" stroke-width="1"/>
+  <text x="190" y="165" text-anchor="middle" fill="#4a9" font-size="11">MoodShifted (×2)</text>
+  <rect x="70" y="178" width="240" height="22" rx="3" fill="#1a3a2a" stroke="#4a9" stroke-width="1"/>
+  <text x="190" y="193" text-anchor="middle" fill="#4a9" font-size="11">DriveActivated (×2)</text>
+  <rect x="70" y="206" width="240" height="22" rx="3" fill="#1a3a2a" stroke="#4a9" stroke-width="1"/>
+  <text x="190" y="221" text-anchor="middle" fill="#4a9" font-size="11">AppraisalRecorded</text>
+  <rect x="70" y="234" width="240" height="22" rx="3" fill="#1a3a2a" stroke="#4a9" stroke-width="1"/>
+  <text x="190" y="249" text-anchor="middle" fill="#4a9" font-size="11">RegulationDecided</text>
+
+  <!-- Uninstrumented stages (red) -->
+  <rect x="70" y="264" width="240" height="22" rx="3" fill="#3a1a1a" stroke="#c66" stroke-width="1"/>
+  <text x="190" y="279" text-anchor="middle" fill="#c66" font-size="11">TemporalFocus — silent</text>
+  <rect x="70" y="292" width="240" height="22" rx="3" fill="#3a1a1a" stroke="#c66" stroke-width="1"/>
+  <text x="190" y="307" text-anchor="middle" fill="#c66" font-size="11">Narrative / Strategy / Reflection — silent</text>
+  <rect x="70" y="320" width="240" height="22" rx="3" fill="#3a1a1a" stroke="#c66" stroke-width="1"/>
+  <text x="190" y="335" text-anchor="middle" fill="#c66" font-size="11">UserModel / MentalModel — silent</text>
+
+  <!-- Consolidation box -->
+  <rect x="50" y="360" width="280" height="60" rx="4" fill="#252540" stroke="#444" stroke-width="1"/>
+  <text x="190" y="380" text-anchor="middle" fill="#aaa" font-size="12" font-weight="bold">ConsolidationScheduler</text>
+  <rect x="70" y="392" width="240" height="22" rx="3" fill="#3a1a1a" stroke="#c66" stroke-width="1"/>
+  <text x="190" y="407" text-anchor="middle" fill="#c66" font-size="11">Journal field stored, never passed to phases</text>
+
+  <!-- Coverage label -->
+  <text x="190" y="455" text-anchor="middle" fill="#c66" font-size="13" font-weight="bold">5 of 12 stages instrumented</text>
+  <text x="190" y="475" text-anchor="middle" fill="#888" font-size="11">Consolidation: zero visibility</text>
+
+  <!-- AFTER column -->
+  <text x="570" y="62" text-anchor="middle" fill="#4a9" font-size="14" font-weight="bold">AFTER</text>
+  <rect x="410" y="75" width="320" height="420" rx="6" fill="#1e1e32" stroke="#333" stroke-width="1"/>
+
+  <!-- CognitionCore.tick() box -->
+  <rect x="430" y="90" width="280" height="280" rx="4" fill="#252540" stroke="#444" stroke-width="1"/>
+  <text x="570" y="110" text-anchor="middle" fill="#aaa" font-size="12" font-weight="bold">CognitionCore.tick()</text>
+
+  <!-- All instrumented (green) -->
+  <rect x="450" y="122" width="240" height="22" rx="3" fill="#1a3a2a" stroke="#4a9" stroke-width="1"/>
+  <text x="570" y="137" text-anchor="middle" fill="#4a9" font-size="11">AttentionBriefed</text>
+  <rect x="450" y="150" width="240" height="22" rx="3" fill="#1a3a2a" stroke="#4a9" stroke-width="1"/>
+  <text x="570" y="165" text-anchor="middle" fill="#4a9" font-size="11">MoodShifted (×2)</text>
+  <rect x="450" y="178" width="240" height="22" rx="3" fill="#1a3a2a" stroke="#4a9" stroke-width="1"/>
+  <text x="570" y="193" text-anchor="middle" fill="#4a9" font-size="11">DriveActivated (×2)</text>
+  <rect x="450" y="206" width="240" height="22" rx="3" fill="#1a3a2a" stroke="#4a9" stroke-width="1"/>
+  <text x="570" y="221" text-anchor="middle" fill="#4a9" font-size="11">AppraisalRecorded + RegulationDecided</text>
+  <rect x="450" y="234" width="240" height="22" rx="3" fill="#1a3a2a" stroke="#4a9" stroke-width="1"/>
+  <text x="570" y="249" text-anchor="middle" fill="#4a9" font-size="11">TemporalFocusTicked + MemoryHygieneTicked</text>
+  <rect x="450" y="262" width="240" height="22" rx="3" fill="#1a3a2a" stroke="#4a9" stroke-width="1"/>
+  <text x="570" y="277" text-anchor="middle" fill="#4a9" font-size="11">NarrativeUpdated + StrategyUpdated</text>
+  <rect x="450" y="290" width="240" height="22" rx="3" fill="#1a3a2a" stroke="#4a9" stroke-width="1"/>
+  <text x="570" y="305" text-anchor="middle" fill="#4a9" font-size="11">ReflectionRetrieved</text>
+  <rect x="450" y="318" width="240" height="22" rx="3" fill="#1a3a2a" stroke="#4a9" stroke-width="1"/>
+  <text x="570" y="333" text-anchor="middle" fill="#4a9" font-size="11">UserModelUpdated + MentalModelUpdated (×N)</text>
+
+  <!-- Consolidation box -->
+  <rect x="430" y="360" width="280" height="60" rx="4" fill="#252540" stroke="#444" stroke-width="1"/>
+  <text x="570" y="380" text-anchor="middle" fill="#aaa" font-size="12" font-weight="bold">ConsolidationScheduler</text>
+  <rect x="450" y="392" width="240" height="22" rx="3" fill="#1a3a2a" stroke="#4a9" stroke-width="1"/>
+  <text x="570" y="407" text-anchor="middle" fill="#4a9" font-size="11">Journal wired to every ConsolidationPhase</text>
+
+  <!-- Coverage label -->
+  <text x="570" y="455" text-anchor="middle" fill="#4a9" font-size="13" font-weight="bold">12 of 12 stages instrumented</text>
+  <text x="570" y="475" text-anchor="middle" fill="#888" font-size="11">Consolidation: phases can record entries</text>
+</svg>
