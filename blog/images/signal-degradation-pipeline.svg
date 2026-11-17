@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 320" font-family="system-ui, -apple-system, sans-serif">
+  <style>
+    .stage { fill: #f8f9fa; stroke: #dee2e6; stroke-width: 1.5; rx: 8; }
+    .stage-label { font-size: 11px; fill: #495057; font-weight: 600; }
+    .fix-label { font-size: 9px; fill: #868e96; }
+    .arrow { stroke: #adb5bd; stroke-width: 1.5; fill: none; marker-end: url(#arrowhead); }
+    .signal-full { stroke: #339af0; stroke-width: 3; fill: none; opacity: 0.8; }
+    .signal-degraded { stroke: #ff6b6b; stroke-width: 3; fill: none; opacity: 0.6; stroke-dasharray: 6,4; }
+    .signal-restored { stroke: #51cf66; stroke-width: 3; fill: none; opacity: 0.8; }
+    .title { font-size: 14px; fill: #212529; font-weight: 700; }
+    .subtitle { font-size: 10px; fill: #868e96; }
+    @media (prefers-color-scheme: dark) {
+      .stage { fill: #2b2b2b; stroke: #495057; }
+      .stage-label { fill: #dee2e6; }
+      .fix-label { fill: #868e96; }
+      .arrow { stroke: #6c757d; }
+      .title { fill: #f8f9fa; }
+      .subtitle { fill: #6c757d; }
+    }
+  </style>
+  <defs>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#adb5bd"/>
+    </marker>
+  </defs>
+
+  <text x="360" y="28" text-anchor="middle" class="title">Signal Degradation Through the CAPS Pipeline</text>
+  <text x="360" y="44" text-anchor="middle" class="subtitle">Six points where approximations silently dropped psychological signal</text>
+
+  <!-- Pipeline stages -->
+  <rect x="20" y="70" width="100" height="60" class="stage"/>
+  <text x="70" y="95" text-anchor="middle" class="stage-label">CAPS</text>
+  <text x="70" y="108" text-anchor="middle" class="stage-label">Settling</text>
+
+  <rect x="145" y="70" width="100" height="60" class="stage"/>
+  <text x="195" y="95" text-anchor="middle" class="stage-label">Attractor</text>
+  <text x="195" y="108" text-anchor="middle" class="stage-label">Extraction</text>
+
+  <rect x="270" y="70" width="100" height="60" class="stage"/>
+  <text x="320" y="95" text-anchor="middle" class="stage-label">Behavioral</text>
+  <text x="320" y="108" text-anchor="middle" class="stage-label">Synthesis</text>
+
+  <rect x="395" y="70" width="100" height="60" class="stage"/>
+  <text x="445" y="95" text-anchor="middle" class="stage-label">Prompt</text>
+  <text x="445" y="108" text-anchor="middle" class="stage-label">Rendering</text>
+
+  <rect x="520" y="70" width="100" height="60" class="stage"/>
+  <text x="570" y="95" text-anchor="middle" class="stage-label">LLM</text>
+  <text x="570" y="108" text-anchor="middle" class="stage-label">Appraisal</text>
+
+  <!-- Arrows -->
+  <path d="M120,100 L145,100" class="arrow"/>
+  <path d="M245,100 L270,100" class="arrow"/>
+  <path d="M370,100 L395,100" class="arrow"/>
+  <path d="M495,100 L520,100" class="arrow"/>
+
+  <!-- Before: degraded signal line -->
+  <text x="20" y="168" class="subtitle">BEFORE</text>
+  <path d="M70,180 C120,180 120,180 195,180 C240,180 240,185 320,190 C380,195 380,200 445,210 C490,218 490,225 570,240" class="signal-degraded"/>
+  <text x="600" y="244" class="fix-label">signal lost</text>
+
+  <!-- Fix annotations -->
+  <text x="70" y="210" text-anchor="middle" class="fix-label">#1044 orphan</text>
+  <text x="70" y="220" text-anchor="middle" class="fix-label">distrust node</text>
+
+  <text x="195" y="210" text-anchor="middle" class="fix-label">#1034 absolute</text>
+  <text x="195" y="220" text-anchor="middle" class="fix-label">threshold</text>
+
+  <text x="320" y="225" text-anchor="middle" class="fix-label">#1043 ambivalence</text>
+  <text x="320" y="235" text-anchor="middle" class="fix-label">as failure</text>
+
+  <text x="445" y="240" text-anchor="middle" class="fix-label">#1033 hard</text>
+  <text x="445" y="250" text-anchor="middle" class="fix-label">limit(5)</text>
+
+  <text x="570" y="265" text-anchor="middle" class="fix-label">#1040 example</text>
+  <text x="570" y="275" text-anchor="middle" class="fix-label">echo risk</text>
+
+  <!-- After: restored signal line -->
+  <text x="20" y="295" class="subtitle">AFTER</text>
+  <path d="M70,305 L195,305 L320,305 L445,305 L570,305" class="signal-restored"/>
+  <text x="600" y="309" class="fix-label">signal intact</text>
+</svg>
