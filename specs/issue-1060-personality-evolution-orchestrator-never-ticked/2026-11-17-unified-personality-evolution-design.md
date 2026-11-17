@@ -43,13 +43,13 @@ Both personality families do share one *outcome*: lasting change to who the agen
 
 **Unified elements, one each:**
 
-- **Identity of record:** `AgentDescriptor.disposition` in Eidos `AgentRegistry`, written through a real `DispositionProfileStore` (eidos#235).
-- **Propagation path:** registry `register` → `AgentDescriptorUpdated` → `EffectiveCognitiveDefaults.updateBase` with the owner's descriptor. `CognitionCore`'s per-tick re-base reads the same owner, so the two can never diverge.
+- **Store of record for lived results** *[depends on R1-01]*. Under (B): `AgentDescriptor.disposition` in Eidos `AgentRegistry`, written through a real `DispositionProfileStore` (eidos#235). Under (A): the per-agent `PersonalityState` node; Eidos holds authored identity only.
+- **Propagation path** *[depends on R1-01]*. Under (B): registry `register` → `AgentDescriptorUpdated` → `EffectiveCognitiveDefaults.updateBase` with the owner's descriptor; `CognitionCore`'s per-tick re-base reads the same owner. Under (A): `PersonalityStateService.transition` → `updateState(snapshot)`; the per-tick authored `updateBase` is correct by construction, because `recompute` carries the state snapshot across base updates.
 - **Time basis:** wall-clock grids, independent of tick rate and scheduler cadence (Era 7b key decision 4). PID-5 uses the integrator's hourly grid. JPAF uses a reflection-period grid.
 - **Cadence owner:** consolidation phases in `cognition`, ordered explicitly.
 - **Audit:** `CognitiveJournal` entries, plus attention signals for significant events.
 
-### Personality change model, per family
+### Personality change model, per family *[promotion and transition targets depend on R1-01; the diagram shows (B)]*
 
 ```
 PID-5 facets (owner: situational state, cognition.situational)
@@ -67,7 +67,7 @@ Disposition profile (owner of evaluation: Eidos JPAF; cadence: cognition.persona
                                     → DispositionProfileStore.update
 ```
 
-### Identity of record and propagation
+### Identity of record and propagation *[depends on R1-01: this section describes option (B)]*
 
 **Eidos owns identity.** eidos#235 delivers a registry-backed `DispositionProfileStore` with:
 
@@ -120,9 +120,9 @@ Neither eidos#235 nor this spec handles it. The defect is noted on eidos#235.
 
 - **(A) Neocortex stores lived results; Eidos keeps evaluating them (recommended).**
   - JPAF *evaluation* stays in Eidos, per issue-126 D1/D2. `DispositionHealth.probe` and `DispositionEvolution.evaluate` are pure functions of `(descriptor, signal counts)`.
-  - The *result* is stored in neocortex lived state, next to `homeOffset`. Neocortex supplies the `DispositionProfileStore` implementation. It writes the evolved profile into the per-agent `PersonalityState` node (property `profile.<term>.weight`), through `SituationalStateService` under the same per-agent state transition as the integrator.
+  - The *result* is stored in neocortex lived state, next to `homeOffset`. The phase writes the evolved profile into the per-agent `PersonalityState` node (property `profile.<term>.weight`) through `PersonalityStateService.transition`. *[C2]* Neocortex calls **no** `DispositionProfileStore` under (A). Implementing the Eidos SPI only to call it from the same module would be indirection with no architectural benefit, and it would compete with eidos#235's bean.
   - The phase probes with the **lived descriptor**: the authored descriptor with the lived profile substituted.
-  - PID-5 promotion moves `homeOffset` into the non-decaying `FacetState.promoted` component, which is already introduced above. It is not written to Eidos.
+  - PID-5 promotion moves `homeOffset` into the non-decaying `FacetState.promoted` component. It is not written to Eidos. *[C2]* The **meaning of `promoted` differs by option**. Under (A) it is a lived component of the resting score. Under (B) it is a bookkeeping counter of what was already written into the registry baseline (see the option table below).
   - `EffectiveCognitiveDefaults` composes `authored ⊕ lived` (lived profile replaces authored weights; resting facet = `baseline + promoted + homeOffset`). The per-tick authored `updateBase` from `CognitionCore` becomes correct by construction, because `recompute` carries the state snapshot across base updates.
   - What this removes: the two-store intent/replay protocol, the registry lost-update locking (eidos#235 item 3), `IdentityChangePropagator`'s role in evolution, and the boot defect.
   - What it costs: Eidos consumers that read `AgentRegistry` directly, such as the agency prompt section, must read lived personality from `EffectiveCognitiveDefaults`. That goes into agency#487.
@@ -133,6 +133,21 @@ Neither eidos#235 nor this spec handles it. The defect is noted on eidos#235.
   - registry write contention remains.
 
 Until this is decided, the propagation table above is correct only for an uninterrupted process lifetime.
+
+**[C2] Option-dependent text and rewrite scope.** Sections whose text depends on R1-01 are tagged *[depends on R1-01]*, or carry inline *(A)*/*(B)* variants. Untagged prose that names the registry, `IdentityChangePropagator`, `profileStore` or `updateFacets` describes option (B). This table is the complete (A) delta:
+
+| Section | As written (B) | Under (A) |
+|---|---|---|
+| §Core principle, §Identity of record and propagation | Registry of record; `AgentDescriptorUpdated` → `IdentityChangePropagator` → `updateBase` | `PersonalityState` of record; `transition` → `updateState`. The propagator stays only for non-evolution registry updates (goal lifecycle, admin edits; the #1080 scope) |
+| `DispositionProfileStore` bean | eidos#235 registry-backed bean, called by both phases | Not called by neocortex; no second bean to arbitrate; eidos#235 is not a #1060 prerequisite |
+| §DispositionEvolutionPhase: descriptor probed | `agentRegistry.findById` (registry = lived) | **Lived descriptor**: the registry descriptor with `dispositionProfile` replaced by `PersonalityState.livedProfile` when present |
+| §DispositionSignalRecorder: dominant/auxiliary ranking | Registry descriptor | Lived descriptor (same substitution). Membership is unaffected: `DefaultDispositionEvolution` swap, replacement and reorganisation only re-weight terms already in the profile |
+| §JPAF commit ordering | Steps (1)–(5) across state, registry, signal store and CBR | (1)+(2) are one `transition` (intent + lived profile). (3) clear and (4) CBR follow, then (5) is a **separate** `transition` that clears the intent. See the correction in §JPAF commit ordering |
+| §Promotion rule: `promoted` | Bookkeeping: the registry baseline already includes it, so resting = `baseline_registry + homeOffset` | Lived component: resting = `baseline_authored + promoted + homeOffset`, and the authored baseline is never mutated. The budget test `|promoted + homeOffset| ≤ promotionBudget` is identical in both |
+| §Promotion rule: `delta` | `round` to an integer AMPD `targetScore`; `delta = targetScore/100 − baseline` | No rounding: `delta = clamp01(baseline + promoted + homeOffset) − (baseline + promoted)` |
+| §Promotion transaction | Two `transition`s around `updateFacets`, with `pendingPromotions` | One `transition` (already written as the *(A)* block) |
+| §Prerequisites | eidos#235, eidos#239 hard | Neither required |
+| §Testing items 4–6 | Assert registry `dispositionProfile`/`ampdFacets`, propagator | Assert `PersonalityState` and `forAgent()`. Item 8 (tick → evict → restart) is unchanged and must pass under either option |
 
 **[S2] Structure-review evidence for the decision.** Round 2 of the structure review raised five findings. Four of them come from evolution results crossing a store boundary: R2-01 (cross-store double count), R2-02 (publication order across two layers), R2-03 (facet-key contract on writes) and R2-05 (three-store JPAF commit).
 
@@ -180,7 +195,7 @@ PersonalityState read(String tenantId, String agentId, Instant now);
 1. eidos#235 lands, with lost-update protection.
 2. Boot re-registration preserves evolved fields.
 3. Every `CognitionCore.tick` caller re-reads the registry each tick (agency#487 item 4; nothing enforces this).
-4. The two-store intent protocol (D8, plus the JPAF equivalent below) never loses an intent.
+4. The two-store intent protocols (D8 for PID-5; §JPAF commit ordering for JPAF) never lose an intent.
 5. `IdentityChangePropagator` observes every write, including in-memory registries outside JTA.
 
 Under (A), lived state has one durable home: the per-agent `PersonalityState` node, written by one serialized owner (§[S2] `PersonalityStateService.transition`). It is composed over whatever base the tick passes in, so 1–5 are not required. JPAF result and ledger become a single atomic node write, and the two-store crash windows disappear.
@@ -209,7 +224,7 @@ for agentId in effectiveDefaults.agentIds(tenantId):
     signalStore.decay(agentId, tenantId, config.retentionPerReflection ^ n)
 
     // 2. Evaluate: pure, no side effects
-    status = health.probe(descriptor, probeContext)
+    status = health.probe(descriptor, REFLECTION_CONTEXT)   // [C2] constant, see "Probe context"
     decision = switch status:
         Aligned            -> Stable                                    (halt := false)
         Drifted d          -> d.magnitude >= l2Ceiling * relationalComplexity
@@ -237,6 +252,8 @@ for agentId in effectiveDefaults.agentIds(tenantId):
              Halted  -> PERSONALITY_HALT (0.9) only when ledger.halted was false   [R] edge-triggered
 ```
 
+**[C2] Probe context.** A consolidation phase has no caller-supplied context. The phase passes the constant `REFLECTION_CONTEXT = CapabilityHealth.ProbeContext.of("personality-reflection")`, which has empty metadata. `DefaultDispositionHealth.probe` never reads its `context` argument: the outcome depends only on the descriptor, the signal counts and tenant preferences. So the constant changes no decision, and parity tests pass the same constant. The domain string only identifies the caller to a future context-sensitive `DispositionHealth`.
+
 **[R] Per-agent isolation.** The body of the per-agent loop runs inside `try/catch (RuntimeException)`. A failure:
 - logs WARN with tenant and agent;
 - journals `DispositionEvolutionFailed(tenantId, agentId, phase step, message)`;
@@ -251,7 +268,7 @@ Without this, one agent's exception (for example an Eidos `DispositionValue` val
 - A CBR failure leaves the intent in place, and the next run retries it.
 - A duplicate CBR case is possible only from a crash between (4) and (5). The case carries the ledger's intent id, so it is identifiable, and the guarantee is at-least-once.
 
-Under store-of-record option (A), the intent, the lived profile and the ledger all live in the same `PersonalityState` node, so (1), (2) and (5) collapse into one atomic node write.
+Under store-of-record option (A), the intent, the lived profile and the ledger all live in the same `PersonalityState` node, so **(1) and (2)** collapse into one atomic node write. *[C2 correction]* **(5) must stay a separate `transition` after (3) and (4).** If (5) were folded into the same write, the intent would already be cleared when a crash hits between that write and (3). The next reflection would then probe the new lived profile with the old signal counts, which is exactly the spurious-second-transition path this ordering exists to remove. The pending intent is the guard on the epoch close, and it is cleared only after the epoch has closed.
 
 **[S2] Crash-point table (one failure principle for both families: a cross-store failure may under-count or be retried, never double-count or overshoot).**
 
@@ -395,7 +412,12 @@ The integrator already owns displacement and `homeOffset`. This issue adds only 
 - `saturatedSince` (`Instant`, nullable)
 - `promoted` (`double`): cumulative baseline change promoted so far, signed
 
-Both are persisted by `SituationalStateService.toProperties` / `fromProperties` like the existing fields.
+Both are persisted by `PersonalityStateService.toProperties` / `fromProperties` like the existing fields.
+
+**[C2] `pendingPromotions` (option (B) only; absent under (A)).** This is the durable intent D8's replay depends on. It lives on `PersonalityState`, not `FacetState`, because one intent covers every facet in one `updateFacets` call:
+- **Type.** `PendingPromotions(String intentId, Map<String, Integer> absoluteScores)`, or `null`. Keys are canonical AMPD facet names (eidos#239). Values are the absolute 0–100 target scores. Replay therefore needs neither baselines nor name derivation.
+- **Encoding.** Properties `pendingPromotion.id = <uuid>` and `pendingPromotion.score.<facet> = <int>`. `fromProperties` reads every key with the `pendingPromotion.score.` prefix. A missing `pendingPromotion.id` means no intent.
+- **Writes.** Set at step (1) and cleared at step (3), each inside `transition`. It therefore shares the state's lock, version and failure atomicity. The enumeration-survives-restart requirement guarantees replay after a restart.
 
 At each `closeHour` boundary:
 
@@ -462,7 +484,7 @@ effectiveDefaults.updateState(snapshot(s))    // final publication (higher versi
 
 **[S2] Publication order (structure R2-02).** Under (B), step (2) fires `AgentDescriptorUpdated`, and outside JTA (the in-memory registry) the propagator runs `updateBase(baseline + δ)` synchronously inside (2). `EffectiveCognitiveDefaults.recompute` carries the existing state snapshot across a base update. If the reduced snapshot had not already been published, derived cognition would compose `(baseline + δ) + h`, an **overshoot** of δ, until the final `updateState`. A failure in (3) or in the journal write would make that overshoot last until the next tick. Publishing the reduced snapshot at (1b) means the only possible transient is `baseline + (h − δ)`, an undershoot, which is consistent with D8. Under (A) the question does not arise: the base never changes and resting is continuous by construction.
 
-- **Continuity.** Before promotion, the resting score is `baseline + homeOffset`. After it, the score is `(baseline + delta) + (homeOffset − delta)`. Derived cognition sees no jump.
+- **Continuity.** *[C2] Narrowed.* **Persisted state** is continuous: `(baseline + delta) + (homeOffset − delta) = baseline + homeOffset`. **Derived cognition** under (B) has one bounded transient. Between (1b) and the propagator's `updateBase`, it composes `baseline + homeOffset − delta`, an undershoot of `delta` and never an overshoot. The undershoot lasts until the propagator runs: inside (2) outside JTA, at commit under `AFTER_SUCCESS`, or at the next replay if (2) throws. When (2) throws, the per-agent catch still leaves the reduced state published, because (1b) already ran. Under (A) there is one `transition` and one publication, so derived cognition sees no jump.
 - **Failure between (1) and (2).** The resting score is low by `delta` until the next run replays the pending absolute write. That is conservative: identity never overshoots.
 - **No double count.** The identity write is absolute, and the state reduction happens before it.
 - **[R] Per-agent isolation.** The same try/catch / journal / continue contract as `DispositionEvolutionPhase` applies here. A promotion that fails for one agent cannot stop deformation or promotion for the rest of the tenant.
@@ -486,16 +508,20 @@ effectiveDefaults.updateState(snapshot(s))    // final publication (higher versi
 
 This is absorbed here because both changes touch the same code.
 
-**Phase ordering.** `SituationalDeformationPhase` gets `@Priority(45)`. Today it has none and sorts to `Integer.MAX_VALUE`, and its CDI registration is #1082. `DispositionEvolutionPhase` gets `@Priority(50)`. The two families are independent and run sequentially on the scheduler thread, so no ordering dependency exists between them. The priorities only make the order deterministic and keep both after the data-producing phases (14–20).
+**Phase ordering.** *[C2]* `SituationalDeformationPhase` gets `@Priority(46)` and `DispositionEvolutionPhase` gets `@Priority(50)`. Both values are unused: `GoalRecognitionPhase` holds 45, and no phase uses 46–69. Today `SituationalDeformationPhase` has no priority and sorts to `Integer.MAX_VALUE`. `ConsolidationScheduler` sorts with a stable comparator over CDI iteration order, so only unique values give a deterministic order.
+
+The requirement is that both phases run **after every phase that reads personality**. Verified readers of `restingFor` are `BehavioralSynthesisPhase` (19), `RelationalSchemaEvolutionPhase` (20), `DriveProfileDerivationPhase` (21), `RecurringThoughtPhase` (25), `SearchBudgetDescriptionGenerationPhase` (28) and `CuriosityDescriptionGenerationPhase` (29). Placing both personality phases after the highest existing phase (45), not just after 29, means future readers in 30–45 need no renumbering. Every phase in a pass then reads one consistent personality, and evolution lands at the end of the pass. The two personality phases touch disjoint state (facets vs. the profile and reflection ledger), so 46 before 50 is a convention, not a dependency.
 
 ### Safety (per family, native units)
 
 | Family | Mechanism | Units | Owner |
 |---|---|---|---|
-| JPAF | L2 drift ceiling on effective weights × `relationalComplexity`. Over-reinforcement `Drifted` halts. `Dampened` halts | weight simplex | `DispositionEvolutionPhase`; halt persisted in the ledger |
+| JPAF | `Drifted` halts when its L2 magnitude ≥ `l2Ceiling × relationalComplexity`. Eidos reports over-reinforcement as an ordinary `Drifted`, which goes through the same rule (see below). `Dampened` halts | weight simplex | `DispositionEvolutionPhase`; halt persisted in the ledger |
 | JPAF | Halt gates signal recording | – | Read by `DispositionSignalRecorder` |
 | PID-5 | `dMax` bounds `homeOffset`; `tauSetpoint` returns it toward 0 | facet scale 0–1 | integrator (existing) |
 | PID-5 | Dwell-gated promotion and a cumulative `promotionBudget` per facet | facet scale 0–1 | integrator |
+
+**[C2] Over-reinforcement has no separate branch.** `DefaultDispositionHealth.probe` reports over-reinforcement (dominant effective weight ≥ `OVER_REINFORCEMENT_THRESHOLD`, default 0.50) as `Drifted(effective, mostActivated, computeL2(base, effective))`. That is the same type, with no reason field, so the phase applies the single magnitude rule. Under default preferences this always halts. The dominant term alone contributes ≥ 0.50 − 0.35 = 0.15 to the L2, and the ceiling is `0.15 × rc ≤ 0.15` because rc ∈ [0, 1]. For an authored profile whose dominant base is already near 0.50, over-reinforcement may stay under the ceiling. That is benign, because the profile has barely moved. Neocortex deliberately does not re-derive the threshold: it is an Eidos-owned preference (issue-126 D1), and re-deriving it would duplicate Eidos evaluation.
 
 There is no cross-family drift norm. Weight-simplex deltas and facet-scale offsets cannot be compared, so combining them in one L2 would let one family halt the other.
 
@@ -542,7 +568,7 @@ No signal is emitted for ordinary hourly `homeOffset` drift. It changes every ho
 | `DispositionEvolutionConfig` | cognition-api | replaces `PersonalityEvolutionConfig` |
 | `TraitPressureSource.relevant` (default method) | cognition-api | SPI addition |
 | Promotion (`FacetState` fields, `promotionCandidates`, baselines) | cognition (`cognition.situational`) | state owner |
-| Promotion step, `@Priority(45)` | cognition (`SituationalDeformationPhase`) | |
+| Promotion step, `@Priority(46)` | cognition (`SituationalDeformationPhase`) | |
 | `IdentityChangePropagator` | cognitive-eidos | absorbs #1080 |
 | **[R]** `InteractionAppraised`, `InteractionPressureSource` | cognition (`cognition.personality`) | live valenced source; emitted by `CognitionCore.recordInteraction` |
 | **[R]** `PersonalityStateService`: `TenantAgentKey` keys, persisted `agentIds`, eviction, and the `PersonalityStateSource` impl (on top of §[S2] `transition`) | cognition | single serialised state owner |
@@ -572,7 +598,7 @@ The Agency producers of the orchestrator are removed in agency#487, in the same 
 |---|---|---|
 | `EffectiveCognitiveDefaults` | `@Produces @DefaultBean @Singleton` in `CognitionDefaultBeans` | First production producer. It is built from the explicit `CognitiveDefaultsRegistry`, `EidosDescriptorViewSource`, and `PersonalityStateService` as `PersonalityStateSource`. It is already a required injection point (`CognitionDefaultBeans.cognitiveResourcePool`) and an `Instance<>` point in ≥ 6 phases and in `CognitionCoreFactory`. |
 | `PersonalityStateService` (§[S2]), `PersonalityStateIntegrator`, `DynamicsConfig` | `@Produces @DefaultBean @Singleton` (cognition) | The facet-name set comes from the `PersonalityFacet` constants. |
-| `SituationalDeformationPhase` | `@ApplicationScoped @Priority(45)` | This is pulled forward from #1082, because promotion and integrator advance must run in production even before the participant is registered. `agentIds` reads persisted nodes, so an empty cache is fine. |
+| `SituationalDeformationPhase` | `@ApplicationScoped @Priority(46)` | This is pulled forward from #1082, because promotion and integrator advance must run in production even before the participant is registered. `agentIds` reads persisted nodes, so an empty cache is fine. |
 | `DispositionEvolutionPhase`, `DispositionSignalRecorder`, `InteractionPressureSource` | `@ApplicationScoped` (cognition, Jandex-indexed) | The phase is discovered by `ConsolidationScheduler`'s `Instance<ConsolidationPhase>`. |
 | Recorder → `CognitionCore` | `CognitionCoreFactory` → `CognitivePipelineBuilder.dispositionSignalRecorder(...)` | Feeds `InteractionAppraised`. |
 
@@ -608,7 +634,8 @@ All gates are wall-clock: reflection grid, interval, dwell, and integrator hours
 
 | Dependency | Kind | Effect if absent |
 |---|---|---|
-| casehubio/eidos#235: registry-backed `DispositionProfileStore` + `updateFacets` | **Hard.** Lands first | Every identity change is discarded (NoOp). Nothing in this design changes identity |
+| casehubio/eidos#235: registry-backed `DispositionProfileStore` + `updateFacets` *[depends on R1-01]* | (B): **Hard.** Lands first, and must also preserve evolved fields across boot re-registration. (A): not required | (B): every identity change is discarded (NoOp) |
+| **[C2]** Production `EffectiveCognitiveDefaults` producer and real `PersonalityStateSource` (Problem 5) | **In scope** (§Production wiring), not external | Correct evolution reaches nothing in production; evicted or restarted slots lose lived state |
 | #1063: scheduler starvation and restart tenant loss | **Hard for production effect** | Both phases are cadence-invariant (wall-clock grids with exact catch-up), so they are *correct* under any schedule. But they *never run* for busy deployments or unregistered tenants |
 | #1082: situational participant registration | **Hard for PID-5 promotion in production** | Without the participant there is no displacement, so `homeOffset` never saturates. **[R]** The state service, integrator, deformation phase and promotion are production-wired by this issue, and only the displacement source remains in #1082 |
 | #1102: valenced relationship and goal-outcome signals | **[R] Not blocking** (was: hard for JPAF non-inertness) | `InteractionAppraised` from `CognitionCore.recordInteraction` carries live production valence. #1102 adds further valenced sources |
@@ -616,7 +643,7 @@ All gates are wall-clock: reflection grid, interval, dwell, and integrator hours
 | casehubio/eidos#237: fractional activation weights | Not blocking | Integer truncation biases low counts; the reflection grid limits the damage |
 | **[S2]** casehubio/eidos#239: canonical `AmpdFacet` names | **Hard under (B)**; hygiene under (A) | (B): `updateFacets` keyed by an uncanonicalised name appends a duplicate facet or misses the stored spelling |
 
-**What #1060 closes:** the structural defect. Evolution is evaluated on a durable wall-clock cadence. Its result is written to the identity of record. It reaches `EffectiveCognitiveDefaults` through one path, for both families.
+**What #1060 closes:** the structural defect. Evolution is evaluated on a durable wall-clock cadence. Its result is committed to one store of record, which R1-01 chooses. It reaches `EffectiveCognitiveDefaults` through one path for both families. *[C2]* That path exists in production only because this issue also delivers the `EffectiveCognitiveDefaults` producer and a real `PersonalityStateSource` (Problem 5, §Production wiring).
 
 **What it does not close:** additional valenced sources (#1102), scheduler starvation (#1063), and the situational participant's registration (#1082). Those are tracked separately because their causes are upstream of evolution.
 
@@ -644,11 +671,11 @@ All gates are wall-clock: reflection grid, interval, dwell, and integrator hours
    - `delta` matches integer rounding exactly.
    - Continuity: the resting facet is identical before and after promotion.
    - Baselines replace the hard-coded 0.5 in clamping.
-4. **`SituationalDeformationPhase` promotion tests:**
+4. **`SituationalDeformationPhase` promotion tests** *[(B) as written; (A) per the [C2] option table]*:
    - The ordering persist(intent) → `updateFacets` → persist(clear).
    - Crash recovery: a pending intent is replayed idempotently on the next run.
    - No double count when the identity write is replayed.
-5. **`IdentityChangePropagator` tests:**
+5. **`IdentityChangePropagator` tests** *[(B) evolution path; under (A), non-evolution registry updates only]*:
    - `AgentDescriptorUpdated` → `updateBase` with the current descriptor's view.
    - Not invoked on rollback (`AFTER_SUCCESS`).
 6. **Integration** (in-memory Eidos registry and stores, synthetic valenced `RelationshipRecorded`):
