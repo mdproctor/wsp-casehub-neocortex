@@ -208,16 +208,21 @@ CDI events. The phase reads the current `PersonalityState` from
 
 ```
 For each facet with active displacement:
-    pressure = displacement * consistency_factor
-    consistency_factor = 1.0 if same direction as last N windows, else decayed
+    direction = sign(displacement)
+    // EMA of direction agreement: approaches 1.0 when displacement is
+    // consistently in one direction, approaches 0.0 when oscillating
+    directionEma = alpha * direction + (1 - alpha) * previousDirectionEma
+    consistency = |directionEma|  // 0.0 = oscillating, 1.0 = persistent
 
+    pressure = displacement * consistency
     Record PersonalityPressure(facet, pressure, "situational")
 ```
 
-This means PID-5 pressure is derived from the existing situational modulation
-data — no new signal infrastructure needed. The consistency factor ensures
-oscillating displacement cancels out, while persistent directional displacement
-accumulates.
+The EMA alpha defaults to 0.3 (configurable via `PersonalityEvolutionConfig`).
+PID-5 pressure is derived from the existing situational modulation data — no
+new signal infrastructure needed. The EMA ensures oscillating displacement
+cancels out (consistency → 0), while persistent directional displacement
+produces strong pressure signals (consistency → 1).
 
 ### Propagation paths
 
