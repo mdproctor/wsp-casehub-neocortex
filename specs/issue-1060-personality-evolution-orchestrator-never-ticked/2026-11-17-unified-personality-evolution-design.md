@@ -191,6 +191,19 @@ All three consumers delegate to it, across both type systems:
 
 `LivedDescriptors` (cognition, `cognition.personality`) is the single Eidos-facing composer. It delegates to `EidosCognitiveProfileBridge.livedDescriptor(AgentDescriptor authored, LivedProfile lived)` (cognitive-eidos). That method maps the authored `DispositionValue`s to `WeightedTerm`s (as `toDescriptorView` already does), calls `LivedComposition.profile`, maps back, and rebuilds through `toBuilder()`. The rule, including the fingerprint check, therefore exists exactly once. The phase and the recorder share one Eidos-side entry point, and `EffectiveCognitiveDefaults` uses the same function directly.
 
+**[R2] Every other consumer of "who the agent is" (R2-02).** The table above covers composition. The robustness review found three more consumers that would silently read the authored descriptor under (A). Each one must go through the same rule:
+
+| Consumer | Defect if authored | Requirement |
+|---|---|---|
+| CBR transition case (`old_dominant`/`old_auxiliary`) | The second and every later transition record the wrong "from" state | Built from the probed descriptor (`LivedDescriptors.compose`) for "from", and from `e.newProfile` for "to" |
+| `PersonalityStateIntegrator.pull` (displacement clamp) and `promotionCandidates` (promotion clamp) | The clamp runs against `authored`, not `authored + promoted`. Example: authored 0.85, promoted 0.10, `homeOffset` 0.09 → promotion delta 0.09 → resting 1.04, clipped to 1.00, so 0.04 is silently discarded | Callers pass **authored** facet scores only. The integrator itself forms the lived baseline `authored + fs.promoted()` from the state it is given, so no caller can pass the wrong baseline. The (A) delta is `clamp01(b + p + h) − (b + p)` ([C2] table); in the example it is 0.05, and 0.04 stays in `homeOffset` |
+| The recorder's ranking on a state-cache miss | It ranks against authored | §DispositionSignalRecorder uses `stateService.read` (load-through), never a cache-only peek |
+
+**Tests:**
+- After a lived `TI-NE → NE-TI` swap, a NEGATIVE interaction increments `ti`, the lived auxiliary.
+- A second transition's CBR case records `old_dominant = ne`.
+- Promotion at authored 0.85 with promoted 0.10 leaves the 0.04 excess in `homeOffset`.
+
 **The snapshot carries raw lived state, not a composed profile.** `PersonalityStateSnapshot` gains `LivedProfile livedProfile` (nullable), and `FacetDisplacement` gains `promoted`. Composition happens in `EffectiveCognitiveDefaults` against the base it currently holds. That base is re-based every tick by `CognitionCore`. A profile composed when the snapshot is built would bake in whatever authored base the state service saw last, and the fingerprint check would then test the wrong base.
 
 **Test.** For one agent, the phase's probed descriptor, the recorder's ranking descriptor and `forAgent()`'s `DescriptorView` expose the same profile in each case: no lived profile, a matching lived profile, and a stale (re-authored) lived profile. `EffectiveCognitiveDefaults` has no composition code of its own.
@@ -285,6 +298,10 @@ for agentId in effectiveDefaults.agentIds(tenantId):
     s = stateService.read(tenantId, agentId, now)                        // persisted on first sight
     r = s.reflection()
 
+    // 0a. (A) [S3] Authored edit wins: if the lived profile's fingerprint no longer matches the
+    //     authored profile, clear signals, drop the lived profile and any intent, and journal
+    //     DispositionReauthored (§[S3] Authored edits). A discarded intent is never replayed.
+
     // R. [R2] Recovery: every run, BEFORE the wall-clock gate (R2-04)
     if r.pendingEvolution != null:                                       // committed decision, epoch not yet closed
         (B) profileStore.update(agentId, tenantId, r.pendingEvolution.newProfile)   // absolute, idempotent
@@ -372,24 +389,58 @@ for agentId in effectiveDefaults.agentIds(tenantId):
 
 Without this, one agent's exception (for example an Eidos `DispositionValue` validation failure or a registry error) aborts evolution for every later agent of the tenant on every run, because `ConsolidationScheduler.runPhases` catches only per phase. `findById` returning empty (agent deleted, or known only to the explicit layer) is a debug-logged skip that leaves the ledger untouched. It is not an exception.
 
-**[R] Pending intent first.** If `ledger.pendingEvolution` is present at the start of an agent's run, the phase replays steps (2)–(5) before anything else. Step (2) is absolute, so the replay is idempotent. The phase never probes while an intent is pending.
+**[R2] Recovery runs before the wall-clock gate, and resumes at the first incomplete step (R2-04).** `pendingEvolution` exists only between commit step (1) and the epoch close. While it exists, the decision is committed but the signal epoch is still open.
+- Recovery runs on **every** run, before the `n` gate: (B)'s absolute identity write, then `clear`, then `closeEpoch`.
+- `closeEpoch` is one `transition` that clears the intent, sets `lastTransitionAt` and moves the transition case into `auditOutbox`. `clear` can therefore be re-run only while the intent still exists, that is, until the epoch has closed once.
+- Recovery never re-runs after a successful close, so a failing CBR store can no longer cause repeated `clear`s (the R2-04 data-loss path).
+- The only re-clear window is a crash between `clear` and `closeEpoch`. It erases only the activations recorded between that crash and the next run, at most one consolidation interval. Those activations sit at the epoch boundary the transition is closing, so this is accepted.
+- Probing is blocked only until the epoch is closed, so a failed CBR write no longer freezes the agent.
+- A persistent failure of `clear` itself (signal store down) keeps the intent pending. Recording to that same store is failing too, so no additional data is at risk. `DispositionTransitionStalled` is journaled once, when the intent becomes older than one `reflectionPeriod`, and the metric `personality.evolution.intent.age` exposes it.
 
-**[R] JPAF commit ordering.** Rev 2's original order was identity write → CBR → clear. A crash after the identity write and before `clear` makes the next reflection probe the *new* identity with the *old* counts, which can commit a spurious second transition. Persisting the intent first and closing the signal epoch before the derived CBR write removes that path:
-- A CBR failure leaves the intent in place, and the next run retries it.
-- A duplicate CBR case is possible only from a crash between (4) and (5). The case carries the ledger's intent id, so it is identifiable, and the guarantee is at-least-once.
+**[R2] Transition audit outbox (R2-04).** The CBR case is a derived audit record, so it is off the critical path. `ReflectionLedger.auditOutbox` is a list of `AuditEntry(intentId, case, attempts, nextAttemptAt)`. `flushAuditOutbox` runs before the gate on every run, and only for entries whose `nextAttemptAt ≤ now`:
+- **Success:** `cbrStore.store(case + feature intent_id)`, then `transition(remove intentId)`.
+- **Failure:** `transition(attempts + 1, nextAttemptAt = now + reflectionPeriod)`.
+- **Give-up:** at `attempts = maxAuditAttempts` (5), the entry is removed and `DispositionTransitionAuditFailed(intentId, labels)` is journaled. A CBR outage of about 5 periods is therefore tolerated, and the journal keeps the transition auditable.
+- **Duplicates:** possible only from a crash between `store` and `remove`, and identifiable by `intent_id`. The guarantee is at-least-once.
 
-Under store-of-record option (A), the intent, the lived profile and the ledger all live in the same `PersonalityState` node, so **(1) and (2)** collapse into one atomic node write. *[C2 correction]* **(5) must stay a separate `transition` after (3) and (4).** If (5) were folded into the same write, the intent would already be cleared when a crash hits between that write and (3). The next reflection would then probe the new lived profile with the old signal counts, which is exactly the spurious-second-transition path this ordering exists to remove. The pending intent is the guard on the epoch close, and it is cleared only after the epoch has closed.
+**[R] JPAF commit ordering** (revised in [R2]):
+1. intent, plus under (A) the lived profile and its fingerprint, in one `transition`;
+2. (B) only: absolute identity write;
+3. `clear`, which closes the signal epoch;
+4. `closeEpoch`: intent cleared, case moved to the outbox;
+5. outbox flush.
 
-**[S2] Crash-point table (one failure principle for both families: a cross-store failure may under-count or be retried, never double-count or overshoot).**
+Rev 2's original order was identity write → CBR → clear. A crash after the identity write and before `clear` makes the next reflection probe the *new* identity with the *old* counts, which can commit a spurious second transition. The intent guards against this, because the phase never probes while an intent exists. *[C2 correction, preserved]* The intent is never cleared in the same write as (1), only after `clear` has succeeded.
 
-| Crash point | Effect | Class |
+**[R2] Decay is exactly once per period, marker first (R2-03).** `ReflectionLedger.decayedThrough` records the end of the last decayed period. Step D computes `k`, the number of periods not yet decayed, and persists `decayedThrough` **before** calling `signalStore.decay(retention^k)`. Retries are therefore harmless:
+- An evaluation failure, a failed ledger write or a crash after step D re-enters with `k = 0`, so nothing is decayed twice.
+- A probe that throws on every call becomes `ReflectionOutcome.Failed`, which still advances the ledger. A persistent evaluation fault therefore costs one `DispositionEvolutionFailed` entry per period, never a decay per consolidation run.
+
+This is better than the reviewer's decay-then-mark order. With decay-then-mark, a persistent failure of the *marker* write (a MindMap outage) re-decays on every run, which is the same wipe-out scenario moved to a different store. With marker-then-decay, every persistent failure is harmless:
+- MindMap down: the marker fails first, and nothing decays.
+- Signal store down: the decay fails, recording fails too, and the next period's marker covers only that period.
+
+The cost is the single-crash window between marker and decay. One period's decay is skipped, so pending pressure is retained ×1/retention (×1.25) for one period. This can never compound, and the [R] rate bound still applies.
+
+**[R2] Clock regression (R2-06).** The gate is `n ≤ 0`, not `n == 0`, so a regressed clock can never produce `retention^(negative)` (> 1, which inflates counts) or move the ledger backwards. If `now < lastReflectionAt`, the phase:
+- clamps `lastReflectionAt` and `decayedThrough` to `now` in one `transition`;
+- journals `ReflectionClockRegressed(previous, now)` once;
+- skips the agent for that run.
+
+The same clamp applies on load to `PersonalityState.cursorTime`/`hourCursor`. The integrator is already safe (`advance` loops only while `cursor.isBefore(to)`), but the clamp stops it stalling until wall time catches up.
+
+**[S2] Crash-point table** (revised in [R2]). One failure principle for both families: a cross-store failure may under-count, or retain pending pressure for at most one extra period. It never double-commits a transition, never overshoots committed identity, and never compounds on retry.
+
+| Crash or persistent failure | Effect | Class |
 |---|---|---|
-| after decay, before the ledger `transition` | next run decays the same periods again | under-count (signals weaker); accepted |
-| after (1), before (2) | intent replayed next run; (2) is absolute | retried, idempotent |
-| after (2), before (3) | replay re-applies (2) and then clears. The phase never probes while an intent is pending, so new-profile/old-epoch evaluation is impossible | no double count |
-| after (3), before (5) | replay re-runs (4); the duplicate CBR case is identifiable by the intent id | at-least-once audit only |
+| after the `decayedThrough` marker, before `decay` | that period's decay is skipped once | single-period over-retention; never compounds |
+| persistent probe/evaluate failure | `Failed` advances the ledger; no repeated decay | one journal entry per period |
+| after (1), before `clear` | recovery on the next run; (2) is absolute | retried, idempotent |
+| after `clear`, before `closeEpoch` | recovery re-clears, which erases only activations recorded since the crash | boundary under-count, at most one consolidation interval |
+| CBR down for days | outbox retries once per period; give-up journals `DispositionTransitionAuditFailed`; reflection continues | audit only; evolution unaffected |
+| after `cbrStore.store`, before outbox `remove` | duplicate CBR case, identifiable by `intent_id` | at-least-once audit |
 
-This is the same principle as D8 for PID-5. Structure R2-05 proposed `clear → update` as a simpler order, but the [R] intent ordering is strictly better: it never loses a transition, whereas `clear → update` loses one on a crash between the two steps.
+This is the same principle as D8 for PID-5. Structure R2-05 proposed `clear → update` as a simpler order, but the intent ordering is strictly better: it never loses a transition, whereas `clear → update` loses one on a crash between the two steps.
 
 **[R] Transition rate bound.** `minTransitionInterval` (default 30 d) caps committed JPAF transitions at one per agent per interval, independent of event rate. It gates only *when* an `Evolved` result is committed (neocortex's role under D6), and leaves *what* is valid to Eidos. Without the bound, the transition rate depends on traffic. Under default Eidos preferences (δ = 0.06; dominant 0.35, auxiliary 0.20), a swap needs effective(aux) ≥ 0.35, which is about **4 retained auxiliary activations**. A busy agent with ≥ 4 negative interactions in one reflection period (24 h) would therefore swap type daily. See §Calibration.
 
@@ -424,6 +475,12 @@ There is no separate ledger store. `DispositionEvolutionLedgerStore` and its `ev
 - **[R]** `lastTransitionAt` (rate bound);
 - **[R]** `pendingEvolution` (the intent: absolute new profile, transition-case features, intent id);
 - **[R]** `disabled` (rc = 0).
+- **[R2]** `decayedThrough` (`Instant`): the end of the last decayed period, so decay happens exactly once per period (R2-03). It is initialised to `lastReflectionAt`.
+- **[R2]** `auditOutbox` (list of `AuditEntry(intentId, case, attempts, nextAttemptAt)`): pending CBR transition cases (R2-04). Encoded as `jpaf.audit.<intentId>.*` properties.
+- **[R2]** `inert` (boolean): the edge-trigger memory for `DispositionInputInert` (R2-09). The phase writes it in step 4's `transition`.
+  - The per-period counts it is derived from are **not** state. The recorder keeps them in its own in-memory `ConcurrentHashMap<TenantAgentKey, InputCounts>` (two `LongAdder`s: seen and relevant). The phase drains them at each due reflection, so the recorder hot path never touches `PersonalityState`, and §[S2]'s transition-only rule holds.
+  - A restart resets the counts, which can only delay the journal entry, never suppress it.
+- **[R2]** `pendingEvolution` also carries `at`, the commit time. `closeEpoch` copies it into `lastTransitionAt`, so a delayed recovery does not shift the rate-bound window.
 
 The ledger is persisted as `jpaf.*` properties on the agent's existing `PERSONALITY_STATE` node (`sit-state:`), and is written only through `PersonalityStateService.transition`. The failure-atomicity and `TenantAgentKey` requirements under §Promotion transaction therefore apply to it unchanged.
 
@@ -481,6 +538,17 @@ private <E> void record(E ev, String tenantId, String agentId):
   - `CognitionCore.recordInteraction` emits `InteractionAppraised(tenantId, agentId, subjectId, quality, at)` to the recorder via `CognitivePipelineBuilder.dispositionSignalRecorder(...)`, inside `safeRun`. It does so regardless of `userModelEnabled`.
   - `InteractionPressureSource implements TraitPressureSource<InteractionAppraised>` uses the same JPAF mapping as `RelationshipPressureSource`: POSITIVE activates the dominant, NEGATIVE activates the auxiliary, NEUTRAL is filtered out by `relevant()`.
   - This makes the JPAF path non-inert in production without waiting for #1102.
+  - **[R2] Quality is computed independently of `subjectId` (R2-09).** Today quality is derived only inside `if (subjectId != null)` (`CognitionCore:423-429`). The emission moves the computation out of that block, so an interaction with no identified subject still carries valence. The rule is:
+    - if `impact.userModelSignal()` is present, use its `quality()`;
+    - otherwise use `deriveQualitySignal`.
+
+    `InteractionSignal` is sealed, and every variant exposes `quality()`. The user-model call is unchanged and still requires a subject.
+  - **[R2] Stated dependency.** Without an impact-supplied quality, valence comes only from mood. `deriveQualitySignal` returns NEUTRAL when `mood.currentMood` is empty, which is always the case when `CognitionConfig.moodEnabled()` is false. For a tenant with mood disabled and no impact-supplied quality, this source is therefore NEUTRAL by design, and until #1102 JPAF is inert for that tenant. That is acceptable, but it must never be silent:
+    - **Counters:** `personality.signal.relevant{source}` and `personality.signal.irrelevant{source}` are incremented at the `relevant()` filter, so an all-NEUTRAL tenant is visible.
+    - **Startup WARN:** logged once by `CognitionCoreFactory` when the recorder is wired but `moodEnabled` is false: *"disposition evolution enabled but mood disabled: interaction valence will be NEUTRAL unless impact supplies quality (#1102)"*.
+    - **Journal:** at each due reflection the phase drains the recorder's per-agent counts.
+      - If the period saw ≥ `inertThreshold` interactions (default 50) and none was relevant, `ReflectionLedger.inert` is set, and `DispositionInputInert(tenantId, agentId, interactions)` is journaled on the false → true edge only.
+      - A period with any relevant interaction clears `inert`.
   - Dedup: `InteractionAppraised` and `RelationshipRecorded` are distinct event types, and the latter is NEUTRAL today. When #1102 valences `RelationshipRecorded`, the one-source-per-derivation-chain rule decides which event carries the activation (noted on #1102).
 - **[R] Dimension namespace.** Both sources emit terms taken from the descriptor's own `dispositionProfile` (dominant or auxiliary by weight), so their spelling is canonical by construction. The profile-membership check, together with debug log and the counter `personality.signal.dropped{reason=unknown-term}`, guards future sources.
 - **Concurrency.** An activation recorded between a reflection's `probe` and its `clear` is consumed by that evolution. This is the intended semantics: the transition closes the signal epoch. Neocortex needs no lock of its own, because the scheduler serialises phase runs under its own lock on one executor thread.
@@ -555,6 +623,7 @@ Validation (compact constructor):
 - `dMax ∉ (0, 0.5]`
 - `sMax ≤ 0`
 - `epsilonPublish ≥ promoteFraction·dMax` (a promotable `homeOffset` must also be publishable)
+- **[R2]** `promotionBudget < promoteFraction·dMax` (R1-17). A candidate needs `|homeOffset| ≥ promoteFraction·dMax` and `|promoted + homeOffset| ≤ promotionBudget`. With `promoted = 0`, a budget below `promoteFraction·dMax` (for example 0.05 < 0.08) makes every candidate fail the budget test, so promotion is unreachable. That is the rev-1 defect class again. Defaults: 0.20 ≥ 0.08.
 
 Each of these breaks a stated invariant. For example, `promoteFraction > 1` makes promotion unreachable, which is exactly the rev 1 defect.
 
@@ -585,6 +654,7 @@ The integrator already owns displacement and `homeOffset`. This issue adds only 
 
 - `saturatedSince` (`Instant`, nullable)
 - `promoted` (`double`): cumulative baseline change promoted so far, signed
+- **[R2]** `cappedSince` (`Instant`, nullable): set when the facet is a candidate in every respect except `promotionBudget`, and cleared when it no longer is (R2-08)
 
 Both are persisted by `PersonalityStateService.toProperties` / `fromProperties` like the existing fields.
 
@@ -653,7 +723,10 @@ if candidates non-empty:
     profileStore.updateFacets(agent, tenant, absolute scores) // (2) identity write → propagator → updateBase
     s = stateService.transition(..., st -> st.withPendingPromotions(empty))   // (3) intent cleared
     journal.record(PersonalityFacetPromoted(...)); signal PERSONALITY_EVOLVED (0.8)
-for facets blocked only by the budget: journal.record(PersonalityPromotionCapped(...))
+for facets blocked only by the budget: [R2] edge-triggered via FacetState.cappedSince, under both options:
+    null → set:  journal.record(PersonalityPromotionCapped(...))
+    set → null:  journal.record(PersonalityPromotionUncapped(...))
+    unchanged:   nothing (a facet that stays capped journals once, not ~288×/day)
 
 effectiveDefaults.updateState(snapshot(s))    // final publication (higher version)
 ```
@@ -708,7 +781,8 @@ There is no cross-family drift norm. Weight-simplex deltas and facet-scale offse
 - `DispositionReflected(tenantId, agentId, ref, at, outcome, magnitude, previousLabel, newLabel, triggerType)`: one per reflection that runs a probe. `outcome` is the `ReflectionOutcome` variant name: `STABLE`, `DRIFTING`, `HALTED`, `EVOLVED`, `DAMPENED` or **[C3]** `DEFERRED`. For `DEFERRED`, the labels and `triggerType` are those of the withheld transition. A `Disabled` reflection runs no probe, so it writes no `DispositionReflected`.
 - **[C3]** `DispositionEvolutionEnablementChanged(tenantId, agentId, ref, at, enabled, relationalComplexity)`: one per edge of `ledger.disabled`, in both directions.
 - `PersonalityFacetPromoted(tenantId, agentId, ref, at, facet, delta, newScore, cumulativePromoted)`
-- `PersonalityPromotionCapped(tenantId, agentId, ref, at, facet, homeOffset, cumulativePromoted)`
+- `PersonalityPromotionCapped(tenantId, agentId, ref, at, facet, homeOffset, cumulativePromoted)`: **[R2]** on entry to the capped state only, with `PersonalityPromotionUncapped(tenantId, agentId, ref, at, facet)` on exit (`FacetState.cappedSince` edge)
+- **[R2]** `ReflectionClockRegressed`, `DispositionTransitionStalled`, `DispositionTransitionAuditFailed`: each once per event (§JPAF commit ordering, §Clock regression)
 
 **Attention signals.** Two values are added to `io.casehub.neocortex.mindmap.SignalCategory` (mindmap-api). This is the enum used by `ConsolidationPhase.signals()` / `AttentionSignal` and consumed by `ConsolidationScheduler`. The `mindmap.intelligence.SignalCategory` enum is not touched.
 
