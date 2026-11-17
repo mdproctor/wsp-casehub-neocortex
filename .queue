@@ -1,101 +1,25 @@
 # Work Plan —
 
 ## State
-branch: issue-977-pid5-facet-personality-classification
+branch: main
 issue-repo: casehubio/neocortex
 status: active
-covers: 1050
+covers: 1090
 project-sha: slot-creation
-date: 2026-11-03
+date: 2026-11-17
 design-repo: project
 design-section-hashes: 
 flyway-next-v: unknown
 check: 878
 done: 
-active: casehubio/neocortex#976
+active: 
 
 ## Queue
-- [x] casehubio/neocortex#916 — QdrantCbrRecordStore 4-arg recordOutcome
-- [x] casehubio/neocortex#917 — Fix cognition test compilation from 880
-- [x] casehubio/neocortex#918 — Capacity modulation observability
-- [x] casehubio/neocortex#894 — Eval pipeline coherence trace chain validation
-- [x] casehubio/neocortex#905 — Run and calibrate exploration + capacity eval suite
-- [x] casehubio/neocortex#825 — Search budget foundation
-- [x] casehubio/neocortex#596 — Information-gap curiosity
-- [x] casehubio/neocortex#826 — Recurring thought continuum
-- [x] casehubio/neocortex#847 — Channel modulation wiring
-- [x] casehubio/neocortex#848 — Goal proximity biases
-- [x] casehubio/neocortex#849 — CognitionTestHarness + scenario tests
-- [x] casehubio/neocortex#839 — Personality at extreme intensity
-- [x] casehubio/neocortex#840 — Intelligence capacity layer
-- [x] casehubio/neocortex#865 — Migrate cognitive tests to CognitionTestHarness
-- [x] casehubio/neocortex#866 — Empirical quality testing
-- [x] casehubio/neocortex#900 — Capacity fidelity testing
-- [x] casehubio/neocortex#878 — Search budget per-parameter extreme peaks
-- [x] casehubio/neocortex#879 — Search budget separate amplification threshold
-- [x] casehubio/neocortex#880 — Search budget shared fatigue substrate
-- [x] casehubio/neocortex#890 — Intelligence capacity learning rate modulation
-- [x] casehubio/neocortex#891 — Intelligence capacity convergence ceiling
-- [x] casehubio/neocortex#892 — Intelligence capacity appraisal frustration pathway
-- [x] casehubio/neocortex#920 — Eval signal — RPI stale strategy persistence
-- [x] casehubio/neocortex#940 — DriveProfilePipelineTest fragile verbatim detection
-- [x] casehubio/neocortex#937 — Verify process constraint effectiveness via LLM eval suite
-- [x] casehubio/neocortex#924 — two-tier CoherenceJudge
-- [x] casehubio/neocortex#939 — CAPS classifier empty-result fallback masks drive discrimination
-- [x] casehubio/neocortex#938 — PipelineCoherenceEvalTest — cross-stage narrative continuity
-- [x] casehubio/neocortex#925 — CAPS consolidation coherence scenario
-- [x] casehubio/neocortex#926 — unify test harnesses
-- [x] casehubio/neocortex#941 — Drive profile personality-specific situation reasoning
-- [x] casehubio/neocortex#957 — SEC→OCC emotion mapping arousal and taxonomy gaps
-- [x] casehubio/neocortex#958 — Drive activation from single-tick appraisal curiosity gap
-- [x] casehubio/neocortex#959 — Cross-tick trajectory negative attractor lock
-- [x] casehubio/neocortex#970 — DriveProfileDerivationPhase personality classification
-- [x] casehubio/neocortex#971 — Fix eval test compilation failures from 926
-- [x] casehubio/neocortex#972 — Tension threshold sensitivity analysis
-- [x] casehubio/neocortex#973 — CBR disposition filter isolation test
-- [x] casehubio/neocortex#983 — SHAME affiliation suppression
-- [x] casehubio/neocortex#984 — Drive saturation clamping
-- [x] casehubio/neocortex#985 — Curiosity attentional channel weight
-- [x] casehubio/neocortex#986 — ATTENDING action tendency channel boost
-- [x] casehubio/neocortex#989 — Re-run-tension-threshold-LLM-eval
-- [x] casehubio/neocortex#990 — LlmSituationClassifier-silent-degradation
-- [x] casehubio/neocortex#1001 — DriveProfilePersonalityEvalTest-compilation-fix
-- [x] casehubio/neocortex#1003 — Re-run-coherence-eval-suite
-- [x] casehubio/neocortex#1004 — Extract-TopologyChannelWeighter-magic-numbers
-- [x] casehubio/neocortex#1000 — AVOIDANCE-ANTAGONISM-channel-weights
-- [x] casehubio/neocortex#1005 — Context-dependent-SHAME-AFFILIATION-mapping
-- [x] casehubio/neocortex#1009 — DriveComposer-cross-layer-AUTONOMY-saturation
-- [x] casehubio/neocortex#1010 — Eval-test-seeding-AFFILIATION-drive
-- [x] casehubio/neocortex#1014 — Re-run-coherence-eval-post-fix
-- [x] casehubio/neocortex#1015 — REMORSE-AFFILIATION-secondary-boost
-- [x] casehubio/neocortex#1016 — Remaining-action-tendency-channel-mappings
-- [x] casehubio/neocortex#1012 — DocumentSearchableProvider-compilation-fix
-- [x] casehubio/neocortex#1013 — Surefire-fork-timeout-cleanup
-- [x] casehubio/neocortex#1020 — Channel-weight-polarization
-- [x] casehubio/neocortex#1021 — Drive-trace-enrichment
-- [x] casehubio/neocortex#1022 — SearchBudget-intensity-coupling
-- [x] casehubio/neocortex#1023 — Drive-annotation-provenance
-- [x] casehubio/neocortex#1024 — LLM-appraisal-vocabulary
-- [x] casehubio/neocortex#1025 — AppraisalDriveModulator-secondary-boosts
-- [x] casehubio/neocortex#1026 — Drive-temporal-smoothing
-- [x] casehubio/neocortex#1027 — CAPS-settling-convergence
-- [x] casehubio/neocortex#1028 — Action-tendency-targets
-- [x] casehubio/neocortex#1033 — BehavioralPromptSection-drops-mid-tier-attractors
-- [x] casehubio/neocortex#1034 — Attractor-filter-activation-function-aware
-- [x] casehubio/neocortex#1039 — SchererAppraisalStrategyTest-pre-existing-failure
-- [x] casehubio/neocortex#1040 — LlmAppraisalStrategy-action-targets-schema-cleanup
-- [x] casehubio/neocortex#976 — DriveProfileDerivationPhase-personality-classification
-- [x] casehubio/neocortex#977 — PID5-facet-extension-personality-classification
-- [x] casehubio/neocortex#1048 — CapsEngineContractTest-coping-initializeAgent-wiring
-- [x] casehubio/neocortex#1051 — Orphaned-output-node-audit
-- [x] casehubio/neocortex#1042 — Verify-inert-coping-nodes
-- [x] casehubio/neocortex#1052 — CopingDefaults-coverage-expansion
-- [x] casehubio/neocortex#1041 — CAPS-coping-to-regulation-connections
-- [x] casehubio/neocortex#1054 — Moderate-threat-coping-bias-verification
-- [x] casehubio/neocortex#1053 — End-to-end-personality-differentiation-test
-- [x] casehubio/neocortex#980 — ConsolidationScheduler-journal-observability
-- [x] casehubio/neocortex#968 — Instrument-CognitionCore-tick-stages
-- [x] casehubio/neocortex#1045 — Surface-prediction-calibration-observability
-- [x] casehubio/neocortex#1070 — Wire-pid5Facets-config
-- [x] casehubio/neocortex#1071 — Extract-addPersonalityMetadata
-- [x] casehubio/neocortex#1072 — Remove-hasPid5-strengthen-evals
+- [ ] casehubio/neocortex#1077 — AttentionSignalTest-pre-existing-failure
+- [ ] casehubio/neocortex#1078 — CopingStrategyPredictorTest-pre-existing-failure
+- [ ] casehubio/neocortex#1049 — CognitiveEmergenceSampleTest-classifierDrivenSettling-failure
+- [ ] casehubio/neocortex#1061 — BehavioralSynthesisPhase-cache-missing-tenantId
+- [ ] casehubio/neocortex#1088 — SituationalStateService-TOCTOU
+- [ ] casehubio/neocortex#1038 — cognition-module-compile-errors
+- [ ] casehubio/neocortex#1064 — bounded-MindMap-search-loses-nodes
+- [ ] casehubio/neocortex#1060 — PersonalityEvolutionOrchestrator-never-ticked
