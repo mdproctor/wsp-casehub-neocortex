@@ -4,7 +4,7 @@
 **Refs:** #712 (situational modulation, Era 7b), #1055 (EffectiveCognitiveDefaults), #126 (JPAF orchestrator), #1080 (absorbed)
 **Prerequisites:** #1082, #1063; under option (B) only: casehubio/eidos#235, casehubio/eidos#239 (see §Prerequisites; R1-01)
 **Follow-ups:** #1102, #1104 (single-instance deployment contract), #1089 (eviction; not closed here), #1107 (verify R3 amendments after collapse), casehubio/agency#487, casehubio/eidos#237, casehubio/eidos#242 (swap dead zone)
-**Date:** 2026-11-17 (rev 2, after the round-1 structure review; robustness amendments marked **[R]**, after the round-1 robustness review; structure round-2 amendments marked **[S2]**; cross-cutting round-1 amendments marked **[X1]**)
+**Date:** 2026-11-17 (rev 2, after the round-1 structure review; robustness amendments marked **[R]**, after the round-1 robustness review; structure round-2 amendments marked **[S2]**; cross-cutting round-1 amendments marked **[X1]**; round-2 amendments marked **[X2]**)
 
 ## Problem
 
@@ -229,23 +229,38 @@ The two families store lived results with different semantics, and the differenc
   - `livedProfile` keeps its stored fingerprint. While the fingerprints differ it is ignored, and it becomes active again by itself if the authored profile returns to the fingerprint it was evolved from. It is overwritten only by the next committed transition.
   - `ReflectionLedger.reauthor = Reauthor(fingerprint, since, confirmed)` tracks the mismatch. It is reconciled by `DispositionEvolutionPhase` at step 0a, **at a due reflection only**: after the wall-clock gate and after the `findById` the reflection already does. Rev 2's per-run `findById` is therefore gone, and §[R] Enumeration cost holds again.
 
-    **[X1] Signal-epoch rule (R1-06): every observed change of the authored fingerprint closes the signal epoch, in both directions.** Under [X1] Target anchoring the recorder ranks against the *authored* profile, so the authored fingerprint is the key of the signal epoch. Every count was earned under the authored ranking current when it was recorded. Any change of that ranking would therefore leave counts credited to the wrong role:
-    - after an edit, pre-edit counts sit on the old dominant and auxiliary;
-    - after a revert, counts recorded during the edit sit on the edited dominant and auxiliary. This is the R1-06 wrong-function window.
+    **[X1] Two keys, two reconciliations (R1-06, corrected for R2-02).** Under [X1] Target anchoring (D23), an authored edit invalidates two different things, and each has its own key in the ledger:
 
-    So the epoch is cleared when the change is *detected*, never later. The clear is an under-count of at most one detection lag (≤ one `reflectionPeriod`), symmetric in both directions, and it applies to every count the edit could have mis-credited.
+    | | (a) Which lived profile is valid | (b) Which ranking the current counts were earned under |
+    |---|---|---|
+    | Key | `livedProfile.authoredFingerprint`: the authored profile the lived profile evolved from | **`ReflectionLedger.epochFingerprint`**: the authored fingerprint the current signal epoch is being recorded under |
+    | Exists for | agents that have evolved (`livedProfile ≠ null`) | **every** agent, because D23 makes every agent rank against authored |
+    | On change | the lived profile goes dormant, is confirmed after one period, or reactivates on revert (`reauthor`) | the signal epoch closes (`clear`) |
 
-    | Observation at a due reflection | Action |
+    Round 1's [X1] rule detected both with `authored fp ≠ lived fp`. For an agent that has never evolved, `livedProfile` is null and that test is undefined. Read one way, an edit that swaps an unevolved agent's authored dominant and auxiliary never clears, so pre-edit POSITIVE counts on the old dominant drive a swap under the new ranking. Read the other way, every unevolved agent is "re-authored" at its first reflection and its first transition is locked out for about 31 days. Separating the keys removes both readings.
+
+    **(b) Signal epoch: all agents.** At each due reflection, step 0a compares `fingerprint(authored)` with `epochFingerprint`:
+    - **`epochFingerprint` null** (first due reflection after first sight, or a node written before this field existed): set it to the current fingerprint and do not clear. The counts were recorded under the authored profile the recorder saw, which can differ only if an edit fell inside this one detection window. That is the same bound as below.
+    - **Different:** `signalWriter.clear`, then `transition(epochFingerprint := fp)`, and journal `DispositionSignalEpochReset(oldFp, newFp)`. This covers edits *and* reverts uniformly, because a revert is just another change of the key.
+    - **Equal:** nothing.
+    - **Cost:** an under-count of at most one detection lag (≤ one `reflectionPeriod`) per change. Afterwards no count sits on a term whose authored role differs from its role when recorded.
+    - **Crash safety:** `clear` runs before the `transition`, so a crash in between re-detects the same change and re-clears.
+
+    **(a) Lived-profile validity: agents with `livedProfile ≠ null` only.** It no longer clears anything; every clear is in (b).
+
+    | Observation at a due reflection (`livedProfile ≠ null`) | Action |
     |---|---|
-    | authored fp ≠ lived fp, and `reauthor` absent or for a different fp | `signalWriter.clear`, then `reauthor := (fp, now, false)`; journal `DispositionReauthored(old, new)` |
-    | same mismatch held for ≥ one `reflectionPeriod`, unconfirmed | **confirm**: `transition(lastTransitionAt := now, confirmed := true)`. No clear is needed, because the epoch was already closed at detection. Confirmation counts as a transition for the [R] rate bound |
-    | authored fp = lived fp again | `signalWriter.clear`, then `reauthor := null`; journal `DispositionReauthorReverted`. The lived profile is active again |
+    | authored fp ≠ lived fp, and `reauthor` absent or for a different fp | `reauthor := (fp, now, false)`; journal `DispositionReauthored(old, new)` |
+    | same mismatch held for ≥ one `reflectionPeriod`, unconfirmed | **confirm**: `transition(lastTransitionAt := now, confirmed := true)`. Confirmation counts as a transition for the [R] rate bound |
+    | authored fp = lived fp again | `reauthor := null`; journal `DispositionReauthorReverted`. The lived profile is active again |
     | unconfirmed mismatch, and the reflection yields `Evolved` | `Deferred`, with `eligibleAt = since + P`. Nothing is committed against an authored profile that may still be reverted |
 
-    *Superseded:* round 3's "if unconfirmed, the signals are intact" on revert. Those signals included counts ranked against the edited profile.
+    With `livedProfile == null`, (a) does nothing: there is no `reauthor` state, no `DispositionReauthored` and no `lastTransitionAt` change. An unevolved agent's first transition is gated only by the rate bound.
+
+    *Superseded:* round 3's "if unconfirmed, the signals are intact" on revert, and round 1's clears inside (a).
 
   - **Pending intent.** Under (A) recovery only closes the epoch of a decision that was already committed. Its lived profile, with the old fingerprint, simply turns dormant like any other, so the intent is no longer discarded. That rule was only needed by the deleting design.
-  - **Crash safety.** **[X1]** Detection and revert each run `clear` before their `transition`. A crash in between leaves the ledger unchanged, so the next due reflection observes the same edge and re-runs `clear`. That is an under-count of at most the activations recorded in that window. Confirmation is a single `transition`.
+  - **Crash safety.** **[X1]** Every clear is in (b) and runs before its `transition(epochFingerprint := fp)`. A crash in between leaves `epochFingerprint` unchanged, so the next due reflection observes the same change and re-runs `clear`. That is an under-count of at most the activations recorded in that window. Each (a) action is a single `transition`.
 - **Boot re-registration** of unchanged YAML yields the same fingerprint, so it is a no-op. That is the property that makes (A) correct under `AgentDescriptorYamlRegistrar`.
 - **Scope.** The fingerprint covers the profile's terms and weights only. A vocabulary change with an unchanged profile leaves the lived weighting valid. Only shadow resolution changes, and Eidos applies that at the next probe.
 
@@ -253,8 +268,10 @@ The reviewer's alternative, per-term deltas mirroring PID-5, is rejected for the
 
 **Tests.**
 - An authored profile edit after a transition: readers use the authored profile immediately, the next due reflection journals `DispositionReauthored`, and the lived profile is kept dormant. **[R3]** These tests replace rev 2's delete-on-mismatch test:
-  - **[X1]** Re-author, then revert within one period: the lived profile is active again, `clear` ran exactly twice (at detection and at revert), and `DispositionReauthorReverted` is journaled. After the revert, no count in the store sits on a term whose authored role differs from its role at recording time.
+  - **[X1]** Re-author, then revert within one period: the lived profile is active again, `clear` ran exactly twice (at detection and at revert, both in step 0a(b)), and `DispositionReauthorReverted` is journaled. After the revert, no count in the store sits on a term whose authored role differs from its role at recording time.
   - Re-author held for one full period: confirmation runs once (`lastTransitionAt` reset, no further `clear`), and repeated due reflections do not repeat it.
+  - **[X2] Unevolved agent (R2-02).** On an agent that has never transitioned, swap the authored dominant and auxiliary, with 9 retained POSITIVE counts on the old dominant. The next due reflection clears the epoch, journals `DispositionSignalEpochReset` but not `DispositionReauthored`, leaves `lastTransitionAt` unchanged and commits no swap.
+  - **[X2] First reflection of a new agent:** sets `epochFingerprint` and does not clear, journal or defer.
   - Unconfirmed mismatch with an `Evolved` probe: the outcome is `Deferred` and nothing is committed.
   - No `findById` happens on a run where no reflection is due.
 - An added authored term is immediately recordable.
@@ -283,9 +300,10 @@ The reviewer's alternative, per-term deltas mirroring PID-5, is rejected for the
 PersonalityState transition(String tenantId, String agentId, Instant now, UnaryOperator<PersonalityState> fn);
 /** Read path: cache hit, else load-or-create under the same lock stripe (first sight is persisted). */
 PersonalityState read(String tenantId, String agentId, Instant now);
-/** [X1] PersonalityStateSource: current committed version; load-through but never creates (a derived-view read must not
- *  persist a node); a CHM get on a hit; 0 = no state. find(...) follows the same no-create rule. */
-long stateVersion(String tenantId, String agentId);
+/** [X1]/[X2] PersonalityStateSource: current COMPOSITION version (R2-04), bumped only when the composed view would
+ *  change; load-through but never creates (a derived-view read must not persist a node); a CHM get on a hit;
+ *  0 = no state. find(...) follows the same no-create rule. */
+long compositionVersion(String tenantId, String agentId);
 ```
 
 **[X1] Locks are striped, never per-entry and never evicted (R1-04).** Mutual exclusion uses a fixed array of `ReentrantLock`s (default 256 stripes), indexed by `TenantAgentKey.hashCode()` spread and masked. The same scheme is used by `DispositionSignalWriter`, with its own array.
@@ -302,16 +320,26 @@ long stateVersion(String tenantId, String agentId);
 - **`fn` is pure.** Callers gather evidence (appraisal, mood, descriptor) before calling `transition`.
 - **[R3] `fn` derives from `st`, never from a pre-call snapshot (R3-03).** Every field a `transition` does not intend to change is taken from its `st` argument. Values read before the call (`r`, `s`) may serve only as *inputs to a decision*: a condition, or the new value of a field the call means to set. They must never serve as the base object written back. The round-2 disabled branch broke this rule: `st -> st.withReflection(r.advancedBy(…))` wrote back a stale `r` and reverted step D's `decayedThrough`. The only other kind of conditional write, the compensation in step D, compares against `st` (`st.reflection().decayedThrough().equals(marker)`).
   - **Enforcement:** a property test interleaves step D, `closeEpoch`, step 0a, the disabled branch, step 4 and a participant tick in random order. After every run it asserts `decayedThrough ≥ lastReflectionAt`, no field regresses, and `version` strictly increases. A code-review rule flags any `withReflection(` whose argument does not begin with `st.reflection()`.
-- **[X1] Derived view pulls lived state; nobody publishes (R1-03).** A persisted monotonic `version` becomes `PersonalityStateSnapshot.stateVersion`, replacing `System.nanoTime()`.
-  - **Freshness rule.** `EffectiveCognitiveDefaults` treats a slot as fresh only while `slot.baseVersion == currentBaseVersion` **and** `slot.stateVersion == stateSource.stateVersion(t, a)`. Otherwise `forAgent`/`restingFor` re-derive it from `stateSource.find`. This is the same staleness mechanism the base layer already uses (`baseVersions`), applied to the second input.
+- **[X1] Derived view pulls lived state; nobody publishes (R1-03).** `PersonalityState` carries two persisted, monotonic counters, both maintained by `transition`:
+  - `version`, bumped on every commit. It orders writes and is what the interleaving tests assert.
+  - **[X2]** `compositionVersion` (R2-04), bumped only when the commit changes the *composition key*, and carried as `PersonalityStateSnapshot.compositionVersion` (replacing `System.nanoTime()`). The key is the state's projection onto what `LivedComposition` reads, quantised to the existing `EPSILON_PUBLISH` grid (0.005):
+    - for every facet, `round((promoted + homeOffset)/ε)` (resting) and `round((promoted + homeOffset + displacement)/ε)` (effective);
+    - the `livedProfile`, compared exactly, fingerprint included.
+
+    `transition` computes the key of `st` and of `fn(st)`, and increments `compositionVersion` only when they differ. Promotion moves `homeOffset` into `promoted` with an unchanged sum, so it does not bump.
+  - **Freshness rule.** `EffectiveCognitiveDefaults` treats a slot as fresh only while `slot.baseVersion == currentBaseVersion` **and** `slot.compositionVersion == stateSource.compositionVersion(t, a)`. Otherwise `forAgent`/`restingFor` re-derive it from `stateSource.find`, which returns exact, unquantised values. This is the same staleness mechanism the base layer already uses (`baseVersions`), applied to the second input.
+  - **Why quantised and not "≥ ε since the last bump".** A last-bump reference needs another stored snapshot per agent. A grid needs no reference state: slow drift of any rate crosses a grid line and is published, so there is no stuck-below-threshold case. The slot may lag the exact state by less than one cell, `ε` per facet, which is exactly the tolerance `EPSILON_PUBLISH` already encodes. A value oscillating across one grid line bumps on each crossing, which is never more than the per-dirty-tick publishing it replaces.
   - **`updateState` is deleted.** Its two callers, `SituationalPersonalityParticipant` (with its `isDirty` gate) and `SituationalDeformationPhase` (with its `facetsWithDrift > 0` gate), stop publishing.
   - **Why pull, not "every writer publishes its own result"** (the reviewer's fix). Push makes correctness depend on every writer remembering to publish, and R1-03 is exactly a writer that forgot. Verified, push also has two defects pull removes:
     1. **The drift gate leaves stale state.** When an idle agent's displacement fast-forwards to below ε, `SituationalDeformationPhase` skips `updateState`. The slot then keeps the last published displacement indefinitely, because `recompute` carries `existing.stateSnapshot` across every `updateBase`.
     2. **Install order.** `recompute` installs by `baseVersion` first. A concurrent `updateBase` that read the old snapshot therefore beats an `updateState` carrying a newer `stateVersion`, and that state is lost until the next publish. Under (A) a JPAF transition may have no next publish.
 
     Under pull, both self-heal at the next read: a mixed-version install is stale by the freshness rule. A centralised push from `transition` was also rejected: `EffectiveCognitiveDefaults` is built *from* `PersonalityStateService` (as `PersonalityStateSource`), so a push edge would create a construction cycle between two `@Singleton` producers.
-  - **Cost.** One CHM get per `forAgent` on a hit. A re-derivation happens on the first read after each committed `transition`. That is the same derivation count `updateState` paid per dirty tick, now paid lazily and only when someone reads.
-  - **Consequence.** Every committed change, including a JPAF transition at step (1), is visible at the first read after the commit, with no publication step for any writer to omit.
+  - **Cost, [X2] corrected (R2-04).** Round 1 said re-derivation costs "the same derivation count `updateState` paid per dirty tick". That was wrong for a version bumped on every commit. Verified: the participant persists on **every** tick and `isDirty` gated only the publish, while the deformation phase `transition`s every persisted agent each run. So a raw `version` would make every ticking agent stale on every tick, including quiescent ones. Keying freshness on `compositionVersion` restores, and improves on, the old cost:
+    - a quiescent agent whose offsets stay inside one grid cell is never re-derived (`isDirty` did not publish it either);
+    - an active agent is re-derived at most once per grid crossing, lazily, and only when read. `isDirty` published on *every* tick while any facet was ≥ ε, even when nothing had moved by ε.
+    - The per-tick `updateBase` derivation in `CognitionCore.tick` is pre-existing and unchanged.
+  - **Consequence.** Every committed change that moves the composition, including a JPAF transition at step (1) (the lived profile is in the key), is visible at the first read after the commit, with no publication step for any writer to omit.
 - **Robustness additions** (failure atomicity, `TenantAgentKey`, persisted enumeration, `PersonalityStateSource`; **[X1]** no eviction) are under §Promotion transaction → [R]. Multi-instance deployments are covered by #1104.
 - **One store for all per-agent evolution state.** The reflection ledger is a component of `PersonalityState` (§Reflection ledger), not a separate store. There is then one owner of the `PERSONALITY_STATE` subgraph, one node per agent, one lock and one version. Under (A), the JPAF intent, the lived profile and the ledger are literally one node write, which the [R] JPAF commit ordering relies on.
 
@@ -373,18 +401,38 @@ The resulting dynamics, worked through with the formulas above:
 | pure NEGATIVE (≥ 2 per period) | One swap to the adapted type (`NE-TI`). Afterwards NEGATIVE reinforces `ne`, the lived dominant, so the result is over-reinforcement `Drifted`. **Stable** |
 | pure POSITIVE | Authored type: over-reinforcement, **stable**. From the adapted type, POSITIVE reinforces `ti`, the lived auxiliary, so the agent **returns** to the authored type once and is then stable |
 | negative-leaning mix (3+5, 4+6, 25+35 per period) | Adapts within 2–4 periods, then stable. In the adapted state the lived dominant leads the auxiliary by ≥ 5 retained counts, which over-reinforcement masks |
-| positive-leaning mix | Stays at, or returns to, the authored type |
-| near-balanced and busy | **Dead zone** (below) |
+| positive-leaning mix, outside the dead zone (e.g. 5+3) | Stays at, or returns to, the authored type |
+| near-balanced, moderate or high volume, **including mildly positive-leaning input** | **Dead zone** (below). **[X2]** Example: 12 POS + 10 NEG retains `ti 16, ne 14`, so effective(ne) = 1.04/2.8 = 0.371 ≥ 0.35 with effective(ti) = 0.468 < T. The agent swaps *away* from the authored type and alternates at the rate bound |
 
 So under constant one-sided or leaning conditions the type has a **fixed point**. The rate bound goes back to being a ceiling rather than the steady-state rate. The D13 polarity rule (target selection) is kept.
+
+**[X2] Precondition: the fixed points are Eidos-parameter-dependent (R2-01).** Over-reinforcement, checked first by `probe`, is what holds each arrangement in place. So D23's stability claims depend on `OVER_REINFORCEMENT_THRESHOLD` (T, a per-tenant Eidos preference validated only to [0, 1]) and on δ:
+- **Every claim in this section and in §Calibration holds for T = 0.50 and δ = 0.06** (the defaults). They generalise to T ≤ 0.50.
+- **For T > 0.50 there is a volume-independent band.** At high volume effective weights tend to count shares. Both arrangements are then pending whenever the POSITIVE share lies in `(1 − T, T) ∩ [0.35, 0.65]`, a band of width `2T − 1`. Inside it the type alternates at the rate bound at **every** volume, and the band does not narrow with traffic. Example: T = 0.60 covers POS shares 0.40–0.60, including the "negative-leaning 25+35" row above.
+- **D23 itself is not the cause.** Rank-relative targeting oscillates over a strictly larger region at every T (round 1). The band is a property of Eidos's swap criteria, which have no hysteresis. The fix is filed as eidos#242, with the T-dependence and a property test over (T, δ) added in a comment there. Arrangement-dependent hysteresis (`effective(aux) ≥ effective(dom) + margin`) removes the band for every T: with canonical swap weights, A-pending needs `δ(a − d) ≥ 0.15 + m·S` and B-pending needs `δ(d − a) ≥ 0.15 + m·S`, which cannot both hold.
+- **Neocortex therefore observes the symptom, not the parameter** (Rule 3).
 
 **Residual: the Eidos swap dead zone (eidos#242).**
 - **Where it is.** In any arrangement, over-reinforcement masks the swap only when the dominant leads the auxiliary by `(0.50 − 0.35)/(0.5·δ) = 5` retained counts. If the counts on the authored dominant and auxiliary are within 5 of each other, and the auxiliary passes the swap test (about ≥ 9 retained), then **both** arrangements qualify.
 - **What it does.** Input held there alternates the type at the rate bound. Example: 5 POS + 5 NEG per period reaches `9, 9` in 3 periods.
-- **How wide it is.** The zone is a fixed count width, so its share of total volume narrows as traffic grows. But it never closes.
+- **How wide it is.** At T = 0.50 the zone is a fixed count width (5 retained counts), so its share of total volume narrows as traffic grows, but it never closes. **[X2]** At T > 0.50 it does not narrow (precondition above).
 - **Whose fix.** The criteria are Eidos's (D6: Eidos owns *what* is valid), so the fix is filed there as eidos#242, which asks for hysteresis that depends on the current arrangement.
 - **Rejected neocortex guard.** The reviewer's option (ii), a neocortex reversal refractory, only lengthens the cycle and second-guesses validity. It is rejected.
-- **Bound until #242 lands.** At most one transition per `minTransitionInterval / rc`, only inside the dead zone, and each one is journaled and CBR-recorded.
+- **Bound until #242 lands.** At most one transition per `minTransitionInterval / rc`, only inside the dead zone, and each one is journaled and CBR-recorded. **[X2]** Each reversal is also flagged by Rule 3.
+
+**Rule 3 [X2]: reversals are observed directly (R2-01).** A committed transition whose `newLabel` equals the type label in force *before* the previous committed transition is a **reversal** (A→B→A).
+- **State.** `ReflectionLedger.lastTransitionFromLabel` holds the `previousLabel` of the last committed transition. `closeEpoch` copies it from the intent, which already carries both labels for the CBR case.
+- **At `closeEpoch`,** which runs exactly once per committed transition (on the commit path or in recovery), if `intent.newLabel == lastTransitionFromLabel`:
+  - journal `DispositionReversal(tenantId, agentId, ref, at, previousLabel, newLabel, sinceLastTransition)`;
+  - increment `personality.disposition.reversals{tenant}`.
+- **No behaviour changes** (D6: whether the transition is valid is Eidos's call), so this is observability only.
+
+Why this and not the reviewer's precondition gauge (journal once per tenant when T > 0.50):
+1. **A precondition check is a false alarm for most tenants.** A tenant with T > 0.50 whose input never falls inside the band has no defect, and would still be flagged.
+2. **It misses the T = 0.50 dead zone,** which this section shows is real at moderate volume.
+3. **It depends on one parameter of one mechanism.** It would read an Eidos preference key and encode Eidos's criteria shape in neocortex, which is a step toward re-deriving them. Any other cause (δ, a future Eidos rule, a future source) would go unseen.
+
+A reversal is exactly the defect, whatever causes it, and every input needed to detect it is already in the ledger.
 
 **Rule 2: JPAF safety is on committed change, not pending pressure (D24, supersedes D7's JPAF half).**
 - **No halt.** `halted`, the recorder's halt gate, `ReflectionOutcome.Halted`, `PERSONALITY_HALT` and `l2Ceiling` are deleted.
@@ -406,7 +454,8 @@ So under constant one-sided or leaning conditions the type has a **fixed point**
 - **Mixed 3 POS + 5 NEG:** swap within 2 periods (rc = 1), then stable.
 - **Positive after adaptation:** an adapted agent given pure POSITIVE returns to the authored type exactly once.
 - **rc = 0.8 with 2 NEG per period:** the swap occurs (it was blocked by the halt before).
-- **Dead zone, 5 + 5:** transitions are spaced ≥ `minTransitionInterval / rc` apart. The test is marked to flip to "0 reversals" when eidos#242 lands.
+- **Dead zone, 5 + 5 and [X2] 12 + 10:** transitions are spaced ≥ `minTransitionInterval / rc` apart, and every second one journals `DispositionReversal`. The test is marked to flip to "0 reversals" when eidos#242 lands.
+- **[X2] Threshold sweep (R2-01):** with the tenant preference T = 0.55, 10+12, 8+10 and 20+22 alternate (`DispositionReversal` on each return). With T = 0.60, 25+35 alternates too. At T = 0.50 each of these settles after one transition. Marked to flip to "0 reversals" when eidos#242 lands.
 
 #### `DispositionEvolutionPhase` (cognition, `cognition.personality`)
 
@@ -430,7 +479,10 @@ for agentId in effectiveDefaults.agentIds(tenantId) ∪ stateService.agentIds(te
         signalWriter.clear(tenantId, agentId)                            // (3) close the epoch  [R3] via writer
         s = stateService.transition(..., st -> st.withReflection(st.reflection().closeEpoch()))
             // (5) one write: pendingEvolution := null, lastTransitionAt := intent.at,
-            //     auditOutbox += intent.case; PERSONALITY_EVOLVED is emitted on this commit
+            //     auditOutbox += intent.case; PERSONALITY_EVOLVED is emitted on this commit;
+            //     [X2] Rule 3: reversal := (intent.newLabel == st.reflection().lastTransitionFromLabel),
+            //     then lastTransitionFromLabel := intent.previousLabel. closeEpoch runs exactly once per
+            //     transition (here or on the commit path), so DispositionReversal is never journaled twice
     s = flushAuditOutbox(s)                                              // (4) bounded retries, §Transition audit outbox
     r = s.reflection()
 
@@ -446,13 +498,25 @@ for agentId in effectiveDefaults.agentIds(tenantId) ∪ stateService.agentIds(te
     descriptor = LivedDescriptors.compose(authored, s)                    // [R2] (A): lived profile; (B): identity
     if descriptor has no dispositionProfile: advance ledger via transition; continue
 
-    // 0a. (A) [R3] Re-authoring: the lived profile goes DORMANT, never deleted (R3-02, §[S3] Authored edits)
-    //     Evaluated only at a due reflection, so it costs no per-run findById.
-    (s, reauthorPending) = reconcileReauthoring(s, fingerprint(authored), now)   // every write derives from st
-        //  mismatch first seen           -> [X1] signalWriter.clear; reauthor := (fp, since = now, confirmed = false);
-        //                                   journal DispositionReauthored
-        //  mismatch held >= P, unconfirmed -> transition(lastTransitionAt := now, confirmed := true)   [X1] no clear
-        //  fingerprint back to lived fp  -> [X1] signalWriter.clear; reauthor := null; journal DispositionReauthorReverted
+    signalWriter.drain(tenantId, agentId)                                // [X2] R2-03: coalesced activations reach the
+                                                                         //   store before any epoch, decay or probe step
+    fp = fingerprint(authored)
+
+    // 0a(b). [X2] Signal epoch, ALL agents (R2-02): keyed on epochFingerprint, independent of livedProfile
+    if s.reflection().epochFingerprint == null:
+        s = transition(st -> st.withReflection(st.reflection().withEpochFingerprint(fp)))      // first sight: no clear
+    else if s.reflection().epochFingerprint != fp:
+        signalWriter.clear(tenantId, agentId)                            // clear BEFORE the key moves (crash → re-clear)
+        s = transition(st -> st.withReflection(st.reflection().withEpochFingerprint(fp)))
+        journal DispositionSignalEpochReset(old, fp)
+
+    // 0a(a). (A) [R3] Lived-profile validity, only if livedProfile != null: DORMANT, never deleted (§[S3] Authored edits)
+    //     Evaluated only at a due reflection, so it costs no per-run findById. [X2] Clears nothing.
+    (s, reauthorPending) = reconcileReauthoring(s, fp, now)              // every write derives from st
+        //  livedProfile == null            -> no-op; reauthorPending = false
+        //  mismatch first seen             -> reauthor := (fp, since = now, confirmed = false); journal DispositionReauthored
+        //  mismatch held >= P, unconfirmed -> transition(lastTransitionAt := now, confirmed := true)
+        //  fingerprint back to lived fp    -> reauthor := null; journal DispositionReauthorReverted
         //  returns true while an unconfirmed re-authoring is pending (step 3 then defers any Evolved)
 
     // D. [R2] Decay exactly once per period: marker first, then decay (R2-03)
@@ -631,7 +695,9 @@ There is no separate ledger store. `DispositionEvolutionLedgerStore` and its `ev
 - **[R]** `pendingEvolution` (the intent: absolute new profile, transition-case features, intent id);
 - **[R]** `disabled` (rc = 0).
 - **[R2]** `decayedThrough` (`Instant`): the end of the last decayed period, so decay happens exactly once per period (R2-03). It is initialised to `lastReflectionAt`. **[R3]** A thrown `decay` restores its previous value (R3-01).
-- **[R3]** *(A)* `reauthor` (`Reauthor(fingerprint, since, confirmed)`, nullable): tracks an authored-profile mismatch that has not been confirmed or reverted yet (R3-02). It is encoded as `jpaf.reauthor.*` properties.
+- **[R3]** *(A)* `reauthor` (`Reauthor(fingerprint, since, confirmed)`, nullable): tracks an authored-profile mismatch that has not been confirmed or reverted yet (R3-02). It is encoded as `jpaf.reauthor.*` properties. **[X2]** Only for agents with a lived profile.
+- **[X2]** `epochFingerprint` (`String`, nullable until the first due reflection): the authored fingerprint the current signal epoch is being recorded under (R2-02). It applies to every agent. Step 0a(b) clears the epoch when it differs from the current authored fingerprint.
+- **[X2]** `lastTransitionFromLabel` (`String`, nullable): the `previousLabel` of the last committed transition, copied by `closeEpoch`. Rule 3 uses it to flag reversals (R2-01).
 - **[R2]** `auditOutbox` (list of `AuditEntry(intentId, case, attempts, nextAttemptAt)`): pending CBR transition cases (R2-04). Encoded as `jpaf.audit.<intentId>.*` properties.
 - **[R2]** `inert` (boolean): the edge-trigger memory for `DispositionInputInert` (R2-09). The phase writes it in step 4's `transition`.
   - The per-period counts it is derived from are **not** state. The recorder keeps them in its own in-memory `ConcurrentHashMap<TenantAgentKey, InputCounts>` (two `LongAdder`s: seen and relevant). The phase drains them at each due reflection, so the recorder hot path never touches `PersonalityState`, and §[S2]'s transition-only rule holds.
@@ -673,9 +739,9 @@ private <E> void record(E ev, String tenantId, String agentId):
     for a in source.translate(ev, authored):                   // [X1] D23: targets ranked against AUTHORED
         if a.functionTerm() in authored profile terms: terms += a.functionTerm()   // = lived membership
         else: debug-log + personality.signal.dropped{reason=unknown-term}
-    signalWriter.recordActivations(tenantId, agentId, terms)   // [R3] per-agent serialised, REQUIRES_NEW;
-                                                               // [S2] 3-arg recordActivation: no valence;
-                                                               // [X1] bounded lock wait, see Hot-path cost
+    signalWriter.enqueue(tenantId, agentId, terms)             // [X2] R2-03: in-memory coalesce, never waits, never
+                                                               //   drops; opportunistic non-blocking flush (see writer);
+                                                               // [S2] 3-arg recordActivation at flush: no valence
   catch RuntimeException: WARN + personality.signal.record.failures      // [R] totality, both entries
 ```
 
@@ -729,9 +795,15 @@ private <E> void record(E ev, String tenantId, String agentId):
   ```java
   public final class DispositionSignalWriter {          // plain class; produced as a bean per runtime
       DispositionSignalWriter(DispositionSignalStore store, IsolatedTransactions tx);
-      void recordActivations(String tenantId, String agentId, List<String> terms);
-      void decay(String tenantId, String agentId, double factor);
-      void clear(String tenantId, String agentId);
+      // [X2] R2-03: activations are coalesced in memory, then written in batches
+      void enqueue(String tenantId, String agentId, List<String> terms); // hot path: pending[key][term].incrementAndGet();
+                                                                          //   then tryFlush: stripe.tryLock() with NO wait;
+                                                                          //   if acquired, drain under it; else return
+      void drain(String tenantId, String agentId);       // stripe.lock(); take = getAndSet(0) per term; one requiresNew
+                                                         //   batch (recordActivation × n per term); on throw, add back
+      void decay(String tenantId, String agentId, double factor);   // stripe.lock(); drain; then decay
+      void clear(String tenantId, String agentId);       // stripe.lock(); DISCARD pending (getAndSet(0)); then clear
+      @PreDestroy void flushAll();                       // graceful shutdown drains every agent
   }
   public interface IsolatedTransactions {               // cognition-api: runtime-neutral port
       void requiresNew(Runnable work);                  // run in a new transaction; never join the caller's
@@ -744,8 +816,17 @@ private <E> void record(E ev, String tenantId, String agentId):
     - `decay`'s overwrite of in-flight increments;
     - the in-memory store's decay/clear races.
 
-    The recorder, the phase's `decay`/`clear` and the recovery path all go through the writer. Neither the recorder nor the phase injects `DispositionSignalStore`. The single-instance contract (#1104) is the existing deployment assumption. eidos#241 remains the store-level fix for multi-instance deployments and non-neocortex writers. It is not blocking, because neocortex no longer depends on it for correctness.
-  - **Cost.** The lock is held for one short transaction (one `find` plus one update or insert). It contends between concurrent sessions of the **same** agent, and between agents sharing a stripe (rare at 256 stripes). **[X1]** Locks are never evicted (R1-04). Hot-path stall behaviour is bounded below.
+    The recorder, the phase's `drain`/`decay`/`clear` and the recovery path all go through the writer. Neither the recorder nor the phase injects `DispositionSignalStore`.
+  - **[X2] Coalescing (R2-03).** Round 1 bounded hot-path waits by *dropping* a turn's activations on `tryLock` timeout, and argued (A4) that drops preserve the term ratio in expectation. That argument does not hold. Valence is per-agent mood (`mood.currentMood(agentId, tenantId)`), so concurrent sessions of one agent emit the same valence at the same moment. Contention bursts therefore drop activations of **one** term, which is the same structure as the R1-08 hottest-row loss. Coalescing removes the drop and the question with it:
+    - **Pending buffer.** `ConcurrentHashMap<TenantAgentKey, ConcurrentHashMap<String, AtomicLong>>`. Its size is bounded by agents × profile terms, because it holds counts, not events. `getAndSet(0)` takes counts atomically. A `LongAdder` was rejected: `sumThenReset` can lose increments that race with it.
+    - **Hot path.** `enqueue` increments the counters and makes one **non-waiting** `tryLock()`. If it gets the stripe, it drains the agent's pending counts in one isolated batch. Otherwise it returns, and the counts stay buffered for the stripe holder's successor, the next turn, or the phase. Nothing is dropped and no speech thread ever waits on another writer.
+    - **Every phase-side operation drains first.** `decay` drains before decaying, so activations recorded in the period are decayed with it. The phase calls `drain` at the start of each due reflection (run() step 0a), so the probe sees every activation enqueued before it.
+    - **`clear` discards the pending counts** before clearing the store. That instant is the epoch boundary: activations enqueued before it belong to the closing epoch, and those after it to the next.
+    - **Failure.** A batch that throws adds its taken counts back. A signal-store outage therefore *buffers* activations instead of losing them, whereas round 1 caught and lost each failed write.
+    - **Loss window.** Only a process crash loses the pending counts, which are normally empty, because flushes happen on almost every turn. `@PreDestroy` flushes on graceful shutdown. This is the same class as the accepted `clear → closeEpoch` crash under-count.
+    - **Batch write.** The store SPI has only `recordActivation(+1)`, so a batch calls it `n` times inside one `requiresNew`. For JPA that is one managed entity, incremented in memory, with one flush. A bulk add is noted on eidos#241.
+    - **Withdrawn:** `recordLockWait`, `personality.signal.dropped{reason=contention}` and assumption A4. The single-instance contract (#1104) is the existing deployment assumption. eidos#241 remains the store-level fix for multi-instance deployments and non-neocortex writers. It is not blocking, because neocortex no longer depends on it for correctness.
+  - **Cost.** The lock is held for one short batch transaction (one `find` plus one update or insert per term). It contends between concurrent sessions of the **same** agent, and between agents sharing a stripe (rare at 256 stripes). **[X1]** Locks are never evicted (R1-04). **[X2]** The hot path never waits for the lock (coalescing, above).
   - **Transaction isolation without proxy self-invocation (R2-05).** Isolation is programmatic, behind the port, so it does not depend on `@Transactional` interception at all. That rules out both failure modes the review found: Spring's proxy bypass on a `this.` call, and ArC's non-interception of private methods.
 
     | Runtime | `IsolatedTransactions` implementation | Selected by |
@@ -756,7 +837,9 @@ private <E> void record(E ev, String tenantId, String agentId):
 
     `JtaIsolatedTransactions` uses only `jakarta.transaction-api`, a compile-scope dependency of cognition, so cognition gains no Narayana or Spring dependency.
   - **Tests** (§Testing 13):
-    - 8 threads × 100 activations on the dominant term give exactly 800.
+    - 8 threads × 100 activations on the dominant term give exactly 800 after `drain`. **[X2]** This holds with an injected 100 ms store latency, where most `tryLock`s fail and nothing is dropped.
+    - **[X2]** Concurrent same-valence sessions with a store that throws for 10 s: no activation is lost once the store recovers.
+    - **[X2]** A `clear` concurrent with enqueues: each activation is counted in exactly one epoch.
     - Concurrent first activations do not throw.
     - Concurrent `decay` loses no increment.
     - The counter-example above (dominant increments under concurrency) commits **no** swap.
@@ -764,13 +847,10 @@ private <E> void record(E ev, String tenantId, String agentId):
 - **[R2] Hot-path cost (R2-05), corrected in [X1] (R1-05).** Each non-NEUTRAL interaction turn costs:
   1. `stateService.read`, which on a cache hit takes **no state-service lock** and does no I/O;
   2. one `agentRegistry.findById`, an indexed read;
-  3. one short isolated JPA write through `DispositionSignalWriter`, **under the agent's writer stripe**, with the `REQUIRES_NEW` commit inside the lock. That is a DB round trip on the speech thread.
+  3. **[X2]** `DispositionSignalWriter.enqueue`: an in-memory increment plus one non-waiting `tryLock()`. If the stripe is free, there is one batched isolated write under it, a DB round trip on the speech thread. If it is held, there is no I/O and no wait.
 
   - **NEUTRAL and misses.** NEUTRAL turns return at `relevant()` with no I/O and no lock. A state-cache miss loads the node under the agent's state stripe (§[S2] `read`). That happens once per agent after a restart, since **[X1]** there is no eviction. The worst case is one MindMap node read plus waiting for one in-flight `transition` stripe-mate.
-  - **Stall behaviour.** A slow signal store stalls the turn that holds the writer stripe, for the DB latency, which is unavoidable for a synchronous write. Without a bound, it would also block every other session of that agent, and its stripe-mates, behind it.
-    - **The bound.** The recorder acquires the writer stripe with `tryLock(recordLockWait)`, default 50 ms. On timeout it drops that turn's activations and increments `personality.signal.dropped{reason=contention}`.
-    - **Why dropping does not reintroduce the R1-08 bias.** That bias came from lost *updates* on the hottest row. A contention drop removes whole turns at the rate they arrive, so in expectation it preserves the ratio between terms.
-    - **The phase waits.** Its `decay`/`clear` calls wait without a timeout: they are on the consolidation thread, and skipping them would break exactly-once decay (D17).
+  - **Stall behaviour, [X2] (R2-03).** A slow signal store stalls only the one turn that holds the writer stripe, for the DB latency. Every other session of that agent, and its stripe-mates, fails `tryLock()`, buffers its counts and returns at once. No activation is dropped. Round 1's `tryLock(recordLockWait)` drop is withdrawn, because the drops it caused were biased toward one term (see Coalescing). The phase's `drain`/`decay`/`clear` take the stripe with a blocking `lock()` on the consolidation thread, because skipping them would break exactly-once decay (D17).
   - **Why `read`, not a cache-only peek.** The `disabled` check goes through `read` so a miss sees the persisted ledger. **[X1]** Ranking no longer depends on the lived profile (D23), so the R2-02 rationale for `read` is replaced by this one.
 
 #### `TraitPressureSource<E>` kept; `TraitActivation` loses its valence [S2]
@@ -796,21 +876,19 @@ public record DispositionEvolutionConfig(
     Duration reflectionPeriod,        // JPAF reflection grid (default 24h; issue-126 D3)
     double retentionPerReflection,    // signal retention per reflection period (default 0.8,
                                       //   unchanged from PersonalityEvolutionConfig.DEFAULT_DECAY_FACTOR)
-    Duration minTransitionInterval,   // [R] committed-transition rate bound per agent at rc = 1 (default 30d);
+    Duration minTransitionInterval    // [R] committed-transition rate bound per agent at rc = 1 (default 30d);
                                       //   [X1] effective bound = minTransitionInterval / relationalComplexity
-    Duration recordLockWait           // [X1] recorder's bounded wait for the writer stripe (default 50ms)
 ) {}
 ```
 
-**[X1]** `l2Ceiling` is deleted with the halt (D24).
+**[X1]** `l2Ceiling` is deleted with the halt (D24). **[X2]** Round 1's `recordLockWait` is deleted with the contention drop (R2-03).
 
 Validation (compact constructor):
 - `reflectionPeriod` is positive.
 - `retentionPerReflection ∈ [0, 1)`. **[R]** 1 is excluded: with no decay, pending pressure never fades, so the retained counts would be unbounded (`c* = a·r/(1−r)`).
 - **[R]** `minTransitionInterval ≥ reflectionPeriod`.
-- **[X1]** `recordLockWait` is positive.
 
-`defaults()` returns `(24h, 0.8, 30d, 50ms)`.
+`defaults()` returns `(24h, 0.8, 30d)`.
 
 **Source** *[C3: moved here; covers all four components]*: MicroProfile config, with each key falling back to its `defaults()` value. This follows the `@ConfigProperty` style of the sibling cognition phases, for example `RelationalSchemaEvolutionPhase`.
 
@@ -819,7 +897,6 @@ Validation (compact constructor):
 | `reflectionPeriod` | `casehub.cognition.personality.reflection-period` | ISO-8601 duration |
 | `retentionPerReflection` | `casehub.cognition.personality.retention-per-reflection` | double |
 | `minTransitionInterval` | `casehub.cognition.personality.min-transition-interval` | ISO-8601 duration |
-| **[X1]** `recordLockWait` | `casehub.cognition.personality.record-lock-wait` | ISO-8601 duration |
 
 **[R] Promotion parameters** (`promoteFraction` 0.8, `promoteDwell` 30 d, `promotionBudget` 0.20) are added to `DynamicsConfig`, the integrator's config record. It currently has no validation, so a compact constructor is added. It rejects:
 - `promoteFraction ∉ (0, 1]`
@@ -959,7 +1036,7 @@ effectiveDefaults.updateState(snapshot(s))    // final publication (higher versi
   3. **It was racy.** "Evict with the unheld lock" could hand out two locks for one key.
 
   #1060 therefore evicts nothing and does **not** close any part of #1089. Locks are striped and never evicted (§[S2]), so a future eviction can only ever touch caches. The requirements for that future fix are recorded on #1089: an agent-lifecycle retirement source, visits without residency, and cache-only eviction.
-- **State source.** `PersonalityStateService` implements `PersonalityStateSource` (`find`, and **[X1]** `stateVersion`, both load-through and never creating), and `DefaultPersonalityStateSource` (always empty) is deleted. A rebuilt or restarted `EffectiveCognitiveDefaults` slot then composes persisted `homeOffset`/`promoted` (and, under (A), the lived profile) instead of silently dropping them (§Production wiring).
+- **State source.** `PersonalityStateService` implements `PersonalityStateSource` (`find`, and **[X1]/[X2]** `compositionVersion`, both load-through and never creating), and `DefaultPersonalityStateSource` (always empty) is deleted. A rebuilt or restarted `EffectiveCognitiveDefaults` slot then composes persisted `homeOffset`/`promoted` (and, under (A), the lived profile) instead of silently dropping them (§Production wiring).
 
 **Integrator baseline.** `PersonalityStateIntegrator.baselineFor` currently returns a hard-coded 0.5 when it clamps displacement. Promotion needs real baselines, and so does correct clamping. The integrator therefore takes per-facet baselines from the `DescriptorView`:
 
@@ -997,6 +1074,8 @@ There is no cross-family drift norm. Weight-simplex deltas and facet-scale offse
 - `PersonalityFacetPromoted(tenantId, agentId, ref, at, facet, delta, newScore, cumulativePromoted)`
 - `PersonalityPromotionCapped(tenantId, agentId, ref, at, facet, homeOffset, cumulativePromoted)`: **[R2]** on entry to the capped state only, with `PersonalityPromotionUncapped(tenantId, agentId, ref, at, facet)` on exit (`FacetState.cappedSince` edge)
 - **[R2]** `ReflectionClockRegressed`, `DispositionTransitionStalled`, `DispositionTransitionAuditFailed`: each once per event (§JPAF commit ordering, §Clock regression)
+- **[X2]** `DispositionSignalEpochReset(tenantId, agentId, ref, at, oldFingerprint, newFingerprint)`: once per detected authored-profile change, for every agent (§[S3] (b))
+- **[X2]** `DispositionReversal(tenantId, agentId, ref, at, previousLabel, newLabel, sinceLastTransition)`: once per committed A→B→A transition (§[X1] Rule 3), with the counter `personality.disposition.reversals{tenant}`
 
 **Attention signals.** **[X1]** One value, `PERSONALITY_EVOLVED`, is added to `io.casehub.neocortex.mindmap.SignalCategory` (mindmap-api). `PERSONALITY_HALT` is dropped with the halt (D24). This is the enum used by `ConsolidationPhase.signals()` / `AttentionSignal` and consumed by `ConsolidationScheduler`. The `mindmap.intelligence.SignalCategory` enum is not touched.
 
@@ -1042,8 +1121,8 @@ No signal is emitted for ordinary hourly `homeOffset` drift. It changes every ho
 | **[R3]** `DispositionSignalWriter` | cognition (`cognition.personality`) | sole neocortex mutator of `DispositionSignalStore`; per-agent serialised |
 | **[R3]** `IsolatedTransactions` (port) | cognition-api | runtime-neutral REQUIRES_NEW |
 | **[R3]** `JtaIsolatedTransactions`, `DirectIsolatedTransactions` | cognition | CDI implementations; `jakarta.transaction-api` only. The Spring `TransactionTemplate` implementation lives in agency-spring (agency#487) |
-| **[R]** `PersonalityStateService`: `TenantAgentKey` keys, persisted `agentIds`, **[X1]** striped locks (no eviction), and the `PersonalityStateSource` impl incl. `stateVersion` (on top of §[S2] `transition`) | cognition | single serialised state owner |
-| **[X1]** `PersonalityStateSource.stateVersion`, two-version slot freshness | cognitive-index | derived view pulls lived state; `updateState` deleted |
+| **[R]** `PersonalityStateService`: `TenantAgentKey` keys, persisted `agentIds`, **[X1]** striped locks (no eviction), and the `PersonalityStateSource` impl incl. `compositionVersion` (on top of §[S2] `transition`) | cognition | single serialised state owner |
+| **[X1]** `PersonalityStateSource.compositionVersion` (**[X2]** quantised composition key), two-version slot freshness | cognitive-index | derived view pulls lived state; `updateState` deleted |
 | **[R]** `EffectiveCognitiveDefaults`, `PersonalityStateService`, `PersonalityStateIntegrator`, `DynamicsConfig` producers | cognition (`CognitionDefaultBeans`) | first production wiring; `DefaultPersonalityStateSource` deleted |
 | Journal entry types | alongside `CognitiveEntry` | |
 | `PERSONALITY_EVOLVED` | mindmap-api `SignalCategory` | **[X1]** no `PERSONALITY_HALT` |
@@ -1057,7 +1136,7 @@ No signal is emitted for ordinary hourly `homeOffset` drift. It changes every ho
 | `PersonalityEvolutionConfig` (cognition-api) | `DispositionEvolutionConfig` |
 | **[S2]** `TraitActivation.valence` (`SignalValence` component) | nothing: polarity is encoded by target-term selection (D13) |
 | **[S2]** `SituationalStateService` (name) | `PersonalityStateService`. Public `persist` / `loadOrCreate` / `currentState` become private behind `transition` / `read` |
-| **[X1]** `EffectiveCognitiveDefaults.updateState`, the participant's `isDirty` publish gate, the deformation phase's `facetsWithDrift > 0` publish | slot freshness on `stateSource.stateVersion` (pull) |
+| **[X1]** `EffectiveCognitiveDefaults.updateState`, the participant's `isDirty` publish gate, the deformation phase's `facetsWithDrift > 0` publish | slot freshness on `stateSource.compositionVersion` (pull) |
 | **[X1]** `ReflectionLedger.halted`, `ReflectionOutcome.Halted`, `DispositionEvolutionConfig.l2Ceiling`, `PERSONALITY_HALT` | rc-scaled rate bound on committed transitions (D24) |
 
 The Agency producers of the orchestrator are removed in agency#487, in the same change window.
@@ -1152,7 +1231,7 @@ All gates are wall-clock: reflection grid, interval, dwell, and integrator hours
 2. **`DispositionSignalRecorder` unit tests:**
    - NEUTRAL produces no registry lookup.
    - **[X1]** Targets are ranked on the authored descriptor. With a lived swapped profile, POSITIVE increments the authored dominant and NEGATIVE the authored auxiliary.
-   - **[X1]** A writer stripe held past `recordLockWait` drops that turn and increments `personality.signal.dropped{reason=contention}`. It never blocks longer.
+   - **[X2]** A held writer stripe makes `enqueue` buffer the turn and return without waiting. The buffered counts reach the store at the next successful flush, and nothing is dropped.
    - A term not in the profile is dropped and logged.
    - Startup fails on duplicate `eventType()` sources.
    - `ExperienceRecorded` is not observed.
@@ -1221,7 +1300,7 @@ All gates are wall-clock: reflection grid, interval, dwell, and integrator hours
     - **Clock regression (R2-06):** set the clock back by 2 periods. There is no decay with factor > 1, `lastReflectionAt` never moves backwards, and exactly one `ReflectionClockRegressed` is journaled.
     - **Signal-store concurrency (R1-08):** superseded by §Testing 13. With the [R3] writer, counts are exact, not a lower bound.
     - **Transaction isolation (R2-05):** superseded by §Testing 13, which runs under both the CDI and the Spring wiring.
-    - **Hot path (R2-05), [X1] scoped (R1-05):** a cache-hit interaction acquires no `PersonalityStateService` stripe. A non-NEUTRAL turn acquires the `DispositionSignalWriter` stripe exactly once, for one isolated write, and waits at most `recordLockWait`.
+    - **Hot path (R2-05), [X1] scoped (R1-05):** a cache-hit interaction acquires no `PersonalityStateService` stripe. **[X2]** A non-NEUTRAL turn makes exactly one non-waiting `tryLock()` on the `DispositionSignalWriter` stripe, and its thread never parks on that lock.
     - *(A)* **Lived-descriptor consumers (R2-02):**
       - **[X1] Reversed (D23).** After a lived `TI-NE → NE-TI` swap, a NEGATIVE interaction increments the authored auxiliary `ne`.
       - The second transition's CBR case has `old_dominant = ne`.
@@ -1253,11 +1332,12 @@ All gates are wall-clock: reflection grid, interval, dwell, and integrator hours
       - A JPAF commit with no facet drift and no other writer is visible at the next `forAgent()`.
       - An idle agent whose displacement fast-forwards below ε shows the decayed displacement at the next read. This is the rev-2 stale-snapshot case.
       - A latched interleaving of `updateBase` with a `transition` installs a mixed-version slot, and the next read re-derives it.
-      - `stateVersion` on an unknown agent creates no node.
+      - `compositionVersion` on an unknown agent creates no node.
+      - **[X2] Cost (R2-04):** 100 participant ticks whose offsets stay inside one ε cell cause 0 re-derivations beyond the per-tick `updateBase`. A drift of 0.001 per tick re-derives exactly once per grid crossing, and the slot never lags the exact state by more than ε per facet. A promotion does not bump `compositionVersion`; a JPAF commit (1) does.
     - **Locks and enumeration (R1-04):**
       - 10 000 random `(tenant, agent)` keys acquire stripes concurrently with `transition`s. No two threads are ever inside the critical section for the same key, and the lock array size is constant.
       - An agent removed from the registry with a non-empty `auditOutbox` still has its outbox flushed, or given up with `DispositionTransitionAuditFailed`.
-    - **Re-authoring epoch (R1-06):** edit → detection (`clear`) → revert → detection (`clear`). Afterwards no count sits on a term whose authored role differs from its role when recorded.
+    - **Re-authoring epoch (R1-06), [X2] for all agents (R2-02):** edit → detection (`clear`) → revert → detection (`clear`), run once on an evolved agent and once on an agent that has never evolved. Afterwards no count sits on a term whose authored role differs from its role when recorded. Only the evolved agent journals `DispositionReauthored`/`Reverted`, and only it changes `lastTransitionAt` on confirmation.
 
 ## Decisions
 
@@ -1283,6 +1363,10 @@ See `decisions.md`. *[C3: complete index]*
 | D24 | JPAF safety bounds committed change (rc-scaled rate bound); no halt | [X1] |
 | D25 | The derived view pulls lived state; `updateState` deleted | [X1] |
 | D26 | Striped, never-evicted locks; no eviction in #1060; enumeration is registry ∪ persisted | [X1] |
+| D27 | Signal epoch keyed on `epochFingerprint` for every agent (amends D22) | [X2] |
+| D28 | Coalesced recorder activations; no hot-path wait, no drop (amends D20) | [X2] |
+| D29 | Freshness on a quantised composition version (amends D25) | [X2] |
+| D30 | D23 precondition on Eidos parameters; reversals observed (amends D23) | [X2] |
 
 The store-of-record choice (R1-01) is deliberately not a numbered decision until the human makes it.
 

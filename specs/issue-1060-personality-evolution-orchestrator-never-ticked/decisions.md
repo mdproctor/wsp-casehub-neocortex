@@ -125,7 +125,7 @@ Re-implementing them would lose shadow replacement and structural reorganisation
 - PID-5: `dMax` and the cumulative promotion budget.
 
 **Alternatives:** Rev 1's single L2 across Jungian weights and facet offsets. Rejected: the units are not commensurable, the check ran after the writes, and halt ownership was unclear (R1-07).
-**Status:** captured (rev 2)
+**Status:** captured (rev 2). **JPAF half superseded by D24** (cross-cutting round 1): the L2 halt is deleted. The PID-5 half stands.
 
 ## D8: Failure ordering for PID-5 promotion
 
@@ -345,4 +345,147 @@ It is persisted as `jpaf.*` properties on the agent's `PERSONALITY_STATE` node, 
 
 **Rationale:** D16's principle stands, that authored identity wins. It is enforced by the pure read rule; deleting the lived profile was never needed to enforce it.
 
-**Status:** captured (robustness round 3), conditional on R1-01 = A
+**Cross-cutting round 1 amendment (R1-06, with D23):** the signal epoch is keyed to the authored fingerprint.
+- `clear` runs when a mismatch is first detected and again when a revert is detected.
+- Confirmation no longer clears; it only resets `lastTransitionAt`.
+- **Why.** The recorder ranks against the authored profile (D23). Any authored change in either direction leaves counts credited to the wrong role. Round 3's "signals intact on revert" kept counts ranked against the edited profile.
+- **Cost.** An under-count of at most one detection lag per change.
+
+**Status:** captured (robustness round 3), conditional on R1-01 = A; amended (cross-cutting round 1)
+
+## D23: Activation targets are anchored to the authored profile (cross-cutting R1-01)
+
+**Choice:** Pressure sources rank dominant and auxiliary against the **authored** descriptor: POSITIVE activates the authored dominant, NEGATIVE the authored auxiliary. The probe still evaluates the lived descriptor.
+
+**Alternatives:**
+- **Rank against the lived profile (ROB-R2-02, rev 2).** Rejected. It has no fixed point under negative-leaning input: after a swap, NEGATIVE reinforces the new auxiliary, which is the old dominant. The type alternates at the rate bound forever (verified against `DefaultDispositionHealth`/`DefaultDispositionEvolution`).
+- **A neocortex reversal refractory** (reviewer option ii). Rejected. It only lengthens the cycle, and it second-guesses validity (D6).
+- **"Strain activates the demoted term"** (reviewer option i). Rejected. The demoted term *is* the lived auxiliary, so this is the rev-2 rule.
+- **Accept the oscillation** (reviewer option iii). Rejected. It contradicts "lasting change".
+
+**Rationale:**
+- Production valence is mood-derived, not feedback on the function in use. Unattributed valence is meaningful only against a fixed reference, and authored identity is the agent's only fixed reference.
+- One-sided and leaning input then reaches a fixed point. Over-reinforcement of the adapted dominant, which Eidos checks first, holds it there.
+- D13 (polarity by target selection) is kept.
+
+**Residual:** a dead zone in the Eidos swap criteria, where both arrangements qualify. Filed as eidos#242. Until it lands, transitions there are bounded by D24's rate bound.
+**Status:** captured (cross-cutting round 1)
+
+## D24: JPAF safety bounds committed change; no halt (cross-cutting R1-02; supersedes D7's JPAF half)
+
+**Choice:**
+- Delete the L2 drift halt (`halted`, `Halted`, `l2Ceiling`, `PERSONALITY_HALT`). Every `Drifted` is `Drifting`, and recording is never gated by pressure.
+- `relationalComplexity` scales the committed-transition rate bound: `minTransitionInterval / rc`. rc = 0 is its limit (disabled).
+
+**Rationale** (each point verified):
+1. `probe` returns `EvolutionPending` before the generic `Drifted`, so the halt never prevented a transition.
+2. Count-adjusted weights are read only by the evaluator. Derived cognition composes committed state only.
+3. Pending pressure is bounded by decay.
+
+So the halt's only effects were a valence filter and attention flooding:
+- contented agents halted every few days;
+- at rc = 0.8 with 2 NEG per period, the halt blocked the swap permanently.
+
+The PEO rationale for rc ("tolerating larger personality adjustments") concerns committed change, which is now what rc governs.
+
+**Alternatives:**
+- **Halt only on non-dominant drift** (reviewer option i). Rejected: balanced input still halts before the swap point.
+- **Scope the gate to `mostActivated`** (option ii). Rejected: it still filters by valence.
+- **Halt hysteresis** (option iii). Rejected: the reviewer notes it keeps the valence filter.
+
+**Status:** captured (cross-cutting round 1)
+
+## D25: The derived view pulls lived state; nobody publishes (cross-cutting R1-03)
+
+**Choice:**
+- An `EffectiveCognitiveDefaults` slot is fresh only while both its base version and its state version (`PersonalityStateSource.stateVersion`, load-through, never creating) are current. Otherwise it is re-derived on read.
+- `updateState` and every publish call are deleted.
+
+**Alternatives:**
+- **Every writer publishes its own result** (the reviewer's fix). Rejected: correctness depends on each writer remembering, which is how R1-03 happened. It also keeps two verified defects:
+  - the drift gate leaves an idle agent's decayed displacement unpublished;
+  - base-first installation loses a newer state snapshot to a concurrent `updateBase`.
+- **`transition` pushes.** Rejected: it creates a construction cycle between the two `@Singleton` producers.
+
+**Rationale:** It is the same staleness mechanism the base layer already uses, and every committed change is visible at the next read by construction.
+**Status:** captured (cross-cutting round 1)
+
+## D26: Striped, never-evicted locks; no eviction in #1060; enumeration is registry ∪ persisted (cross-cutting R1-04)
+
+**Choice:**
+- `PersonalityStateService` and `DispositionSignalWriter` each use a fixed `ReentrantLock[]` (256 stripes), indexed by `TenantAgentKey`.
+- #1060 evicts nothing and closes no part of #1089. The requirements for #1089 are recorded on the issue.
+- `DispositionEvolutionPhase` enumerates registry ∪ persisted agents.
+
+**Rationale:**
+- Rev 2's eviction had no driver, was defeated by per-run `transition`s, and could hand out two locks for one key, reopening STR-R2-01 and R1-08.
+- Striping bounds lock memory and removes the race by construction.
+- The union lets recovery and the audit outbox drain for agents that left the registry.
+
+**Status:** captured (cross-cutting round 1)
+
+## D27: The signal epoch has its own key, `epochFingerprint`, for every agent (cross-cutting R2-02; amends D22)
+
+**Choice:**
+- `ReflectionLedger.epochFingerprint` records the authored fingerprint the current signal epoch is being recorded under. It is set at the first due reflection without clearing.
+- Step 0a(b) clears the epoch whenever `fingerprint(authored) ≠ epochFingerprint`, for every agent, edits and reverts alike.
+- The lived-profile reconciliation (`reauthor`, D22) runs only when `livedProfile ≠ null`, and no longer clears anything.
+
+**Why:**
+- D23 makes every agent rank against the authored profile, so the signal epoch must be keyed on the authored fingerprint for every agent.
+- Round 1 detected changes with `authored fp ≠ lived fp`, which is undefined when `livedProfile` is null:
+  - read one way, an unevolved agent's edit never clears, so a swap is driven by mis-credited counts;
+  - read the other way, every unevolved agent is spuriously "re-authored" and its first transition is locked out for about 31 days.
+- The two questions (which lived profile is valid; which ranking the counts were earned under) have different keys.
+
+**Status:** captured (cross-cutting round 2)
+
+## D28: Recorder activations are coalesced in memory; the hot path never waits and nothing is dropped (cross-cutting R2-03; amends D20)
+
+**Choice:**
+- `DispositionSignalWriter.enqueue` increments a per-agent, per-term `AtomicLong` and makes one non-waiting `tryLock()`.
+  - If the stripe is free, it drains the agent's pending counts in one isolated batch.
+  - Otherwise it returns, leaving the counts for the next flush.
+- `drain` and `decay` drain under a blocking lock. `clear` discards the pending counts at the epoch boundary.
+- A failed batch adds its counts back. `@PreDestroy` flushes on graceful shutdown.
+
+**Alternatives:** Round 1's `tryLock(recordLockWait)` with a drop on timeout. *Rejected:* valence is per-agent mood, so concurrent sessions drop the *same* term during contention bursts, which reproduces the R1-08 hottest-row bias.
+
+**Rationale:**
+- Nothing is lost except on a process crash, which is the same class as the accepted epoch-boundary under-count.
+- A signal-store outage buffers activations instead of losing them.
+
+**Status:** captured (cross-cutting round 2)
+
+## D29: Derived-view freshness keys on a quantised composition version (cross-cutting R2-04; amends D25)
+
+**Choice:**
+- `PersonalityState.compositionVersion` increments only when the commit changes the composition key: per-facet resting and effective offsets on the `EPSILON_PUBLISH` grid, plus the exact lived profile.
+- Slot freshness compares it, not the per-commit `version`.
+
+**Alternatives:**
+- A raw per-commit version. *Rejected:* every participant tick and deformation run commits, so every ticking agent would be re-derived on every read after a tick.
+- "Changed by ≥ ε since the last bump". *Rejected:* it needs a stored reference snapshot per agent, and a grid does not.
+
+**Rationale:**
+- It restores and tightens the `isDirty` cost profile.
+- The slot lag is bounded by ε per facet.
+- Slow drift is always eventually published.
+
+**Status:** captured (cross-cutting round 2)
+
+## D30: D23's fixed points are conditional on Eidos parameters; neocortex observes reversals, not parameters (cross-cutting R2-01; amends D23)
+
+**Choice:**
+- **The precondition is stated.** The §[X1] stability claims hold for `OVER_REINFORCEMENT_THRESHOLD` T ≤ 0.50 at δ = 0.06. For T > 0.50 there is a volume-independent alternation band of width 2T − 1.
+- **Neocortex observes reversals.** `ReflectionLedger.lastTransitionFromLabel` is set at `closeEpoch`. A transition back to the pre-previous label journals `DispositionReversal` and increments `personality.disposition.reversals`. This is observability only.
+- **The fix belongs to Eidos.** eidos#242 is extended with the T analysis and a property test over (T, δ).
+
+**Alternatives:** The reviewer's per-tenant precondition journal and gauge, raised when T > 0.50. *Rejected:*
+- it is a false alarm for tenants whose input never enters the band;
+- it misses the T = 0.50 moderate-volume dead zone;
+- it couples neocortex to one Eidos preference and to the shape of Eidos's criteria.
+
+The reversal signal is exactly the defect, whatever causes it.
+
+**Status:** captured (cross-cutting round 2)
