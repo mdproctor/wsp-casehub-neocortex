@@ -11,8 +11,8 @@ design-repo: project
 design-section-hashes: 
 flyway-next-v: unknown
 check: 878
-done: casehubio/neocortex#1077
-active: casehubio/neocortex#1078
+done: casehubio/neocortex#1077,casehubio/neocortex#1078,casehubio/neocortex#1049
+active: casehubio/neocortex#1061
 
 ## Queue
 - [ ] casehubio/neocortex#1077 — AttentionSignalTest-pre-existing-failure
