@@ -2,7 +2,7 @@
 
 **Issue:** casehubio/neocortex#1060
 **Refs:** #712 (situational modulation, Era 7b), #1055 (EffectiveCognitiveDefaults), #126 (JPAF orchestrator), #1080 (absorbed)
-**Prerequisites:** casehubio/eidos#235, #1082, #1063 (see §Prerequisites)
+**Prerequisites:** #1082, #1063; under option (B) only: casehubio/eidos#235, casehubio/eidos#239 (see §Prerequisites; R1-01)
 **Follow-ups:** #1102, #1104 (single-instance deployment contract), casehubio/agency#487, casehubio/eidos#237
 **Date:** 2026-11-17 (rev 2, after the round-1 structure review; robustness amendments marked **[R]**, after the round-1 robustness review; structure round-2 amendments marked **[S2]**)
 
@@ -220,6 +220,16 @@ for agentId in effectiveDefaults.agentIds(tenantId):
     descriptor = agentRegistry.findById(agentId, tenantId) // the owner's view (A: + lived profile)
     if descriptor has no dispositionProfile: advance ledger via transition; continue
 
+    // 0. [C3] Enablement: recomputed every due reflection, never sticky
+    rc = effectiveDefaults.restingFor(tenantId, agentId).capacityConfig()?.relationalComplexityOrDefault() ?: 1.0
+    if config.l2Ceiling * rc == 0:                                      // evolution-disabled (rc = 0)
+        signalStore.decay(agentId, tenantId, config.retentionPerReflection ^ n)   // residual counts still drain
+        stateService.transition(..., s -> s.withReflection(
+            ledger.advancedBy(n * reflectionPeriod).withHalted(false).withDisabled(true)))
+        if !ledger.disabled: journal.record(DispositionEvolutionEnablementChanged(enabled = false, rc))
+        outcome Disabled(rc); continue                                  // no probe, no DispositionReflected
+    reenabled := ledger.disabled                                        // cleared by step 4's transition
+
     // 1. Decay: wall-clock, catch-up exact for missed periods
     signalStore.decay(agentId, tenantId, config.retentionPerReflection ^ n)
 
@@ -236,7 +246,9 @@ for agentId in effectiveDefaults.agentIds(tenantId):
 
     // 3. Commit: only after the decision is final  [R] intent-first, see "JPAF commit ordering"
     Evolved & now - ledger.lastTransitionAt < minTransitionInterval:
-              -> Deferred (no commit; signals keep decaying; halt := false)    [R] rate bound
+              -> Deferred(previousLabel, newLabel, triggerType,
+                          eligibleAt = ledger.lastTransitionAt + minTransitionInterval)
+                 (no commit; signals keep decaying; halt := false; no attention signal)   [R] rate bound
     Evolved:  stateService.transition(..., s -> s.withReflection(ledger.withPendingEvolution(e.newProfile, case)))  // (1) intent
               profileStore.update(agentId, tenantId, e.newProfile)     // (2) identity write (absolute); (A): lived profile, same update as (1)
               signalStore.clear(agentId, tenantId)                     // (3) close the signal epoch
@@ -246,7 +258,8 @@ for agentId in effectiveDefaults.agentIds(tenantId):
 
     // 4. Record
     ledger := ledger.advancedBy(n * reflectionPeriod).withHalted(halt)
-    stateService.transition(tenantId, agentId, now, s -> s.withReflection(ledger))   // [R] per [S2]
+    stateService.transition(tenantId, agentId, now, s -> s.withReflection(ledger.withDisabled(false)))   // [R] per [S2]
+    if reenabled: journal.record(DispositionEvolutionEnablementChanged(enabled = true, rc))   // [C3]
     journal.record(DispositionReflected(...outcome...))
     signals: Evolved -> PERSONALITY_EVOLVED (1.0)
              Halted  -> PERSONALITY_HALT (0.9) only when ledger.halted was false   [R] edge-triggered
@@ -285,6 +298,17 @@ This is the same principle as D8 for PID-5. Structure R2-05 proposed `clear → 
 
 **[R] Ceiling edge case.** `relationalComplexity` is validated to [0,1] (`CognitiveCapacityConfig`), so `l2Ceiling·rc` can be 0. In that case the agent is **evolution-disabled**: the recorder skips it, the phase skips reflection, and the ledger records `disabled` once and journals it once. Without this, rc = 0 flaps every period: halt, then decay to Aligned, then unhalt, then the next activation halts again, with a signal each time.
 
+**[C3] Enablement is recomputed, not latched.** Step 0 of `run()` re-derives `l2Ceiling·rc` at every due reflection from the agent's current resting `relationalComplexity`.
+- **Disable edge.** When the product is 0, the reflection:
+  - decays the residual counts;
+  - advances the ledger with `disabled = true` and `halted = false`, so a disabled agent is never also halted;
+  - skips the probe;
+  - yields `ReflectionOutcome.Disabled(rc)`.
+
+  `DispositionEvolutionEnablementChanged(enabled = false, rc)` is journaled only on the false → true edge of `ledger.disabled`. Repeated disabled reflections journal nothing.
+- **Re-enable rule.** The phase owns re-enabling. At the first due reflection where rc > 0, it evaluates normally, step 4 clears `disabled`, and the matching `enabled = true` entry is journaled.
+- **Recorder.** It reads `disabled` from the ledger, so after rc rises it keeps dropping activations for at most one `reflectionPeriod`, until that reflection runs. This is accepted. Re-reading `restingFor` on the recorder's hot path to close that window would put a CDE derivation into every interaction, and the dropped activations would only have counted from the re-enable onward anyway.
+
 **Halt is not sticky in this model.** Rev 2's drift is Eidos's L2 between the base and the *count-adjusted* effective weights. It measures pending pressure, not applied change. While halted, the recorder drops activations and the counts decay by `retention^n`, so drift falls and the halt clears at a later reflection. The robustness review's sticky-halt and restart-ratchet failure modes applied to rev 1, where drift was measured over applied changes and halt was held in memory.
 
 **[R] Enumeration cost.** `effectiveDefaults.agentIds(tenant)` performs one registry `find(all)` per run. Per-agent work is the cached ledger read, and `findById` happens only for agents whose reflection is due. That is O(registered agents) cheap reads per consolidation plus O(due agents) lookups, which is accepted at current scale (tens of agents per tenant).
@@ -314,25 +338,43 @@ The ledger is persisted as `jpaf.*` properties on the agent's existing `PERSONAL
 
 #### `DispositionSignalRecorder` (cognition, `cognition.personality`)
 
-An `@ApplicationScoped` CDI observer. It replaces `PersonalityEvolutionOrchestrator.record()`.
+An `@ApplicationScoped` bean. It replaces `PersonalityEvolutionOrchestrator.record()`. **[C3]** It has two entry points, one per event type, and both feed one shared pipeline:
 
 ```
+// Entry 1: CDI observer (RelationshipProcessor fires RelationshipRecorded)
 @Observes RelationshipRecorded e:
-    ev = e.event()
-    source = sources.forEventType(RelationshipEvent.class)   // at most one, see dedup rule
+    record(e.event(), e.event().tenantId(), e.event().agentId())
+
+// Entry 2: direct call. CognitionCore.recordInteraction → the recorder injected by
+// CognitionCoreFactory via CognitivePipelineBuilder.dispositionSignalRecorder(...)
+public void onInteractionAppraised(InteractionAppraised e):
+    record(e, e.tenantId(), e.agentId())
+
+// Shared pipeline: identical for both event types
+private <E> void record(E ev, String tenantId, String agentId):
+  try:
+    source = sources.forEventType(ev.getClass())              // at most one per type, see dedup rule
     if source == null || !source.relevant(ev): return          // NEUTRAL short-circuits here,
-                                                                // before any registry lookup
-    if stateService.read(ev.tenantId(), ev.agentId(), now).reflection().halted(): return
-    descriptor = agentRegistry.findById(ev.agentId(), ev.tenantId())   // lazy, only when needed
+                                                                // before any state or registry lookup
+    r = stateService.read(tenantId, agentId, now).reflection()
+    if r.halted() || r.disabled(): return                      // [C3] disabled (rc = 0) as well as halted
+    descriptor = agentRegistry.findById(agentId, tenantId)     // lazy; (A): lived descriptor; empty → debug skip
     for a in source.translate(ev, descriptor):
         if a.functionTerm() in descriptor profile terms:
             signalStore.recordActivation(agentId, tenantId, a.functionTerm())   // [S2] 3-arg: no valence
         else:
-            debug-log the dropped term (vocabulary mismatch is visible, not silent)
+            debug-log + personality.signal.dropped{reason=unknown-term}
+  catch RuntimeException: WARN + personality.signal.record.failures      // [R] totality, both entries
 ```
 
+**Why entry 2 is a direct call, not a CDI event.** `CognitionCore` is not a CDI bean, and it fires no CDI events. `CognitionCoreFactory` (`@ApplicationScoped`) builds it and hands it every collaborator, and the recorder is one more collaborator. Introducing CDI events for this one path would create a second wiring style inside `CognitionCore`. The shared private pipeline means both entries get the same `relevant` → halt/disabled → `findById` → membership → totality treatment.
+
 - **Signal units (activation, not valence).** One translated activation adds one count to the term. In `DefaultDispositionHealth.probe`, the effective weight is `normalise(base + count × REINFORCEMENT_DELTA)`, where `REINFORCEMENT_DELTA` is an Eidos tenant preference with default 0.06. No `DispositionSignalStore` honours `SignalValence`: `InMemoryDispositionSignalStore` and `JpaDispositionSignalStore` implement only the 3-arg `recordActivation`, and the 4-arg default drops valence. So every activation *reinforces* its term. `RelationshipPressureSource` maps NEGATIVE to the auxiliary, meaning the auxiliary is engaged under relational strain, as JPAF describes. That is what makes `DOMINANT_AUXILIARY_SWAP` reachable. This is the existing, intended semantics and is kept unchanged. Thresholds are therefore calibrated by the Eidos preferences (`REINFORCEMENT_DELTA`, `OVER_REINFORCEMENT_THRESHOLD`), not by a neocortex magnitude scale.
-- **One event type only.** It observes only `RelationshipRecorded`, the only event with a concrete pressure source. `ExperienceRecorded` is **not** observed. `RelationshipRecorded` is derived from it (`RelationshipProcessor.onExperienceRecorded`), so observing both would double-count one experience.
+- **[C3] Two event types, one source each.**
+  - `RelationshipRecorded` (CDI) → `RelationshipPressureSource`.
+  - `InteractionAppraised` (direct call) → `InteractionPressureSource`.
+
+  `ExperienceRecorded` is **not** observed: `RelationshipRecorded` is derived from it (`RelationshipProcessor.onExperienceRecorded`), so observing both would double-count one experience.
 - **Dedup rule.** Each event type in a derivation chain binds to at most one `TraitPressureSource`. The recorder builds a `Map<Class<?>, TraitPressureSource<?>>` at startup and **fails fast** if two sources declare the same `eventType()`. That replaces the orchestrator's order-dependent "first match wins". A future source for a primary event (`ExperienceRecorded`) must exclude experiences that produce a derived `RelationshipRecorded`. #1102 tracks the valenced sources.
 - **[R] Totality.** `RelationshipRecorded` is fired synchronously inside `RelationshipProcessor`'s try block, *after* the memory is stored. A synchronous observer exception would skip the remaining observers and be logged there as a misleading "Relationship memory store failed". The recorder is therefore total:
   - The body is wrapped in `try/catch (RuntimeException)`, which logs WARN with tenant and agent and increments `personality.signal.record.failures`.
@@ -383,6 +425,15 @@ Validation (compact constructor):
 
 `defaults()` returns `(24h, 0.8, 0.15, 30d)`.
 
+**Source** *[C3: moved here; covers all four components]*: MicroProfile config, with each key falling back to its `defaults()` value. This follows the `@ConfigProperty` style of the sibling cognition phases, for example `RelationalSchemaEvolutionPhase`.
+
+| Component | Key | Format |
+|---|---|---|
+| `reflectionPeriod` | `casehub.cognition.personality.reflection-period` | ISO-8601 duration |
+| `retentionPerReflection` | `casehub.cognition.personality.retention-per-reflection` | double |
+| `l2Ceiling` | `casehub.cognition.personality.l2-ceiling` | double |
+| `minTransitionInterval` | `casehub.cognition.personality.min-transition-interval` | ISO-8601 duration |
+
 **[R] Promotion parameters** (`promoteFraction` 0.8, `promoteDwell` 30 d, `promotionBudget` 0.20) are added to `DynamicsConfig`, the integrator's config record. It currently has no validation, so a compact constructor is added. It rejects:
 - `promoteFraction ∉ (0, 1]`
 - `promoteDwell ≤ 0`
@@ -391,7 +442,16 @@ Validation (compact constructor):
 - `sMax ≤ 0`
 - `epsilonPublish ≥ promoteFraction·dMax` (a promotable `homeOffset` must also be publishable)
 
-Each of these breaks a stated invariant. For example, `promoteFraction > 1` makes promotion unreachable, which is exactly the rev 1 defect. Source: MicroProfile config keys `casehub.cognition.personality.reflection-period`, `.retention-per-reflection` and `.l2-ceiling`, falling back to `defaults()`. This follows the `@ConfigProperty` style of the sibling cognition phases, for example `RelationalSchemaEvolutionPhase`.
+Each of these breaks a stated invariant. For example, `promoteFraction > 1` makes promotion unreachable, which is exactly the rev 1 defect.
+
+**[C3] Source of the promotion parameters.** They use the source `DynamicsConfig` already has: the `dynamics:` section of `cognition/src/main/resources/situational-personality.yaml`, parsed by `SituationalPersonalityConfigLoader.parseDynamics`. That method already reads per-key with defaults, for example `tau_setpoint` → `Duration.ofDays(180)`. Three snake_case keys are added in that file's convention:
+- `promote_fraction` (double, default 0.8);
+- `promote_dwell` (ISO-8601 duration, default `P30D`, parsed like `tau_setpoint`);
+- `promotion_budget` (double, default 0.20).
+
+A missing `dynamics:` section still yields `DynamicsConfig.defaults()`, which gains the three defaults. Validation runs in the new compact constructor, so YAML values and defaults are checked by the same rules. The `DynamicsConfig` bean in §Production wiring is `SituationalPersonalityConfig.dynamics()` from this loader.
+
+The two records keep different sources on purpose. `DynamicsConfig` is one section of the situational-personality YAML, alongside the mode, gain and classifier tables it is tuned with. `DispositionEvolutionConfig` is a new four-value record with no YAML home. Neither needs a second configuration mechanism.
 
 `dampeningFactor` is removed. The orchestrator never read it: the dampened path uses `EvolutionResult.Dampened.decayFactor()`, which comes from the Eidos tenant preference `DispositionPreferenceKeys.DECAY_FACTOR`. Dampening strength stays an Eidos-owned preference.
 
@@ -399,7 +459,7 @@ The config is renamed because it is family-specific. A neutral "personality" nam
 
 #### `ReflectionOutcome` (cognition, `cognition.personality`): replaces `EvolutionTick`
 
-A sealed type with the variants `Stable`, `Drifting(magnitude)`, `Halted(magnitude)`, `Evolved(previousLabel, newLabel, newProfile, triggerType)` and `Dampened(decayFactor)`. It is the per-agent result of one reflection and is used in the journal entry and in tests. The name is chosen so it does not collide with `io.casehub.eidos.api.DispositionEvolution.EvolutionResult`. `EvolutionTick` (cognition-api) is deleted.
+A sealed type with the variants `Stable`, `Drifting(magnitude)`, `Halted(magnitude)`, `Evolved(previousLabel, newLabel, newProfile, triggerType)`, `Dampened(decayFactor)`, **[C3]** `Deferred(previousLabel, newLabel, triggerType, eligibleAt)` (an `Evolved` result withheld by the [R] rate bound; nothing committed) and **[C3]** `Disabled(relationalComplexity)` (rc = 0; no probe ran). It is the per-agent result of one reflection and is used in the journal entry and in tests. The name is chosen so it does not collide with `io.casehub.eidos.api.DispositionEvolution.EvolutionResult`. `EvolutionTick` (cognition-api) is deleted.
 
 ### PID-5 baseline promotion (facet family)
 
@@ -434,8 +494,8 @@ At each `closeHour` boundary:
 
 The values are computed as follows:
 
-- `targetScore = round(100 · clamp01(baseline + homeOffset))` (Eidos AMPD scores are integer 0–100)
-- `delta = targetScore/100 − baseline`, which is the exact amount the identity write will apply
+- *(B)*: `targetScore = round(100 · clamp01(baseline + homeOffset))` (Eidos AMPD scores are integer 0–100), and `delta = targetScore/100 − baseline`, the exact amount the identity write will apply. `baseline` here is the registry baseline, which already includes past promotions, so `promoted` is not added.
+- *(A)* *[C3]*: no `targetScore` and no rounding. `delta = clamp01(baseline + promoted + homeOffset) − (baseline + promoted)`, where `baseline` is the authored baseline and `promoted` is a lived component.
 - **[S2] Facet-key contract: the identity owner owns it (structure R2-03).** The canonical AMPD facet names are the 13 title-case names already enforced by `AmpdFacetShift.VALID_FACETS`. Neocortex's `PersonalityFacet` constants and `SituationalStateService` keys are the same names. eidos#239 makes Eidos the single owner of the contract: `AmpdFacet` canonicalises its name on construction and on deserialisation, rejects unknown names, and rejects duplicate facets in a descriptor. After that, `EidosCognitiveProfileBridge.titleCase` is a no-op guard, not a load-bearing step.
   - *(A):* no facet write crosses the boundary (promotion moves `homeOffset` into `FacetState.promoted`), so the contract is read-only. #239 is hygiene, not a prerequisite.
   - *(B):* `updateFacets` is keyed by **canonical AMPD names only**, and eidos#239 is a **hard prerequisite** of B. The rev-2 workaround (map each state key to whatever authored spelling `titleCase`s to it) is superseded: it put an identity-boundary contract in the consumer, and it fails silently when two authored spellings collide.
@@ -489,8 +549,8 @@ effectiveDefaults.updateState(snapshot(s))    // final publication (higher versi
 - **No double count.** The identity write is absolute, and the state reduction happens before it.
 - **[R] Per-agent isolation.** The same try/catch / journal / continue contract as `DispositionEvolutionPhase` applies here. A promotion that fails for one agent cannot stop deformation or promotion for the rest of the tenant.
 - **[R] Bounded arithmetic.**
-  - `targetScore` is `round(100·clamp01(...))`, so the identity write is always a valid AMPD score.
-  - `delta` is computed from the clamped target, so any excess that the clamp cuts off stays in `homeOffset` and is never discarded.
+  - *(B)*: `targetScore` is `round(100·clamp01(...))`, so the identity write is always a valid AMPD score.
+  - *(A)* and *(B)*: `delta` is computed from the clamped value, so any excess that the clamp cuts off stays in `homeOffset` and is never discarded.
   - Resting composition (`EffectiveCognitiveDefaults.composeFacets`) already clamps to [0,1], so `PersonalityFacet` validation cannot throw.
 
 **[R] Robustness requirements on `PersonalityStateService`.** These are additions to §[S2]'s `transition` primitive, and every writer, including each step of this transaction, goes through `transition`. Steps (1) and (3) above are two `transition` calls, and the identity write (2) runs between them, outside the lock.
@@ -529,7 +589,8 @@ There is no cross-family drift norm. Weight-simplex deltas and facet-scale offse
 
 **Journal entries** (`CognitiveEntry`, alongside `SituationalDeformationConsolidated`), so evolution is auditable even when attention is disabled:
 
-- `DispositionReflected(tenantId, agentId, ref, at, outcome, magnitude, previousLabel, newLabel, triggerType)`: one per reflection that runs
+- `DispositionReflected(tenantId, agentId, ref, at, outcome, magnitude, previousLabel, newLabel, triggerType)`: one per reflection that runs a probe. `outcome` is the `ReflectionOutcome` variant name: `STABLE`, `DRIFTING`, `HALTED`, `EVOLVED`, `DAMPENED` or **[C3]** `DEFERRED`. For `DEFERRED`, the labels and `triggerType` are those of the withheld transition. A `Disabled` reflection runs no probe, so it writes no `DispositionReflected`.
+- **[C3]** `DispositionEvolutionEnablementChanged(tenantId, agentId, ref, at, enabled, relationalComplexity)`: one per edge of `ledger.disabled`, in both directions.
 - `PersonalityFacetPromoted(tenantId, agentId, ref, at, facet, delta, newScore, cumulativePromoted)`
 - `PersonalityPromotionCapped(tenantId, agentId, ref, at, facet, homeOffset, cumulativePromoted)`
 
@@ -583,7 +644,7 @@ No signal is emitted for ordinary hourly `homeOffset` drift. It changes every ho
 | `PersonalityEvolutionOrchestrator` | `DispositionEvolutionPhase` + `DispositionSignalRecorder` |
 | `EvolutionTick` (cognition-api) | `ReflectionOutcome` (cognition) |
 | `PersonalityEvolutionConfig` (cognition-api) | `DispositionEvolutionConfig` |
-| **[S2]** `TraitActivation.valence` (`SignalValence` component) | nothing: polarity is encoded by target-term selection (D10) |
+| **[S2]** `TraitActivation.valence` (`SignalValence` component) | nothing: polarity is encoded by target-term selection (D13) |
 | **[S2]** `SituationalStateService` (name) | `PersonalityStateService`. Public `persist` / `loadOrCreate` / `currentState` become private behind `transition` / `read` |
 
 The Agency producers of the orchestrator are removed in agency#487, in the same change window.
@@ -597,7 +658,7 @@ The Agency producers of the orchestrator are removed in agency#487, in the same 
 | Bean | Producer | Notes |
 |---|---|---|
 | `EffectiveCognitiveDefaults` | `@Produces @DefaultBean @Singleton` in `CognitionDefaultBeans` | First production producer. It is built from the explicit `CognitiveDefaultsRegistry`, `EidosDescriptorViewSource`, and `PersonalityStateService` as `PersonalityStateSource`. It is already a required injection point (`CognitionDefaultBeans.cognitiveResourcePool`) and an `Instance<>` point in ≥ 6 phases and in `CognitionCoreFactory`. |
-| `PersonalityStateService` (§[S2]), `PersonalityStateIntegrator`, `DynamicsConfig` | `@Produces @DefaultBean @Singleton` (cognition) | The facet-name set comes from the `PersonalityFacet` constants. |
+| `PersonalityStateService` (§[S2]), `PersonalityStateIntegrator`, `DynamicsConfig` | `@Produces @DefaultBean @Singleton` (cognition) | The facet-name set comes from the `PersonalityFacet` constants. **[C3]** `DynamicsConfig` is produced as `SituationalPersonalityConfigLoader`'s `dynamics()` (see §DispositionEvolutionConfig, "Source of the promotion parameters"). |
 | `SituationalDeformationPhase` | `@ApplicationScoped @Priority(46)` | This is pulled forward from #1082, because promotion and integrator advance must run in production even before the participant is registered. `agentIds` reads persisted nodes, so an empty cache is fine. |
 | `DispositionEvolutionPhase`, `DispositionSignalRecorder`, `InteractionPressureSource` | `@ApplicationScoped` (cognition, Jandex-indexed) | The phase is discovered by `ConsolidationScheduler`'s `Instance<ConsolidationPhase>`. |
 | Recorder → `CognitionCore` | `CognitionCoreFactory` → `CognitivePipelineBuilder.dispositionSignalRecorder(...)` | Feeds `InteractionAppraised`. |
@@ -658,17 +719,22 @@ All gates are wall-clock: reflection grid, interval, dwell, and integrator hours
    - The gate-before-commit property: no `profileStore` or `cbrStore` interaction on a Halted or Drifting outcome.
    - The reflection grid: no reflection before the period; `retention^n` on catch-up after n missed periods; the result is independent of how many `run` calls happen within one period.
    - The ledger: halt survives a store reload; `lastReflectionAt` advances by whole periods.
+   - **[C3]** `Deferred`: an `Evolved` result inside `minTransitionInterval` commits nothing, writes `DispositionReflected(DEFERRED, …)` with the withheld labels, emits no signal, and leaves `halted = false`.
+   - **[C3]** `Disabled`: at rc = 0 there is no probe; counts decay; `disabled` is set with exactly one `enabled = false` entry, even over several reflections. When rc later rises above 0, the next due reflection probes normally, clears `disabled` and journals one `enabled = true`.
 2. **`DispositionSignalRecorder` unit tests:**
    - NEUTRAL produces no registry lookup.
    - Halted produces no activation.
    - A term not in the profile is dropped and logged.
    - Startup fails on duplicate `eventType()` sources.
    - `ExperienceRecorded` is not observed.
+   - **[C3]** Each case above is also run through the `onInteractionAppraised` entry: NEUTRAL `InteractionAppraised` does no state or registry lookup, a halted agent records nothing, and an unknown term is dropped.
+   - **[C3]** A disabled agent (`reflection().disabled()`) records nothing on either entry.
+   - **[C3]** A throwing source or registry, on either entry, does not propagate. `recordInteraction`'s `safeRun` and `RelationshipProcessor`'s other observers are unaffected.
 3. **Integrator promotion tests:**
    - The dwell clock starts and resets across hour boundaries and idle fast-forward.
    - No candidate before the dwell; a candidate after it.
    - The budget cap blocks promotion and journals it.
-   - `delta` matches integer rounding exactly.
+   - *(B)*: `delta` matches integer rounding exactly. *(A)* *[C3]*: `delta` equals the clamped transfer exactly, with no rounding.
    - Continuity: the resting facet is identical before and after promotion.
    - Baselines replace the hard-coded 0.5 in clamping.
 4. **`SituationalDeformationPhase` promotion tests** *[(B) as written; (A) per the [C2] option table]*:
@@ -716,7 +782,22 @@ All gates are wall-clock: reflection grid, interval, dwell, and integrator hours
 
 ## Decisions
 
-See `decisions.md`. Rev 2 revises D3–D6 and adds D7–D8. **[S2]** D8 is generalised to both families and to the derived view. D12 (ledger in `PersonalityState`), D13 (polarity by target) and D14 (facet-key contract owned by Eidos) are added.
+See `decisions.md`. *[C3: complete index]*
+
+| Decision | Subject | Origin |
+|---|---|---|
+| D1–D2 | Signal recording and evaluation cadence | rev 1 |
+| D3–D6 | Propagation, PID-5 scope, signal model, architecture | rev 1, revised in rev 2 |
+| D7 | Safety policy | rev 2 |
+| D8 | Failure ordering for PID-5 promotion | rev 2; generalised by [S2] to both families and the derived view |
+| D9 | JPAF commit ordering and transition rate bound | [R] |
+| D10 | Single serialised owner of situational/lived state | [R] |
+| D11 | Production wiring in scope; live valenced source | [R] |
+| D12 | Reflection ledger is a component of `PersonalityState` | [S2] |
+| D13 | Polarity encoded by target selection; `TraitActivation` loses valence | [S2] |
+| D14 | The identity owner owns the facet-key contract | [S2] |
+
+The store-of-record choice (R1-01) is deliberately not a numbered decision until the human makes it.
 
 ## References
 
@@ -728,4 +809,4 @@ See `decisions.md`. Rev 2 revises D3–D6 and adds D7–D8. **[S2]** D8 is gener
 - `ConsolidationScheduler.java`: `@Priority` ordering, single-thread lock
 - `docs/specs/issue-126-autonomous-agent-patterns/decisions.md`: D1 (keep the Eidos JPAF pipeline), D2 (vocabulary-generic profile terms), D3 (batched periodic reflection)
 - `docs/research/era7-personality-trait-integration-research.md`: Era 7b key decisions (one model; wall-clock grid)
-- casehubio/neocortex#712, #1055, #1063, #1080, #1082, #1102; casehubio/eidos#235, #237; casehubio/agency#487
+- casehubio/neocortex#712, #1055, #1063, #1080, #1082, #1089, #1102, #1104; casehubio/eidos#234, #235, #237, #239; casehubio/agency#487
