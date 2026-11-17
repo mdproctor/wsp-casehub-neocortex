@@ -102,6 +102,37 @@ class IdentityChangePropagator {
 | PID-5 baseline promotion | `SituationalDeformationPhase` → `DispositionProfileStore.updateFacets` | same path. `homeOffset` reduction is published through the existing `updateState` snapshot |
 | PID-5 `homeOffset` drift | integrator (existing) | `updateState` (existing, unchanged) |
 
+### Open decision: store of record for lived personality (coherence review R1-01 / R1-11)
+
+**Defect in the registry-as-store-of-record path, verified in code.** Authored descriptors are re-registered on every boot:
+
+1. `AgentDescriptorYamlRegistrar.register` (eidos runtime) maps the classpath YAML and calls `registry::register`.
+2. `JpaAgentRegistry.register` is `DELETE` + `persist`, a wholesale replace, and fires `AgentDescriptorUpdated(previous, authored)`.
+
+So after every restart:
+- A JPAF transition written through `DispositionProfileStore.update` is reverted to the authored `dispositionProfile`, and `IdentityChangePropagator` propagates the reversion.
+- A PID-5 promotion written through `updateFacets` is reverted, but neocortex `FacetState` still holds `homeOffset − delta` and `promoted + delta`. The lived facet score therefore **drops by `delta`** below its pre-promotion value, and the promotion budget accounting no longer matches identity.
+
+Neither eidos#235 nor this spec handles it. The defect is noted on eidos#235.
+
+**Options:**
+
+- **(A) Neocortex stores lived results; Eidos keeps evaluating them (recommended).**
+  - JPAF *evaluation* stays in Eidos, per issue-126 D1/D2. `DispositionHealth.probe` and `DispositionEvolution.evaluate` are pure functions of `(descriptor, signal counts)`.
+  - The *result* is stored in neocortex lived state, next to `homeOffset`. Neocortex supplies the `DispositionProfileStore` implementation. It writes the evolved profile into the per-agent `PersonalityState` node (property `profile.<term>.weight`), through `SituationalStateService` under the same per-agent state transition as the integrator.
+  - The phase probes with the **lived descriptor**: the authored descriptor with the lived profile substituted.
+  - PID-5 promotion moves `homeOffset` into the non-decaying `FacetState.promoted` component, which is already introduced above. It is not written to Eidos.
+  - `EffectiveCognitiveDefaults` composes `authored ⊕ lived` (lived profile replaces authored weights; resting facet = `baseline + promoted + homeOffset`). The per-tick authored `updateBase` from `CognitionCore` becomes correct by construction, because `recompute` carries the state snapshot across base updates.
+  - What this removes: the two-store intent/replay protocol, the registry lost-update locking (eidos#235 item 3), `IdentityChangePropagator`'s role in evolution, and the boot defect.
+  - What it costs: Eidos consumers that read `AgentRegistry` directly, such as the agency prompt section, must read lived personality from `EffectiveCognitiveDefaults`. That goes into agency#487.
+  - It matches the #712 layering, where the personality state vector modulates between the identity store and the CDE (Era 7b decision 1, "one model": a single continuously evolving state vector).
+- **(B) Registry stays store of record; Eidos separates authored from evolved.** eidos#235 is extended so that re-registration preserves evolved `dispositionProfile`/`ampdFacets`, or so that an evolved layer is stored separately and composed in `findById`. This keeps every `AgentRegistry` reader seeing lived identity. The costs:
+  - an authored/evolved split is still built, just inside the registry;
+  - cross-store promotion stays crash-sensitive, because neocortex `promoted` and Eidos `ampdFacets` must agree;
+  - registry write contention remains.
+
+Until this is decided, the propagation table above is correct only for an uninterrupted process lifetime.
+
 ### Disposition-profile evolution (JPAF family)
 
 #### `DispositionEvolutionPhase` (cognition, `cognition.personality`)
@@ -181,6 +212,7 @@ An `@ApplicationScoped` CDI observer. It replaces `PersonalityEvolutionOrchestra
             debug-log the dropped term (vocabulary mismatch is visible, not silent)
 ```
 
+- **Signal units (activation, not valence).** One translated activation adds one count to the term. In `DefaultDispositionHealth.probe`, the effective weight is `normalise(base + count × REINFORCEMENT_DELTA)`, where `REINFORCEMENT_DELTA` is an Eidos tenant preference with default 0.06. No `DispositionSignalStore` honours `SignalValence`: `InMemoryDispositionSignalStore` and `JpaDispositionSignalStore` implement only the 3-arg `recordActivation`, and the 4-arg default drops valence. So every activation *reinforces* its term. `RelationshipPressureSource` maps NEGATIVE to the auxiliary, meaning the auxiliary is engaged under relational strain, as JPAF describes. That is what makes `DOMINANT_AUXILIARY_SWAP` reachable. This is the existing, intended semantics and is kept unchanged. Thresholds are therefore calibrated by the Eidos preferences (`REINFORCEMENT_DELTA`, `OVER_REINFORCEMENT_THRESHOLD`), not by a neocortex magnitude scale.
 - **One event type only.** It observes only `RelationshipRecorded`, the only event with a concrete pressure source. `ExperienceRecorded` is **not** observed. `RelationshipRecorded` is derived from it (`RelationshipProcessor.onExperienceRecorded`), so observing both would double-count one experience.
 - **Dedup rule.** Each event type in a derivation chain binds to at most one `TraitPressureSource`. The recorder builds a `Map<Class<?>, TraitPressureSource<?>>` at startup and **fails fast** if two sources declare the same `eventType()`. That replaces the orchestrator's order-dependent "first match wins". A future source for a primary event (`ExperienceRecorded`) must exclude experiences that produce a derived `RelationshipRecorded`. #1102 tracks the valenced sources.
 - **Concurrency.** An activation recorded between a reflection's `probe` and its `clear` is consumed by that evolution. This is the intended semantics: the transition closes the signal epoch. No lock is needed. The scheduler serialises phase runs under its own lock on one executor thread, and the signal stores are safe to call concurrently (JPA row-transactional; in-memory concurrent maps).
@@ -206,6 +238,8 @@ public record DispositionEvolutionConfig(
                                       //   scaled by relationalComplexity
 ) {}
 ```
+
+Validation (compact constructor): `reflectionPeriod` positive, `retentionPerReflection ∈ [0, 1]`, `l2Ceiling > 0`. `defaults()` returns `(24h, 0.8, 0.15)`. Source: MicroProfile config keys `casehub.cognition.personality.reflection-period`, `.retention-per-reflection` and `.l2-ceiling`, falling back to `defaults()`. This follows the `@ConfigProperty` style of the sibling cognition phases, for example `RelationalSchemaEvolutionPhase`.
 
 `dampeningFactor` is removed. The orchestrator never read it: the dampened path uses `EvolutionResult.Dampened.decayFactor()`, which comes from the Eidos tenant preference `DispositionPreferenceKeys.DECAY_FACTOR`. Dampening strength stays an Eidos-owned preference.
 
@@ -245,6 +279,7 @@ The values are computed as follows:
 
 - `targetScore = round(100 · clamp01(baseline + homeOffset))` (Eidos AMPD scores are integer 0–100)
 - `delta = targetScore/100 − baseline`, which is the exact amount the identity write will apply
+- **Facet naming across the boundary.** `SituationalStateService` keys facets by the `PersonalityFacet` constants (title case, for example `"Risk Taking"`), which is the form `EidosCognitiveProfileBridge.titleCase` produces. Eidos `AmpdFacet.facet` is a free-form authored string. The phase maps each state key to the authored `AmpdFacet.facet` whose `titleCase` form equals it, and `updateFacets` is keyed by that **authored spelling**, so the identity write never introduces a second spelling of the same facet. A state facet with no authored counterpart is not promoted, because there is no baseline to promote into. It is skipped and logged at `FINE`.
 
 **Why these defaults:** `dMax` is 0.10, so any promotion threshold above `dMax` is unreachable. Rev 1's 0.3 could never fire. Sustained near-saturation for a month is the TESSERA criterion: repeated states over a long period, not a transient. The 180-day `tauSetpoint` already treats `homeOffset` as lasting. Promotion makes it *identity*, which is not subject to setpoint decay. The cumulative budget caps lifetime identity drift per facet. Without it, re-saturation after each promotion would allow unbounded drift over years.
 
@@ -312,6 +347,20 @@ There is no cross-family drift norm. Weight-simplex deltas and facet-scale offse
 | JPAF type transition | `PERSONALITY_EVOLVED` | 1.0 |
 | PID-5 baseline promotion | `PERSONALITY_EVOLVED` | 0.8 |
 | JPAF drift halt | `PERSONALITY_HALT` | 0.9 |
+
+Signal fields. The emitting phase collects the run's signals and returns them from `ConsolidationPhase.signals()`, which already exists as a default method returning `List.of()`.
+
+| Field | Value |
+|---|---|
+| `principalId` | `agentId` |
+| `tenantId` | `tenantId` |
+| `sourceNodeId` | id of the agent's `PERSONALITY_STATE` node: the `sit-state:` node for promotion, the `evo-ledger:` node for JPAF events |
+| `sourceName` | `"personality"` |
+| `reason` | JPAF transition: `"<previousLabel> -> <newLabel> (<triggerType>)"`; halt: `"drift <magnitude> >= ceiling <l2Ceiling·rc>"`; promotion: `"<facet> baseline <old> -> <new>"` |
+
+Event refs: journal entries use `EventRef.consolidation(EventRef.event("disposition-evolution"))` (JPAF) and `EventRef.consolidation(EventRef.event("situational-deformation"))` (promotion, the existing ref). The propagator's `updateBase` uses `"identity-update"`.
+
+No signal is emitted for ordinary hourly `homeOffset` drift. It changes every hour and belongs in the journal (`SituationalDeformationConsolidated`), not in attention.
 
 ### Module placement
 
