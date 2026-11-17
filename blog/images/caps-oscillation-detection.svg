@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 420" font-family="system-ui, -apple-system, sans-serif">
+  <defs>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#555"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="720" height="420" fill="#fafafa" rx="8"/>
+
+  <!-- Title -->
+  <text x="360" y="30" text-anchor="middle" font-size="14" font-weight="bold" fill="#333">CAPS Settling: Before and After #1027</text>
+
+  <!-- Left panel: Before -->
+  <rect x="20" y="50" width="330" height="350" fill="#fff" stroke="#ddd" rx="6"/>
+  <text x="185" y="75" text-anchor="middle" font-size="12" font-weight="bold" fill="#c0392b">Before: MAX_ITERATIONS → Zero Attractors</text>
+
+  <!-- Oscillation wave (before) -->
+  <polyline points="50,160 80,120 110,200 140,120 170,200 200,120 230,200 260,120 290,200 320,160"
+            fill="none" stroke="#e74c3c" stroke-width="2" stroke-dasharray="4,3"/>
+  <text x="185" y="100" text-anchor="middle" font-size="10" fill="#888">Output activation oscillates...</text>
+
+  <!-- Average line (before) -->
+  <line x1="50" y1="160" x2="320" y2="160" stroke="#999" stroke-width="1.5" stroke-dasharray="6,4"/>
+  <text x="330" y="163" font-size="9" fill="#999">avg</text>
+
+  <!-- Threshold line (before) -->
+  <line x1="50" y1="140" x2="320" y2="140" stroke="#c0392b" stroke-width="1"/>
+  <text x="330" y="143" font-size="9" fill="#c0392b">0.55</text>
+
+  <!-- Arrow pointing to gap -->
+  <text x="185" y="230" text-anchor="middle" font-size="10" fill="#c0392b">Average (0.52) falls below threshold</text>
+  <text x="185" y="248" text-anchor="middle" font-size="11" font-weight="bold" fill="#c0392b">→ Zero attractors extracted</text>
+
+  <!-- Result box (before) -->
+  <rect x="60" y="270" width="250" height="110" fill="#fde8e8" stroke="#e74c3c" rx="4"/>
+  <text x="185" y="295" text-anchor="middle" font-size="11" font-weight="bold" fill="#c0392b">SettlingResult</text>
+  <text x="185" y="315" text-anchor="middle" font-size="10" fill="#555">convergence: MAX_ITERATIONS</text>
+  <text x="185" y="335" text-anchor="middle" font-size="10" fill="#555">attractors: []</text>
+  <text x="185" y="355" text-anchor="middle" font-size="10" fill="#555">saturation: 0.000</text>
+  <text x="185" y="372" text-anchor="middle" font-size="9" fill="#999">BehavioralPromptSection: nothing to render</text>
+
+  <!-- Right panel: After -->
+  <rect x="370" y="50" width="330" height="350" fill="#fff" stroke="#ddd" rx="6"/>
+  <text x="535" y="75" text-anchor="middle" font-size="12" font-weight="bold" fill="#27ae60">After: OSCILLATION → Peak Attractors</text>
+
+  <!-- Oscillation wave (after) -->
+  <polyline points="400,160 430,120 460,200 490,120 520,200 550,120 580,200 610,120 640,200 670,160"
+            fill="none" stroke="#2ecc71" stroke-width="2"/>
+  <text x="535" y="100" text-anchor="middle" font-size="10" fill="#888">Same oscillation detected...</text>
+
+  <!-- Peak line (after) -->
+  <line x1="400" y1="120" x2="670" y2="120" stroke="#27ae60" stroke-width="1.5" stroke-dasharray="6,4"/>
+  <text x="680" y="123" font-size="9" fill="#27ae60">peak</text>
+
+  <!-- Threshold line (after) -->
+  <line x1="400" y1="140" x2="670" y2="140" stroke="#888" stroke-width="1"/>
+  <text x="680" y="143" font-size="9" fill="#888">0.55</text>
+
+  <!-- Arrow pointing to success -->
+  <text x="535" y="230" text-anchor="middle" font-size="10" fill="#27ae60">Peak (0.78) exceeds threshold</text>
+  <text x="535" y="248" text-anchor="middle" font-size="11" font-weight="bold" fill="#27ae60">→ Meaningful attractors extracted</text>
+
+  <!-- Result box (after) -->
+  <rect x="410" y="270" width="250" height="110" fill="#e8f8e8" stroke="#27ae60" rx="4"/>
+  <text x="535" y="295" text-anchor="middle" font-size="11" font-weight="bold" fill="#27ae60">SettlingResult</text>
+  <text x="535" y="315" text-anchor="middle" font-size="10" fill="#555">convergence: OSCILLATION</text>
+  <text x="535" y="335" text-anchor="middle" font-size="10" fill="#555">attractors: [withdraw, cautious_approach, ...]</text>
+  <text x="535" y="355" text-anchor="middle" font-size="10" fill="#555">activations: averaged state (mean estimate)</text>
+  <text x="535" y="372" text-anchor="middle" font-size="9" fill="#999">"You feel a competing pull toward withdrawal..."</text>
+</svg>
