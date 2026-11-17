@@ -259,3 +259,45 @@ It is persisted as `jpaf.*` properties on the agent's `PERSONALITY_STATE` node, 
 **Alternatives:** Per-term JPAF deltas. Rejected: JPAF transitions are canonical re-weightings, not increments. Re-normalising them against a changed base yields a profile Eidos never evaluated.
 **Rationale:** Under (A), "Eidos owns authored identity" must mean authored edits take effect. Unchanged boot re-registration keeps the same fingerprint, so it is a no-op.
 **Status:** captured (structure round 3), conditional on R1-01 = A
+
+## D17: Exactly-once JPAF decay, marker written first (robustness review R2-03)
+
+**Choice:** `ReflectionLedger.decayedThrough` is persisted **before** `signalStore.decay(retention^k)`, where `k` counts the periods not yet decayed. An evaluation failure becomes `ReflectionOutcome.Failed` and still advances the ledger.
+
+**Alternatives:**
+- **Rev 2:** decay, then advance the ledger after evaluation. *Rejected:* a persistent downstream failure re-decays on every consolidation run and wipes counts in about 30 minutes.
+- **The reviewer's decay-then-mark.** *Rejected:* a persistent failure of the marker write (MindMap) has the same wipe-out effect.
+
+**Rationale:**
+- Marker-first makes every *persistent* failure harmless: MindMap down means nothing decays; signal store down means recording also fails.
+- It confines the single-crash cost to one skipped period of decay, a ×1.25 retention that can never compound.
+
+**Status:** captured (robustness round 2)
+
+## D18: The JPAF intent closes at the signal epoch; the CBR case moves to a bounded outbox (robustness review R2-04)
+
+**Choice:**
+- Recovery runs before the wall-clock gate on every run: (B) absolute write, then `clear`, then `closeEpoch`.
+- `closeEpoch` is a single `transition` that clears the intent, sets `lastTransitionAt` from the intent's commit time, and moves the case into `auditOutbox`.
+- The outbox retries once per reflection period, up to 5 attempts, then journals `DispositionTransitionAuditFailed` and drops the entry.
+
+**Alternatives:**
+- **Round-1 replay of (2)–(5):** re-clears on every retry, so a CBR outage erases fresh activations and freezes the agent.
+- **Explicit per-step flags** (`identityWritten`, `epochClosed`, `audited`), as the reviewer suggested. *Rejected as unnecessary:* the intent's existence already is the "epoch not closed" flag. (2) is idempotent, and (4) leaves the critical path entirely. One fewer state field, same guarantee.
+
+**Rationale:** A derived audit record must never hold evolution hostage or destroy evidence.
+
+**Status:** captured (robustness round 2)
+
+## D19: Recorder writes are transaction-isolated; signal-store concurrency is Eidos's fix (robustness review R1-08, R2-05)
+
+**Choice:**
+- The recorder writes activations in its own `@Transactional(REQUIRES_NEW)` method.
+- Neocortex treats current signal counts as a lower bound.
+- Eidos fixes atomic upsert, bulk decay, `REQUIRES_NEW` and in-memory races in eidos#241 (not blocking).
+
+**Rationale:**
+- A personality-signal failure must never roll back the caller's memory or interaction work.
+- Lost increments only under-count. That delays evolution and never causes a spurious transition, so neocortex needs no workaround around an Eidos storage bug.
+
+**Status:** captured (robustness round 2)

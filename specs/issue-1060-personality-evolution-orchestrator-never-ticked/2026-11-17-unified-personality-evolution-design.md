@@ -642,7 +642,7 @@ The config is renamed because it is family-specific. A neutral "personality" nam
 
 #### `ReflectionOutcome` (cognition, `cognition.personality`): replaces `EvolutionTick`
 
-A sealed type with the variants `Stable`, `Drifting(magnitude)`, `Halted(magnitude)`, `Evolved(previousLabel, newLabel, newProfile, triggerType)`, `Dampened(decayFactor)`, **[C3]** `Deferred(previousLabel, newLabel, triggerType, eligibleAt)` (an `Evolved` result withheld by the [R] rate bound; nothing committed) and **[C3]** `Disabled(relationalComplexity)` (rc = 0; no probe ran). It is the per-agent result of one reflection and is used in the journal entry and in tests. The name is chosen so it does not collide with `io.casehub.eidos.api.DispositionEvolution.EvolutionResult`. `EvolutionTick` (cognition-api) is deleted.
+A sealed type with the variants `Stable`, `Drifting(magnitude)`, `Halted(magnitude)`, `Evolved(previousLabel, newLabel, newProfile, triggerType)`, `Dampened(decayFactor)`, **[C3]** `Deferred(previousLabel, newLabel, triggerType, eligibleAt)` (an `Evolved` result withheld by the [R] rate bound; nothing committed) and **[C3]** `Disabled(relationalComplexity)` (rc = 0; no probe ran), and **[R2]** `Failed(step, message)` (probe or evaluate threw; the ledger still advances, so a persistent evaluation fault is journaled once per period rather than retried and re-decayed every run). It is the per-agent result of one reflection and is used in the journal entry and in tests. The name is chosen so it does not collide with `io.casehub.eidos.api.DispositionEvolution.EvolutionResult`. `EvolutionTick` (cognition-api) is deleted.
 
 ### PID-5 baseline promotion (facet family)
 
@@ -978,6 +978,30 @@ All gates are wall-clock: reflection grid, interval, dwell, and integrator hours
     - *(A)* **One composer (R3-03):** the phase's probed descriptor, the recorder's ranking descriptor and `forAgent()` expose the same profile for: no lived profile, a matching lived profile, and a stale lived profile.
     - *(A)* **Authored edits (R3-02):** an edit after a transition makes readers use the authored profile at once, and the next run clears, drops the lived profile and intent, resets `lastTransitionAt` and journals `DispositionReauthored`. An added authored term is recordable. Unchanged YAML re-registration keeps the lived profile. A facet re-authoring keeps `promoted` over the new baseline.
     - *(B)* **Candidates on current state (R3-04):** a participant tick that lowers `|homeOffset|` below the threshold between the advance `transition` and the promotion `transition` yields no promotion.
+12. **[R2] Robustness round-2 tests:**
+    - **Exactly-once decay (R2-03):** `probe` throws on 10 consecutive runs within one period. Counts are decayed exactly once, the ledger advances with `Failed`, and one `DispositionEvolutionFailed` is journaled. A failing `decayedThrough` transition (MindMap down) applies no decay at all.
+    - **Recovery and outbox (R2-04):**
+      - CBR fails for 3 consecutive periods. Activations recorded after the transition survive, reflection resumes once the epoch is closed, and exactly one CBR case lands after recovery.
+      - After `maxAuditAttempts` failures the entry is dropped and `DispositionTransitionAuditFailed` is journaled.
+      - A crash between `clear` and `closeEpoch` re-clears only once.
+      - Recovery runs on a run where `n = 0`.
+    - **Clock regression (R2-06):** set the clock back by 2 periods. There is no decay with factor > 1, `lastReflectionAt` never moves backwards, and exactly one `ReflectionClockRegressed` is journaled.
+    - **Signal-store concurrency (R1-08):** 8 threads × 100 activations on one term with the current Eidos stores. Neocortex never throws, and counts are ≤ 800 (a lower bound). Concurrent first activations do not propagate. Exact counts are eidos#241's test.
+    - **Transaction isolation (R2-05):** inside an active outer JTA transaction, a forced signal-store failure leaves the outer transaction committable.
+    - **Hot path (R2-05):** a cache-hit interaction acquires no per-agent lock.
+    - *(A)* **Lived-descriptor consumers (R2-02):**
+      - After a lived `TI-NE → NE-TI` swap, a NEGATIVE interaction increments the lived auxiliary `ti`.
+      - The second transition's CBR case has `old_dominant = ne`.
+      - Promotion with authored 0.85, promoted 0.10 and `homeOffset` 0.09 promotes 0.05 and leaves 0.04 in `homeOffset`.
+    - *(A)* **Continuity (R2-01):** `restingFor` is sampled immediately before and after the promotion `transition`. The values are equal to 1e-9 for every facet. The JPAF analogue: `forAgent()` changes type label exactly at the commit of step (1), and at no other step.
+    - **Per-option replacements for items 4 and 6.**
+      - *(A)* Item 4: the promotion is one `transition`, with no `DispositionProfileStore` interaction (the phase has no such injection point under (A)) and no `pendingPromotions`.
+      - *(A)* Item 6: assert `PersonalityState.livedProfile`, `FacetState.promoted` and `forAgent()`, never registry `dispositionProfile`/`ampdFacets`.
+      - *(B)* Items 4 and 6 as written.
+      - Item 8 is unchanged and must pass under both options.
+    - **Budget invariant (R1-17):** `DynamicsConfig` with `promotionBudget = 0.05`, `promoteFraction = 0.8`, `dMax = 0.10` is rejected.
+    - **Capped edge (R2-08):** a facet that stays capped for 48 simulated hours journals `PersonalityPromotionCapped` exactly once, and `PersonalityPromotionUncapped` once on exit.
+    - **Inert input (R2-09):** with mood disabled, there is one startup WARN, the `personality.signal.irrelevant{interaction}` counter increments, and one `DispositionInputInert` is journaled per inert episode.
 
 ## Decisions
 
