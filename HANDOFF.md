@@ -2,55 +2,53 @@
 
 ## Last Session
 
-Batch cleanup of 7 issues across the CAPS/behavioral/appraisal pipeline, all on a single branch. Four fixes from the queue (#1033, #1034, #1039, #1040), two newly filed issues (#1043, #1044), and one documentation gap (#975). Two previously filed issues (#974, #1001) turned out to be already resolved.
+Batch cleanup and close of 7 issues across the CAPS/behavioral/appraisal pipeline, plus code review, blog, spec updates, and squash. All landed on main as 10 commits. Two additional issues (#974, #1001) confirmed already resolved. One new issue filed (#1048).
 
-### Branch: `issue-1033-behavioral-prompt-mid-tier-attractors`
+### Landed: `issue-1033-behavioral-prompt-mid-tier-attractors` → main (7b1536a07)
 
-8 commits:
+10 commits (8 from squash + promotion + pre-existing blog):
 
-1. **#1033 fix** — Remove `.limit(5)` from BehavioralPromptSection; all above-threshold attractors now render with three-tier strength labels
-2. **#1034 refactor** — Replace absolute `attractorStrengthMinFilter` (0.55) with baseline-relative `attractorStrengthMargin` (0.05) using `NodeRange.restingLevel()`
-3. **#1039 test fix** — SchererAppraisalStrategyTest: assert on SEC dimensions count, not emotion count (more SECs → more precise, not more numerous emotions)
-4. **#1040 prompt fix** — Move action_targets examples out of LLM JSON template into prose instruction
-5. **#1044 topology fix** — Add `self_worth → distrust (-0.40)` and `other_reliability → distrust (-0.45)` connections; fix test input "trusted friend" → "close friend"
-6. **#1043 rendering** — Reframe oscillation attractors: "this ambivalence is real, not a problem to resolve"
-7. **#975 docs** — CAPS modules table + BehavioralSynthesisPhase documentation in contributor guide
+1. **#1033** — Remove `.limit(5)` from BehavioralPromptSection; all above-threshold attractors render
+2. **#1034** — `attractorStrengthMargin` (baseline-relative) replaces absolute `attractorStrengthMinFilter`
+3. **#1039** — SchererAppraisalStrategyTest: assert SEC dimensions, not emotion count
+4. **#1040** — Move action_targets examples out of LLM JSON template
+5. **#1044** — Add distrust topology connections (`self_worth → -0.40`, `other_reliability → -0.45`); fix test input
+6. **#1043** — Oscillation attractors reframed as informative ambivalence
+7. **#975** — CAPS modules table + BehavioralSynthesisPhase docs in contributor guide
+8. Spec updates (coherence-eval-rerun-findings, behavioral-prompt-section-design)
+9. Blog promotion (2 entries)
+10. Pre-existing blog entry from prior session
 
-### Issues closed this session
+### Issues filed this session
 
-| # | Title | Type |
-|---|-------|------|
-| #974 | Fix eval test compilation | Already resolved (closed) |
-| #1001 | DriveProfilePersonalityEvalTest compilation | Already resolved (closed) |
+| # | Title | Scale | Complexity |
+|---|-------|-------|-----------|
+| #1048 | CapsEngineContractTest coping tests — initializeAgent 4-arg wiring | S | Med |
 
 ### Key design decisions
 
-- **No attractor limit**: the `minStrength` threshold is sufficient filtering; a hard count cap silently drops psychologically meaningful mid-tier signals
-- **Baseline-relative filtering**: `NodeRange.restingLevel()` (0.5 unipolar, 0.0 bipolar) makes the attractor margin portable across activation functions
-- **Ambivalence as signal**: oscillation reframed from "mind hasn't settled" to "ambivalence is real, sit with it" — guides exploration over premature commitment
-
-### Pre-existing failures resolved
-
-- `CognitiveEmergenceSampleTest.classifierDrivenSettling` — #1044 (distrust topology connections)
-- `SchererAppraisalStrategyTest.disabledSecs_reducedOutput` — #1039 (assertion fix)
-
-### Pre-existing failures remaining
-
-- `CapsEngineContractTest.initializeAgentSeedsCopingAttractorsFromCopingDefaults` — from #1018/#1019 coping work, `initializeAgent` 4-arg not wired in implementations
-- `CapsEngineContractTest.highBISInputActivatesAvoidantCopingAttractors` — same root cause
+- **No attractor limit**: `minStrength` threshold is sufficient; hard count cap silently drops mid-tier signal
+- **Baseline-relative filtering**: `NodeRange.restingLevel()` makes the margin portable across activation functions
+- **Ambivalence as signal**: oscillation reframed from "mind hasn't settled" to "sit with it"
 
 ## Next Session Plan
 
-### Queue (remaining open items under epic #841)
+### Queue
 
 | # | Title | Scale | Complexity | Notes |
 |---|-------|-------|-----------|-------|
-| #976 | DriveProfileDerivationPhase personality-aware classification | M | High | Extend beyond disposition axes |
+| #1048 | CapsEngineContractTest coping initializeAgent wiring | S | Med | Wire 4-arg initializeAgent in InMemory/Sqlite CapsEngine |
+| #976 | DriveProfileDerivationPhase personality classification | M | High | Extend beyond disposition axes |
 | #977 | PID-5 facet extension for personality classification | M | High | Depends on #976 |
 
-### Context to carry forward
+### Pre-existing failures
 
-- Branch `issue-1033-behavioral-prompt-mid-tier-attractors` has 8 commits ready for work-end
-- Queue has 21 stale closed items that should be cleaned up (all issues before #1033 are already closed on GitHub)
-- Blog entries: `wsp-casehub-neocortex/blog/2026-11-17-mdp01-the-black-box-that-shrugged.md`
-- Pre-existing CapsEngineContractTest failures from coping work (#1018/#1019)
+- `CapsEngineContractTest.initializeAgentSeedsCopingAttractorsFromCopingDefaults` — tracked as #1048
+- `CapsEngineContractTest.highBISInputActivatesAvoidantCopingAttractors` — same root cause (#1048)
+
+### Unpublished
+
+10 commits on canonical neocortex not yet pushed to GitHub. Publish with:
+```
+python3 ~/.claude/skills/project/canonical_sync.py publish ~/claude/casehub/neocortex
+```
