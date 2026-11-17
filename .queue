@@ -93,6 +93,6 @@ active: 1053
 - [ ] casehubio/neocortex#1041 — CAPS-coping-to-regulation-connections
 - [ ] casehubio/neocortex#1054 — Moderate-threat-coping-bias-verification
 - [ ] casehubio/neocortex#1053 — End-to-end-personality-differentiation-test
-- [ ] casehubio/neocortex#980 — ConsolidationScheduler-journal-observability
-- [ ] casehubio/neocortex#968 — Instrument-CognitionCore-tick-stages
-- [ ] casehubio/neocortex#1045 — Surface-prediction-calibration-observability
+- [x] casehubio/neocortex#980 — ConsolidationScheduler-journal-observability
+- [x] casehubio/neocortex#968 — Instrument-CognitionCore-tick-stages
+- [x] casehubio/neocortex#1045 — Surface-prediction-calibration-observability

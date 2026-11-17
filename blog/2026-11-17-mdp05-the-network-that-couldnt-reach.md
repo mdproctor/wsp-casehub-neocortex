@@ -60,3 +60,4 @@ This is the design intent of the `copingBias` formula. The 0.5 centering and 0.5
 An end-to-end differentiation test confirms that personality propagates through the full pipeline, not just one layer of it. Two agents — an open explorer (low neuroticism, high extraversion, bold risk appetite) and a cautious avoider (high neuroticism, low extraversion, conservative risk) — receive the same observation and produce different outputs at every stage the test harness can reach: different coping defaults, different search budgets, different rendered prompts.
 
 The topology went from 131 connections to 163. Every output node is now either dynamically reachable or documented as intentionally predictor-only. Nine nodes have that documentation. Zero are silently dead.
+
