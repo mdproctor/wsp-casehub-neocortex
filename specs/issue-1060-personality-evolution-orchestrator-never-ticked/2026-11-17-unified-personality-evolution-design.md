@@ -218,17 +218,30 @@ The two families store lived results with different semantics, and the differenc
 **Rule.** If the current authored fingerprint differs from the stored one, **the authored edit wins**:
 
 - **Readers, immediately.** `LivedComposition.profile` returns the authored profile, and it is pure, so every reader agrees at once. A term added by an author immediately joins the membership used for recording and probing.
-- **Durable cleanup** by the sole writer, `DispositionEvolutionPhase`, as step 0a of the agent's run, before pending-intent replay and before the [C3] enablement step:
-  1. `signalStore.clear`. The old epoch is dropped first, so a crash before step 2 only re-clears, an under-count.
-  2. `transition(livedProfile := null, pendingEvolution := null, lastTransitionAt := now)`. The pending intent was computed against the old authored base, so it is discarded rather than replayed. A re-authoring counts as a transition for the [R] rate bound.
-  3. Journal `DispositionReauthored(tenantId, agentId, ref, at, oldFingerprint, newFingerprint)`.
+- **[R3] The lived profile goes dormant; it is never deleted (R3-02).** The readers already make a mismatch harmless immediately and purely. A durable deletion would add no correctness, only irreversibility. Rollbacks, YAML reverts and a fixed admin typo would each permanently destroy a month-scale, rate-bounded evolution within one consolidation interval. So:
+  - `livedProfile` keeps its stored fingerprint. While the fingerprints differ it is ignored, and it becomes active again by itself if the authored profile returns to the fingerprint it was evolved from. It is overwritten only by the next committed transition.
+  - `ReflectionLedger.reauthor = Reauthor(fingerprint, since, confirmed)` tracks the mismatch. It is reconciled by `DispositionEvolutionPhase` at step 0a, **at a due reflection only**: after the wall-clock gate and after the `findById` the reflection already does. Rev 2's per-run `findById` is therefore gone, and §[R] Enumeration cost holds again.
+
+    | Observation at a due reflection | Action |
+    |---|---|
+    | authored fp ≠ lived fp, and `reauthor` absent or for a different fp | `reauthor := (fp, now, false)`; journal `DispositionReauthored(old, new)` |
+    | same mismatch held for ≥ one `reflectionPeriod`, unconfirmed | **confirm**: `signalWriter.clear` (the old epoch's activations were earned under the lived ranking), then `transition(lastTransitionAt := now, confirmed := true)`. Confirmation counts as a transition for the [R] rate bound |
+    | authored fp = lived fp again | `reauthor := null`; journal `DispositionReauthorReverted`. If unconfirmed, the signals are intact. If confirmed, the lived profile is active again and the cleared epoch stays cleared, which is an accepted under-count |
+    | unconfirmed mismatch, and the reflection yields `Evolved` | `Deferred`, with `eligibleAt = since + P`. Nothing is committed against an authored profile that may still be reverted |
+
+  - **Pending intent.** Under (A) recovery only closes the epoch of a decision that was already committed. Its lived profile, with the old fingerprint, simply turns dormant like any other, so the intent is no longer discarded. That rule was only needed by the deleting design.
+  - **Crash safety.** Confirmation runs `clear` before the `transition`, so a crash in between re-runs `clear` at the next due reflection. That is an under-count of at most the activations recorded in that window, and `confirmed` is still false.
 - **Boot re-registration** of unchanged YAML yields the same fingerprint, so it is a no-op. That is the property that makes (A) correct under `AgentDescriptorYamlRegistrar`.
 - **Scope.** The fingerprint covers the profile's terms and weights only. A vocabulary change with an unchanged profile leaves the lived weighting valid. Only shadow resolution changes, and Eidos applies that at the next probe.
 
 The reviewer's alternative, per-term deltas mirroring PID-5, is rejected for the reason given above: JPAF results are not increments.
 
 **Tests.**
-- An authored profile edit after a transition: readers use the authored profile immediately; the next run clears signals, drops the lived profile and the intent, resets `lastTransitionAt`, and journals `DispositionReauthored`.
+- An authored profile edit after a transition: readers use the authored profile immediately, the next due reflection journals `DispositionReauthored`, and the lived profile is kept dormant. **[R3]** These tests replace rev 2's delete-on-mismatch test:
+  - Re-author, then revert within one period: the lived profile is active again, the signals are intact, and `DispositionReauthorReverted` is journaled.
+  - Re-author held for one full period: confirmation runs once (`clear`, `lastTransitionAt` reset), and repeated due reflections do not repeat it.
+  - Unconfirmed mismatch with an `Evolved` probe: the outcome is `Deferred` and nothing is committed.
+  - No `findById` happens on a run where no reflection is due.
 - An added authored term is immediately recordable.
 - Unchanged YAML re-registration keeps the lived profile.
 - A facet re-authoring keeps `promoted` composed over the new baseline.
@@ -264,6 +277,8 @@ PersonalityState read(String tenantId, String agentId, Instant now);
 
   `DispositionSignalRecorder` only calls `read`.
 - **`fn` is pure.** Callers gather evidence (appraisal, mood, descriptor) before calling `transition`.
+- **[R3] `fn` derives from `st`, never from a pre-call snapshot (R3-03).** Every field a `transition` does not intend to change is taken from its `st` argument. Values read before the call (`r`, `s`) may serve only as *inputs to a decision*: a condition, or the new value of a field the call means to set. They must never serve as the base object written back. The round-2 disabled branch broke this rule: `st -> st.withReflection(r.advancedBy(…))` wrote back a stale `r` and reverted step D's `decayedThrough`. The only other kind of conditional write, the compensation in step D, compares against `st` (`st.reflection().decayedThrough().equals(marker)`).
+  - **Enforcement:** a property test interleaves step D, `closeEpoch`, step 0a, the disabled branch, step 4 and a participant tick in random order. After every run it asserts `decayedThrough ≥ lastReflectionAt`, no field regresses, and `version` strictly increases. A code-review rule flags any `withReflection(` whose argument does not begin with `st.reflection()`.
 - **Version-ordered publication.** A persisted monotonic `version` becomes `PersonalityStateSnapshot.stateVersion`, replacing `System.nanoTime()`. `EffectiveCognitiveDefaults` already keeps the higher `stateVersion`, so a snapshot of an older state can never replace a newer one, even when it is published after the lock is released.
 - **Robustness additions** (failure atomicity, `TenantAgentKey`, persisted enumeration, eviction, `PersonalityStateSource`) are under §Promotion transaction → [R]. Multi-instance deployments are covered by #1104.
 - **One store for all per-agent evolution state.** The reflection ledger is a component of `PersonalityState` (§Reflection ledger), not a separate store. There is then one owner of the `PERSONALITY_STATE` subgraph, one node per agent, one lock and one version. Under (A), the JPAF intent, the lived profile and the ledger are literally one node write, which the [R] JPAF commit ordering relies on.
@@ -288,7 +303,7 @@ Under (A), lived state has one durable home: the per-agent `PersonalityState` no
 
 `@ApplicationScoped @Priority(50)`. Implements the `mindmap-intelligence` `ConsolidationPhase` SPI, following the precedent of `SituationalDeformationPhase`, `RelationalSchemaEvolutionPhase` (@20), `RelationshipStagePhase` (@18), `DriveAdaptationPhase` (@17) and `BeliefRevisionPhase` (@14). It lives in `cognition` because `cognition` depends on `mindmap-intelligence` (`cognition/pom.xml:66`) and not the other way round.
 
-It injects the Eidos SPIs `DispositionSignalStore`, `DispositionHealth`, `DispositionEvolution`, `DispositionProfileStore` and `AgentRegistry`. It also injects `CbrRecordStore`, `EffectiveCognitiveDefaults` (read-only, for `relationalComplexity`), `PersonalityStateService` (owner of the reflection ledger; see [S2]) and `Clock`.
+It injects the Eidos SPIs `DispositionHealth`, `DispositionEvolution`, *(B) only:* `DispositionProfileStore`, and `AgentRegistry`. **[R3]** It never injects `DispositionSignalStore` directly: every signal-store call (decay, clear) goes through `DispositionSignalWriter` (§DispositionSignalRecorder, [R3] Signal writer). It also injects `CbrRecordStore`, `EffectiveCognitiveDefaults` (read-only, for `relationalComplexity`), `PersonalityStateService` (owner of the reflection ledger; see [S2]) and `Clock`.
 
 **`run(tenantId, subgraphPriority)`:**
 
@@ -298,15 +313,11 @@ for agentId in effectiveDefaults.agentIds(tenantId):
     s = stateService.read(tenantId, agentId, now)                        // persisted on first sight
     r = s.reflection()
 
-    // 0a. (A) [S3] Authored edit wins: if the lived profile's fingerprint no longer matches the
-    //     authored profile, clear signals, drop the lived profile and any intent, and journal
-    //     DispositionReauthored (§[S3] Authored edits). A discarded intent is never replayed.
-
     // R. [R2] Recovery: every run, BEFORE the wall-clock gate (R2-04)
     if r.pendingEvolution != null:                                       // committed decision, epoch not yet closed
         (B) profileStore.update(agentId, tenantId, r.pendingEvolution.newProfile)   // absolute, idempotent
             //  (A): nothing to do; the lived profile was written with the intent at (1)
-        signalStore.clear(agentId, tenantId)                             // (3) close the epoch
+        signalWriter.clear(tenantId, agentId)                            // (3) close the epoch  [R3] via writer
         s = stateService.transition(..., st -> st.withReflection(st.reflection().closeEpoch()))
             // (5) one write: pendingEvolution := null, lastTransitionAt := intent.at,
             //     auditOutbox += intent.case; PERSONALITY_EVOLVED is emitted on this commit
@@ -325,18 +336,33 @@ for agentId in effectiveDefaults.agentIds(tenantId):
     descriptor = LivedDescriptors.compose(authored, s)                    // [R2] (A): lived profile; (B): identity
     if descriptor has no dispositionProfile: advance ledger via transition; continue
 
+    // 0a. (A) [R3] Re-authoring: the lived profile goes DORMANT, never deleted (R3-02, §[S3] Authored edits)
+    //     Evaluated only at a due reflection, so it costs no per-run findById.
+    (s, reauthorPending) = reconcileReauthoring(s, fingerprint(authored), now)   // every write derives from st
+        //  mismatch first seen           -> reauthor := (fp, since = now, confirmed = false); journal DispositionReauthored
+        //  mismatch held >= P, unconfirmed -> signalWriter.clear; transition(lastTransitionAt := now, confirmed := true)
+        //  fingerprint back to lived fp  -> reauthor := null; journal DispositionReauthorReverted
+        //  returns true while an unconfirmed re-authoring is pending (step 3 then defers any Evolved)
+
     // D. [R2] Decay exactly once per period: marker first, then decay (R2-03)
     k = n - floor((r.decayedThrough - r.lastReflectionAt) / P)           // periods not yet decayed, 0..n
     if k > 0:
-        s = stateService.transition(..., st -> st.withReflection(
-                st.reflection().withDecayedThrough(r.lastReflectionAt + n·P)))
-        signalStore.decay(agentId, tenantId, retention ^ k)              // residual counts drain, enabled or not
+        prev   = r.decayedThrough
+        marker = r.lastReflectionAt + n·P
+        s = stateService.transition(..., st -> st.withReflection(st.reflection().withDecayedThrough(marker)))
+        try:
+            signalWriter.decay(tenantId, agentId, retention ^ k)         // residual counts drain, enabled or not
+        catch RuntimeException:                                          // [R3] thrown, not crashed (R3-01)
+            stateService.transition(..., st -> st.withReflection(
+                st.reflection().decayedThrough().equals(marker)
+                    ? st.reflection().withDecayedThrough(prev) : st.reflection()))   // periods stay owed
+            rethrow                                                     // per-agent catch; caught up on recovery
 
     // 0. [C3] Enablement: recomputed every due reflection, never sticky
     rc = effectiveDefaults.restingFor(tenantId, agentId).capacityConfig()?.relationalComplexityOrDefault() ?: 1.0
     if config.l2Ceiling * rc == 0:                                      // evolution-disabled (rc = 0)
-        stateService.transition(..., st -> st.withReflection(
-            r.advancedBy(n * P).withHalted(false).withDisabled(true)))
+        stateService.transition(..., st -> st.withReflection(            // [R3] derive from st, never from r (R3-03)
+            st.reflection().advancedBy(n * P).withHalted(false).withDisabled(true)))
         if !r.disabled: journal.record(DispositionEvolutionEnablementChanged(enabled = false, rc))
         outcome Disabled(rc); continue                                  // no probe, no DispositionReflected
     reenabled := r.disabled                                             // cleared by step 4's transition
@@ -356,18 +382,22 @@ for agentId in effectiveDefaults.agentIds(tenantId):
         decision = Failed(step, ex.message)                                 (halt := r.halted)
 
     // 3. Commit: only after the decision is final  [R] intent-first, see "JPAF commit ordering"
-    Evolved & now - r.lastTransitionAt < minTransitionInterval:
+    Evolved & reauthorPending:                                            // [R3] (A) unconfirmed re-authoring
+              -> Deferred(previousLabel, newLabel, triggerType, eligibleAt = reauthor.since + P)
+                 (no commit against an authored profile that may still be reverted)
+    Evolved & now - s.reflection().lastTransitionAt < minTransitionInterval:
               -> Deferred(previousLabel, newLabel, triggerType,
-                          eligibleAt = r.lastTransitionAt + minTransitionInterval)
+                          eligibleAt = s.reflection().lastTransitionAt + minTransitionInterval)
                  (no commit; signals keep decaying; halt := false; no attention signal)   [R] rate bound
     Evolved:  s = stateService.transition(..., st -> st.withReflection(
                       st.reflection().withPendingEvolution(intentId, e.newProfile, case, at = now))
-                      (A): .withLivedProfile(e.newProfile, fingerprint(authored)))   // (1) intent (+ (2) under A)
+                      (A): .withLivedProfile(e.newProfile, fingerprint(authored)).withReauthor(null))
+                                                                          // (1) intent (+ (2) under A)
               (B) profileStore.update(agentId, tenantId, e.newProfile)            // (2) absolute identity write
-              signalStore.clear(agentId, tenantId)                                // (3) close the signal epoch
+              signalWriter.clear(tenantId, agentId)                               // (3) close the signal epoch
               s = stateService.transition(..., st -> st.withReflection(st.reflection().closeEpoch()))   // (5)
               s = flushAuditOutbox(s)                                             // (4) best effort, off the critical path
-    Dampened: signalStore.decay(agentId, tenantId, x.decayFactor)
+    Dampened: signalWriter.decay(tenantId, agentId, x.decayFactor)
 
     // 4. Record: Failed advances the ledger too, so a persistent evaluation failure costs one journal entry per period
     stateService.transition(..., st -> st.withReflection(
@@ -418,9 +448,11 @@ Rev 2's original order was identity write → CBR → clear. A crash after the i
 
 This is better than the reviewer's decay-then-mark order. With decay-then-mark, a persistent failure of the *marker* write (a MindMap outage) re-decays on every run, which is the same wipe-out scenario moved to a different store. With marker-then-decay, every persistent failure is harmless:
 - MindMap down: the marker fails first, and nothing decays.
-- Signal store down: the decay fails, recording fails too, and the next period's marker covers only that period.
+- **Signal store down for d periods** *[R3 correction, R3-01]*: a *thrown* `decay` is compensated. A `transition` restores the previous `decayedThrough`, but only if the marker is still the one this run wrote, so a concurrent advance is never undone. Those periods therefore stay owed. When the store returns, `k` covers them all, and the counts are decayed by exactly `retention^(d+1)`.
+  - Round 2's wording ("the next period's marker covers only that period") was wrong: without compensation, every period of the outage would be skipped permanently. Pressure from before the outage would then be over-retained ×1/retention^d, which is ×3.05 at d = 5, and could commit a transition the wall-clock model says had faded.
+  - A caught exception reliably means nothing was decayed. `REQUIRES_NEW` (via `DispositionSignalWriter`) rolls the store's transaction back on the throw, and an exception during commit is the ambiguous case, which degrades to the crash case below.
 
-The cost is the single-crash window between marker and decay. One period's decay is skipped, so pending pressure is retained ×1/retention (×1.25) for one period. This can never compound, and the [R] rate bound still applies.
+The remaining cost is the **crash** window between marker and decay: a process death, or a failing compensation `transition` (MindMap failing in the instant between two writes). That run's `k` periods, normally one, are skipped, so pending pressure is retained ×1/retention^k once. It can never compound across runs, and the [R] rate bound still applies.
 
 **[R2] Clock regression (R2-06).** The gate is `n ≤ 0`, not `n == 0`, so a regressed clock can never produce `retention^(negative)` (> 1, which inflates counts) or move the ledger backwards. If `now < lastReflectionAt`, the phase:
 - clamps `lastReflectionAt` and `decayedThrough` to `now` in one `transition`;
@@ -433,7 +465,8 @@ The same clamp applies on load to `PersonalityState.cursorTime`/`hourCursor`. Th
 
 | Crash or persistent failure | Effect | Class |
 |---|---|---|
-| after the `decayedThrough` marker, before `decay` | that period's decay is skipped once | single-period over-retention; never compounds |
+| process crash (or failed compensation) after the `decayedThrough` marker, before `decay` | that run's `k` periods (normally 1) are skipped once | one-off over-retention ×1/retention^k; never compounds |
+| **[R3]** signal store down for d periods (`decay` throws, MindMap up) | compensation restores `decayedThrough` each time; the periods stay owed | caught up exactly as `retention^(d+1)` on recovery |
 | persistent probe/evaluate failure | `Failed` advances the ledger; no repeated decay | one journal entry per period |
 | after (1), before `clear` | recovery on the next run; (2) is absolute | retried, idempotent |
 | after `clear`, before `closeEpoch` | recovery re-clears, which erases only activations recorded since the crash | boundary under-count, at most one consolidation interval |
@@ -475,7 +508,8 @@ There is no separate ledger store. `DispositionEvolutionLedgerStore` and its `ev
 - **[R]** `lastTransitionAt` (rate bound);
 - **[R]** `pendingEvolution` (the intent: absolute new profile, transition-case features, intent id);
 - **[R]** `disabled` (rc = 0).
-- **[R2]** `decayedThrough` (`Instant`): the end of the last decayed period, so decay happens exactly once per period (R2-03). It is initialised to `lastReflectionAt`.
+- **[R2]** `decayedThrough` (`Instant`): the end of the last decayed period, so decay happens exactly once per period (R2-03). It is initialised to `lastReflectionAt`. **[R3]** A thrown `decay` restores its previous value (R3-01).
+- **[R3]** *(A)* `reauthor` (`Reauthor(fingerprint, since, confirmed)`, nullable): tracks an authored-profile mismatch that has not been confirmed or reverted yet (R3-02). It is encoded as `jpaf.reauthor.*` properties.
 - **[R2]** `auditOutbox` (list of `AuditEntry(intentId, case, attempts, nextAttemptAt)`): pending CBR transition cases (R2-04). Encoded as `jpaf.audit.<intentId>.*` properties.
 - **[R2]** `inert` (boolean): the edge-trigger memory for `DispositionInputInert` (R2-09). The phase writes it in step 4's `transition`.
   - The per-period counts it is derived from are **not** state. The recorder keeps them in its own in-memory `ConcurrentHashMap<TenantAgentKey, InputCounts>` (two `LongAdder`s: seen and relevant). The phase drains them at each due reflection, so the recorder hot path never touches `PersonalityState`, and §[S2]'s transition-only rule holds.
@@ -510,14 +544,16 @@ private <E> void record(E ev, String tenantId, String agentId):
     source = sources.forEventType(ev.getClass())              // at most one per type, see dedup rule
     if source == null || !source.relevant(ev): return          // NEUTRAL short-circuits here,
                                                                 // before any state or registry lookup
-    r = stateService.read(tenantId, agentId, now).reflection()
+    s = stateService.read(tenantId, agentId, now); r = s.reflection()
     if r.halted() || r.disabled(): return                      // [C3] disabled (rc = 0) as well as halted
-    descriptor = agentRegistry.findById(agentId, tenantId)     // lazy; (A): lived descriptor; empty → debug skip
+    authored = agentRegistry.findById(agentId, tenantId)       // lazy; empty → debug skip
+    descriptor = LivedDescriptors.compose(authored, s)         // [R3] explicit: (A) lived ranking; (B) identity
+    terms = []
     for a in source.translate(ev, descriptor):
-        if a.functionTerm() in descriptor profile terms:
-            signalStore.recordActivation(agentId, tenantId, a.functionTerm())   // [S2] 3-arg: no valence
-        else:
-            debug-log + personality.signal.dropped{reason=unknown-term}
+        if a.functionTerm() in descriptor profile terms: terms += a.functionTerm()
+        else: debug-log + personality.signal.dropped{reason=unknown-term}
+    signalWriter.recordActivations(tenantId, agentId, terms)   // [R3] per-agent serialised, REQUIRES_NEW;
+                                                               // [S2] 3-arg recordActivation: no valence
   catch RuntimeException: WARN + personality.signal.record.failures      // [R] totality, both entries
 ```
 
@@ -557,16 +593,56 @@ private <E> void record(E ev, String tenantId, String agentId):
   - `decay` is SELECT → mutate → flush, so it overwrites activations committed in between.
   - `InMemoryDispositionSignalStore` races in `decay`, `removeIf` and `clear`, and uses an aliasing `agentId:tenancyId` key.
 
-  Concurrent writers are real: per-turn `InteractionAppraised` from several speech sessions, plus `RelationshipRecorded`. Until eidos#241 lands, the effect on this design is bounded and one-directional. A lost increment, or a swallowed primary-key violation (recorder totality), **under-counts**. Under-counting delays evolution and can never cause a spurious transition, so the crash-point principle still holds. Counts are therefore a lower bound, and §Calibration's "≈ 4 retained activations" is a minimum event count, not an exact one. eidos#241 is listed in §Prerequisites as not blocking.
-- **[R2] Transaction isolation (R2-05).** `JpaDispositionSignalStore.recordActivation` is `@Transactional(REQUIRED)`. Neocortex's memory and cognition modules contain no `@Transactional` (verified). However, a transactional memory backend or an agency caller could fire `RelationshipRecorded`, or call `recordInteraction`, inside a JTA transaction. A JPA failure crossing the store's interceptor would then mark the **caller's** transaction rollback-only, and the recorder's try/catch cannot undo that.
-  - The recorder therefore performs all signal-store writes in its own `@Transactional(REQUIRES_NEW)` method, `writeActivations(tenant, agent, terms)`.
-  - Without `quarkus-narayana-jta` on the classpath the annotation binds no interceptor, and no outer transaction can exist to be poisoned.
-  - The store side of the same fix (`REQUIRES_NEW` on `recordActivation`) is in eidos#241, so both layers are safe independently.
-  - **Test:** with an active outer transaction, a forced signal-store failure leaves the outer transaction committable.
+  Concurrent writers are real: per-turn `InteractionAppraised` from several speech sessions, plus `RelationshipRecorded`, plus the phase's `decay`/`clear`.
+
+  **[R3] Withdrawn: "lost increments only under-count" (round-2 A5/D19 were false; R1-08).** `DefaultDispositionHealth.probe` normalises: `effective(t) = (w_t + c_t·δ) / Σ(w + c·δ)` (`:59-74`). Losing increments on one term therefore *raises* every other term's share.
+  - **Counter-example** (verified): profile `ti 0.35, ne 0.20`, rest 0.45, δ = 0.06.
+    - True counts `ti 4, ne 4` give effective(ne) = 0.44/1.48 = 0.297, so no swap.
+    - Losing the four `ti` increments gives 0.44/1.24 = 0.355 ≥ 0.35, so a spurious `DOMINANT_AUXILIARY_SWAP`.
+  - **The losses are biased.** Lost updates concentrate on the hottest row, which is the dominant under positive traffic. So they systematically favour a spurious swap.
+
+  The consequence is that the design must not have lost updates from its own writers. It must not wait for Eidos, and it must not ship the evolution disabled either.
+- **[R3] Signal writer: per-agent serialisation plus runtime-neutral isolation (R1-08, R2-05).** Every neocortex access that mutates the signal store goes through one component in `cognition.personality`:
+
+  ```java
+  public final class DispositionSignalWriter {          // plain class; produced as a bean per runtime
+      DispositionSignalWriter(DispositionSignalStore store, IsolatedTransactions tx);
+      void recordActivations(String tenantId, String agentId, List<String> terms);
+      void decay(String tenantId, String agentId, double factor);
+      void clear(String tenantId, String agentId);
+  }
+  public interface IsolatedTransactions {               // cognition-api: runtime-neutral port
+      void requiresNew(Runnable work);                  // run in a new transaction; never join the caller's
+  }
+  ```
+
+  - **Per-agent serialisation (R1-08).** Each method takes a per-`TenantAgentKey` `ReentrantLock` and *then* calls `tx.requiresNew(...)`, so the commit happens inside the lock. The next writer for that agent starts only after the previous one has committed, and at READ_COMMITTED its `em.find` sees the committed count. Within one JVM this removes, for every neocortex writer:
+    - `JpaDispositionSignalStore`'s lost increments;
+    - the concurrent-first-insert primary-key violation;
+    - `decay`'s overwrite of in-flight increments;
+    - the in-memory store's decay/clear races.
+
+    The recorder, the phase's `decay`/`clear` and the recovery path all go through the writer. Neither the recorder nor the phase injects `DispositionSignalStore`. The single-instance contract (#1104) is the existing deployment assumption. eidos#241 remains the store-level fix for multi-instance deployments and non-neocortex writers. It is not blocking, because neocortex no longer depends on it for correctness.
+  - **Cost.** The lock is held for one short transaction (one `find` plus one update or insert). It contends only between concurrent sessions of the **same** agent, and other agents are unaffected. Locks are evicted with idle state (§[R] eviction).
+  - **Transaction isolation without proxy self-invocation (R2-05).** Isolation is programmatic, behind the port, so it does not depend on `@Transactional` interception at all. That rules out both failure modes the review found: Spring's proxy bypass on a `this.` call, and ArC's non-interception of private methods.
+
+    | Runtime | `IsolatedTransactions` implementation | Selected by |
+    |---|---|---|
+    | Quarkus with JTA (narayana) | `JtaIsolatedTransactions(jakarta.transaction.TransactionManager)`: `suspend()` → `begin()` → run → `commit()` (`rollback()` on throw) → `resume()` | `@Produces @DefaultBean` in `CognitionDefaultBeans` when `Instance<TransactionManager>` resolves |
+    | Quarkus without JTA | `DirectIsolatedTransactions`: runs inline. No JTA means no outer transaction exists to join or poison | same producer, otherwise |
+    | Spring (agency-spring) | `TransactionTemplate` with `PROPAGATION_REQUIRES_NEW` over the application's `PlatformTransactionManager` | `@Bean` in `AgencyAutoConfiguration` (agency#487) |
+
+    `JtaIsolatedTransactions` uses only `jakarta.transaction-api`, a compile-scope dependency of cognition, so cognition gains no Narayana or Spring dependency.
+  - **Tests** (§Testing 13):
+    - 8 threads × 100 activations on the dominant term give exactly 800.
+    - Concurrent first activations do not throw.
+    - Concurrent `decay` loses no increment.
+    - The counter-example above (dominant increments under concurrency) commits **no** swap.
+    - Outer-transaction isolation runs under **both** wirings: a CDI `@QuarkusTest`, and agency's `spring-integration-test`, the latter delivered with agency#487.
 - **[R2] Hot-path cost (R2-05).** Each non-NEUTRAL interaction turn costs:
   1. `stateService.read`, which on a cache hit is lock-free and does no I/O;
   2. one `agentRegistry.findById`, an indexed read;
-  3. one short `REQUIRES_NEW` JPA write.
+  3. one short isolated JPA write through `DispositionSignalWriter`, serialised per agent ([R3]: it contends only with concurrent sessions of the same agent).
 
   NEUTRAL turns return at `relevant()` with no I/O. A cache miss loads the node under the per-agent lock (§[S2] `read`). That happens once per agent after 24 h of idleness, or after a restart. The worst case on a miss is one MindMap node read, plus waiting for at most one in-flight `transition` of the *same agent*, whose critical section is one MindMap property write. No lock is taken on the hit path. The halt check deliberately goes through `read` rather than a cache-only peek, because under (A) the same `read` supplies the lived profile that ranks dominant and auxiliary (§(A) lived descriptor). A cache-only peek would rank against the authored profile on every miss, which is exactly the wrong-function defect R2-02 describes.
 
@@ -826,6 +902,9 @@ No signal is emitted for ordinary hourly `homeOffset` drift. It changes every ho
 | **[S3]** *(A)* `EidosCognitiveProfileBridge.livedDescriptor(AgentDescriptor, LivedProfile)` | cognitive-eidos | `DispositionValue` ↔ `WeightedTerm`, delegates to `LivedComposition.profile` |
 | **[S3]** *(A)* `LivedDescriptors` | cognition (`cognition.personality`) | single Eidos-facing composer for the phase and the recorder |
 | **[R]** `InteractionAppraised`, `InteractionPressureSource` | cognition (`cognition.personality`) | live valenced source; emitted by `CognitionCore.recordInteraction` |
+| **[R3]** `DispositionSignalWriter` | cognition (`cognition.personality`) | sole neocortex mutator of `DispositionSignalStore`; per-agent serialised |
+| **[R3]** `IsolatedTransactions` (port) | cognition-api | runtime-neutral REQUIRES_NEW |
+| **[R3]** `JtaIsolatedTransactions`, `DirectIsolatedTransactions` | cognition | CDI implementations; `jakarta.transaction-api` only. The Spring `TransactionTemplate` implementation lives in agency-spring (agency#487) |
 | **[R]** `PersonalityStateService`: `TenantAgentKey` keys, persisted `agentIds`, eviction, and the `PersonalityStateSource` impl (on top of §[S2] `transition`) | cognition | single serialised state owner |
 | **[R]** `EffectiveCognitiveDefaults`, `PersonalityStateService`, `PersonalityStateIntegrator`, `DynamicsConfig` producers | cognition (`CognitionDefaultBeans`) | first production wiring; `DefaultPersonalityStateSource` deleted |
 | Journal entry types | alongside `CognitiveEntry` | |
@@ -856,6 +935,7 @@ The Agency producers of the orchestrator are removed in agency#487, in the same 
 | `SituationalDeformationPhase` | `@ApplicationScoped @Priority(46)` | This is pulled forward from #1082, because promotion and integrator advance must run in production even before the participant is registered. `agentIds` reads persisted nodes, so an empty cache is fine. |
 | `DispositionEvolutionPhase`, `DispositionSignalRecorder`, `InteractionPressureSource` | `@ApplicationScoped` (cognition, Jandex-indexed) | The phase is discovered by `ConsolidationScheduler`'s `Instance<ConsolidationPhase>`. |
 | Recorder → `CognitionCore` | `CognitionCoreFactory` → `CognitivePipelineBuilder.dispositionSignalRecorder(...)` | Feeds `InteractionAppraised`. |
+| **[R3]** `DispositionSignalWriter`, `IsolatedTransactions` | `@Produces @DefaultBean @Singleton` in `CognitionDefaultBeans`: `JtaIsolatedTransactions` when `Instance<TransactionManager>` resolves, otherwise `DirectIsolatedTransactions` | Injected into the recorder and both phases. On Spring, `AgencyAutoConfiguration` supplies a `TransactionTemplate(PROPAGATION_REQUIRES_NEW)` implementation (agency#487) |
 
 #1082 keeps the participant's registration in `CognitionCore`, which is blocked on eidos#234. Spring wiring is agency#487.
 
@@ -896,7 +976,7 @@ All gates are wall-clock: reflection grid, interval, dwell, and integrator hours
 | #1102: valenced relationship and goal-outcome signals | **[R] Not blocking** (was: hard for JPAF non-inertness) | `InteractionAppraised` from `CognitionCore.recordInteraction` carries live production valence. #1102 adds further valenced sources |
 | casehubio/agency#487: remove orchestrator producers, wire the new beans | Same change window | Agency fails to compile |
 | casehubio/eidos#237: fractional activation weights | Not blocking | Integer truncation biases low counts; the reflection grid limits the damage |
-| **[R2]** casehubio/eidos#241: signal-store concurrency (atomic upsert, bulk decay, `REQUIRES_NEW`, in-memory races and keys) | Not blocking | Concurrent activations under-count, which only delays evolution and never double-counts. Counts are a lower bound until it lands |
+| **[R2]** casehubio/eidos#241: signal-store concurrency (atomic upsert, bulk decay, `REQUIRES_NEW`, in-memory races and keys) | Not blocking **[R3]** | Neocortex's own writers are serialised per agent by `DispositionSignalWriter`, so a single-instance deployment has no lost updates. #241 covers multi-instance (#1104) and non-neocortex writers. The round-2 "only under-counts" rationale is withdrawn: under normalisation, a lost increment can *cause* a swap |
 | **[S2]** casehubio/eidos#239: canonical `AmpdFacet` names | **Hard under (B)**; hygiene under (A) | (B): `updateFacets` keyed by an uncanonicalised name appends a duplicate facet or misses the stored spelling |
 
 **What #1060 closes:** the structural defect. Evolution is evaluated on a durable wall-clock cadence. Its result is committed to one store of record, which R1-01 chooses. It reaches `EffectiveCognitiveDefaults` through one path for both families. *[C2]* That path exists in production only because this issue also delivers the `EffectiveCognitiveDefaults` producer and a real `PersonalityStateSource` (Problem 5, §Production wiring).
@@ -976,7 +1056,7 @@ All gates are wall-clock: reflection grid, interval, dwell, and integrator hours
     - **Facet keys (R2-03, option B):** `updateFacets` is called only with names in the canonical AMPD set.
 11. **[S3] Structure round-3 tests:**
     - *(A)* **One composer (R3-03):** the phase's probed descriptor, the recorder's ranking descriptor and `forAgent()` expose the same profile for: no lived profile, a matching lived profile, and a stale lived profile.
-    - *(A)* **Authored edits (R3-02):** an edit after a transition makes readers use the authored profile at once, and the next run clears, drops the lived profile and intent, resets `lastTransitionAt` and journals `DispositionReauthored`. An added authored term is recordable. Unchanged YAML re-registration keeps the lived profile. A facet re-authoring keeps `promoted` over the new baseline.
+    - *(A)* **Authored edits (R3-02):** an edit after a transition makes readers use the authored profile at once. **[R3]** The lived profile turns dormant, not deleted. It reactivates on revert, and a mismatch held for one period confirms once (§[S3] Authored edits tests). An added authored term is recordable. Unchanged YAML re-registration keeps the lived profile. A facet re-authoring keeps `promoted` over the new baseline.
     - *(B)* **Candidates on current state (R3-04):** a participant tick that lowers `|homeOffset|` below the threshold between the advance `transition` and the promotion `transition` yields no promotion.
 12. **[R2] Robustness round-2 tests:**
     - **Exactly-once decay (R2-03):** `probe` throws on 10 consecutive runs within one period. Counts are decayed exactly once, the ledger advances with `Failed`, and one `DispositionEvolutionFailed` is journaled. A failing `decayedThrough` transition (MindMap down) applies no decay at all.
@@ -986,8 +1066,8 @@ All gates are wall-clock: reflection grid, interval, dwell, and integrator hours
       - A crash between `clear` and `closeEpoch` re-clears only once.
       - Recovery runs on a run where `n = 0`.
     - **Clock regression (R2-06):** set the clock back by 2 periods. There is no decay with factor > 1, `lastReflectionAt` never moves backwards, and exactly one `ReflectionClockRegressed` is journaled.
-    - **Signal-store concurrency (R1-08):** 8 threads × 100 activations on one term with the current Eidos stores. Neocortex never throws, and counts are ≤ 800 (a lower bound). Concurrent first activations do not propagate. Exact counts are eidos#241's test.
-    - **Transaction isolation (R2-05):** inside an active outer JTA transaction, a forced signal-store failure leaves the outer transaction committable.
+    - **Signal-store concurrency (R1-08):** superseded by §Testing 13. With the [R3] writer, counts are exact, not a lower bound.
+    - **Transaction isolation (R2-05):** superseded by §Testing 13, which runs under both the CDI and the Spring wiring.
     - **Hot path (R2-05):** a cache-hit interaction acquires no per-agent lock.
     - *(A)* **Lived-descriptor consumers (R2-02):**
       - After a lived `TI-NE → NE-TI` swap, a NEGATIVE interaction increments the lived auxiliary `ti`.
@@ -1002,6 +1082,18 @@ All gates are wall-clock: reflection grid, interval, dwell, and integrator hours
     - **Budget invariant (R1-17):** `DynamicsConfig` with `promotionBudget = 0.05`, `promoteFraction = 0.8`, `dMax = 0.10` is rejected.
     - **Capped edge (R2-08):** a facet that stays capped for 48 simulated hours journals `PersonalityPromotionCapped` exactly once, and `PersonalityPromotionUncapped` once on exit.
     - **Inert input (R2-09):** with mood disabled, there is one startup WARN, the `personality.signal.irrelevant{interaction}` counter increments, and one `DispositionInputInert` is journaled per inert episode.
+13. **[R3] Robustness round-3 tests:**
+    - **Writer serialisation (R1-08):**
+      - 8 threads × 100 activations on one term, against the real `JpaDispositionSignalStore`, give **exactly** 800.
+      - Concurrent first activations do not throw.
+      - `decay` concurrent with activations loses no increment.
+      - **Normalisation counter-example:** profile `ti 0.35, ne 0.20`, rest 0.45. 4 `ti` and 4 `ne` activations from concurrent threads, then a reflection: no `DOMINANT_AUXILIARY_SWAP`, because effective(ne) = 0.297.
+    - **Transaction isolation (R2-05), under both runtimes:**
+      - A CDI `@QuarkusTest` and agency's `spring-integration-test` (agency#487) each open an outer transaction, call `recordInteraction`/fire `RelationshipRecorded` with a forced signal-store failure, and assert the outer transaction commits.
+      - A unit test asserts that `DispositionSignalWriter` calls `IsolatedTransactions.requiresNew` for every store call, with no reliance on interception.
+    - **Signal-store outage (R3-01):** `decay` throws for 5 consecutive due reflections, then succeeds. `decayedThrough` is unchanged across the outage, and the counts equal `(int)(c·0.8^6)`. A compensation `transition` forced to fail loses exactly that run's `k` periods.
+    - *(A)* **Dormant re-authoring (R3-02):** the four cases under §[S3] Authored edits tests.
+    - **No stale write-back (R3-03):** the [S2] interleaving property test. A disabled agent decays exactly once per period across 10 disabled reflections and on re-enable.
 
 ## Decisions
 

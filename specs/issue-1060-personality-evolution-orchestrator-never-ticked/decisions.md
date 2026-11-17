@@ -300,4 +300,49 @@ It is persisted as `jpaf.*` properties on the agent's `PERSONALITY_STATE` node, 
 - A personality-signal failure must never roll back the caller's memory or interaction work.
 - Lost increments only under-count. That delays evolution and never causes a spurious transition, so neocortex needs no workaround around an Eidos storage bug.
 
-**Status:** captured (robustness round 2)
+**Status:** **superseded by D20 (robustness round 3).** Both premises were wrong:
+- Self-invoked `@Transactional` is not reliable. Spring does not proxy `this.` calls, and ArC does not intercept private methods.
+- Lost increments do not only under-count. `DefaultDispositionHealth.probe` normalises across terms, so losing the dominant's increments can commit a spurious swap.
+
+## D20: One per-agent-serialised signal writer behind a runtime-neutral isolation port (robustness review R1-08, R2-05)
+
+**Choice:**
+- `DispositionSignalWriter` (cognition) is the only neocortex code that mutates `DispositionSignalStore`. That covers the recorder, the phase's decay and clear, and recovery.
+- Each call takes a per-`TenantAgentKey` lock and then runs inside `IsolatedTransactions.requiresNew` (cognition-api port), so the commit happens inside the lock.
+- Port implementations: `JtaIsolatedTransactions` (JTA suspend/begin/commit/resume), `DirectIsolatedTransactions` (no JTA), and a Spring `TransactionTemplate(REQUIRES_NEW)` in agency-spring.
+
+**Alternatives:**
+- Gate the phase off until eidos#241 lands (the reviewer's recommendation). *Rejected:* it ships #1060 inert in production again, and the close criterion forbids that. It also leaves correctness hostage to another repo's timeline, when neocortex can remove its own lost updates locally.
+- A separate `@Transactional(REQUIRES_NEW)` bean. *Rejected in favour of the port:* it still depends on interceptor or proxy configuration that differs per runtime.
+- `@Version` retries in neocortex. *Not available:* the entity is Eidos's.
+
+**Rationale:**
+- Under the single-instance contract (#1104), in-JVM serialisation makes neocortex's writers race-free against the current Eidos stores.
+- Programmatic isolation behaves identically under CDI and Spring, and is testable in both.
+- eidos#241 stays the store-level fix for multi-instance deployments and foreign writers. It is not blocking.
+
+**Status:** captured (robustness round 3)
+
+## D21: A thrown decay is compensated; only a crash loses periods (robustness review R3-01)
+
+**Choice:** Write the marker first (D17). If `decay` throws, a `transition` restores the previous `decayedThrough`, but only if the marker is still this run's. The periods stay owed and are caught up as `retention^k` on recovery.
+
+**Rationale:**
+- Marker-first protects against persistent MindMap failure.
+- Compensation protects against persistent signal-store failure.
+- A crash, or a failed compensation, remains the only loss. It is bounded by one run's `k`.
+
+**Status:** captured (robustness round 3)
+
+## D22: Under (A), a re-authored profile makes the lived profile dormant; cleanup is confirmed after one period (robustness review R3-02; refines D16)
+
+**Choice:**
+- The lived profile is never deleted on a fingerprint mismatch. Readers ignore it while the fingerprints differ, it reactivates on revert, and it is overwritten only by the next committed transition.
+- `ReflectionLedger.reauthor` tracks the mismatch. It is reconciled only at due reflections. Once the mismatch has held for one `reflectionPeriod`, confirmation clears the signal epoch and resets `lastTransitionAt`.
+- An unconfirmed mismatch defers any `Evolved`.
+
+**Alternatives:** D16's immediate durable deletion. *Rejected:* it adds no correctness (the readers are already pure), adds irreversibility under rollback, revert or typo, and costs a `findById` on every run.
+
+**Rationale:** D16's principle stands, that authored identity wins. It is enforced by the pure read rule; deleting the lived profile was never needed to enforce it.
+
+**Status:** captured (robustness round 3), conditional on R1-01 = A
