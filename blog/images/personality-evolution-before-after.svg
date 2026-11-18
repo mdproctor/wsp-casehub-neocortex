@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 520" font-family="system-ui, -apple-system, sans-serif" font-size="13">
+  <style>
+    .title { font-size: 15px; font-weight: 600; fill: #1a1a2e; }
+    .subtitle { font-size: 11px; fill: #666; }
+    .box { rx: 6; ry: 6; }
+    .box-dead { fill: #fce4ec; stroke: #c62828; stroke-width: 1.5; stroke-dasharray: 5,3; }
+    .box-eidos { fill: #e8eaf6; stroke: #3949ab; stroke-width: 1.5; }
+    .box-neo { fill: #e0f2f1; stroke: #00695c; stroke-width: 1.5; }
+    .box-shared { fill: #fff3e0; stroke: #e65100; stroke-width: 1.5; }
+    .label { font-size: 12px; font-weight: 600; }
+    .label-dead { fill: #c62828; }
+    .label-eidos { fill: #283593; }
+    .label-neo { fill: #00695c; }
+    .label-shared { fill: #bf360c; }
+    .detail { font-size: 10px; fill: #555; }
+    .arrow { stroke: #888; stroke-width: 1.5; fill: none; marker-end: url(#arrowhead); }
+    .arrow-dead { stroke: #c62828; stroke-width: 1.5; fill: none; stroke-dasharray: 5,3; }
+    .cross { stroke: #c62828; stroke-width: 3; }
+    .divider { stroke: #ccc; stroke-width: 1; stroke-dasharray: 8,4; }
+    .section-label { font-size: 14px; font-weight: 700; fill: #333; }
+  </style>
+  <defs>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#888"/>
+    </marker>
+  </defs>
+
+  <!-- Section labels -->
+  <text x="225" y="28" class="section-label" text-anchor="middle">BEFORE (#1060)</text>
+  <text x="675" y="28" class="section-label" text-anchor="middle">AFTER (Option A)</text>
+  <line x1="450" y1="10" x2="450" y2="510" class="divider"/>
+
+  <!-- BEFORE side -->
+  <!-- PEO (dead) -->
+  <rect x="30" y="50" width="200" height="70" class="box box-dead"/>
+  <text x="130" y="72" class="label label-dead" text-anchor="middle">PersonalityEvolutionOrchestrator</text>
+  <text x="130" y="88" class="detail" text-anchor="middle">record() — zero callers</text>
+  <text x="130" y="102" class="detail" text-anchor="middle">tick() — zero callers</text>
+  <!-- X marks -->
+  <line x1="40" y1="58" x2="60" y2="78" class="cross"/>
+  <line x1="60" y1="58" x2="40" y2="78" class="cross"/>
+
+  <!-- Eidos SPIs (used by PEO) -->
+  <rect x="250" y="50" width="170" height="70" class="box box-eidos"/>
+  <text x="335" y="72" class="label label-eidos" text-anchor="middle">Eidos Evolution SPIs</text>
+  <text x="335" y="88" class="detail" text-anchor="middle">DispositionHealth.probe()</text>
+  <text x="335" y="102" class="detail" text-anchor="middle">DispositionEvolution.evaluate()</text>
+
+  <!-- Dead arrow PEO → Eidos -->
+  <path d="M230,85 L250,85" class="arrow-dead"/>
+
+  <!-- DispositionProfileStore (noop) -->
+  <rect x="100" y="150" width="200" height="50" class="box box-dead"/>
+  <text x="200" y="172" class="label label-dead" text-anchor="middle">DispositionProfileStore</text>
+  <text x="200" y="186" class="detail" text-anchor="middle">NoOp implementation only</text>
+  <path d="M130,120 L180,150" class="arrow-dead"/>
+
+  <!-- EffectiveCognitiveDefaults (push model) -->
+  <rect x="60" y="230" width="200" height="60" class="box box-neo"/>
+  <text x="160" y="252" class="label label-neo" text-anchor="middle">EffectiveCognitiveDefaults</text>
+  <text x="160" y="268" class="detail" text-anchor="middle">updateState() — push model</text>
+
+  <!-- SituationalPersonalityParticipant -->
+  <rect x="60" y="320" width="200" height="60" class="box box-neo"/>
+  <text x="160" y="342" class="label label-neo" text-anchor="middle">SituationalPersonality</text>
+  <text x="160" y="358" class="detail" text-anchor="middle">Participant (per-tick displacement)</text>
+  <path d="M160,320 L160,290" class="arrow"/>
+
+  <!-- Gap label -->
+  <rect x="280" y="240" width="140" height="40" rx="4" ry="4" fill="#fff9c4" stroke="#f9a825" stroke-width="1"/>
+  <text x="350" y="258" class="detail" text-anchor="middle" fill="#e65100" font-weight="600">No connection between</text>
+  <text x="350" y="272" class="detail" text-anchor="middle" fill="#e65100" font-weight="600">JPAF and PID-5</text>
+
+  <!-- AFTER side -->
+  <!-- Eidos (authored identity) -->
+  <rect x="480" y="50" width="170" height="60" class="box box-eidos"/>
+  <text x="565" y="72" class="label label-eidos" text-anchor="middle">Eidos (authored identity)</text>
+  <text x="565" y="88" class="detail" text-anchor="middle">probe() + evaluate() — owned</text>
+
+  <!-- PersonalityStateService -->
+  <rect x="670" y="50" width="200" height="60" class="box box-neo"/>
+  <text x="770" y="72" class="label label-neo" text-anchor="middle">PersonalityStateService</text>
+  <text x="770" y="88" class="detail" text-anchor="middle">transition() — striped locks</text>
+
+  <!-- DispositionEvolutionPhase -->
+  <rect x="480" y="140" width="180" height="60" class="box box-neo"/>
+  <text x="570" y="160" class="label label-neo" text-anchor="middle">DispositionEvolutionPhase</text>
+  <text x="570" y="178" class="detail" text-anchor="middle">@Priority(50) — JPAF eval</text>
+  <path d="M570,140 L565,110" class="arrow"/>
+  <path d="M620,140 L720,110" class="arrow"/>
+
+  <!-- SituationalDeformationPhase -->
+  <rect x="690" y="140" width="180" height="60" class="box box-neo"/>
+  <text x="780" y="160" class="label label-neo" text-anchor="middle">SituationalDeformationPhase</text>
+  <text x="780" y="178" class="detail" text-anchor="middle">@Priority(46) — PID-5 promotion</text>
+  <path d="M780,140 L770,110" class="arrow"/>
+
+  <!-- Shared outcome layer -->
+  <rect x="510" y="230" width="350" height="60" class="box box-shared"/>
+  <text x="685" y="252" class="label label-shared" text-anchor="middle">Lived PersonalityState (single owner)</text>
+  <text x="685" y="268" class="detail" text-anchor="middle">JPAF profile + PID-5 promoted + homeOffset + ledger</text>
+  <path d="M570,200 L620,230" class="arrow"/>
+  <path d="M780,200 L750,230" class="arrow"/>
+
+  <!-- EffectiveCognitiveDefaults (pull) -->
+  <rect x="560" y="320" width="230" height="60" class="box box-neo"/>
+  <text x="675" y="342" class="label label-neo" text-anchor="middle">EffectiveCognitiveDefaults</text>
+  <text x="675" y="358" class="detail" text-anchor="middle">compositionVersion pull — no updateState</text>
+  <path d="M675,320 L685,290" class="arrow"/>
+
+  <!-- LivedComposition -->
+  <rect x="600" y="410" width="170" height="50" class="box box-neo"/>
+  <text x="685" y="432" class="label label-neo" text-anchor="middle">LivedComposition</text>
+  <text x="685" y="448" class="detail" text-anchor="middle">authored ⊕ lived = effective</text>
+  <path d="M675,380 L685,410" class="arrow"/>
+
+  <!-- Signal recording -->
+  <rect x="480" y="410" width="100" height="50" class="box box-neo"/>
+  <text x="530" y="432" class="label label-neo" text-anchor="middle">Recorder</text>
+  <text x="530" y="448" class="detail" text-anchor="middle">CDI events</text>
+  <path d="M530,410 L540,200" class="arrow"/>
+
+  <!-- Legend -->
+  <rect x="490" y="478" width="12" height="12" class="box box-dead"/>
+  <text x="508" y="489" class="detail">Dead / removed</text>
+  <rect x="600" y="478" width="12" height="12" class="box box-eidos"/>
+  <text x="618" y="489" class="detail">Eidos (authored)</text>
+  <rect x="710" y="478" width="12" height="12" class="box box-neo"/>
+  <text x="728" y="489" class="detail">Neocortex</text>
+  <rect x="800" y="478" width="12" height="12" class="box box-shared"/>
+  <text x="818" y="489" class="detail">Shared</text>
+</svg>
