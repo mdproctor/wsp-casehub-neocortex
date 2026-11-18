@@ -31,3 +31,8 @@ active: casehubio/neocortex#1060
     - [x] Task 3: Task12-ProductionWiring
     - [x] Task 4: Task13-DeleteObsoleteTypes
     - [x] Task 5: Task14-IntegrationTests
+- [ ] casehubio/neocortex#1122 — CDI-wiring-DispositionEvolutionPhase
+- [ ] casehubio/neocortex#1124 — toSnapshot-compositionVersion-fix
+- [ ] casehubio/neocortex#1128 — reversal-detection-D30
+- [ ] casehubio/neocortex#1126 — audit-outbox-CBR-recording
+- [ ] casehubio/neocortex#1123 — QuarkusTest-E2E-trajectory-tests
