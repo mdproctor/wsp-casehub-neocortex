@@ -10,8 +10,8 @@ design-repo: project
 design-section-hashes: 
 flyway-next-v: unknown
 check: 878
-done: casehubio/neocortex#1077,casehubio/neocortex#1078,casehubio/neocortex#1049,casehubio/neocortex#1061,casehubio/neocortex#1088,casehubio/neocortex#1038,casehubio/neocortex#1064,casehubio/neocortex#1060,casehubio/neocortex#1118,casehubio/neocortex#1122,casehubio/neocortex#1124,casehubio/neocortex#1128,casehubio/neocortex#1126,casehubio/neocortex#1123,casehubio/neocortex#1130,casehubio/neocortex#1129,casehubio/neocortex#1106,casehubio/neocortex#1037
-active: casehubio/neocortex#1036
+done: casehubio/neocortex#1077,casehubio/neocortex#1078,casehubio/neocortex#1049,casehubio/neocortex#1061,casehubio/neocortex#1088,casehubio/neocortex#1038,casehubio/neocortex#1064,casehubio/neocortex#1060,casehubio/neocortex#1118,casehubio/neocortex#1122,casehubio/neocortex#1124,casehubio/neocortex#1128,casehubio/neocortex#1126,casehubio/neocortex#1123,casehubio/neocortex#1130,casehubio/neocortex#1129,casehubio/neocortex#1106,casehubio/neocortex#1037,casehubio/neocortex#1036
+active: casehubio/neocortex#1133
 
 ## Queue
 - [x] casehubio/neocortex#1077 — AttentionSignalTest-pre-existing-failure
@@ -32,7 +32,7 @@ active: casehubio/neocortex#1036
 - [x] casehubio/neocortex#1129 — CDI-wiring-SituationalDeformationPhase
 - [x] casehubio/neocortex#1106 — BehavioralSynthesisPhase-compile-error
 - [x] casehubio/neocortex#1037 — guard-strategiesAttempted-IOOB
-- [ ] casehubio/neocortex#1036 — defensive-GoalOperation-validation
+- [x] casehubio/neocortex#1036 — defensive-GoalOperation-validation
 - [ ] casehubio/neocortex#1133 — tomFacetScore-suspiciousness-default
 - [ ] casehubio/neocortex#1132 — LivedDispositionSource-eidos-bridge
 - [ ] casehubio/neocortex#1082 — wire-SituationalPersonalityParticipant
