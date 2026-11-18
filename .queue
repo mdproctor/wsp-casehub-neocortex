@@ -11,7 +11,7 @@ design-section-hashes:
 flyway-next-v: unknown
 check: 878
 done: casehubio/neocortex#1077,casehubio/neocortex#1078,casehubio/neocortex#1049,casehubio/neocortex#1061,casehubio/neocortex#1088,casehubio/neocortex#1038,casehubio/neocortex#1064
-active: casehubio/neocortex#1122
+active: casehubio/neocortex#1130
 
 ## Queue
 - [x] casehubio/neocortex#1077 — AttentionSignalTest-pre-existing-failure
@@ -27,6 +27,6 @@ active: casehubio/neocortex#1122
 - [x] casehubio/neocortex#1124 — toSnapshot-compositionVersion-fix
 - [x] casehubio/neocortex#1128 — reversal-detection-D30
 - [x] casehubio/neocortex#1126 — audit-outbox-CBR-recording
-- [ ] casehubio/neocortex#1123 — QuarkusTest-E2E-trajectory-tests ← active
-- [ ] casehubio/neocortex#1130 — CDI-wiring-PersonalityStateIntegrator
+- [ ] casehubio/neocortex#1123 — QuarkusTest-E2E-trajectory-tests
+- [ ] casehubio/neocortex#1130 — CDI-wiring-PersonalityStateIntegrator ← active
 - [ ] casehubio/neocortex#1129 — CDI-wiring-SituationalDeformationPhase
