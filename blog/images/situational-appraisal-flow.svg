@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 400" font-family="Inter, system-ui, sans-serif" font-size="13">
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="none" stroke="#475569" stroke-width="1.5"/>
+    </marker>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f8fafc"/>
+      <stop offset="100%" stop-color="#f1f5f9"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="720" height="400" fill="url(#bgGrad)" rx="8"/>
+
+  <text x="360" y="30" text-anchor="middle" font-size="15" font-weight="600" fill="#1e293b">Situational Personality → Appraisal Pipeline</text>
+
+  <!-- Detection box -->
+  <rect x="30" y="60" width="150" height="70" rx="6" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="105" y="85" text-anchor="middle" font-weight="600" fill="#1e40af">Detection</text>
+  <text x="105" y="102" text-anchor="middle" font-size="11" fill="#3b82f6">SituationalDetector</text>
+  <text x="105" y="118" text-anchor="middle" font-size="11" fill="#3b82f6">mode + intensity</text>
+
+  <!-- State box -->
+  <rect x="30" y="160" width="150" height="70" rx="6" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="105" y="185" text-anchor="middle" font-weight="600" fill="#1e40af">State</text>
+  <text x="105" y="202" text-anchor="middle" font-size="11" fill="#3b82f6">PersonalityStateService</text>
+  <text x="105" y="218" text-anchor="middle" font-size="11" fill="#3b82f6">facet displacement</text>
+
+  <!-- Arrow detection → state -->
+  <line x1="105" y1="130" x2="105" y2="160" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- LivedComposition box -->
+  <rect x="230" y="110" width="170" height="70" rx="6" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.5"/>
+  <text x="315" y="135" text-anchor="middle" font-weight="600" fill="#92400e">Composition</text>
+  <text x="315" y="152" text-anchor="middle" font-size="11" fill="#b45309">LivedComposition</text>
+  <text x="315" y="168" text-anchor="middle" font-size="11" fill="#b45309">"situational [usual 0.62]"</text>
+
+  <!-- Arrow state → composition -->
+  <line x1="180" y1="185" x2="230" y2="155" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Trust box -->
+  <rect x="230" y="210" width="170" height="55" rx="6" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.5"/>
+  <text x="315" y="233" text-anchor="middle" font-weight="600" fill="#92400e">Trust</text>
+  <text x="315" y="250" text-anchor="middle" font-size="11" fill="#b45309">RelationalSchemaResolver</text>
+
+  <!-- Arrow state → trust -->
+  <line x1="180" y1="210" x2="230" y2="230" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Appraisal context box -->
+  <rect x="460" y="60" width="230" height="100" rx="6" fill="#dcfce7" stroke="#22c55e" stroke-width="1.5"/>
+  <text x="575" y="85" text-anchor="middle" font-weight="600" fill="#166534">AppraisalContext</text>
+  <text x="575" y="105" text-anchor="middle" font-size="11" fill="#16a34a">personalityFacets (with origin)</text>
+  <text x="575" y="121" text-anchor="middle" font-size="11" fill="#16a34a">situationalMode (mode + intensity)</text>
+  <text x="575" y="137" text-anchor="middle" font-size="11" fill="#16a34a">targetSchema (real trust)</text>
+
+  <!-- Arrows to appraisal context -->
+  <line x1="400" y1="140" x2="460" y2="110" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="400" y1="237" x2="460" y2="145" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- LLM Appraiser box -->
+  <rect x="460" y="190" width="230" height="80" rx="6" fill="#fce7f3" stroke="#ec4899" stroke-width="1.5"/>
+  <text x="575" y="215" text-anchor="middle" font-weight="600" fill="#9d174d">LLM Appraiser</text>
+  <text x="575" y="235" text-anchor="middle" font-size="11" fill="#be185d">system: "Under stress, controllability</text>
+  <text x="575" y="251" text-anchor="middle" font-size="11" fill="#be185d">feels lower than the situation warrants"</text>
+
+  <!-- Arrow context → appraiser -->
+  <line x1="575" y1="160" x2="575" y2="190" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Prompt section box -->
+  <rect x="460" y="300" width="230" height="70" rx="6" fill="#e0e7ff" stroke="#6366f1" stroke-width="1.5"/>
+  <text x="575" y="325" text-anchor="middle" font-weight="600" fill="#3730a3">ShadowArchetype</text>
+  <text x="575" y="345" text-anchor="middle" font-size="11" fill="#4f46e5">PromptSection</text>
+  <text x="575" y="361" text-anchor="middle" font-size="11" fill="#4f46e5">"do not comment on or explain it"</text>
+
+  <!-- Trace box -->
+  <rect x="230" y="300" width="170" height="70" rx="6" fill="#f3e8ff" stroke="#a855f7" stroke-width="1.5"/>
+  <text x="315" y="325" text-anchor="middle" font-weight="600" fill="#6b21a8">Observability</text>
+  <text x="315" y="345" text-anchor="middle" font-size="11" fill="#7c3aed">PipelineTrace</text>
+  <text x="315" y="361" text-anchor="middle" font-size="11" fill="#7c3aed">SituationalPersonalitySnapshot</text>
+
+  <!-- Arrow detection → trace -->
+  <line x1="105" y1="230" x2="105" y2="335" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4,3"/>
+  <line x1="105" y1="335" x2="230" y2="335" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+
+  <!-- Arrow detection → prompt section -->
+  <line x1="400" y1="335" x2="460" y2="335" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+</svg>
