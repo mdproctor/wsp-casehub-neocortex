@@ -27,7 +27,7 @@ active: casehubio/neocortex#1060
   - [x] Batch 1: Batch5
     - [x] Task 1: Task10-EidosCognitiveProfileBridge.livedDescriptor
     - [x] Task 2: Task11-DispositionEvolutionPhase
-  - [ ] Batch 2: Batch6
-    - [ ] Task 3: Task12-ProductionWiring
-    - [ ] Task 4: Task13-DeleteObsoleteTypes
-    - [ ] Task 5: Task14-IntegrationTests
+  - [x] Batch 2: Batch6
+    - [x] Task 3: Task12-ProductionWiring
+    - [x] Task 4: Task13-DeleteObsoleteTypes
+    - [x] Task 5: Task14-IntegrationTests
