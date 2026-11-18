@@ -43,7 +43,7 @@ The spec that emerged from twelve rounds of adversarial dialogue looks nothing l
 
 ## What this means for the codebase
 
-The implementation plan is 14 tasks across 6 batches. The first batch renames `SituationalStateService` to `PersonalityStateService` and adds the striped locking infrastructure that makes all subsequent changes safe. The last batch deletes `PersonalityEvolutionOrchestrator` and wires everything up. Each batch is a safe wrap point.
+The implementation plan is 14 tasks across 6 batches. The first batch renames `PersonalityStateService` to `PersonalityStateService` and adds the striped locking infrastructure that makes all subsequent changes safe. The last batch deletes `PersonalityEvolutionOrchestrator` and wires everything up. Each batch is a safe wrap point.
 
 What matters more than the task count is what the design *removes*:
 

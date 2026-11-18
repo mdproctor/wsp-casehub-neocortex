@@ -16,7 +16,7 @@ using option (A) — neocortex stores lived results, Eidos keeps authored identi
 **Architecture:** Two personality families (JPAF and PID-5) share outcome infrastructure
 (store of record in `PersonalityState`, pull-based propagation via `compositionVersion`,
 consolidation cadence, audit) but keep their native accumulation and evaluation dynamics.
-`PersonalityStateService` (renamed from `SituationalStateService`) is the single serialised
+`PersonalityStateService` (renamed from `PersonalityStateService`) is the single serialised
 owner of all per-agent evolution state. `EffectiveCognitiveDefaults` pulls lived state
 lazily via `compositionVersion`-keyed freshness, replacing the deleted `updateState`.
 
@@ -45,9 +45,9 @@ tests still pass (rename is mechanical).
 ### Task 1: Rename SituationalStateService → PersonalityStateService
 
 **Files:**
-- Rename: `SituationalStateService` → `PersonalityStateService` (use `ide_refactor_rename`)
+- Rename: `PersonalityStateService` → `PersonalityStateService` (use `ide_refactor_rename`)
 - Modify: all references across the codebase (rename handles this)
-- Test: existing `SituationalStateServiceTest` (renamed)
+- Test: existing `PersonalityStateServiceTest` (renamed)
 
 **Interfaces:**
 - Produces: `PersonalityStateService` class name used by all subsequent tasks
@@ -58,7 +58,7 @@ Run: `JAVA_HOME=$(/usr/libexec/java_home -v 26) mvn test -pl cognition -Dtest=Si
 
 - [ ] **Step 2: Rename via IntelliJ**
 
-Use `ide_refactor_rename` on `SituationalStateService` → `PersonalityStateService`.
+Use `ide_refactor_rename` on `PersonalityStateService` → `PersonalityStateService`.
 This updates all references across the project.
 
 - [ ] **Step 3: Run affected tests**
