@@ -24,7 +24,7 @@ active: casehubio/neocortex#1122
 - [x] casehubio/neocortex#1060 — PersonalityEvolutionOrchestrator-never-ticked
 - [x] casehubio/neocortex#1118 — DispositionEvolutionPhase-plus-production-wiring
 - [x] casehubio/neocortex#1122 — CDI-wiring-DispositionEvolutionPhase
-- [ ] casehubio/neocortex#1124 — toSnapshot-compositionVersion-fix ← active
-- [ ] casehubio/neocortex#1128 — reversal-detection-D30
+- [x] casehubio/neocortex#1124 — toSnapshot-compositionVersion-fix
+- [ ] casehubio/neocortex#1128 — reversal-detection-D30 ← active
 - [ ] casehubio/neocortex#1126 — audit-outbox-CBR-recording
 - [ ] casehubio/neocortex#1123 — QuarkusTest-E2E-trajectory-tests
