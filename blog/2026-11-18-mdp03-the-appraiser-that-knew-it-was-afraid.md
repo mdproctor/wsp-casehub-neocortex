@@ -75,4 +75,4 @@ Four issues, one theme: closing the gap between what the situational system know
 | #1083 | RelationalSchemaResolver replaces hardcoded trust |
 | #1059 | SituationalModeContext + ShadowArchetypePromptSection |
 
-The situational personality system was already working. Now the appraisal pipeline knows it.
+The situational personality system was already working. Now the appraisal pipeline knows it.l

@@ -1,32 +1,15 @@
-# Work Plan —
-
-## State
-branch: 
-issue-repo: casehubio/neocortex
-status: active
-project-sha: slot-creation
-date: 2026-11-17
-design-repo: project
-design-section-hashes: 
-flyway-next-v: unknown
-check: 878
-done: casehubio/neocortex#1077,casehubio/neocortex#1078,casehubio/neocortex#1049,casehubio/neocortex#1061,casehubio/neocortex#1088,casehubio/neocortex#1038,casehubio/neocortex#1064,casehubio/neocortex#1060,casehubio/neocortex#1118,casehubio/neocortex#1122,casehubio/neocortex#1124,casehubio/neocortex#1128,casehubio/neocortex#1126,casehubio/neocortex#1123,casehubio/neocortex#1130,casehubio/neocortex#1129,casehubio/neocortex#1106,casehubio/neocortex#1037,casehubio/neocortex#1036,casehubio/neocortex#1133
-active: casehubio/neocortex#1068
-covers: 
-
-## Queue
-- [ ] casehubio/neocortex#1068 — LlmAppraisalStrategy-situational-facet-prompt-clause ← active
-- [ ] casehubio/neocortex#1084 — PipelineTrace-SituationalPersonalitySnapshot
-- [ ] casehubio/neocortex#1083 — RelationalSchemaResolver-trust-signal
-- [ ] casehubio/neocortex#1059 — CARMA-SEC-situational-mode-context
-- [ ] casehubio/neocortex#1056 — biographical-extraction-situational-profiles
+- [x] casehubio/neocortex#1068 — LlmAppraisalStrategy-situational-facet-prompt-clause
+- [x] casehubio/neocortex#1084 — PipelineTrace-SituationalPersonalitySnapshot
+- [x] casehubio/neocortex#1083 — RelationalSchemaResolver-trust-signal
+- [x] casehubio/neocortex#1059 — CARMA-SEC-situational-mode-context
+- [ ] casehubio/neocortex#1056 — biographical-extraction-situational-profiles        ← active
 - [ ] casehubio/neocortex#1058 — shadow-narrative-frame-attractor-classification
 - [ ] casehubio/neocortex#1057 — temporal-archetype-salience-life-phases
 - [ ] casehubio/neocortex#1076 — PID5-facet-extension-situational-attractors
-- [ ] casehubio/neocortex#1132 — LivedDispositionSource-eidos-bridge ← done on issue-1130/cdi-wiring-personality-state-integrator
-- [ ] casehubio/neocortex#1082 — wire-SituationalPersonalityParticipant ← done on issue-1130/cdi-wiring-personality-state-integrator
-- [ ] casehubio/neocortex#1135 — EidosCognitiveProfileBridge-AMPD-facets ← done on issue-1130/cdi-wiring-personality-state-integrator
-- [ ] casehubio/neocortex#1138 — cap-narrative-field-length ← done on issue-1130/cdi-wiring-personality-state-integrator
+- [x] casehubio/neocortex#1132 — LivedDispositionSource-eidos-bridge
+- [x] casehubio/neocortex#1082 — wire-SituationalPersonalityParticipant
+- [x] casehubio/neocortex#1135 — EidosCognitiveProfileBridge-AMPD-facets
+- [x] casehubio/neocortex#1138 — cap-narrative-field-length
 - [x] casehubio/neocortex#1133 — tomFacetScore-suspiciousness-default
 - [x] casehubio/neocortex#1077 — AttentionSignalTest-pre-existing-failure
 - [x] casehubio/neocortex#1078 — CopingStrategyPredictorTest-pre-existing-failure
@@ -47,3 +30,18 @@ covers:
 - [x] casehubio/neocortex#1106 — BehavioralSynthesisPhase-compile-error
 - [x] casehubio/neocortex#1037 — guard-strategiesAttempted-IOOB
 - [x] casehubio/neocortex#1036 — defensive-GoalOperation-validation
+- [ ] casehubio/neocortex#1145 — delegate-resolveRelationalSchema
+- [ ] casehubio/neocortex#1146 — TrustAccessor-test-coverage
+
+## State
+branch: 
+issue-repo: casehubio/neocortex
+status: active
+project-sha: slot-creation
+date: 2026-11-17
+design-repo: project
+design-section-hashes: 
+flyway-next-v: unknown
+check: 878
+done: casehubio/neocortex#1077,casehubio/neocortex#1078,casehubio/neocortex#1049,casehubio/neocortex#1061,casehubio/neocortex#1088,casehubio/neocortex#1038,casehubio/neocortex#1064,casehubio/neocortex#1060,casehubio/neocortex#1118,casehubio/neocortex#1122,casehubio/neocortex#1124,casehubio/neocortex#1128,casehubio/neocortex#1126,casehubio/neocortex#1123,casehubio/neocortex#1130,casehubio/neocortex#1129,casehubio/neocortex#1106,casehubio/neocortex#1037,casehubio/neocortex#1036,casehubio/neocortex#1133
+active: casehubio/neocortex#1068
