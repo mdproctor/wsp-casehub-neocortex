@@ -1,44 +1,36 @@
 # HANDOFF — casehub-neocortex
 
-## Current Session (2026-11-18, session 4)
+## Current Session (2026-11-18, session 5)
 
-**All 14 tasks of #1060/#1118 implemented. 9 issues done on branch, awaiting work-end. 5 follow-up issues filed and queued.**
+**4 follow-up issues landed (#1122, #1124, #1128, #1126). Branch closed. 3 issues remain in queue.**
 
-### What this session did (Batches 5-6, #1118)
+### What this session did
 
-| Batch | Tasks | Key deliverables |
-|-------|-------|-----------------|
-| 5. JPAF Evaluation | 10-11 | `EidosCognitiveProfileBridge.livedDescriptor()`, `LivedDescriptors`, `PersonalityState.livedProfile` + serialisation, `DispositionEvolutionPhase` @Priority(50) — full JPAF evaluation pipeline with intent-first commit ordering, 8 journal entry types, `SignalCategory.PERSONALITY_EVOLVED` |
-| 6. Wiring + Cleanup | 12-14 | CDI producers (`DispositionEvolutionConfig`, `IsolatedTransactions`), deleted PEO + EvolutionTick + PersonalityEvolutionConfig + DefaultPersonalityStateSource, integration tests (10 tests total) |
+| Issue | What was delivered |
+|-------|-------------------|
+| #1122 (M/Med) | CDI wiring — `@ApplicationScoped @Priority(50)` on `DispositionEvolutionPhase`, `@Inject` dual-constructor pattern, producers for `DispositionSignalWriter` and `PersonalityStateService` in `CognitionDefaultBeans`, `DispositionSignalRecorder` as `@ApplicationScoped` CDI event observer, `CognitionCoreFactory` wiring, `DefaultPersonalityStateSource` deletion fixed |
+| #1124 (S/Low) | `toSnapshot()` reads `compositionVersion` from cache instead of hardcoded 0 — enables `EffectiveCognitiveDefaults` slot freshness checks |
+| #1128 (S/Low) | Reversal detection — A→B→A oscillation monitoring via `reversalStreak` on `ReflectionLedger`, `DispositionReversal` journal entry at streak ≥ 2 |
+| #1126 (M/Med) | Audit outbox — `flushAuditOutbox()` with bounded retry (5 attempts), CBR case recording for disposition transitions, `DispositionTransitionAuditFailed` journal entry on give-up, `maxAuditAttempts` on `DispositionEvolutionConfig` |
 
-Code review: 2 WARNING + 1 NOTE → all fixed (dead `withReflection` chain, unused import).
+Code review finding: `CognitionCoreFactory` was not wiring `DispositionSignalRecorder` into the pipeline builder — the interaction pressure path was dead in production. Fixed.
 
-### Branch state
+New issues filed: #1129 (SituationalDeformationPhase CDI wiring), #1130 (PersonalityStateIntegrator CDI wiring).
 
-- **Project repo**: ~20 commits ahead of main, all personality-related tests green (43 tests)
-- **Workspace**: 3 blog entries, spec, decisions, plan, queue with follow-ups
-- **Pre-existing failures**: `AppraisalStatePropagationTest` (1), `EmotionRegulationTickParticipantTest` (3) — unrelated to this work
+### Queue state
 
-### What work-end needs to do
+| Issue | Title | Scale | Status |
+|-------|-------|-------|--------|
+| #1123 | QuarkusTest E2E trajectory tests | M/Med | Not started — erroneously closed by ceremony, needs re-queueing |
+| #1130 | CDI wiring for PersonalityStateIntegrator | XS/Low | Queued |
+| #1129 | CDI wiring for SituationalDeformationPhase | S/Low | Queued, depends on #1130 |
 
-9 done issues on this branch awaiting close:
-- #1077, #1078, #1049, #1061, #1088, #1038, #1064 (pre-existing bug fixes)
-- #1060 (unified personality evolution — Batches 1-4)
-- #1118 (DispositionEvolutionPhase — Batches 5-6)
+### Key context for next session
 
-### Follow-up issues (queued, not started)
-
-| Issue | What | Scale | Blocked by |
-|-------|------|-------|-----------|
-| #1122 | CDI wiring for DispositionEvolutionPhase | M/Med | — |
-| #1124 | toSnapshot hardcodes compositionVersion=0 | S/Low | — |
-| #1128 | Reversal detection (D30) — streak counting | S/Low | — |
-| #1126 | Audit outbox — CBR case recording | M/Med | — |
-| #1123 | @QuarkusTest, E2E, 240-day trajectory tests | M/Med | #1122 |
-
-### Next session action
-
-Run `work end` to close the branch and land all 9 done issues. The 5 follow-up issues will need a new branch.
+- **PersonalityStateService** is now a CDI-producible `@Singleton` implementing `PersonalityStateSource`. It auto-satisfies `Instance<PersonalityStateSource>` in `EffectiveCognitiveDefaultsProducer`.
+- **PID-5 facet names** configurable via `casehub.cognition.pid5-facets` property (13 defaults).
+- **SituationalDeformationPhase** still has no CDI annotations — same gap that #1122 fixed for `DispositionEvolutionPhase`. #1129/#1130 address this.
+- **#1123 E2E tests** need a `@QuarkusTest` that runs the full consolidation pipeline through the CDI container, verifying that the phase is discovered, signals are recorded, and transitions produce CBR cases.
 
 ### Prerequisites (unchanged)
 
@@ -47,8 +39,10 @@ Run `work end` to close the branch and land all 9 done issues. The 5 follow-up i
 
 ## Prior Sessions
 
-**Session 3 (2026-11-18):** Batches 1-4 implemented (Tasks 1-9). Rename, striped locking, ReflectionLedger, LivedComposition, pull model, signal writer/recorder, PID-5 promotion. Code review: 7 findings fixed.
+**Session 4 (2026-11-18):** Batches 5-6 (#1118) — `DispositionEvolutionPhase` implementation, intent-first commit ordering, lived profile composition, rate bounds, authored edit reconciliation. 9 issues landed on branch.
 
-**Session 2 (2026-11-17/18):** Design review — adversarial review (4 dimensions × 3 rounds), 14-task plan. No code.
+**Session 3 (2026-11-18):** Batches 1-4 (Tasks 1-9) — rename, striped locking, ReflectionLedger, LivedComposition, pull model, signal writer/recorder, PID-5 promotion.
+
+**Session 2 (2026-11-17/18):** Design review — adversarial review (4 dimensions × 3 rounds), 14-task plan.
 
 **Session 1:** Epic #1090 bug fix sweep — 7 issues resolved.
