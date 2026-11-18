@@ -23,3 +23,4 @@ active: casehubio/neocortex#1060
 - [ ] casehubio/neocortex#1038 — cognition-module-compile-errors
 - [ ] casehubio/neocortex#1064 — bounded-MindMap-search-loses-nodes
 - [ ] casehubio/neocortex#1060 — PersonalityEvolutionOrchestrator-never-ticked
+- [ ] casehubio/neocortex#1118 — DispositionEvolutionPhase-plus-production-wiring
