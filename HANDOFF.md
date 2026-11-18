@@ -1,66 +1,53 @@
 # HANDOFF — casehub-neocortex
 
-## Current Session (2026-11-18)
+## Current Session (2026-11-18, session 4)
 
-**#1060 — Unified Personality Evolution: Batches 1-4 implemented, review fixes applied, Batches 5-6 remain.**
+**All 14 tasks of #1060/#1118 implemented. 9 issues done on branch, awaiting work-end. 5 follow-up issues filed and queued.**
 
-This session implemented 9 of 14 tasks across 4 batches, performed adversarial code review (correctness + thread safety, coherence + dead code), and fixed all critical and medium findings. No code from Batches 5-6 has been written.
+### What this session did (Batches 5-6, #1118)
 
-### What was implemented
+| Batch | Tasks | Key deliverables |
+|-------|-------|-----------------|
+| 5. JPAF Evaluation | 10-11 | `EidosCognitiveProfileBridge.livedDescriptor()`, `LivedDescriptors`, `PersonalityState.livedProfile` + serialisation, `DispositionEvolutionPhase` @Priority(50) — full JPAF evaluation pipeline with intent-first commit ordering, 8 journal entry types, `SignalCategory.PERSONALITY_EVOLVED` |
+| 6. Wiring + Cleanup | 12-14 | CDI producers (`DispositionEvolutionConfig`, `IsolatedTransactions`), deleted PEO + EvolutionTick + PersonalityEvolutionConfig + DefaultPersonalityStateSource, integration tests (10 tests total) |
 
-| Batch | Tasks | Status | Key deliverables |
-|-------|-------|--------|-----------------|
-| 1. Foundation | 1-3 | Done | `PersonalityStateService` (renamed, striped locking, `transition()` API), `TenantAgentKey`, `ReflectionLedger`, `DispositionEvolutionConfig`, `ReflectionOutcome`, `FacetState` additions, `PersonalityStateSnapshot` additions, `DynamicsConfig` promotion fields |
-| 2. Composition | 4-5 | Done | `LivedComposition` (fingerprint/compose), `LivedProfile`, pull model in `EffectiveCognitiveDefaults` (deleted `updateState`, `compositionVersion` freshness), `PersonalityStateSource.compositionVersion()` |
-| 3. Signals | 6-7 | Done | `IsolatedTransactions` SPI, `DispositionSignalWriter` (coalescing buffer, striped locks), `DispositionSignalRecorder` (CDI observer + direct call), `InteractionAppraised`, `InteractionPressureSource`, `TraitActivation` loses valence |
-| 4. PID-5 | 8-9 | Done | `PersonalityStateIntegrator.promotionCandidates()`, `SituationalDeformationPhase` promotion step via `transition()` |
-
-### Code review findings and fixes
-
-All critical and medium issues resolved in commit `638498236`:
-
-| Severity | Issue | Fix |
-|----------|-------|-----|
-| Critical | `DispositionSignalWriter.flushPending()` lost counts on store outage | Save counts before `getAndSet`, restore exact amounts on failure via `addAndGet` |
-| Critical | `LivedComposition.fingerprint()` locale-dependent `String.format` | Added `Locale.ROOT` |
-| Medium | `SituationalPersonalityParticipant.persist()` bypassed stripe lock | Migrated to `transition()` |
-| Medium | `computeCompositionKey` iteration order non-deterministic | Sort entries by key |
-| Medium | `SituationalDeformationPhase` used `cachedAgentIds()` — empty after restart | Changed to `agentIds()` |
-| Low | Dead code in participant and deformation phase | Removed |
-| Low | `toSnapshot` hardcodes `compositionVersion=0` | Filed #1117 |
-| Low | Duplicate `TenantAgentKey` in two modules | Filed #1116 |
-
-### What remains (Batches 5-6)
-
-| # | Batch | Tasks | Key deliverables |
-|---|-------|-------|-----------------|
-| 5 | JPAF | 10-11 | `EidosCognitiveProfileBridge.livedDescriptor()`, `LivedDescriptors`, `DispositionEvolutionPhase` @Priority(50) — full JPAF algorithm |
-| 6 | Wiring | 12-14 | `CognitionDefaultBeans` producers, delete PEO + obsolete types, `SignalCategory.PERSONALITY_EVOLVED`, integration + E2E + 240-day trajectory tests |
-
-**Batch 5 is the most complex remaining work.** The implementing session should:
-1. Read spec §DispositionEvolutionPhase (lines 478-706)
-2. Read §Reflection ledger (lines 709-727)
-3. Read crash-point table (lines 660-672)
-4. Follow plan Tasks 10-14
-
-### Prerequisites (unchanged)
-
-- **#1082** (situational participant wiring) — OPEN, hard for production
-- **#1063** (scheduler starvation fix) — OPEN, hard for production
-
-### Issues filed this session
-
-| Issue | What |
-|-------|------|
-| #1116 | Consolidate duplicate TenantAgentKey records (XS/Low) |
-| #1117 | toSnapshot compositionVersion (XS/Low) |
+Code review: 2 WARNING + 1 NOTE → all fixed (dead `withReflection` chain, unused import).
 
 ### Branch state
 
-- **Project repo**: 12 commits ahead of main, 78 tests green
-- **Workspace repo**: matching branch, spec + decisions + plan + 2 blog entries
+- **Project repo**: ~20 commits ahead of main, all personality-related tests green (43 tests)
+- **Workspace**: 3 blog entries, spec, decisions, plan, queue with follow-ups
+- **Pre-existing failures**: `AppraisalStatePropagationTest` (1), `EmotionRegulationTickParticipantTest` (3) — unrelated to this work
+
+### What work-end needs to do
+
+9 done issues on this branch awaiting close:
+- #1077, #1078, #1049, #1061, #1088, #1038, #1064 (pre-existing bug fixes)
+- #1060 (unified personality evolution — Batches 1-4)
+- #1118 (DispositionEvolutionPhase — Batches 5-6)
+
+### Follow-up issues (queued, not started)
+
+| Issue | What | Scale | Blocked by |
+|-------|------|-------|-----------|
+| #1122 | CDI wiring for DispositionEvolutionPhase | M/Med | — |
+| #1124 | toSnapshot hardcodes compositionVersion=0 | S/Low | — |
+| #1128 | Reversal detection (D30) — streak counting | S/Low | — |
+| #1126 | Audit outbox — CBR case recording | M/Med | — |
+| #1123 | @QuarkusTest, E2E, 240-day trajectory tests | M/Med | #1122 |
+
+### Next session action
+
+Run `work end` to close the branch and land all 9 done issues. The 5 follow-up issues will need a new branch.
+
+### Prerequisites (unchanged)
+
+- **#1082** (situational participant CDI wiring) — OPEN, needed for production
+- **#1063** (scheduler starvation fix) — OPEN, needed for production
 
 ## Prior Sessions
+
+**Session 3 (2026-11-18):** Batches 1-4 implemented (Tasks 1-9). Rename, striped locking, ReflectionLedger, LivedComposition, pull model, signal writer/recorder, PID-5 promotion. Code review: 7 findings fixed.
 
 **Session 2 (2026-11-17/18):** Design review — adversarial review (4 dimensions × 3 rounds), 14-task plan. No code.
 
