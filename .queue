@@ -12,7 +12,7 @@ design-section-hashes:
 flyway-next-v: unknown
 check: 878
 done: 
-active: casehubio/neocortex#976
+active: casehubio/neocortex#1150
 
 ## Queue
 - [x] casehubio/neocortex#916 — QdrantCbrRecordStore 4-arg recordOutcome
@@ -99,3 +99,7 @@ active: casehubio/neocortex#976
 - [x] casehubio/neocortex#1070 — Wire-pid5Facets-config
 - [x] casehubio/neocortex#1071 — Extract-addPersonalityMetadata
 - [x] casehubio/neocortex#1072 — Remove-hasPid5-strengthen-evals
+- [ ] casehubio/neocortex#1150 — ExtractionRequested-agentId-journal-correlation
+- [ ] casehubio/neocortex#1151 — ConversationBridge-MutationContext-setAgent
+- [ ] casehubio/neocortex#1155 — ConsolidationScheduler-tick-counter-EventRef
+- [ ] casehubio/neocortex#1156 — ConsolidationPhase-input-output-node-counts
