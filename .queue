@@ -1,24 +1,4 @@
-- [x] casehubio/neocortex#1077 — AttentionSignalTest-pre-existing-failure
-- [x] casehubio/neocortex#1078 — CopingStrategyPredictorTest-pre-existing-failure
-- [x] casehubio/neocortex#1049 — CognitiveEmergenceSampleTest-classifierDrivenSettling-failure
-- [x] casehubio/neocortex#1061 — BehavioralSynthesisPhase-cache-missing-tenantId
-- [x] casehubio/neocortex#1088 — SituationalStateService-TOCTOU
-- [x] casehubio/neocortex#1038 — cognition-module-compile-errors
-- [x] casehubio/neocortex#1064 — bounded-MindMap-search-loses-nodes
-- [x] casehubio/neocortex#1060 — PersonalityEvolutionOrchestrator-never-ticked
-- [x] casehubio/neocortex#1118 — DispositionEvolutionPhase-plus-production-wiring
-  - [x] Batch 1: Batch5
-    - [x] Task 1: Task10-EidosCognitiveProfileBridge.livedDescriptor
-    - [x] Task 2: Task11-DispositionEvolutionPhase
-  - [x] Batch 2: Batch6
-    - [x] Task 3: Task12-ProductionWiring
-    - [x] Task 4: Task13-DeleteObsoleteTypes
-    - [x] Task 5: Task14-IntegrationTests
-- [ ] casehubio/neocortex#1122 — CDI-wiring-DispositionEvolutionPhase        ← active
-- [ ] casehubio/neocortex#1124 — toSnapshot-compositionVersion-fix
-- [ ] casehubio/neocortex#1128 — reversal-detection-D30
-- [ ] casehubio/neocortex#1126 — audit-outbox-CBR-recording
-- [ ] casehubio/neocortex#1123 — QuarkusTest-E2E-trajectory-tests
+# Work Plan —
 
 ## State
 branch: 
@@ -31,4 +11,20 @@ design-section-hashes:
 flyway-next-v: unknown
 check: 878
 done: casehubio/neocortex#1077,casehubio/neocortex#1078,casehubio/neocortex#1049,casehubio/neocortex#1061,casehubio/neocortex#1088,casehubio/neocortex#1038,casehubio/neocortex#1064
-active: casehubio/neocortex#1060
+active: casehubio/neocortex#1122
+
+## Queue
+- [x] casehubio/neocortex#1077 — AttentionSignalTest-pre-existing-failure
+- [x] casehubio/neocortex#1078 — CopingStrategyPredictorTest-pre-existing-failure
+- [x] casehubio/neocortex#1049 — CognitiveEmergenceSampleTest-classifierDrivenSettling-failure
+- [x] casehubio/neocortex#1061 — BehavioralSynthesisPhase-cache-missing-tenantId
+- [x] casehubio/neocortex#1088 — SituationalStateService-TOCTOU
+- [x] casehubio/neocortex#1038 — cognition-module-compile-errors
+- [x] casehubio/neocortex#1064 — bounded-MindMap-search-loses-nodes
+- [x] casehubio/neocortex#1060 — PersonalityEvolutionOrchestrator-never-ticked
+- [x] casehubio/neocortex#1118 — DispositionEvolutionPhase-plus-production-wiring
+- [x] casehubio/neocortex#1122 — CDI-wiring-DispositionEvolutionPhase
+- [ ] casehubio/neocortex#1124 — toSnapshot-compositionVersion-fix ← active
+- [ ] casehubio/neocortex#1128 — reversal-detection-D30
+- [ ] casehubio/neocortex#1126 — audit-outbox-CBR-recording
+- [ ] casehubio/neocortex#1123 — QuarkusTest-E2E-trajectory-tests
