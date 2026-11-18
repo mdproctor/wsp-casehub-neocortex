@@ -1,112 +1,52 @@
 # HANDOFF — casehub-neocortex
 
-## Current Session (2026-11-17/18)
+## Current Session (2026-11-18)
 
-**#1060 — Unified Personality Evolution: design complete, implementation planned, not yet started.**
+**Shadow archetype chain scaffolded — 8 issues queued, #1068 active.**
 
-This session completed brainstorming, adversarial design review (4 dimensions × 3 rounds, $63.46), and implementation planning. No code has been written. The next session picks up with `executing-plans` on the 14-task plan.
+This session completed 4 issues from the prior queue (bug fixes + CDI wiring), then scaffolded the shadow archetype / CARMA continuation work.
 
-### What was decided
+### What was completed
 
-The original issue asked: wire `PersonalityEvolutionOrchestrator` into the lifecycle, fix propagation, decide evolution cadence. The design process escalated scope based on first-principles analysis and adversarial review:
+| # | Issue | Type | What |
+|---|-------|------|------|
+| #1132 | LivedDispositionSource | feat | Implemented `EidosLivedDispositionSource` — surfaces evolved personality to eidos `findEffective()`. Extracted `livedDisposition()` from `livedDescriptor()` to work at `AgentDisposition` level. Fixed latent bug where `livedDescriptor` dropped `ampdFacets` and `situationalProfiles`. |
+| #1082 | Wire SituationalPersonalityParticipant | feat | Added `situationalPersonalityEnabled` to `CognitionConfig` (27th field). CDI producers for `SituationalPersonalityConfig` (YAML) and `SituationalDetector`. `configureSituationalPersonality()` in `CognitionCore` with AppraisalAccessor/MoodAccessor adapters. Wired through builder and factory. Gated, default false. |
+| #1135 | AMPD facet composition | feat | `composeFacets()` on `EidosCognitiveProfileBridge` — projects resting facet evolution (homeOffset + promoted, no transient displacement) into `AgentDisposition.ampdFacets` for `findEffective()`. |
+| #1138 | Cap narrative field length | fix | One-line `cap(narrative, MAX_DESCRIPTION_LENGTH)` in `CopingGenerationPhase.parseResponse()`. |
 
-1. **Store of record: Option (A) — neocortex stores lived personality state.** Eidos keeps authored identity only. No Eidos prerequisites needed. Single-owner writes. Boot-safe by construction. All three review dimensions and cross-cutting recommended this.
+All 4 committed to main. 4 done items in queue pending `work end` close ceremony from prior batch (#1132, #1082, #1135, #1138).
 
-2. **The original unified signal model was rejected.** The adversarial review proved JPAF and PID-5 have genuinely different accumulation and evaluation dynamics (JPAF: discrete type transitions via Eidos SPIs; PID-5: continuous elastic-band drift via integrator). They share only outcome infrastructure: store of record, propagation, cadence, audit.
+### Queue — shadow archetype chain (8 items, position 1/8)
 
-3. **Pull model replaces push (D25).** `EffectiveCognitiveDefaults.updateState()` is deleted entirely. `PersonalityStateService` (renamed from `SituationalStateService`) commits state via `transition()`. `EffectiveCognitiveDefaults` lazily re-derives when `compositionVersion` changes — a quantised freshness counter on `PersonalityStateSnapshot`.
+| Pos | # | Title | Scale | Complexity | Notes |
+|-----|---|-------|-------|------------|-------|
+| 1 | #1068 | LlmAppraisalStrategy situational facet prompt clause | XS | Low | **Active.** Unblocked (#1055 closed). Quick win. |
+| 2 | #1084 | PipelineTrace SituationalPersonalitySnapshot | S | Low | Observability: surface detection results in trace |
+| 3 | #1083 | RelationalSchemaResolver trust signal | S | Med | Replaces hardcoded trust=0.0 in participant |
+| 4 | #1059 | CARMA SEC situational-mode context + ShadowArchetypePromptSection | S | Med | AppraisalContext mode field + explicit rendering |
+| 5 | #1056 | Biographical extraction of situational profiles | M | Med | Extraction pass → engram AMPD delta scale |
+| 6 | #1058 | Shadow narrative frame: attractor classification | M | High | BehavioralSynthesisPhase attractor annotation |
+| 7 | #1057 | Temporal archetype salience across life phases | M | High | Open design questions |
+| 8 | #1076 | PID-5 facet extension for situational attractors | M | High | 12 missing facets; literature review |
 
-4. **Eidos SPIs preserved for JPAF evaluation (D6).** `DispositionHealth.probe()` and `DispositionEvolution.evaluate()` stay in Eidos. Neocortex owns the cadence (when to reflect) and the result storage (where the lived profile goes). The existing PEO's safety mechanisms (halt flag, L2 ceiling) are replaced by D24: rc-scaled rate bound on committed transitions only. The halt was proven to never prevent a transition and to block legitimate evolution (verified against Eidos code).
+Items 1-4 are small independent pieces. Items 5-6 form the core shadow narrative frame. Items 7-8 are research-heavy and may warrant brainstorming.
 
-5. **Target anchoring (D23).** Signal recording targets the **authored** profile, not the lived one. Positive → authored dominant, negative → authored auxiliary. This prevents the rank-relative A→B→A limit cycle the review discovered in the original PEO design.
+### Key context for the implementing session
 
-6. **30 decisions total** across 6 review rounds. See `specs/issue-1060-personality-evolution-orchestrator-never-ticked/decisions.md` for the full list.
+**All blockers resolved.** eidos#234 (SituationalProfile on AgentDisposition), #1055 (EffectiveCognitiveDefaults), #712 runtime, and #1082 (CDI wiring, done this session) are all closed.
 
-### Key architectural insight the review uncovered
+**Pre-existing test failure.** `DispositionSignalWriterTest` in the cognition module has a compile error — `InMemorySignalStore` doesn't implement `activationWeights()` from a changed `DispositionSignalStore` SPI in eidos. Not caused by this session's work. Fix before running full cognition test suite.
 
-The adversarial review discovered three false premises in the original spec:
-- That nothing writes `homeOffset` (it does — `PersonalityStateIntegrator.closeHour()`)
-- That `updateBase()` is a durable propagation path (it's overwritten every tick by CognitionCore)
-- That JPAF evaluation is simple enough to reimplement (it has four rules, vocabulary shadows, tenant preferences, canonical normalisation — all in Eidos)
-
-The reviewed design respects these realities instead of fighting them.
-
-### What was produced
-
-| Artifact | Path | Status |
-|----------|------|--------|
-| Decisions (6 brainstorming + 24 review) | `wsp/specs/issue-1060-.../decisions.md` | Complete |
-| Design spec (rev 2 + 12 review rounds) | `wsp/specs/issue-1060-.../2026-11-17-unified-personality-evolution-design.md` | 1403 lines, 0 open issues |
-| Implementation plan | `wsp/plans/2026-11-18-unified-personality-evolution.md` | 14 tasks, 6 batches |
-| Pipeline state | `wsp/specs/issue-1060-.../pipeline.state` | PLANNING |
-| Review workspaces | `~/reviews/casehub-slots/unified-personality-evolution-{coherence,structure,robustness,crosscutting}-*` | All DONE |
-
-### Implementation plan summary
-
-6 batches, each a safe wrap point:
-
-| # | Batch | Tasks | Key deliverables |
-|---|-------|-------|-----------------|
-| 1 | Foundation | 3 | `PersonalityStateService` (rename + striped locking + `transition()` API), `ReflectionLedger`, `TenantAgentKey`, `DispositionEvolutionConfig`, `ReflectionOutcome`, `PersonalityStateSnapshot` additions, `FacetState` additions, `DynamicsConfig` promotion fields |
-| 2 | Composition | 2 | `LivedComposition` (fingerprint/compose), `LivedProfile`, pull model in `EffectiveCognitiveDefaults` (delete `updateState`, `compositionVersion` freshness), `PersonalityStateSource.compositionVersion()` |
-| 3 | Signals | 2 | `IsolatedTransactions` SPI, `DispositionSignalWriter` (coalescing buffer, striped locks), `DispositionSignalRecorder` (CDI observer), `InteractionAppraised`, `InteractionPressureSource`, `TraitActivation` loses valence, `CognitionCore.recordInteraction` changes |
-| 4 | PID-5 | 2 | `PersonalityStateIntegrator.promotionCandidates()`, `SituationalDeformationPhase` @Priority(46) + promotion step |
-| 5 | JPAF | 2 | `EidosCognitiveProfileBridge.livedDescriptor()`, `LivedDescriptors`, `DispositionEvolutionPhase` @Priority(50) (full algorithm: recovery, wall-clock gate, epoch tracking, decay, evaluation, commit, rate bound, reversal detection, authored edit handling) |
-| 6 | Wiring | 3 | `CognitionDefaultBeans` producers, delete `PersonalityEvolutionOrchestrator` + `EvolutionTick` + `PersonalityEvolutionConfig` + `DefaultPersonalityStateSource`, `SignalCategory.PERSONALITY_EVOLVED`, integration + E2E + 240-day trajectory tests |
-
-### Critical context for the implementing session
-
-**The spec has changed dramatically from the initial brainstorming output.** The implementing session MUST read the reviewed spec, not rely on the initial design decisions. Key differences:
-- No unified `PersonalityPressure` signal type — the review killed this
-- `updateState` is deleted, not called — pull model via `compositionVersion`
-- Eidos SPIs are preserved, not replaced — the review proved reimplementation would be incorrect
-- The halt mechanism is deleted, not preserved — it was proven useless
-- `PersonalityEvolutionOrchestrator` is deleted entirely — logic split into 3 classes
-
-**Striped locking is load-bearing.** `PersonalityStateService` and `DispositionSignalWriter` each have their own 256-stripe `ReentrantLock[]` arrays. Never evicted (D26). The interleaving test from §[S2] is the correctness gate.
-
-**The reflection ledger is the JPAF brain.** 11 fields persisted as `jpaf.*` properties on the PERSONALITY_STATE MindMap node. `pendingEvolution` enables crash recovery. `epochFingerprint` enables authored-edit detection. `reversalStreak` enables oscillation detection. All are components of `PersonalityState`, not a separate store (D12).
-
-**Prerequisites that must land first:**
-- **#1082** (situational participant wiring) — hard for PID-5 promotion in production
-- **#1063** (scheduler starvation fix) — hard for consolidation phases to run reliably
-
-**Same-change-window coordination:**
-- **agency#487** — remove PEO producers from `AgencyBeans`/`AgencyAutoConfiguration`, wire new beans
-
-### Deferred review items
-
-28 items deferred across 4 dimensions. Most are covered by existing follow-up issues:
-- eidos#242 (swap dead zone) — multiple structure and cross-cutting items
-- #1104 (single-instance deployment) — robustness items about multi-instance races
-- #1089 (cache eviction) — multiple coherence items about unbounded growth
-- #1102 (valenced signals) — coherence items about NEUTRAL-only production signals
-- #1107 (verify R3 amendments) — post-collapse spec verification
-
-See `~/reviews/casehub-slots/unified-personality-evolution-*/tracker.md` for full details.
-
-### Follow-up issues (all already filed)
-
-| Issue | Repo | What | Blocking? |
-|-------|------|------|-----------|
-| #1082 | neocortex | Situational participant registration | Hard prereq for PID-5 |
-| #1063 | neocortex | Scheduler starvation + restart tenant loss | Hard prereq for production |
-| #1102 | neocortex | Valenced relationship/goal signals | Not blocking (InteractionAppraised carries live valence) |
-| #1104 | neocortex | Single-instance deployment contract | Not blocking |
-| #1107 | neocortex | Verify R3 design amendments after collapse | Not blocking |
-| #1089 | neocortex | Cache eviction | Not blocking |
-| #487 | agency | Remove PEO producers, wire new beans | Same change window |
-| #235 | eidos | Registry-backed DispositionProfileStore | NOT needed under Option (A) |
-| #237 | eidos | Fractional activation weights | Not blocking |
-| #239 | eidos | Canonical AmpdFacet names | Not blocking (hygiene) |
-| #241 | eidos | Signal store concurrency | Not blocking |
-| #242 | eidos | Swap dead zone | Not blocking |
+**CognitionConfig is now 27 fields.** The `with()` switch has 27 cases. Adding more fields follows the same pattern — append to record, update `all()`/`withAllSubsystems()`/`none()`, add case.
 
 ### Branch and workspace state
 
-- **Project repo** (`neocortex`): on branch `issue-1060/personality-evolution-orchestrator-never-ticked`, branched from main at `df376ad35`. No code changes yet — branch is at same commit as main. One unstaged file: `docs/blog/images/search-then-filter-data-loss.svg` (from prior session, cosmetic).
-- **Workspace repo** (`wsp-casehub-neocortex`): 49 commits ahead of `local/main` (design review artifacts). Contains the spec, decisions, plan, and pipeline state. Queue has #1060 active with 14 injected tasks.
+- **Project repo** (`neocortex`): on `main`, 6 commits ahead of `local/main` (2 from #1132/#1135 cognitive-eidos, 2 from #1082 CognitionConfig + wiring, 1 from #1135 facets, 1 from #1138 cap fix)
+- **Workspace repo** (`wsp-casehub-neocortex`): on `issue-1130/cdi-wiring-personality-state-integrator`, queue has 8 new items + 4 done pending close
 
-## Prior Session
+## Prior Sessions
 
-Epic #1090 bug fix sweep — 7 issues resolved, 3 commits landed on main (df376ad35). See prior handoff for details.
+**2026-11-17/18:** #1060 design — unified personality evolution. Brainstorming, adversarial review (4 dimensions), 14-task plan. No code written. Plan at `wsp/plans/2026-11-18-unified-personality-evolution.md`.
+
+**Earlier:** Epic #1090 bug fix sweep — 7 issues resolved. Prior queue of 24 items fully drained across multiple sessions.
