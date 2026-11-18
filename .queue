@@ -28,3 +28,5 @@ active: casehubio/neocortex#1122
 - [x] casehubio/neocortex#1128 — reversal-detection-D30
 - [x] casehubio/neocortex#1126 — audit-outbox-CBR-recording
 - [ ] casehubio/neocortex#1123 — QuarkusTest-E2E-trajectory-tests ← active
+- [ ] casehubio/neocortex#1130 — CDI-wiring-PersonalityStateIntegrator
+- [ ] casehubio/neocortex#1129 — CDI-wiring-SituationalDeformationPhase
