@@ -4,7 +4,7 @@
 branch: 
 issue-repo: casehubio/neocortex
 status: active
-covers: casehubio/neocortex#1118
+covers: 
 project-sha: slot-creation
 date: 2026-11-17
 design-repo: project
@@ -23,7 +23,7 @@ active: casehubio/neocortex#1060
 - [ ] casehubio/neocortex#1038 — cognition-module-compile-errors ← done on issue-1060/personality-evolution-orchestrator-never-ticked
 - [ ] casehubio/neocortex#1064 — bounded-MindMap-search-loses-nodes ← done on issue-1060/personality-evolution-orchestrator-never-ticked
 - [ ] casehubio/neocortex#1060 — PersonalityEvolutionOrchestrator-never-ticked ← done on issue-1060/personality-evolution-orchestrator-never-ticked
-- [ ] casehubio/neocortex#1118 — DispositionEvolutionPhase-plus-production-wiring ← active
+- [ ] casehubio/neocortex#1118 — DispositionEvolutionPhase-plus-production-wiring ← done on issue-1060/personality-evolution-orchestrator-never-ticked
   - [x] Batch 1: Batch5
     - [x] Task 1: Task10-EidosCognitiveProfileBridge.livedDescriptor
     - [x] Task 2: Task11-DispositionEvolutionPhase
