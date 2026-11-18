@@ -26,5 +26,5 @@ active: casehubio/neocortex#1122
 - [x] casehubio/neocortex#1122 — CDI-wiring-DispositionEvolutionPhase
 - [x] casehubio/neocortex#1124 — toSnapshot-compositionVersion-fix
 - [x] casehubio/neocortex#1128 — reversal-detection-D30
-- [ ] casehubio/neocortex#1126 — audit-outbox-CBR-recording ← active
-- [ ] casehubio/neocortex#1123 — QuarkusTest-E2E-trajectory-tests
+- [x] casehubio/neocortex#1126 — audit-outbox-CBR-recording
+- [ ] casehubio/neocortex#1123 — QuarkusTest-E2E-trajectory-tests ← active
