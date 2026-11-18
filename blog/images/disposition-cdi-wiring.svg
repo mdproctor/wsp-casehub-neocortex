@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 480" font-family="system-ui, -apple-system, sans-serif" font-size="12">
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="none" stroke="#475569" stroke-width="1.2"/>
+    </marker>
+    <marker id="arrow-green" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="none" stroke="#059669" stroke-width="1.2"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="720" height="480" fill="#f8fafc" rx="4"/>
+
+  <!-- Title -->
+  <text x="360" y="28" text-anchor="middle" font-size="14" font-weight="600" fill="#1e293b">CDI Wiring — Disposition Evolution Pipeline</text>
+
+  <!-- Consolidation Scheduler box -->
+  <rect x="20" y="50" width="680" height="60" rx="6" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.2"/>
+  <text x="360" y="72" text-anchor="middle" font-size="11" font-weight="600" fill="#1e40af">ConsolidationScheduler</text>
+  <text x="360" y="88" text-anchor="middle" font-size="10" fill="#3b82f6">Instance&lt;ConsolidationPhase&gt; — discovers all @ApplicationScoped phases</text>
+
+  <!-- DispositionEvolutionPhase -->
+  <rect x="180" y="140" width="360" height="50" rx="6" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.2"/>
+  <text x="360" y="162" text-anchor="middle" font-size="11" font-weight="600" fill="#92400e">DispositionEvolutionPhase</text>
+  <text x="360" y="178" text-anchor="middle" font-size="10" fill="#b45309">@ApplicationScoped @Priority(50) — JPAF evaluation per reflection period</text>
+
+  <!-- Arrow from scheduler to phase -->
+  <line x1="360" y1="110" x2="360" y2="138" stroke="#475569" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+  <!-- Left column: Signal Recording -->
+  <rect x="20" y="230" width="210" height="90" rx="6" fill="#f0fdf4" stroke="#86efac" stroke-width="1.2"/>
+  <text x="125" y="252" text-anchor="middle" font-size="11" font-weight="600" fill="#166534">DispositionSignalRecorder</text>
+  <text x="125" y="268" text-anchor="middle" font-size="10" fill="#15803d">@ApplicationScoped</text>
+  <text x="125" y="284" text-anchor="middle" font-size="9" fill="#166534">@Observes RelationshipRecorded</text>
+  <text x="125" y="298" text-anchor="middle" font-size="9" fill="#166534">onInteractionAppraised() ← CognitionCore</text>
+
+  <!-- Center column: State -->
+  <rect x="255" y="230" width="210" height="90" rx="6" fill="#faf5ff" stroke="#c084fc" stroke-width="1.2"/>
+  <text x="360" y="252" text-anchor="middle" font-size="11" font-weight="600" fill="#581c87">PersonalityStateService</text>
+  <text x="360" y="268" text-anchor="middle" font-size="10" fill="#7e22ce">implements PersonalityStateSource</text>
+  <text x="360" y="284" text-anchor="middle" font-size="9" fill="#581c87">MindMapStore + PID-5 facet names</text>
+  <text x="360" y="298" text-anchor="middle" font-size="9" fill="#581c87">Satisfies EffectiveCognitiveDefaults SPI</text>
+
+  <!-- Right column: Writer -->
+  <rect x="490" y="230" width="210" height="90" rx="6" fill="#fff1f2" stroke="#fda4af" stroke-width="1.2"/>
+  <text x="595" y="252" text-anchor="middle" font-size="11" font-weight="600" fill="#9f1239">DispositionSignalWriter</text>
+  <text x="595" y="268" text-anchor="middle" font-size="10" fill="#be123c">Striped locking + batch flush</text>
+  <text x="595" y="284" text-anchor="middle" font-size="9" fill="#9f1239">DispositionSignalStore + IsolatedTransactions</text>
+  <text x="595" y="298" text-anchor="middle" font-size="9" fill="#9f1239">Produced by CognitionDefaultBeans</text>
+
+  <!-- Arrows from phase to its deps -->
+  <line x1="280" y1="190" x2="125" y2="228" stroke="#475569" stroke-width="1" marker-end="url(#arrow)" stroke-dasharray="4,3"/>
+  <line x1="360" y1="190" x2="360" y2="228" stroke="#475569" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <line x1="440" y1="190" x2="595" y2="228" stroke="#475569" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+  <!-- CognitionCore box -->
+  <rect x="20" y="360" width="210" height="50" rx="6" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.2"/>
+  <text x="125" y="382" text-anchor="middle" font-size="11" font-weight="600" fill="#334155">CognitionCore</text>
+  <text x="125" y="396" text-anchor="middle" font-size="9" fill="#64748b">recordInteraction() → InteractionAppraised</text>
+
+  <!-- Arrow from CognitionCore to recorder -->
+  <line x1="125" y1="360" x2="125" y2="322" stroke="#059669" stroke-width="1.2" marker-end="url(#arrow-green)"/>
+
+  <!-- CBR Store -->
+  <rect x="255" y="360" width="210" height="50" rx="6" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.2"/>
+  <text x="360" y="382" text-anchor="middle" font-size="11" font-weight="600" fill="#334155">CbrRecordStore</text>
+  <text x="360" y="396" text-anchor="middle" font-size="9" fill="#64748b">Audit outbox → disposition-transition cases</text>
+
+  <!-- Arrow from phase to CBR -->
+  <path d="M440,190 Q520,290 465,358" fill="none" stroke="#475569" stroke-width="1" marker-end="url(#arrow)" stroke-dasharray="4,3"/>
+  <text x="510" y="280" font-size="9" fill="#64748b">flushAuditOutbox()</text>
+
+  <!-- EffectiveCognitiveDefaults -->
+  <rect x="490" y="360" width="210" height="50" rx="6" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.2"/>
+  <text x="595" y="382" text-anchor="middle" font-size="11" font-weight="600" fill="#334155">EffectiveCognitiveDefaults</text>
+  <text x="595" y="396" text-anchor="middle" font-size="9" fill="#64748b">Instance&lt;PersonalityStateSource&gt; → auto-resolves</text>
+
+  <!-- Arrow from PersonalityStateService to EffectiveCognitiveDefaults -->
+  <line x1="465" y1="300" x2="595" y2="358" stroke="#059669" stroke-width="1.2" marker-end="url(#arrow-green)"/>
+
+  <!-- Legend -->
+  <line x1="30" y1="450" x2="60" y2="450" stroke="#475569" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <text x="65" y="454" font-size="9" fill="#64748b">injection</text>
+  <line x1="140" y1="450" x2="170" y2="450" stroke="#059669" stroke-width="1.2" marker-end="url(#arrow-green)"/>
+  <text x="175" y="454" font-size="9" fill="#64748b">CDI event / auto-resolution</text>
+  <line x1="310" y1="450" x2="340" y2="450" stroke="#475569" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+  <text x="345" y="454" font-size="9" fill="#64748b">optional / conditional</text>
+</svg>
