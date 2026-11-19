@@ -2,14 +2,14 @@
 
 ## Last Session
 
-Landed 6 issues total across two close ceremonies. First batch: #1135 (already closed), #1143 (CBR retention persistence), #1144 (per-tenant RetentionConfig — ConcurrentHashMap + AtomicReference fallback), #1147 (livedDescriptor missing 2 builder fields). Second batch: #1169 (AttentionSignalTest enum count 14→15, changed to lower-bound assertion), #1168 (tenant config map eviction via beginTick lifecycle — retainAll against active tenant set). Filed #1167 (per-agent granularity) and #1170 (builder audit). Blog revised with eviction section. All published.
+Landed 7 issues across three close ceremonies: #1135, #1143 (CBR retention persistence), #1144 (per-tenant RetentionConfig), #1147 (livedDescriptor missing fields), #1169 (AttentionSignalTest enum count), #1168 (tenant config eviction), #1170 (builder audit — all 3 call sites clean, closed without code changes). Queue has 1 deferred item remaining.
 
 ## Immediate Next Step
 
-Queue has #1170 (builder call-site exhaustiveness audit — XS/Low) as active. Audit all `AgentDisposition.builder()` call sites in cognitive-eidos for missing fields.
+#1167 (per-agent RetentionConfig granularity — S/Med) is active but intentionally deferred — needs production memory profile evidence before implementation. This slot's queue is effectively drained.
 
 ## References
 
-- Queue: `.queue` (2 items: #1170, #1167)
+- Queue: `.queue` (1 item: #1167 — deferred)
 - Research: `docs/research/era7-personality-trait-integration-research.md`
 - Blog: `blog/2026-11-19-mdp03-the-tenant-that-tuned-everyone.md`
