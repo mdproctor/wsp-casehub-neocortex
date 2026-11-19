@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 490" font-family="system-ui, -apple-system, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 580" font-family="system-ui, -apple-system, sans-serif">
   <defs>
     <linearGradient id="gDeploy" x1="0" y1="0" x2="1" y2="0">
       <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.15"/>
@@ -20,10 +20,14 @@
       <stop offset="0%" stop-color="#ec4899" stop-opacity="0.15"/>
       <stop offset="100%" stop-color="#ec4899" stop-opacity="0.05"/>
     </linearGradient>
+    <linearGradient id="gAsync" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#06b6d4" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#06b6d4" stop-opacity="0.05"/>
+    </linearGradient>
   </defs>
 
   <!-- Title -->
-  <text x="360" y="30" text-anchor="middle" font-size="16" font-weight="600" fill="#1e293b">Five Traceability Layers</text>
+  <text x="360" y="30" text-anchor="middle" font-size="16" font-weight="600" fill="#1e293b">Six Traceability Layers</text>
 
   <!-- Layer 1: Deployment Contract -->
   <rect x="40" y="50" width="640" height="70" rx="8" fill="url(#gDeploy)" stroke="#3b82f6" stroke-width="1.5"/>
@@ -34,8 +38,8 @@
   <!-- Layer 2: CDI Wiring -->
   <rect x="40" y="135" width="640" height="70" rx="8" fill="url(#gWiring)" stroke="#f59e0b" stroke-width="1.5"/>
   <text x="60" y="160" font-size="13" font-weight="600" fill="#92400e">CDI Wiring</text>
-  <text x="60" y="180" font-size="11" fill="#475569">SessionPipeline injected via Instance&lt;T&gt; — 6 consolidation phases receive non-null</text>
-  <text x="60" y="194" font-size="10" fill="#94a3b8">same pattern as CognitiveJournal injection</text>
+  <text x="60" y="180" font-size="11" fill="#475569">SessionPipeline + journal bridges wired via Instance&lt;T&gt; — derivation and recall flow to journal</text>
+  <text x="60" y="194" font-size="10" fill="#94a3b8">DerivationJournalBridge via factory, MemoryRecallJournalBridge via observer list</text>
 
   <!-- Layer 3: Data Lineage -->
   <rect x="40" y="220" width="640" height="70" rx="8" fill="url(#gData)" stroke="#10b981" stroke-width="1.5"/>
@@ -55,6 +59,12 @@
   <text x="60" y="435" font-size="11" fill="#475569">Per-phase Consolidated entries — phase name, elapsed time, artifact count, defensive try-catch</text>
   <text x="60" y="449" font-size="10" fill="#94a3b8">observability must not break the thing it observes</text>
 
+  <!-- Layer 6: Async Boundary Propagation -->
+  <rect x="40" y="475" width="640" height="70" rx="8" fill="url(#gAsync)" stroke="#06b6d4" stroke-width="1.5"/>
+  <text x="60" y="500" font-size="13" font-weight="600" fill="#0e7490">Async Boundary Propagation</text>
+  <text x="60" y="520" font-size="11" fill="#475569">agentId carried on ExtractionRequested event — ThreadLocal cannot cross @ObservesAsync</text>
+  <text x="60" y="534" font-size="10" fill="#94a3b8">ConversationBridge sets from principalId, observer restores on async thread</text>
+
   <!-- Right-side label -->
-  <text x="700" y="265" text-anchor="middle" font-size="11" fill="#64748b" transform="rotate(-90 700 265)">if you can't trace it, you can't trust it</text>
+  <text x="700" y="310" text-anchor="middle" font-size="11" fill="#64748b" transform="rotate(-90 700 310)">if you can't trace it, you can't trust it</text>
 </svg>
