@@ -40,8 +40,30 @@ This is the kind of bug that builder APIs make easy to introduce and hard to cat
 
 The fix is two lines. The lesson is worth more: when a builder has N fields and you're copying M of them, the M you chose to list tells you nothing about whether M equals N. Builder APIs that compile with any subset of fields need a different kind of safety — exhaustiveness checking at the call site, or a copy constructor that can't miss fields. Java records with `withX()` methods avoid this entirely because they start from a complete copy. The builder pattern trades field-level safety for construction flexibility, and sometimes that trade costs you two missing fields that nobody notices for months.
 
+## Cleaning up after yourself
+
+The first version of the per-tenant map had no eviction. `ConcurrentHashMap` grows with each tenant that gets an adapted threshold. If tenants are created and destroyed — common in test environments, possible in production — the map accumulates stale entries. The entries are small (5 doubles per `RetentionConfig`), but unbounded growth is unbounded growth.
+
+The fix uses the consolidation scheduler's existing lifecycle. `ConsolidationPhase` already has a `beginTick()` method called once per cycle before any per-tenant `run()`. The phase now tracks which tenants it sees during each cycle, then evicts absent ones at the start of the next:
+
+```java
+@Override
+public void beginTick() {
+    if (!activeTenants.isEmpty()) {
+        adaptiveConfig.evictAbsent(activeTenants);
+        previousSummaries.keySet().retainAll(activeTenants);
+        previousConfigs.keySet().retainAll(activeTenants);
+    }
+    activeTenants.clear();
+}
+```
+
+The `!activeTenants.isEmpty()` guard matters. On the first tick, before any `run()` has been called, the set is empty. Without the guard, `retainAll(emptySet)` would remove everything — a silent data loss that wouldn't surface until the next adaptation cycle restarted every tenant from the global default.
+
+Eviction is safe because the fallback chain already exists: `current(tenantId)` returns `tenantConfigs.getOrDefault(tenantId, globalConfig.get())`. An evicted tenant simply falls back to the global default on its next tick, then adapts again from there.
+
 ## What this opens up
 
 The per-tenant config now gives `HygieneAdaptationPhase` a genuinely independent control loop per tenant. A tenant with volatile, high-churn memory gets a lower retention threshold — fewer memories evicted — while a tenant with stable, long-term knowledge can maintain a higher bar. The step-based controller already had per-tenant state tracking (`previousSummaries`, `previousConfigs`), so the oscillation-suppression logic works correctly without changes. The only thing that was global was the output — writing to a shared config that every tenant's tick would read back.
 
-The `tenantConfigs` map grows without bound. For a cognitive system with a handful of tenants this is fine. Per-agent adaptation — the next level of granularity, where one agent's poor retention in an otherwise healthy tenant gets independent tuning — is deferred. That would change the config dimension from `Map<String, RetentionConfig>` to a two-level map, and I'd want evidence from production memory profiles before adding that complexity.
+Per-agent adaptation — the next level of granularity, where one agent's poor retention in an otherwise healthy tenant gets independent tuning — is deferred. That would change the config dimension from `Map<String, RetentionConfig>` to a two-level map, and I'd want evidence from production memory profiles before adding that complexity.
