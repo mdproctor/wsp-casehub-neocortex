@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 340" font-family="system-ui, -apple-system, sans-serif" font-size="13">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto-start-auto">
+      <path d="M 0 0 L 10 3.5 L 0 7 z" fill="#64748b"/>
+    </marker>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f8fafc"/>
+      <stop offset="100%" stop-color="#f1f5f9"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="720" height="340" rx="8" fill="url(#bg)" stroke="#e2e8f0"/>
+
+  <text x="360" y="28" text-anchor="middle" font-size="15" font-weight="600" fill="#1e293b">Situational Profile Extraction Pipeline</text>
+
+  <!-- Biography context -->
+  <rect x="20" y="50" width="140" height="50" rx="6" fill="#dbeafe" stroke="#93c5fd"/>
+  <text x="90" y="72" text-anchor="middle" font-weight="500" fill="#1e40af">Biography</text>
+  <text x="90" y="88" text-anchor="middle" font-size="11" fill="#3b82f6">context</text>
+
+  <!-- Arrow from biography to three parallel calls -->
+  <line x1="160" y1="75" x2="210" y2="55" stroke="#64748b" marker-end="url(#arrow)"/>
+  <line x1="160" y1="75" x2="210" y2="115" stroke="#64748b" marker-end="url(#arrow)"/>
+  <line x1="160" y1="75" x2="210" y2="175" stroke="#64748b" marker-end="url(#arrow)"/>
+
+  <!-- Call 1: Frameworks -->
+  <rect x="215" y="35" width="150" height="40" rx="6" fill="#e0e7ff" stroke="#a5b4fc"/>
+  <text x="290" y="55" text-anchor="middle" font-size="12" fill="#4338ca">Call 1: Frameworks</text>
+  <text x="290" y="68" text-anchor="middle" font-size="10" fill="#6366f1">13 personality models</text>
+
+  <!-- Call 2: Archetypes -->
+  <rect x="215" y="95" width="150" height="40" rx="6" fill="#e0e7ff" stroke="#a5b4fc"/>
+  <text x="290" y="115" text-anchor="middle" font-size="12" fill="#4338ca">Call 2: Archetypes</text>
+  <text x="290" y="128" text-anchor="middle" font-size="10" fill="#6366f1">48 sub-archetypes</text>
+
+  <!-- Call 3: Situational (highlighted) -->
+  <rect x="215" y="155" width="150" height="40" rx="6" fill="#dcfce7" stroke="#86efac" stroke-width="2"/>
+  <text x="290" y="175" text-anchor="middle" font-size="12" font-weight="600" fill="#166534">Call 3: Situational</text>
+  <text x="290" y="188" text-anchor="middle" font-size="10" fill="#22c55e">5 modes, AMPD deltas</text>
+
+  <!-- Parallel bracket -->
+  <text x="195" y="120" text-anchor="middle" font-size="28" fill="#94a3b8">&#x7B;</text>
+  <text x="380" y="120" text-anchor="middle" font-size="28" fill="#94a3b8">&#x7D;</text>
+  <text x="195" y="145" text-anchor="middle" font-size="10" fill="#94a3b8">parallel</text>
+
+  <!-- Arrows to validation -->
+  <line x1="365" y1="55" x2="420" y2="115" stroke="#64748b" marker-end="url(#arrow)"/>
+  <line x1="365" y1="115" x2="420" y2="115" stroke="#64748b" marker-end="url(#arrow)"/>
+  <line x1="365" y1="175" x2="420" y2="115" stroke="#64748b" marker-end="url(#arrow)"/>
+
+  <!-- Validation -->
+  <rect x="425" y="90" width="120" height="50" rx="6" fill="#fef3c7" stroke="#fbbf24"/>
+  <text x="485" y="112" text-anchor="middle" font-weight="500" fill="#92400e">Validation</text>
+  <text x="485" y="128" text-anchor="middle" font-size="10" fill="#b45309">modes, facets, range</text>
+
+  <!-- Arrow to enriched.json -->
+  <line x1="545" y1="115" x2="580" y2="115" stroke="#64748b" marker-end="url(#arrow)"/>
+
+  <!-- enriched.json -->
+  <rect x="585" y="90" width="115" height="50" rx="6" fill="#f0fdf4" stroke="#86efac"/>
+  <text x="642" y="112" text-anchor="middle" font-weight="500" fill="#166534">enriched.json</text>
+  <text x="642" y="128" text-anchor="middle" font-size="10" fill="#22c55e">personality_profile</text>
+
+  <!-- Import chain below -->
+  <text x="360" y="230" text-anchor="middle" font-size="14" font-weight="600" fill="#475569">Import Chain</text>
+
+  <!-- Stage boxes -->
+  <rect x="20" y="250" width="130" height="45" rx="6" fill="#f1f5f9" stroke="#cbd5e1"/>
+  <text x="85" y="270" text-anchor="middle" font-size="11" fill="#475569">assemble_corpus</text>
+  <text x="85" y="284" text-anchor="middle" font-size="10" fill="#94a3b8">pass-through</text>
+
+  <line x1="150" y1="272" x2="175" y2="272" stroke="#64748b" marker-end="url(#arrow)"/>
+
+  <rect x="180" y="250" width="130" height="45" rx="6" fill="#f1f5f9" stroke="#cbd5e1"/>
+  <text x="245" y="270" text-anchor="middle" font-size="11" fill="#475569">convert_corpus</text>
+  <text x="245" y="284" text-anchor="middle" font-size="10" fill="#94a3b8">YAML output</text>
+
+  <line x1="310" y1="272" x2="335" y2="272" stroke="#64748b" marker-end="url(#arrow)"/>
+
+  <rect x="340" y="250" width="130" height="45" rx="6" fill="#f1f5f9" stroke="#cbd5e1"/>
+  <text x="405" y="270" text-anchor="middle" font-size="11" fill="#475569">BiographyLoader</text>
+  <text x="405" y="284" text-anchor="middle" font-size="10" fill="#94a3b8">Jackson deser</text>
+
+  <line x1="470" y1="272" x2="495" y2="272" stroke="#64748b" marker-end="url(#arrow)"/>
+
+  <rect x="500" y="250" width="140" height="45" rx="6" fill="#dcfce7" stroke="#86efac" stroke-width="2"/>
+  <text x="570" y="270" text-anchor="middle" font-size="11" font-weight="500" fill="#166534">MindMap props</text>
+  <text x="570" y="284" text-anchor="middle" font-size="10" fill="#22c55e">situational-*-*</text>
+
+  <!-- Legend -->
+  <rect x="20" y="310" width="12" height="12" rx="2" fill="#dcfce7" stroke="#86efac" stroke-width="1.5"/>
+  <text x="38" y="320" font-size="11" fill="#64748b">New in #1056</text>
+  <rect x="130" y="310" width="12" height="12" rx="2" fill="#e0e7ff" stroke="#a5b4fc"/>
+  <text x="148" y="320" font-size="11" fill="#64748b">Existing</text>
+</svg>

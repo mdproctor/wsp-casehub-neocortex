@@ -1,0 +1,151 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 320" font-family="system-ui, -apple-system, sans-serif" font-size="13">
+  <style>
+    .label { font-size: 12px; fill: #555; }
+    .title { font-size: 14px; font-weight: 600; fill: #333; }
+    .count { font-size: 11px; fill: #888; }
+    .match { fill: #4a9eff; }
+    .noise { fill: #ddd; }
+    .lost { fill: #ff6b6b; }
+    .kept { fill: #4a9eff; }
+    .arrow { fill: none; stroke: #999; stroke-width: 1.5; marker-end: url(#arrowhead); }
+  </style>
+  <defs>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#999"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="360" y="24" text-anchor="middle" class="title">Search-Then-Filter: Where Nodes Disappear</text>
+
+  <!-- Stage 1: All COGNITIVE nodes -->
+  <text x="20" y="62" class="label">All COGNITIVE nodes (450)</text>
+  <g transform="translate(20, 70)">
+    <!-- 45 squares representing ~450 nodes, 10 per row -->
+    <rect x="0" y="0" width="12" height="12" rx="2" class="noise"/>
+    <rect x="15" y="0" width="12" height="12" rx="2" class="match"/>
+    <rect x="30" y="0" width="12" height="12" rx="2" class="noise"/>
+    <rect x="45" y="0" width="12" height="12" rx="2" class="noise"/>
+    <rect x="60" y="0" width="12" height="12" rx="2" class="match"/>
+    <rect x="75" y="0" width="12" height="12" rx="2" class="noise"/>
+    <rect x="90" y="0" width="12" height="12" rx="2" class="noise"/>
+    <rect x="105" y="0" width="12" height="12" rx="2" class="noise"/>
+    <rect x="120" y="0" width="12" height="12" rx="2" class="match"/>
+    <rect x="135" y="0" width="12" height="12" rx="2" class="noise"/>
+    <rect x="150" y="0" width="12" height="12" rx="2" class="noise"/>
+    <rect x="165" y="0" width="12" height="12" rx="2" class="match"/>
+    <rect x="180" y="0" width="12" height="12" rx="2" class="noise"/>
+    <rect x="195" y="0" width="12" height="12" rx="2" class="noise"/>
+    <rect x="210" y="0" width="12" height="12" rx="2" class="noise"/>
+    <rect x="0" y="15" width="12" height="12" rx="2" class="noise"/>
+    <rect x="15" y="15" width="12" height="12" rx="2" class="noise"/>
+    <rect x="30" y="15" width="12" height="12" rx="2" class="match"/>
+    <rect x="45" y="15" width="12" height="12" rx="2" class="noise"/>
+    <rect x="60" y="15" width="12" height="12" rx="2" class="noise"/>
+    <rect x="75" y="15" width="12" height="12" rx="2" class="noise"/>
+    <rect x="90" y="15" width="12" height="12" rx="2" class="match"/>
+    <rect x="105" y="15" width="12" height="12" rx="2" class="noise"/>
+    <rect x="120" y="15" width="12" height="12" rx="2" class="noise"/>
+    <rect x="135" y="15" width="12" height="12" rx="2" class="noise"/>
+    <rect x="150" y="15" width="12" height="12" rx="2" class="noise"/>
+    <rect x="165" y="15" width="12" height="12" rx="2" class="match"/>
+    <rect x="180" y="15" width="12" height="12" rx="2" class="noise"/>
+    <rect x="195" y="15" width="12" height="12" rx="2" class="noise"/>
+    <rect x="210" y="15" width="12" height="12" rx="2" class="noise"/>
+    <rect x="0" y="30" width="12" height="12" rx="2" class="match"/>
+    <rect x="15" y="30" width="12" height="12" rx="2" class="noise"/>
+    <rect x="30" y="30" width="12" height="12" rx="2" class="noise"/>
+    <rect x="45" y="30" width="12" height="12" rx="2" class="noise"/>
+    <rect x="60" y="30" width="12" height="12" rx="2" class="match"/>
+    <rect x="75" y="30" width="12" height="12" rx="2" class="noise"/>
+    <rect x="90" y="30" width="12" height="12" rx="2" class="noise"/>
+    <rect x="105" y="30" width="12" height="12" rx="2" class="match"/>
+    <rect x="120" y="30" width="12" height="12" rx="2" class="noise"/>
+    <rect x="135" y="30" width="12" height="12" rx="2" class="noise"/>
+    <rect x="150" y="30" width="12" height="12" rx="2" class="noise"/>
+    <rect x="165" y="30" width="12" height="12" rx="2" class="noise"/>
+    <rect x="180" y="30" width="12" height="12" rx="2" class="match"/>
+    <rect x="195" y="30" width="12" height="12" rx="2" class="noise"/>
+    <rect x="210" y="30" width="12" height="12" rx="2" class="noise"/>
+  </g>
+  <text x="20" y="130" class="count">■ matches agent/kind filter  ■ other COGNITIVE nodes</text>
+
+  <!-- Arrow -->
+  <line x1="250" y1="95" x2="290" y2="95" class="arrow"/>
+  <text x="270" y="85" text-anchor="middle" class="label">LIMIT 200</text>
+
+  <!-- Stage 2: After limit (200 nodes, truncated) -->
+  <text x="310" y="62" class="label">After limit=200 (truncated)</text>
+  <g transform="translate(310, 70)">
+    <rect x="0" y="0" width="12" height="12" rx="2" class="noise"/>
+    <rect x="15" y="0" width="12" height="12" rx="2" class="kept"/>
+    <rect x="30" y="0" width="12" height="12" rx="2" class="noise"/>
+    <rect x="45" y="0" width="12" height="12" rx="2" class="noise"/>
+    <rect x="60" y="0" width="12" height="12" rx="2" class="kept"/>
+    <rect x="75" y="0" width="12" height="12" rx="2" class="noise"/>
+    <rect x="90" y="0" width="12" height="12" rx="2" class="noise"/>
+    <rect x="105" y="0" width="12" height="12" rx="2" class="noise"/>
+    <rect x="120" y="0" width="12" height="12" rx="2" class="kept"/>
+    <rect x="135" y="0" width="12" height="12" rx="2" class="noise"/>
+    <rect x="0" y="15" width="12" height="12" rx="2" class="noise"/>
+    <rect x="15" y="15" width="12" height="12" rx="2" class="noise"/>
+    <rect x="30" y="15" width="12" height="12" rx="2" class="kept"/>
+    <rect x="45" y="15" width="12" height="12" rx="2" class="noise"/>
+    <rect x="60" y="15" width="12" height="12" rx="2" class="noise"/>
+    <rect x="75" y="15" width="12" height="12" rx="2" class="noise"/>
+    <rect x="90" y="15" width="12" height="12" rx="2" class="kept"/>
+    <rect x="105" y="15" width="12" height="12" rx="2" class="noise"/>
+    <rect x="120" y="15" width="12" height="12" rx="2" class="noise"/>
+    <rect x="135" y="15" width="12" height="12" rx="2" class="noise"/>
+  </g>
+  <text x="310" y="118" class="count">5 of 12 matches survive (7 lost beyond the cut)</text>
+
+  <!-- Arrow -->
+  <line x1="470" y1="95" x2="510" y2="95" class="arrow"/>
+  <text x="490" y="85" text-anchor="middle" class="label">.filter()</text>
+
+  <!-- Stage 3: After filter -->
+  <text x="530" y="62" class="label">After in-memory filter</text>
+  <g transform="translate(530, 70)">
+    <rect x="0" y="0" width="12" height="12" rx="2" class="kept"/>
+    <rect x="15" y="0" width="12" height="12" rx="2" class="kept"/>
+    <rect x="30" y="0" width="12" height="12" rx="2" class="kept"/>
+    <rect x="45" y="0" width="12" height="12" rx="2" class="kept"/>
+    <rect x="60" y="0" width="12" height="12" rx="2" class="kept"/>
+  </g>
+  <text x="530" y="102" class="count">5 results returned</text>
+  <text x="530" y="118" class="count" style="fill: #ff6b6b;">7 matches silently lost</text>
+
+  <!-- Bottom: the fix -->
+  <line x1="20" y1="155" x2="700" y2="155" stroke="#e0e0e0" stroke-width="1"/>
+  <text x="360" y="180" text-anchor="middle" class="title" style="fill: #2d8a4e;">Fix: raise limit to 2000 (or push filter into query)</text>
+
+  <g transform="translate(20, 195)">
+    <text x="0" y="0" class="label" style="fill: #2d8a4e;">With limit=2000, all 450 nodes fit → all 12 matches survive</text>
+    <g transform="translate(0, 10)">
+      <rect x="0" y="0" width="12" height="12" rx="2" class="kept"/>
+      <rect x="15" y="0" width="12" height="12" rx="2" class="kept"/>
+      <rect x="30" y="0" width="12" height="12" rx="2" class="kept"/>
+      <rect x="45" y="0" width="12" height="12" rx="2" class="kept"/>
+      <rect x="60" y="0" width="12" height="12" rx="2" class="kept"/>
+      <rect x="75" y="0" width="12" height="12" rx="2" class="kept"/>
+      <rect x="90" y="0" width="12" height="12" rx="2" class="kept"/>
+      <rect x="105" y="0" width="12" height="12" rx="2" class="kept"/>
+      <rect x="120" y="0" width="12" height="12" rx="2" class="kept"/>
+      <rect x="135" y="0" width="12" height="12" rx="2" class="kept"/>
+      <rect x="150" y="0" width="12" height="12" rx="2" class="kept"/>
+      <rect x="165" y="0" width="12" height="12" rx="2" class="kept"/>
+    </g>
+    <text x="0" y="38" class="count">12 results — no data loss</text>
+  </g>
+
+  <!-- Legend -->
+  <g transform="translate(20, 270)">
+    <rect x="0" y="0" width="12" height="12" rx="2" class="match"/>
+    <text x="18" y="11" class="count">Matches agent/kind filter</text>
+    <rect x="180" y="0" width="12" height="12" rx="2" class="noise"/>
+    <text x="198" y="11" class="count">Other COGNITIVE nodes</text>
+    <rect x="360" y="0" width="12" height="12" rx="2" class="lost"/>
+    <text x="378" y="11" class="count">Lost beyond limit</text>
+  </g>
+</svg>
