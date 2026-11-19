@@ -1,17 +1,21 @@
 - [x] casehubio/neocortex#1119 — Memory hygiene parameter adaptation via consolidation phase
 - [x] casehubio/neocortex#1132 — implement LivedDispositionSource
-- [ ] casehubio/neocortex#1135 — extend bridge to compose AMPD facets        ← active
+- [x] casehubio/neocortex#1135 — extend bridge to compose AMPD facets
 - [x] casehubio/neocortex#1136 — Speech pipeline integration — proactive prompt sections + non-verbal outcomes + delivery feedback
 - [x] casehubio/neocortex#1139 — Document NonVerbalConfig in pipeline defaults
 - [x] casehubio/neocortex#1140 — Update CLAUDE.md for speech pipeline types
 - [x] casehubio/neocortex#1141 — Fix DispositionSignalWriterTest broken by eidos API
-- [ ] casehubio/neocortex#1143 — CBR persistence for learned retention parameters
-- [ ] casehubio/neocortex#1144 — Per-tenant RetentionConfig adaptation
-- [ ] casehubio/neocortex#1147 — fix-livedDescriptor-drops-fields
+- [x] casehubio/neocortex#1143 — CBR persistence for learned retention parameters
+- [x] casehubio/neocortex#1144 — Per-tenant RetentionConfig adaptation
+- [x] casehubio/neocortex#1147 — fix-livedDescriptor-drops-fields
+- [ ] casehubio/neocortex#1169 — fix-AttentionSignalTest-stale-enum-count        ← active
+- [ ] casehubio/neocortex#1168 — AdaptiveRetentionConfig-unbounded-map
+- [ ] casehubio/neocortex#1170 — builder-call-site-exhaustiveness-audit
+- [ ] casehubio/neocortex#1167 — per-agent-RetentionConfig-adaptation
 
 ## State
 branch: 
 issue-repo: casehubio/neocortex
 status: active
-covers: casehubio/neocortex#1135
+covers: casehubio/neocortex#1169
 active_ref: 
