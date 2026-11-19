@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 340" font-family="system-ui, -apple-system, sans-serif">
+  <style>
+    text { font-size: 13px; fill: #333; }
+    .title { font-size: 15px; font-weight: 600; }
+    .label { font-size: 11px; fill: #666; }
+    .mono { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 11px; }
+    .bad { fill: #fee2e2; stroke: #ef4444; }
+    .good { fill: #dcfce7; stroke: #22c55e; }
+    .neutral { fill: #f1f5f9; stroke: #94a3b8; }
+    .arrow { stroke: #64748b; stroke-width: 1.5; fill: none; marker-end: url(#arrowhead); }
+    .cross { stroke: #ef4444; stroke-width: 2.5; }
+  </style>
+  <defs>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#64748b"/>
+    </marker>
+  </defs>
+
+  <!-- Before: global config -->
+  <text x="180" y="24" class="title" text-anchor="middle">Before — global config</text>
+
+  <rect x="30" y="40" width="120" height="50" rx="6" class="neutral" stroke-width="1.5"/>
+  <text x="90" y="62" text-anchor="middle" class="mono">Tenant A</text>
+  <text x="90" y="78" text-anchor="middle" class="label">high churn</text>
+
+  <rect x="210" y="40" width="120" height="50" rx="6" class="neutral" stroke-width="1.5"/>
+  <text x="270" y="62" text-anchor="middle" class="mono">Tenant B</text>
+  <text x="270" y="78" text-anchor="middle" class="label">stable knowledge</text>
+
+  <rect x="120" y="120" width="120" height="44" rx="6" class="bad" stroke-width="1.5"/>
+  <text x="180" y="140" text-anchor="middle" class="mono">global</text>
+  <text x="180" y="155" text-anchor="middle" class="mono">threshold</text>
+
+  <path d="M90,90 L160,120" class="arrow"/>
+  <path d="M270,90 L200,120" class="arrow"/>
+
+  <text x="180" y="190" text-anchor="middle" class="label">last tenant wins →</text>
+  <text x="180" y="205" text-anchor="middle" class="label">B overwrites A's adaptation</text>
+
+  <!-- After: per-tenant -->
+  <text x="540" y="24" class="title" text-anchor="middle">After — per-tenant config</text>
+
+  <rect x="400" y="40" width="120" height="50" rx="6" class="neutral" stroke-width="1.5"/>
+  <text x="460" y="62" text-anchor="middle" class="mono">Tenant A</text>
+  <text x="460" y="78" text-anchor="middle" class="label">high churn</text>
+
+  <rect x="570" y="40" width="120" height="50" rx="6" class="neutral" stroke-width="1.5"/>
+  <text x="630" y="62" text-anchor="middle" class="mono">Tenant B</text>
+  <text x="630" y="78" text-anchor="middle" class="label">stable knowledge</text>
+
+  <rect x="400" y="120" width="120" height="44" rx="6" class="good" stroke-width="1.5"/>
+  <text x="460" y="140" text-anchor="middle" class="mono">threshold</text>
+  <text x="460" y="155" text-anchor="middle" class="mono">0.08</text>
+
+  <rect x="570" y="120" width="120" height="44" rx="6" class="good" stroke-width="1.5"/>
+  <text x="630" y="140" text-anchor="middle" class="mono">threshold</text>
+  <text x="630" y="155" text-anchor="middle" class="mono">0.12</text>
+
+  <path d="M460,90 L460,120" class="arrow"/>
+  <path d="M630,90 L630,120" class="arrow"/>
+
+  <!-- Global fallback -->
+  <rect x="485" y="195" width="130" height="36" rx="6" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4,3" fill="#f8fafc"/>
+  <text x="550" y="218" text-anchor="middle" class="label">global fallback</text>
+
+  <!-- Bottom caption -->
+  <text x="360" y="270" text-anchor="middle" class="label">ConcurrentHashMap&lt;tenantId, RetentionConfig&gt;</text>
+  <text x="360" y="288" text-anchor="middle" class="label">with AtomicReference&lt;RetentionConfig&gt; global default</text>
+
+  <!-- Architecture note -->
+  <rect x="80" y="240" width="560" height="80" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="360" y="262" text-anchor="middle" font-size="12" fill="#475569">RetentionConfigSupplier.current(tenantId) — default method delegates to current()</text>
+  <text x="360" y="280" text-anchor="middle" font-size="12" fill="#475569">AdaptiveRetentionConfig — ConcurrentHashMap per-tenant, AtomicReference global</text>
+  <text x="360" y="298" text-anchor="middle" font-size="12" fill="#475569">HygieneAdaptationPhase writes per-tenant • Orchestrator reads per-tenant</text>
+</svg>
