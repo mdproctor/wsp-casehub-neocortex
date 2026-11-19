@@ -8,14 +8,14 @@
 - [x] casehubio/neocortex#1143 — CBR persistence for learned retention parameters
 - [x] casehubio/neocortex#1144 — Per-tenant RetentionConfig adaptation
 - [x] casehubio/neocortex#1147 — fix-livedDescriptor-drops-fields
-- [ ] casehubio/neocortex#1169 — fix-AttentionSignalTest-stale-enum-count        ← active
-- [ ] casehubio/neocortex#1168 — AdaptiveRetentionConfig-unbounded-map
-- [ ] casehubio/neocortex#1170 — builder-call-site-exhaustiveness-audit
+- [x] casehubio/neocortex#1169 — fix-AttentionSignalTest-stale-enum-count
+- [x] casehubio/neocortex#1168 — AdaptiveRetentionConfig-unbounded-map
+- [ ] casehubio/neocortex#1170 — builder-call-site-exhaustiveness-audit        ← active
 - [ ] casehubio/neocortex#1167 — per-agent-RetentionConfig-adaptation
 
 ## State
 branch: 
 issue-repo: casehubio/neocortex
 status: active
-covers: casehubio/neocortex#1169
+covers: casehubio/neocortex#1170
 active_ref: 
