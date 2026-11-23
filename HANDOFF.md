@@ -2,29 +2,24 @@
 
 ## Last Session
 
-Completed #1213 (XS/Low bug fix). Another slot had already independently fixed the same issue — our branch was redundant and deleted.
+Completed both remaining queue items. Queue is drained.
 
-**#1213 — AgentDescriptor constructor mismatch in SituationalPersonality tests.** The `AgentDescriptor` record (eidos) gained a `RoleProfile roleProfile` field as its 31st parameter. Four test helper methods in `SituationalPersonalityIntegrationTest` (1) and `SituationalPersonalityParticipantTest` (3) used raw positional constructors with 30 arguments — each needed `null` appended. Fix already on main from another session (`4b23a6cd0`).
+**#1215 — AgentDescriptor.builder() refactor.** Replaced raw 31-positional-arg constructor calls with fluent builder in 4 `descriptorWith*()` test helper methods across 2 test files. Landed as `65fc4f3c1`. Blog revised and published.
 
-**Blog:** `blog/2026-11-23-mdp05-thirty-one-nulls.md` — positional constructor fragility in 31-field records. Published.
+**#1214 — FQ import cleanup in cognition production code.** Replaced 15 fully-qualified `java.util.{Map,List,Set}` usages with simple names across 6 production files. Added missing imports where needed. Landed as `107c043b2`.
 
-**Filed:**
-- casehubio/neocortex#1215 (refactor: use AgentDescriptor.builder() in SituationalPersonality test helpers — prevents this class of breakage)
-- Hortora/soredium#628 (work pipeline alignment bug — workspace left on old branch after work-end)
+**Blog publishing:** 8 entries published to both mdproctor.github.io and casehubio.github.io.
 
-## Pipeline State Warning
-
-The work pipeline has an alignment bug (soredium#628): after a work-end lands branches to main, the workspace can be left on the old feature branch with uncommitted `.queue` changes. The `continue` pipeline completes without detecting the mismatch. Manual branch creation was required this session. The queue also incorrectly auto-marked #1214 as done (now corrected via `uncheck`).
+**All repos published.** neocortex, casehub-mosaic, blocks-ui, and workspace all at 0 unpublished.
 
 ## Queue State
 
-Both project and workspace are now on branch `issue-1215-agentdescriptor-builder-test-helpers`. Queue state:
+Queue is empty. All items completed and closed.
 
-- **#1214** (style: FQ imports in cognition production code — XS/Low) — open, not started
-- **#1215** (refactor: AgentDescriptor.builder() in test helpers — XS/Low) — **active**, scaffolded
+## Pre-existing Compilation Error
 
-## Immediate Next Step
+`MemoryHygieneOrchestratorImpl.java` and `AdaptiveRetentionConfig.java` have compilation errors from #1167 (per-agent RetentionConfig adaptation). The `RetentionConfigSupplier.current()` signature changed but `AdaptiveRetentionConfig` and `MemoryHygieneOrchestratorImpl` weren't updated. This was pre-existing on main before this session's work.
 
-#1215 (XS/Low) — refactor the 4 `descriptorWith*()` helper methods in `SituationalPersonalityParticipantTest` and `SituationalPersonalityIntegrationTest` to use `AgentDescriptor.builder()` instead of the raw 31-argument positional constructor. Files:
-- `cognition/src/test/java/io/casehub/neocortex/cognition/situational/SituationalPersonalityParticipantTest.java`
-- `cognition/src/test/java/io/casehub/neocortex/cognition/situational/SituationalPersonalityIntegrationTest.java`
+## Slot Status
+
+Slot 211 is marked ready for archive — queue drained, all work landed and published.
