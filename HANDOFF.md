@@ -1,35 +1,40 @@
-# HANDOFF — casehub-neocortex
+# HANDOFF — casehub-neocortex (Slot 230)
 
-## Last Session
+## Last Session (2026-11-24)
 
-Designed and implemented #1212 (direct CAPS settling pathway for dissonance). Evaluated whether a direct CAPS settling pathway produces richer behavioural effects than the indirect prompt→experience→graduation pathway — concluded yes based on constraint-satisfaction fidelity (Shultz & Lepper 1996), and implemented.
+Implemented SE1: Pipeline Spine (#1221) — the critical-path sub-epic for the Cognitive Pipeline Coherence parent epic (#1220). Triaged 107 review findings, landed 13 mechanical fixes in an earlier session, then designed and implemented the 5 core fixes that unblock SE6 and SE7.
 
-1. **DissonanceActivationSource SPI** (`cognition-api`) — `@FunctionalInterface` with `TensionActivation` record carrying `capsActivationsA`, `capsActivationsB`, and tension `strength`.
-2. **DissonanceDetectionPhase** (`cognition`) — moved from `@Priority(25)` to `@Priority(17)`, implements `DissonanceActivationSource`, extended `TensionSnapshot` with CAPS activation maps, `parseCapsActivations()` for JSON→Map conversion.
-3. **BehavioralSynthesisPhase** (`mindmap-intelligence`) — `mergeDissonanceActivations()` reads SPI, scales by tension strength, merges via `Math::max`. Both direct and indirect paths coexist.
+**What landed (4 commits on main):**
+1. `91aa9b6c` — CognitionConfig: 28-boolean record → EnumSet. `all()` = `withAllSubsystems()`. (A1, A13)
+2. `98c4577e` — Per-agent state: ConcurrentHashMap<AgentKey, PerTickState>, scoped session IDs, updateBase guard. (A3, C19, D13)
+3. `ccf5915d` — Stale appraisal gated on observation presence. (C1, C8 partial)
+4. `bdb8b7c8` — Builder wiring, DirectiveSection unwrap, JSON parsing, recency decay. (A6, A7, A8, D7, E3, E11)
 
-**Blog:** `blog/2026-11-23-mdp02-the-settler-that-finally-heard-the-argument.md`
+**Filed:** #1231 (wire configureSearchBudget/configureCuriosity into builder), #1232 (quality signal timing)
+**Blog:** `blog/2026-11-24-mdp01-config-that-couldnt-count.md`
 
-**Filed:**
-- casehubio/neocortex#1216 (harden parseCapsActivations JSON parser — XS/Low)
+## Slot Status
 
-**Tests:** 44 pass (20 dissonance + 24 behavioral synthesis).
+Queue drained. All items landed and published. Slot ready for archive.
 
-**Landed:** #1212 on main (3 commits). Branch stamped and closed.
+## Epic Status (#1220)
 
-## Queue State
+| Sub-epic | Status | Issues |
+|----------|--------|--------|
+| SE1 Pipeline Spine | **Done** | #1221 closed |
+| SE2 CAPS Rework | Open | #1222 |
+| SE3 Storage & Data Integrity | Open | #1223 |
+| SE4 Consolidation Phases | Open | #1224 |
+| SE5 cognitive-index | Open | #1225 |
+| SE6 Affect & Emotion | Open (unblocked by SE1) | #1226 |
+| SE7 Orchestrators | Open (unblocked by SE1) | #1227 |
 
-Branch `issue-1216-harden-caps-parser` active. Project and workspace on the branch.
-
-- **#1216** (harden parseCapsActivations parser — XS/Low) — **active**, scaffolded
-
-## Immediate Next Step
-
-#1216 (XS/Low) — replace the hand-rolled JSON parser in `DissonanceDetectionPhase.parseCapsActivations()` with Jackson ObjectMapper, or add edge-case tests documenting parser limitations. File: `cognition/src/main/java/io/casehub/neocortex/cognition/dissonance/DissonanceDetectionPhase.java:300`.
+SE2–SE5 are Tier 0 (different modules, zero conflict, can run in parallel).
+SE6–SE7 are Tier 2 (cognition module, different files, can run in parallel with each other).
 
 ## References
 
-- `specs/issue-1212-direct-caps-evaluation/2026-11-23-direct-caps-evaluation-design.md` — design spec
-- `specs/issue-1212-direct-caps-evaluation/decisions.md` — 6 design decisions
-- `plans/2026-11-23-direct-caps-evaluation.md` — implementation plan (3 tasks, 1 batch)
-- `blog/2026-11-23-mdp02-the-settler-that-finally-heard-the-argument.md` — diary entry
+- Triage: `docs/specs/cognitive-review-analysis/2026-11-24-cognitive-review-triage.md`
+- Epic plan: `docs/specs/cognitive-review-analysis/2026-11-24-epic-plan.md`
+- Plan: `plans/2026-11-24-pipeline-spine.md`
+- Parent epic: casehubio/neocortex#1220
