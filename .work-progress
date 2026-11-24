@@ -1,0 +1,16 @@
+_exec_ok:loose_ends=yes
+loose_ends=done
+epic_hygiene_attempt=1
+last_yielded=handoff_write
+epic_hygiene=done
+epic_hygiene_produced=0
+wrap_sweep_config_attempt=1
+wrap_sweep_config=done
+wrap_sweep_selected=
+garden_feedback_attempt=0
+garden_feedback=skipped
+notes_attempt=0
+notes=skipped
+handoff_write_attempt=1
+handoff_write=done
+handoff_write_produced=1

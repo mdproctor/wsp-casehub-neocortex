@@ -1,0 +1,15 @@
+# Work Plan — cognitive-review-analysis
+
+## State
+branch: cognitive-review-analysis
+state: scaffolded
+project-sha: slot-creation
+date: 2026-11-23
+issue-repo: casehubio/neocortex
+covers: 
+design-repo: project
+design-section-hashes: 
+flyway-next-v: unknown
+
+## Queue
+(empty — issues created during design)
