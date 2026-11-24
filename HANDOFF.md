@@ -2,87 +2,50 @@
 
 ## Last Session
 
-Landed #1216 (XS — replaced hand-rolled JSON parser with Jackson ObjectMapper in `DissonanceDetectionPhase.parseCapsActivations()`). Began setup for #1219 but hit pipeline bugs (filed as Hortora/soredium#633). Manually recovered: created branch, fixed queue, unblocked pipeline.
+Designed and implemented composable cognitive avatars (#1219). Full session: brainstorming (10 design decisions, standard decision review, standard spec review), then implementation of Batches 1-3 (4 of 4 batches, 7 of 8 tasks). Research cross-references updated in era1, era3, and CHARACTER-EMERGENCE-FINDINGS.
 
-**Landed:** #1216 on main (1 commit, SHA 5fa5bde8). Branch stamped and closed.
+**Built:**
+- `CognitivePromptSource` interface extracted from `CognitiveLifecycle` (cognition-api)
+- `BriefingConfig` added as 9th component of `CognitiveDefaults` (cognitive-index)
+- New `cognitive-runtime` module with `CognitiveCapability` SPI, `CognitiveAvatar` composition root, 6 capabilities (Briefing, Goal, Temporal, Memory, EntityKnowledge, Disposition)
+- 2 persona YAML profiles (stoic-mentor, bold-strategist) with three-layer evocative briefing
+- 42 tests, full project build green
 
-**Infrastructure note:** 32 commits in `~/claude/public/casehub/neocortex` are unpushed. `canonical_sync.py publish neocortex` fails with a doubled-path bug (`neocortex/neocortex/soredium-landing.lock`). Needs manual investigation or a soredium fix.
+**Filed:** #1233 (XS — missing unit tests for MemoryCapability + EntityKnowledgeCapability), #1234 (XS — add disposition axes to persona YAMLs)
+
+**Infrastructure note (carried forward):** 32 commits in `~/claude/public/casehub/neocortex` are unpushed. `canonical_sync.py publish neocortex` fails with a doubled-path bug. Not blocking.
 
 ## Queue State
 
 Branch `issue-1219-briefed-cognitive-avatars` active. Project and workspace both on the branch.
 
-- **#1219** (Briefed personality profiles — practical coach/mentor/assistant personas — M/Med) — **active**, branch created, brainstorming not yet started
+- **#1219** (Composable cognitive avatars — M/Med) — **active**, Batches 1-3 done, Batch 4 (Docs) remaining
 
-## What #1219 Is
+## Remaining Work on #1219
 
-Split neocortex's existing capabilities into two tiers and surface the practical tier via pre-built persona profiles:
+**Batch 4 — Documentation (1 task):**
+- Task 8: Update consumer-guide.md (add cognitive-runtime module), CLAUDE.md (module structure + maven coordinates), ARC42STORIES.MD (building block + journey)
 
-| Practical tier (this issue) | Experimental tier (existing cognition stack) |
-|---|---|
-| Static disposition from YAML | Personality evolution from experience |
-| Briefing-based persona ("think like Marcus Aurelius") | Emergent identity from CAPS attractors |
-| Echo/self-prompting before key decisions | Inner life, proactive reflection |
-| Goal decomposition shaped by stated preferences | Goal formation from drive activation |
-| Session 1 = Session 100 | Session 100 ≠ Session 1 |
-| No tick loop, no consolidation, no experience recording | Full consolidation pipeline |
+**Follow-up issues (not blocking #1219 close):**
+- #1233 — Add unit tests for MemoryCapability and EntityKnowledgeCapability (XS/Low)
+- #1234 — Add disposition axes to persona YAML profiles (XS/Low)
 
-## Design Intent (from user)
+**CognitiveAvatarProducer and ProfileDescriptorViewSource** — defined in the spec but not yet committed. The CDI wiring for creating avatars from profiles. The module works for programmatic consumers without CDI; the producer is needed for Quarkus integration.
 
-The core insight: **briefing works well, and we already have memory, goals, temporal awareness, and urgency/focus machinery.** The aim is to build lightweight briefed cognitive avatars that can use:
+## Key Design Decisions
 
-- **MindMap** — GOAL subgraph, knowledge graph, entity awareness
-- **Cognitive goals** — decomposition, prioritisation, resolution, urgency
-- **Temporal focus** — awareness of now/yesterday/future, creating urgency
-- **Memory** — CaseMemoryStore for cross-session persistence, consolidation for long-term retention
-- **CognitiveDefaults/CognitiveDerivationEngine** — disposition→planning config derivation (subset of pathways: skip mood, appraisal, habituation)
-- **Faster cognitive drives** — goal-directed curiosity, competence, without the full CAPS/emotion pipeline
+Briefing and emergence are orthogonal reasoning-shaping strategies, not layers of one stack. Both share the same CDI infrastructure (MindMapStore, CaseMemoryStore, etc.). The capability list is not a ceiling — consolidation, practical appraisal, ticks, inner thoughts, hierarchy of needs can all be composed as future capabilities without architectural change.
 
-What it does NOT include: emergent emotions, CAPS settling, mood tracking, personality evolution, appraisal (SEC dimensions), inner life, proactive speech.
-
-## Key Design Decisions Still Needed
-
-1. **Module structure** — new module(s) or composition of existing modules with config flags?
-2. **Persona library format** — extend existing `cognitive-profiles/*.yaml` or new `personas/*.yaml`?
-3. **Echo/self-prompting mechanism** — how persona principles surface at decision points
-4. **Profile composition** — how base avatar (coach/mentor/assistant) + personality overlay (Marcus Aurelius, etc.) compose
-5. **Prompt rendering** — which existing `CognitionPromptRenderer` sections to reuse vs new briefing-only renderers
-6. **Distribution boundary** — what lives in neocortex vs the MCP server (#360 on connectors)
-
-## Existing Infrastructure to Audit
-
-The brainstorming session should audit these for practical-tier eligibility:
-
-| Module | Practical? | Why |
-|--------|-----------|-----|
-| `cognitive-index/CognitiveDefaults` + `CognitiveDerivationEngine` | Yes | Static config derivation from YAML profiles |
-| `cognitive-index/CognitiveProfile` | Yes | Cross-store entity resolution |
-| `cognitive-index/TemporalFocus` | Yes | Now/yesterday/future awareness |
-| `mindmap-api` + `mindmap-intelligence` goals | Yes | Goal subgraph, decomposition, prioritisation |
-| `memory-api` CaseMemoryStore | Yes | Cross-session persistence |
-| `cognition-api` prompt renderers | Subset | Goal, temporal, drive sections — not mood/appraisal/inner-life |
-| `cognition` CognitionCore tick loop | No | Too heavy — needs replacement with static composition |
-| `caps-*` | No | Emergent behavior, not briefed |
-| `cognition` CARMA appraisal | No | Emotion pipeline |
-
-## Learned Techniques to Apply
-
-- **Echo-back for staying in character**: "Think and respond how Marcus would" keeps the persona consistent across turns. Validated in prior work.
-- **Briefing over emergence**: Static persona briefing produces consistent, predictable behavior. The persona shapes reasoning style without the system trying to become that persona.
-- **Disposition as planning config**: Risk appetite, rule-following, social orientation → conservative vs aggressive goal decomposition, solo vs collaborative approaches.
-- **Layered approach**: Start practical, then optionally compose in deeper cognition. The practical base should work at conversation level first, with optional enrichment over time.
+Echo mechanism is research-validated (era1 P16/P25/P26/P30, era3 template suppression finding). Prescriptive echo suppresses character — must be evocative.
 
 ## Immediate Next Step
 
-Run `work continue`. The pipeline will route to `load_context`. Complete it, then proceed with brainstorming for #1219 — context gathering, clarifying questions, approach exploration, decisions, spec.
+Run `work continue`. Complete Task 8 (documentation updates), then `work end` to land.
 
 ## References
 
-- casehubio/neocortex#1219 — the issue (M/Med, well-scoped body with architecture section)
-- `cognitive-index/src/main/java/.../CognitiveDefaults.java` — per-agent config from YAML
-- `cognitive-index/src/main/java/.../CognitiveDerivationEngine.java` — disposition→config derivation
-- `cognitive-index/src/main/java/.../CognitiveDefaultsRegistry.java` — classpath scan for profiles
-- `cognition/src/main/resources/cognitive-pipeline-defaults.properties` — pipeline config reference
-- `mindmap-intelligence/src/main/java/.../consolidation/GoalResolutionPhase.java` — goal management
-- `mindmap-intelligence/src/main/java/.../InformationGapDetector.java` — curiosity/gap detection
-- Hortora/soredium#633 — pipeline bug filed this session (workspace branch stranding)
+- casehubio/neocortex#1219 — focal issue
+- Design spec: `specs/issue-1219-briefed-cognitive-avatars/2026-11-24-composable-cognitive-avatars-design.md`
+- Decisions: `specs/issue-1219-briefed-cognitive-avatars/decisions.md` (10 decisions)
+- Plan: `plans/2026-11-24-composable-cognitive-avatars.md`
+- Research: `docs/research/era1-character-taxonomy-research.md` (echo validation), `docs/research/era3-cognitive-layering-research.md` (template suppression)
