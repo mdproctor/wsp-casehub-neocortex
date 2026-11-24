@@ -120,9 +120,10 @@ capabilities to each other.
 
 Each capability's renderers should return appropriate `BlockTag` and
 `SectionTier` from their `blockTag()` and `sectionTier()` methods.
-These drive section ordering (via `BlockTag.sortOrdinal()`) and
-salience computation (via `SectionTier` → float) in the default
-`contributeBlocks()` pipeline inherited from `CognitivePromptSource`.
+`CognitiveAvatar.promptSections()` sorts renderers by
+`BlockTag.sortOrdinal()`. `CognitivePromptSource.contributeBlocks()`
+uses `SectionTier` for salience computation (CORE → 1.0, CONTEXTUAL
+→ 0.6, SUPPLEMENTARY → 0.3).
 
 | Capability | BlockTag | SectionTier |
 |-----------|---------|------------|
@@ -178,6 +179,8 @@ public class CognitiveAvatar implements CognitivePromptSource {
         return capabilities.stream()
             .filter(CognitiveCapability::isActive)
             .flatMap(c -> c.promptSections().stream())
+            .sorted(Comparator.comparingInt(r ->
+                r.blockTag() != null ? r.blockTag().sortOrdinal() : 999))
             .toList();
     }
 
@@ -190,11 +193,12 @@ public class CognitiveAvatar implements CognitivePromptSource {
 }
 ```
 
-`contributeBlocks(CognitionRenderContext)` is inherited from
-`CognitivePromptSource`'s default implementation — it iterates
-`promptSections()`, renders each via `render(context)`, wraps in
-`PromptBlock` with `BlockTag`-based ordering and `SectionTier`-based
-salience. No override needed.
+`promptSections()` sorts renderers by `BlockTag.sortOrdinal()` —
+the same mechanism `CognitionCore` uses when `directivePrompts()` is
+true. `contributeBlocks(CognitionRenderContext)` is inherited from
+`CognitivePromptSource`'s default implementation — it iterates the
+pre-sorted renderers, renders each via `render(context)`, and wraps
+in `PromptBlock` with `SectionTier`-based salience. No override needed.
 
 ### 3.5 Interface segregation: `CognitivePromptSource`
 
@@ -215,24 +219,41 @@ public interface CognitivePromptSource {
     default List<PromptBlock> contributeBlocks(CognitionRenderContext context) {
         var blocks = new ArrayList<PromptBlock>();
         for (var renderer : promptSections()) {
-            var content = renderer.render(context);
-            if (content != null && !content.isBlank()) {
-                var tag = renderer.blockTag();
-                var tagName = tag != null ? tag.name()
-                        : renderer.getClass().getSimpleName();
-                var salience = salienceOf(renderer.sectionTier());
-                blocks.add(new PromptBlock(
-                    PromptTier.COGNITIVE, tagName, salience, content));
+            try {
+                var content = renderer.render(context);
+                if (content != null && !content.isBlank()) {
+                    var tag = renderer.blockTag();
+                    var simpleName = renderer.getClass().getSimpleName();
+                    var tagName = tag != null ? tag.name()
+                            : simpleName.isEmpty()
+                              ? renderer.getClass().getName()
+                              : simpleName;
+                    var salience = salienceOf(renderer.sectionTier());
+                    blocks.add(new PromptBlock(
+                        PromptTier.COGNITIVE, tagName, salience, content));
+                }
+            } catch (Exception e) {
+                // skip — matches CognitiveLifecycle behaviour
             }
         }
         return List.copyOf(blocks);
+    }
+
+    private static float salienceOf(@Nullable SectionTier tier) {
+        if (tier == null) return 0.5f;
+        return switch (tier) {
+            case CORE -> 1.0f;
+            case CONTEXTUAL -> 0.6f;
+            case SUPPLEMENTARY -> 0.3f;
+        };
     }
 }
 ```
 
 This is an exact extraction of the `initialize()`, `promptSections()`,
-and `contributeBlocks()` methods from `CognitiveLifecycle`, preserving
-their signatures and default implementations. `CognitiveLifecycle`
+`contributeBlocks()`, and `salienceOf()` methods from
+`CognitiveLifecycle`, preserving their signatures, default
+implementations, error handling, and anonymous class fallback logic. `CognitiveLifecycle`
 extends `CognitivePromptSource`, adding `tick()`,
 `recordInteraction()`, `evaluateProactive()`.
 
@@ -356,8 +377,19 @@ public class BriefingPromptSection implements CognitionPromptRenderer {
         if (briefing.echo() != null) sb.append(briefing.echo());
         return sb.toString().strip();
     }
+
+    @Override
+    public BlockTag blockTag() { return BlockTag.PERSONALITY; }
+
+    @Override
+    public @Nullable SectionTier sectionTier() { return SectionTier.CORE; }
 }
 ```
+
+Each capability's prompt section overrides `blockTag()` and
+`sectionTier()` per the §3.3 mapping table. The same pattern
+applies to `GoalPromptSection` (`GOALS`, `CONTEXTUAL`),
+`TemporalPromptSection` (`TEMPORAL`, `CONTEXTUAL`), etc.
 
 This replaces `CognitivePreambleGenerator` ("You have an inner
 life...") for briefed avatars. The preamble is for emergent agents;
@@ -457,8 +489,10 @@ public class CognitiveAvatarProducer {
     private final ConcurrentHashMap<String, CognitiveAvatar> cache =
         new ConcurrentHashMap<>();
 
-    public CognitiveAvatar create(String agentId) {
-        return cache.computeIfAbsent(agentId, this::buildAvatar);
+    public CognitiveAvatar create(String agentId, String tenantId) {
+        var key = tenantId + ":" + agentId;
+        return cache.computeIfAbsent(key,
+            k -> buildAndInitAvatar(agentId, tenantId));
     }
 
     void onProfileReload(
@@ -466,7 +500,8 @@ public class CognitiveAvatarProducer {
         cache.clear();
     }
 
-    private CognitiveAvatar buildAvatar(String agentId) {
+    private CognitiveAvatar buildAndInitAvatar(
+            String agentId, String tenantId) {
         var profile = registry.forAgentOrDefaults(agentId);
         var capabilities = new ArrayList<CognitiveCapability>();
 
@@ -487,7 +522,9 @@ public class CognitiveAvatarProducer {
 
         capabilities.add(new DispositionCapability(profile));
 
-        return new CognitiveAvatar(profile, capabilities);
+        var avatar = new CognitiveAvatar(profile, capabilities);
+        avatar.initialize(agentId, tenantId);
+        return avatar;
     }
 }
 ```
@@ -496,12 +533,22 @@ Capabilities degrade gracefully: if `MindMapStore` isn't on the
 classpath, goal and temporal capabilities simply aren't wired. The
 avatar still works with just briefing + disposition.
 
-Avatars are cached per agentId via `ConcurrentHashMap.computeIfAbsent()`.
+Avatars are cached per `(agentId, tenantId)` pair via
+`ConcurrentHashMap.computeIfAbsent()`. Each tenant gets its own
+avatar instance — tenant-agnostic templates (null `tenantId` in the
+profile) are instantiated separately per calling tenant because
+capability initialization is tenant-scoped (e.g., `GoalCapability`
+scopes MindMap GOAL subgraph queries by tenant, `MemoryCapability`
+scopes `CaseMemoryStore` lookups by tenant).
+
 The `@Observes CognitiveProfilesReloaded` CDI event (fired by
 `CognitiveProfileWatcher` on filesystem changes) clears the entire
 cache, forcing re-creation on the next `create()` call. This is
 thread-safe — `ConcurrentHashMap` handles concurrent access, and
 cache clearing is atomic.
+
+`create()` calls `initialize()` internally — consumers do not call
+`initialize()` separately.
 
 ## 9. Distribution boundary
 
@@ -527,12 +574,12 @@ conversation loop and situational context.
 ```java
 @Inject CognitiveAvatarProducer avatarProducer;
 
-var avatar = avatarProducer.create("stoic-mentor");
-avatar.initialize("stoic-mentor", tenantId);
+var avatar = avatarProducer.create("stoic-mentor", tenantId);
 ```
 
-`create()` returns a cached instance. `initialize()` cascades to each
-capability's `initialize(CognitiveAvatarContext)`.
+`create()` returns a cached, initialized instance keyed by
+`(agentId, tenantId)`. Capabilities are initialized once at creation
+time — consumers do not call `initialize()` separately.
 
 **Rendering cognitive prompt sections:**
 
@@ -548,12 +595,11 @@ drive activation is always empty.
 **MCP server call sequence (connectors #360):**
 
 1. Consumer receives a conversation request with `agentId` and `tenantId`
-2. `avatarProducer.create(agentId)` → cached `CognitiveAvatar`
-3. `avatar.initialize(agentId, tenantId)` on first use per session
-4. Per prompt turn: `avatar.contributeBlocks(context)` → `List<PromptBlock>`
-5. Consumer assembles `PromptBlock` list into the system prompt alongside
+2. `avatarProducer.create(agentId, tenantId)` → cached `CognitiveAvatar`
+3. Per prompt turn: `avatar.contributeBlocks(context)` → `List<PromptBlock>`
+4. Consumer assembles `PromptBlock` list into the system prompt alongside
    situational grounding and conversation history
-6. Consumer manages the LLM call and conversation loop
+5. Consumer manages the LLM call and conversation loop
 
 **Typed to `CognitivePromptSource`:**
 
