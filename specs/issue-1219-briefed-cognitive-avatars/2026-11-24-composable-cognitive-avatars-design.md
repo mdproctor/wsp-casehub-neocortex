@@ -398,9 +398,13 @@ the briefing is for declared-identity agents.
 ## 6. `ProfileDescriptorViewSource`
 
 A `DescriptorViewSource` implementation backed by YAML profiles in
-`CognitiveDefaultsRegistry`, bypassing eidos entirely (D10).
+`CognitiveDefaultsRegistry`, bypassing eidos entirely (D10). Marked
+`@DefaultBean` so it activates only when no higher-priority
+`DescriptorViewSource` (such as `EidosDescriptorViewSource` from
+`cognitive-eidos`) is on the classpath.
 
 ```java
+@DefaultBean
 @ApplicationScoped
 public class ProfileDescriptorViewSource implements DescriptorViewSource {
 
@@ -425,15 +429,31 @@ public class ProfileDescriptorViewSource implements DescriptorViewSource {
 }
 ```
 
+**CDI resolution behavior:**
+
+`EffectiveCognitiveDefaultsProducer` injects
+`Instance<DescriptorViewSource>` and calls `isResolvable()`, which
+returns `true` only when exactly one bean satisfies the type. Without
+`@DefaultBean`, having both `ProfileDescriptorViewSource` and
+`EidosDescriptorViewSource` on the classpath creates a CDI ambiguity —
+`isResolvable()` returns `false`, and both implementations are silently
+ignored in favour of the inline `registryBacked()` fallback.
+
+| Deployment | Active `DescriptorViewSource` | Briefed agent resolution |
+|-----------|-------|-------|
+| `cognitive-runtime` only | `ProfileDescriptorViewSource` | Tenant-filtered via YAML registry |
+| `cognitive-runtime` + `cognitive-eidos` | `EidosDescriptorViewSource` | Briefed agents not in eidos → `EffectiveCognitiveDefaults` falls back to explicit profile from registry (correct — briefed agents use static YAML, not derivation) |
+
 Briefed agents with a null `tenantId` are available to all tenants
 (persona templates). Agents with a specific `tenantId` are scoped to
-that tenant only. This matches the semantics of
-`EidosDescriptorViewSource`, which queries the eidos registry per
-tenant.
+that tenant only.
 
 Briefed agents are neocortex-local constructs. They don't register
 with eidos, don't participate in eidos-based orchestration, and don't
-need JPA persistence or the full eidos stack. If a future use case
+need JPA persistence or the full eidos stack. When eidos IS present,
+`EffectiveCognitiveDefaults.agentIds(tenantId)` still discovers
+briefed agents — it unions the view source's agent list with
+`explicitLayer.allAgentIds()` from the registry. If a future use case
 requires eidos participation, progressive composition (D7) supports
 upgrading without architectural change.
 
