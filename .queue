@@ -15,7 +15,7 @@
     - [x] Task 5: JSON parsing and recency decay fix
 
 ## State
-branch: 
+branch: issue-1216-harden-caps-parser
 issue-repo: casehubio/neocortex
 status: drained
 project-sha: 
