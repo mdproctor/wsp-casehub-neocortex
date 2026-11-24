@@ -15,7 +15,7 @@
     - [x] Task 5: JSON parsing and recency decay fix
 
 ## State
-branch: main
+branch: issue-1219-briefed-cognitive-avatars
 issue-repo: casehubio/neocortex
 status: active
 project-sha: 
