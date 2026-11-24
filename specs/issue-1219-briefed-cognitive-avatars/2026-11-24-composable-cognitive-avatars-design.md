@@ -388,6 +388,11 @@ Capabilities degrade gracefully: if `MindMapStore` isn't on the
 classpath, goal and temporal capabilities simply aren't wired. The
 avatar still works with just briefing + disposition.
 
+Avatars are cached per agentId — `create()` builds the capability
+list once, subsequent calls for the same agentId return the cached
+instance. Profile hot-reload (via `CognitiveProfileWatcher`) triggers
+cache invalidation.
+
 ## 9. Distribution boundary
 
 `cognitive-runtime` is a neocortex library. Consumers (MCP server in
