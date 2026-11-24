@@ -1,18 +1,4 @@
-- [x] casehubio/neocortex#593 — Cognitive-dissonance-constraint-satisfaction
-- [x] casehubio/neocortex#1210 — Dissonance-coping integration
-- [x] casehubio/neocortex#1211 — NLI fast-path pre-filter
-- [x] casehubio/neocortex#1212 — Direct CAPS settling evaluation
-- [x] casehubio/neocortex#1216 — Harden parseCapsActivations parser
-- [x] casehubio/neocortex#1219 — issue 1219
-- [x] casehubio/neocortex#1221 — issue 1221
-  - [x] Batch 1: Config EnumSet
-    - [x] Task 1: CognitionConfig EnumSet refactor
-  - [x] Batch 2: Per-Agent State
-    - [x] Task 2: Per-agent state extraction
-    - [x] Task 3: Stale appraisal and double tick fix
-  - [x] Batch 3: Builder+Fixes
-    - [x] Task 4: Wire configure methods and fix ordering
-    - [x] Task 5: JSON parsing and recency decay fix
+# Work Plan —
 
 ## State
 branch: issue-1219-briefed-cognitive-avatars
@@ -24,6 +10,15 @@ design-repo:
 design-section-hashes: 
 flyway-next-v: 
 covers: casehubio/neocortex#1219
+
+## Queue
+- [x] casehubio/neocortex#593 — Cognitive-dissonance-constraint-satisfaction
+- [x] casehubio/neocortex#1210 — Dissonance-coping integration
+- [x] casehubio/neocortex#1211 — NLI fast-path pre-filter
+- [x] casehubio/neocortex#1212 — Direct CAPS settling evaluation
+- [x] casehubio/neocortex#1216 — Harden parseCapsActivations parser
+- [x] casehubio/neocortex#1219 — issue 1219
+- [x] casehubio/neocortex#1221 — issue 1221
 
 ## Deferred
 - [ ] Wire configureSearchBudget/configureCuriosity into builder (S / Med) [casehubio/neocortex] — Requires new builder fields and CognitionCoreFactory CDI changes — better as follow-up to SE1
