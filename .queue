@@ -15,14 +15,15 @@
     - [x] Task 5: JSON parsing and recency decay fix
 
 ## State
-branch: issue-1216-harden-caps-parser
+branch: main
 issue-repo: casehubio/neocortex
-status: drained
+status: active
 project-sha: 
 date: 2026-11-23
 design-repo: 
 design-section-hashes: 
 flyway-next-v: 
+covers: casehubio/neocortex#1219
 
 ## Deferred
 - [ ] Wire configureSearchBudget/configureCuriosity into builder (S / Med) [casehubio/neocortex] — Requires new builder fields and CognitionCoreFactory CDI changes — better as follow-up to SE1
