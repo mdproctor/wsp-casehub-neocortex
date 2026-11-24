@@ -18,11 +18,11 @@
 **Alternatives:**
 - Monolithic "briefed mode" module separate from cognition — creates competing stacks
 - Refactor CognitionCore to be the single composition root — too invasive
-**Rationale:** Briefing and emergence are orthogonal approaches to reasoning-shaping, not layers of one stack. They share infrastructure but differ in how reasoning is shaped. Emergent branch has zero briefing (identity emerges). Briefed branch has full identity declaration (static, never drifts). Designing for future unification — one composable stack, not two competing ones.
+**Rationale:** Briefing and emergence are orthogonal approaches to reasoning-shaping, not layers of one stack. They share infrastructure but differ in how reasoning is shaped. Emergent branch has zero briefing (identity emerges). Briefed branch has full identity declaration (static, never drifts). The shared infrastructure is the CDI service layer (MindMapStore, CaseMemoryStore, GoalProposalOrchestrator, TemporalFocusOrchestrator, EffectiveCognitiveDefaults) — these are standalone CDI beans that both composition roots can inject independently. No extraction from CognitionCore is required. Aspirational: future unification toward one composable stack is supported by this architecture but is not a prerequisite for the design to be correct.
 **Trade-offs:** Requires careful abstraction of the shared infrastructure boundary. CognitionCore doesn't get simpler — a new composition root sits alongside it.
 **Sources:** cognition/CognitionCore.java, cognition-api/CognitionPromptRenderer.java, agency briefing mechanism
 **Exploration:** deep-analysis
-**Status:** captured
+**Status:** revised — clarified shared infrastructure as CDI service layer, downgraded "future unification" from primary rationale to aspiration (R1-06, R1-12)
 
 ## D3: Briefing location
 
@@ -54,23 +54,23 @@
 **Alternatives:**
 - Extend cognitive-index — grows it beyond "index" into "runtime"
 - New "avatar" module — distinct consumer-facing name, but naming mismatch with composable intent
-**Rationale:** Clean separation: cognitive-index stays pure types/utilities, cognition stays emergent-specific (tick loop, CAPS, emotions), cognitive-runtime owns composition root, capability wiring, briefing renderer, shared prompt rendering chain. Enables future unification where cognition becomes one configuration of cognitive-runtime.
+**Rationale:** Clean separation: cognitive-index stays pure types/utilities, cognition stays emergent-specific (tick loop, CAPS, emotions), cognitive-runtime owns composition root, capability wiring, briefing renderer, shared prompt rendering chain. Module boundary prevents accidental coupling between briefed and emergent concerns — stronger than package boundaries. Aspirational: may enable future unification, but the module stands on separation-of-concerns merits alone.
 **Trade-offs:** New module in an already large module tree. Must be careful not to duplicate functionality from cognitive-index or cognition.
 **Sources:** Module dependency analysis, consumer-guide.md
 **Exploration:** quick
-**Status:** captured
+**Status:** revised — removed "future unification" as primary rationale, stands on separation-of-concerns merits (R1-12)
 
 ## D6: Persona library scope
 
-**Choice:** Ship all 5 pre-built personas (stoic mentor, thorough planner, bold strategist, pragmatic assistant, custom)
+**Choice:** Ship 2 contrasting + custom (stoic mentor + bold strategist + custom)
 **Alternatives:**
-- 2 contrasting + custom — validates mechanism with minimal scope
-- 1 reference + custom — fastest to validate
-**Rationale:** User preference for complete delivery. All 5 are YAML profiles with no additional code per persona — the mechanism is the work, not the profiles.
-**Trade-offs:** More testing surface for validation. Each persona needs empirical tuning of the echo sentences.
+- All 5 pre-built personas — ships complete set but delays mechanism validation with content authoring
+- 1 reference + custom — fastest to validate but doesn't stress-test disposition spectrum
+**Rationale:** The echo mechanism is unproven. Each persona needs empirical tuning of echo sentences — the hardest part of this feature. Two personas at opposite ends of the disposition spectrum (analytical/low-expressiveness stoic mentor vs expressive/action-oriented bold strategist) maximally stress-test the echo mechanism. If it works for both extremes, middle cases (thorough planner, pragmatic assistant) are low-risk iteration-2 additions. Custom lets early adopters build their own.
+**Trade-offs:** Smaller initial library. Remaining 2 personas are deferred, not abandoned.
 **Sources:** Issue #1219 persona library section
 **Exploration:** quick
-**Status:** captured
+**Status:** revised — reduced from 5 to 2+custom to prioritise mechanism validation over content breadth (R1-04)
 
 ## D8: Composition root design
 
@@ -95,4 +95,29 @@
 **Trade-offs:** More complex wiring. Each capability must be independently testable and composable. Order-of-composition edge cases.
 **Sources:** User design intent, CognitionConfig feature flags pattern
 **Exploration:** deep-analysis
+**Status:** captured
+
+## D9: Consumer API — interface segregation for briefed vs emergent
+
+**Choice:** Introduce `CognitivePromptSource` as a narrower interface; `CognitiveLifecycle` extends it
+**Alternatives:**
+- CognitiveAvatar implements CognitiveLifecycle with no-op tick/recordInteraction — simpler for consumers but violates LSP (3 of 6 methods are no-ops)
+- Separate interfaces with no inheritance — consumers must handle two unrelated types
+**Rationale:** `CognitiveLifecycle` has 6 methods. `tick()` and `recordInteraction()` are abstract with no defaults and are meaningless for briefed agents. Interface Segregation Principle: `CognitivePromptSource` owns `initialize()`, `promptSections()`, `contributeBlocks()`. `CognitiveLifecycle` extends it, adding `tick()`, `recordInteraction()`, `evaluateProactive()`. CognitionCore implements `CognitiveLifecycle` (unchanged). CognitiveAvatar implements `CognitivePromptSource` (clean contract). Consumers that only need prompt rendering depend on the narrower interface.
+**Trade-offs:** Existing consumers of CognitiveLifecycle are unaffected (supertype added, no methods removed). New consumers must choose which interface to depend on.
+**Sources:** cognition-api/CognitiveLifecycle.java, CognitionCore.java (implements CognitiveLifecycle)
+**Depends on:** D8 (CognitiveAvatar composition root)
+**Exploration:** surfaced by review
+**Status:** captured
+
+## D10: Eidos registration — briefed agents are neocortex-local
+
+**Choice:** Briefed agents do NOT register with eidos
+**Alternatives:**
+- Require eidos registration for all agents — one identity source, coherence validation, routing/capability probing, but heavyweight dependency for lightweight agents
+- Optional eidos registration — consumers choose, but adds a decision point and two code paths
+**Rationale:** Briefed agents are lightweight neocortex-local constructs: no tick loop, no consolidation, no experience recording, no multi-agent routing. They don't need eidos routing (consumers explicitly create them), capability probing (consumers know capabilities from the profile), or eidos system prompt rendering (they use the neocortex cognitive prompt pipeline via CognitivePromptSource). Requiring eidos registration imposes JPA persistence, registry management, and the full eidos stack on what should be a simple YAML-defined persona. If a future use case requires eidos participation, D7's progressive composition supports upgrading to eidos registration without upgrade.
+**Trade-offs:** Briefed agents can't participate in eidos-based orchestration without upgrade. BriefingCoherenceValidator (eidos) can't validate briefed profiles — neocortex must provide its own validation.
+**Sources:** Issue #1219 requirements, EidosDescriptorViewSource.java, AgentDescriptor.java
+**Exploration:** surfaced by review
 **Status:** captured
