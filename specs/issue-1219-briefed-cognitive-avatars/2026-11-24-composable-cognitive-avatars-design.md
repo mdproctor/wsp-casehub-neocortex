@@ -72,7 +72,9 @@ New module between `cognitive-index` and `cognition`.
 `mindmap-api`, `memory-api`
 
 **Does NOT depend on:** `cognition` (emergent-specific), `caps-*`,
-`cognitive-eidos`
+`cognitive-eidos`. Note: `eidos-api` types (`PromptBlock`,
+`PromptTier`) are transitive via `cognition-api` — this is the API
+layer, not the eidos registration/persistence stack.
 
 **Owns:**
 - `CognitiveAvatar` — composition root
@@ -116,6 +118,21 @@ public interface CognitiveCapability {
 (MindMapStore, CaseMemoryStore, profile config) without coupling
 capabilities to each other.
 
+Each capability's renderers should return appropriate `BlockTag` and
+`SectionTier` from their `blockTag()` and `sectionTier()` methods.
+These drive section ordering (via `BlockTag.sortOrdinal()`) and
+salience computation (via `SectionTier` → float) in the default
+`contributeBlocks()` pipeline inherited from `CognitivePromptSource`.
+
+| Capability | BlockTag | SectionTier |
+|-----------|---------|------------|
+| `BriefingCapability` | `PERSONALITY` (110) | `CORE` |
+| `GoalCapability` | `GOALS` (400) | `CONTEXTUAL` |
+| `TemporalCapability` | `TEMPORAL` (430) | `CONTEXTUAL` |
+| `MemoryCapability` | `MEMORY` (500) | `SUPPLEMENTARY` |
+| `EntityKnowledgeCapability` | `BELIEFS` (300) | `CONTEXTUAL` |
+| `DispositionCapability` | `BEHAVIORAL` (100) | `CORE` |
+
 **Initial capabilities for this issue:**
 
 | Capability | What it does | Dependencies |
@@ -151,12 +168,16 @@ public class CognitiveAvatar implements CognitivePromptSource {
                            List<CognitiveCapability> capabilities) { ... }
 
     @Override
-    public List<String> promptSections(CognitionRenderContext ctx) {
+    public void initialize(String agentId, String tenantId) {
+        var context = new CognitiveAvatarContext(agentId, tenantId, profile);
+        capabilities.forEach(c -> c.initialize(context));
+    }
+
+    @Override
+    public List<CognitionPromptRenderer> promptSections() {
         return capabilities.stream()
             .filter(CognitiveCapability::isActive)
             .flatMap(c -> c.promptSections().stream())
-            .map(r -> r.render(ctx))
-            .filter(Objects::nonNull)
             .toList();
     }
 
@@ -169,24 +190,51 @@ public class CognitiveAvatar implements CognitivePromptSource {
 }
 ```
 
+`contributeBlocks(CognitionRenderContext)` is inherited from
+`CognitivePromptSource`'s default implementation — it iterates
+`promptSections()`, renders each via `render(context)`, wraps in
+`PromptBlock` with `BlockTag`-based ordering and `SectionTier`-based
+salience. No override needed.
+
 ### 3.5 Interface segregation: `CognitivePromptSource`
 
 `CognitiveLifecycle` (existing, in cognition-api) has 6 methods.
 `tick()` and `recordInteraction()` are meaningless for avatars that
 don't run a tick loop.
 
-Introduce `CognitivePromptSource` as a narrower interface:
+Extract `CognitivePromptSource` from `CognitiveLifecycle` with
+signatures that match the existing methods exactly:
 
 ```java
 public interface CognitivePromptSource {
-    void initialize(String agentId, String tenantId);
-    List<String> promptSections(CognitionRenderContext ctx);
-    Map<String, List<BlockTag>> contributeBlocks();
+
+    default void initialize(String agentId, String tenantId) {}
+
+    List<CognitionPromptRenderer> promptSections();
+
+    default List<PromptBlock> contributeBlocks(CognitionRenderContext context) {
+        var blocks = new ArrayList<PromptBlock>();
+        for (var renderer : promptSections()) {
+            var content = renderer.render(context);
+            if (content != null && !content.isBlank()) {
+                var tag = renderer.blockTag();
+                var tagName = tag != null ? tag.name()
+                        : renderer.getClass().getSimpleName();
+                var salience = salienceOf(renderer.sectionTier());
+                blocks.add(new PromptBlock(
+                    PromptTier.COGNITIVE, tagName, salience, content));
+            }
+        }
+        return List.copyOf(blocks);
+    }
 }
 ```
 
-`CognitiveLifecycle` extends `CognitivePromptSource`, adding
-`tick()`, `recordInteraction()`, `evaluateProactive()`.
+This is an exact extraction of the `initialize()`, `promptSections()`,
+and `contributeBlocks()` methods from `CognitiveLifecycle`, preserving
+their signatures and default implementations. `CognitiveLifecycle`
+extends `CognitivePromptSource`, adding `tick()`,
+`recordInteraction()`, `evaluateProactive()`.
 
 - `CognitionCore` implements `CognitiveLifecycle` (unchanged)
 - `CognitiveAvatar` implements `CognitivePromptSource` (clean contract)
@@ -199,8 +247,43 @@ supertype is added, no methods are removed.
 ## 4. Profile format
 
 Persona profiles use the existing `CognitiveDefaults` YAML format with
-a `briefing` field added. Unused fields are simply absent —
-`CognitiveDefaultsRegistry` already handles partial profiles.
+a `briefing` field added as a 9th top-level component. Unused fields
+are simply absent — `CognitiveDefaultsRegistry` already handles partial
+profiles.
+
+**`BriefingConfig` record** (new type in `cognitive-index`):
+
+```java
+public record BriefingConfig(
+        @Nullable String identity,
+        @Nullable String grounding,
+        @Nullable String echo
+) {}
+```
+
+**`CognitiveDefaults` gains a 9th component:**
+
+```java
+public record CognitiveDefaults(
+        String agentId,
+        String tenantId,
+        PersonalityProfile personalityProfile,
+        DescriptorView descriptor,
+        EmotionDefaults emotionDefaults,
+        CognitiveResourceDefaults cognitiveResourceDefaults,
+        GraphDefaults graphDefaults,
+        BehavioralDefaults behavioralDefaults,
+        @Nullable BriefingConfig briefing                    // NEW
+) { ... }
+```
+
+`BriefingConfig` parses via Jackson like the rest of `CognitiveDefaults`.
+The compact constructor defaults `briefing` to `null` when absent,
+matching the existing null-defaulting pattern for other optional
+components. The existing `withX()` pattern extends with
+`withBriefing(BriefingConfig briefing)`. All existing `withX()`
+methods and the `empty()` factory pass `null` for `briefing`,
+preserving backward compatibility.
 
 ```yaml
 agentId: stoic-mentor
@@ -294,15 +377,27 @@ public class ProfileDescriptorViewSource implements DescriptorViewSource {
     @Override
     public Optional<DescriptorView> find(String tenantId, String agentId) {
         return registry.forAgent(agentId)
-            .map(CognitiveDefaults::descriptorView);
+            .filter(p -> p.tenantId() == null
+                      || p.tenantId().equals(tenantId))
+            .map(CognitiveDefaults::descriptor);
     }
 
     @Override
     public List<String> agentIds(String tenantId) {
-        return registry.allAgentIds();
+        return registry.allProfiles().stream()
+            .filter(p -> p.tenantId() == null
+                      || p.tenantId().equals(tenantId))
+            .map(CognitiveDefaults::agentId)
+            .toList();
     }
 }
 ```
+
+Briefed agents with a null `tenantId` are available to all tenants
+(persona templates). Agents with a specific `tenantId` are scoped to
+that tenant only. This matches the semantics of
+`EidosDescriptorViewSource`, which queries the eidos registry per
+tenant.
 
 Briefed agents are neocortex-local constructs. They don't register
 with eidos, don't participate in eidos-based orchestration, and don't
@@ -341,6 +436,10 @@ section. Users craft their own identity, grounding, and echo text.
 Documentation warns against prescriptive templates and provides the
 research-backed echo patterns as guidance.
 
+**Deferred personas** (filed as follow-up issues):
+- Thorough planner — casehubio/neocortex#1229
+- Pragmatic assistant — casehubio/neocortex#1230
+
 ## 8. CDI wiring
 
 `cognitive-runtime` provides CDI producers that compose capabilities
@@ -355,16 +454,25 @@ public class CognitiveAvatarProducer {
     @Inject Instance<CaseMemoryStore> memoryStore;
     @Inject Instance<CognitiveProfile> cognitiveProfile;
 
+    private final ConcurrentHashMap<String, CognitiveAvatar> cache =
+        new ConcurrentHashMap<>();
+
     public CognitiveAvatar create(String agentId) {
+        return cache.computeIfAbsent(agentId, this::buildAvatar);
+    }
+
+    void onProfileReload(
+            @Observes CognitiveProfilesReloaded event) {
+        cache.clear();
+    }
+
+    private CognitiveAvatar buildAvatar(String agentId) {
         var profile = registry.forAgentOrDefaults(agentId);
         var capabilities = new ArrayList<CognitiveCapability>();
 
-        // Briefing is always present if profile has briefing config
         if (profile.briefing() != null) {
             capabilities.add(new BriefingCapability(profile.briefing()));
         }
-
-        // Other capabilities activate based on available infrastructure
         if (mindMapStore.isResolvable()) {
             capabilities.add(new GoalCapability(mindMapStore.get()));
             capabilities.add(new TemporalCapability(mindMapStore.get()));
@@ -388,10 +496,12 @@ Capabilities degrade gracefully: if `MindMapStore` isn't on the
 classpath, goal and temporal capabilities simply aren't wired. The
 avatar still works with just briefing + disposition.
 
-Avatars are cached per agentId — `create()` builds the capability
-list once, subsequent calls for the same agentId return the cached
-instance. Profile hot-reload (via `CognitiveProfileWatcher`) triggers
-cache invalidation.
+Avatars are cached per agentId via `ConcurrentHashMap.computeIfAbsent()`.
+The `@Observes CognitiveProfilesReloaded` CDI event (fired by
+`CognitiveProfileWatcher` on filesystem changes) clears the entire
+cache, forcing re-creation on the next `create()` call. This is
+thread-safe — `ConcurrentHashMap` handles concurrent access, and
+cache clearing is atomic.
 
 ## 9. Distribution boundary
 
@@ -409,6 +519,48 @@ compose avatars:
 
 Neocortex provides the cognitive capabilities. Consumers provide the
 conversation loop and situational context.
+
+### 9.1 Consumer integration
+
+**Obtaining an avatar:**
+
+```java
+@Inject CognitiveAvatarProducer avatarProducer;
+
+var avatar = avatarProducer.create("stoic-mentor");
+avatar.initialize("stoic-mentor", tenantId);
+```
+
+`create()` returns a cached instance. `initialize()` cascades to each
+capability's `initialize(CognitiveAvatarContext)`.
+
+**Rendering cognitive prompt sections:**
+
+```java
+var context = new CognitionRenderContext(agentId, tenantId, subjectId);
+List<PromptBlock> blocks = avatar.contributeBlocks(context);
+```
+
+`CognitionRenderContext` has a convenience 3-arg constructor (without
+`activatedDriveCategories`) — appropriate for briefed avatars where
+drive activation is always empty.
+
+**MCP server call sequence (connectors #360):**
+
+1. Consumer receives a conversation request with `agentId` and `tenantId`
+2. `avatarProducer.create(agentId)` → cached `CognitiveAvatar`
+3. `avatar.initialize(agentId, tenantId)` on first use per session
+4. Per prompt turn: `avatar.contributeBlocks(context)` → `List<PromptBlock>`
+5. Consumer assembles `PromptBlock` list into the system prompt alongside
+   situational grounding and conversation history
+6. Consumer manages the LLM call and conversation loop
+
+**Typed to `CognitivePromptSource`:**
+
+Consumers that need to work with both emergent agents (`CognitionCore`)
+and briefed avatars (`CognitiveAvatar`) depend on
+`CognitivePromptSource`. Both implement it, so the consumer code is
+polymorphic over `initialize()` + `contributeBlocks()`.
 
 ## 10. Testing strategy
 
@@ -454,6 +606,21 @@ Each capability tested independently with in-memory stubs:
 These are capability boundaries, not architectural boundaries. The
 architecture explicitly supports adding any of these as future
 capabilities without structural change.
+
+## 12. ARC42STORIES update
+
+The following updates to `ARC42STORIES.MD` are part of this deliverable:
+
+- **Building block view:** New `cognitive-runtime` module entry between
+  `cognitive-index` and `cognition`, documenting its role as the
+  composition root for briefed cognitive avatars
+- **Layer entry:** `cognitive-runtime` as a composition/runtime layer
+  distinct from the emergent `cognition` layer
+- **Concepts:** `CognitiveCapability` SPI, `CognitiveAvatar`
+  composition root, `CognitivePromptSource` interface segregation
+- **Journey:** Briefed avatar lifecycle (profile → capabilities →
+  prompt rendering) as a new chapter/journey alongside the emergent
+  cognition journey
 
 ## References
 
