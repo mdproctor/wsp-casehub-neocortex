@@ -42,9 +42,9 @@
 **Alternatives:**
 - Decision-point triggers (fire at specific phases) — over-engineered for the actual need
 - Dynamic echo generation (LLM-generated reminders) — defeats the purpose of static identity
-**Rationale:** Existing validated pattern from agency: three-layer briefing (identity establishment, character grounding with specific references, behavioral echo). The echo is deeper than style — it shapes substance (what the agent values, how it reasons, what it draws on). Instructs model to draw on the avatar's memories and experiences. Carefully-worded sentences empirically validated to keep persona consistent across long sessions without resending full system prompt.
-**Trade-offs:** Static text means the echo can't adapt to context. The same reminder fires whether the agent is planning goals or answering a simple question.
-**Sources:** agency/agentic-yaml descriptors, CognitivePreambleGenerator (emergent-tier equivalent)
+**Rationale:** Rigorously validated pattern: three-layer briefing (identity establishment, character grounding, behavioral echo). Era 1 research (880+ events, P25-P30) proved echo does not decay (0.04 drop across hundreds of events), produces substantive character reasoning (not surface style), and creates a compounding feedback loop with memory. The L1 emotional echo instruction ("What are you FEELING right now — not thinking, feeling? Name it. Remember your voice...") scored mean 4.06 vs 3.54 baseline. Critical finding: template/prescriptive echo SUPPRESSES character (scored below no-instruction control) — echo must be evocative. The echo instructs the model to draw on the avatar's memories and experiences, grounding responses in accumulated knowledge.
+**Trade-offs:** Static text means the echo can't adapt to context. The same reminder fires whether the agent is planning goals or answering a simple question. Must avoid prescriptive templates — each persona's echo needs careful evocative crafting.
+**Sources:** agency/agentic-yaml descriptors, era1-character-taxonomy-research.md, era3-cognitive-layering-research.md, eidos#129 minimal-briefing experiment, CognitivePreambleGenerator (emergent-tier equivalent)
 **Exploration:** deep-analysis
 **Status:** captured
 
@@ -64,13 +64,13 @@
 
 **Choice:** Ship 2 contrasting + custom (stoic mentor + bold strategist + custom)
 **Alternatives:**
-- All 5 pre-built personas — ships complete set but delays mechanism validation with content authoring
-- 1 reference + custom — fastest to validate but doesn't stress-test disposition spectrum
-**Rationale:** The echo mechanism is unproven. Each persona needs empirical tuning of echo sentences — the hardest part of this feature. Two personas at opposite ends of the disposition spectrum (analytical/low-expressiveness stoic mentor vs expressive/action-oriented bold strategist) maximally stress-test the echo mechanism. If it works for both extremes, middle cases (thorough planner, pragmatic assistant) are low-risk iteration-2 additions. Custom lets early adopters build their own.
-**Trade-offs:** Smaller initial library. Remaining 2 personas are deferred, not abandoned.
-**Sources:** Issue #1219 persona library section
-**Exploration:** quick
-**Status:** revised — reduced from 5 to 2+custom to prioritise mechanism validation over content breadth (R1-04)
+- All 5 pre-built personas — ships complete set but front-loads echo authoring for 5 personas
+- 1 reference + custom — fastest to deliver but doesn't stress-test disposition spectrum
+**Rationale:** The echo mechanism is proven — rigorously validated across 880+ events with quantitative scoring (era1-character-taxonomy-research, era3-cognitive-layering-research, eidos#129 minimal-briefing experiment). Echo does not decay (0.04 drop over hundreds of events), produces substantive character reasoning, and creates a compounding feedback loop. However, research shows template-based echo actively suppresses character expression (scored below no-instruction control). Each persona needs its own evocative (not prescriptive) echo sentences. Two personas at opposite ends of the disposition spectrum validate that the proven echo patterns transfer to this new briefed-avatar context. Custom lets early adopters build their own.
+**Trade-offs:** Smaller initial library. Remaining personas are low-risk iteration-2 additions once the first two confirm the echo pattern.
+**Sources:** Issue #1219, era1-character-taxonomy-research.md (P25-P30), era3-cognitive-layering-research.md, eidos#129 minimal-briefing experiment
+**Exploration:** deep-analysis
+**Status:** revised — reduced from 5 to 2+custom; rationale corrected to reflect proven echo mechanism (R1-04, user correction)
 
 ## D8: Composition root design
 
