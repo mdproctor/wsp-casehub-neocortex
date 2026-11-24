@@ -149,13 +149,18 @@ Each capability degrades gracefully when its optional dependencies are
 absent (via CDI `Instance<T>`). A capability without its store simply
 reports `isActive() = false` and returns empty prompt sections.
 
-**Future capabilities** (not in this issue, but the architecture
-supports them without change):
+**Future capabilities** (not in this issue, but composable without
+architectural change — this list is illustrative, not exhaustive):
+- Consolidation (memory hygiene, goal resolution, experience
+  graduation) — universal, not emergent-specific
+- Practical appraisal (relevancy, urgency, temporal decay) — the
+  existing urgency system predates the emotion pipeline
+- Tick scheduling — periodic capability execution, configurable
+  participants
 - Inner thoughts / reflection (without personality evolution)
 - Hierarchy of needs (without CAPS settling)
 - Drive-based curiosity (without full emotion pipeline)
 - Social cognition (without emergent norms)
-- Attention / consolidation (without full tick loop)
 
 ### 3.4 Composition root: `CognitiveAvatar`
 
@@ -661,17 +666,34 @@ Each capability tested independently with in-memory stubs:
 - `CognitionCore` still satisfies `CognitiveLifecycle` contract
 - Consumer code typed to `CognitivePromptSource` works with both
 
-## 11. What this does NOT include
+## 11. What this initial delivery does NOT wire
 
-- **No tick loop** — capabilities render on demand, not on a schedule
-- **No emergent behavior** — persona is declared, not discovered
-- **No eidos registration** — briefed agents are neocortex-local
-- **No CAPS/emotion pipeline** — not wired in initial capabilities
-- **No personality evolution** — disposition is static from YAML
+- **Tick loop** — not wired initially, but ticks are just a scheduling
+  mechanism ("run these capabilities periodically") and can be composed
+  in as a capability when needed
+- **Consolidation** — not wired initially, but consolidation (memory
+  hygiene, goal resolution, experience graduation) is universal, not
+  emergent-specific. Any avatar with persistent memory and goals
+  benefits from consolidation. Composable as a configurable capability
+  with tunable phase selection.
+- **Practical appraisal** — relevancy and urgency scoring (what to
+  surface, what tasks to chase on, temporal decay) is distinct from
+  CARMA emotional appraisal. The existing urgency/relevancy system
+  (`GoalPrioritizationPhase`, `GoalUrgency`, `AttentionSignal`,
+  `ConfidenceDecayDecorator`) is practical infrastructure that belongs
+  in the composable menu, not in the emergent-only bucket.
+- **CAPS/emotion pipeline** — R&D experiment exploring emergent beings.
+  Not needed for practical avatars. A good briefing gets you 90% of
+  the way without the performance overhead.
+- **Personality evolution** — disposition is static from YAML in the
+  briefed branch. Evolution is an emergent-branch concern.
+- **Eidos registration** — briefed agents are neocortex-local
 
-These are capability boundaries, not architectural boundaries. The
-architecture explicitly supports adding any of these as future
-capabilities without structural change.
+None of these are architectural boundaries. The architecture explicitly
+supports composing any of them as capabilities without structural
+change. The initial delivery ships the composition mechanism and a
+practical starting set; the capability menu grows over time as we
+learn what combinations work.
 
 ## 12. ARC42STORIES update
 
