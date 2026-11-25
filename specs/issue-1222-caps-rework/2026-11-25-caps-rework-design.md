@@ -4,7 +4,7 @@
 **Parent:** casehubio/neocortex#1220 (Cognitive Pipeline Coherence)
 **Branch:** issue-1222-caps-rework
 **Status:** Design approved
-**Modules:** caps-engine, caps-api, caps-testing, caps-llm-classifier, caps-situation-cbr, mindmap-intelligence (BehavioralSynthesisPhase, ClassificationOutcomeEvaluator)
+**Modules:** caps-engine, caps-api, caps-testing, caps-llm-classifier, caps-situation-cbr, mindmap-intelligence (BehavioralSynthesisPhase, ClassificationOutcomeEvaluator), cognition (EmotionRegulationTickParticipant), cognition-api (RegulationCascadeConfig)
 
 ---
 
@@ -49,7 +49,9 @@ The topology has a principled mixed-range design. Cognitive schemas (self_worth,
 
 3. **BIPOLAR mediating nodes unchanged.** Continue using `Math.tanh(netInput - threshold)`. Output range [-1, 1].
 
-4. **Apply activation_clamp during settling.** After computing `rawAct` (but before momentum damping), clamp to the node's range: `[-1, 1]` for BIPOLAR, `[0, 1]` for UNIPOLAR. This fixes N6.
+4. **Update `NodeRange.restingLevel()`**: Change `UNIPOLAR.restingLevel()` from 0.5 to 0.0 — the resting level must match the actual zero-input activation (`max(0, tanh(0)) = 0`). Update javadoc referencing `logistic(0) = 0.5`.
+
+5. **Apply activation_clamp during settling.** After computing `rawAct` (but before momentum damping), clamp to the node's range: `[-1, 1]` for BIPOLAR, `[0, 1]` for UNIPOLAR. This fixes N6.
 
 ### Key property
 
@@ -74,6 +76,8 @@ double newAct = damping * oldAct + (1 - damping) * clampedAct;
 
 `extractAttractors()` currently computes `strength = min(1.0, settled + restingActivation)` with `baseline = min(1.0, restingLevel + restingActivation)`. Under BIPOLAR (restingLevel = 0.0), baseline becomes just `restingActivation`. The strength formula still works but the absolute values shift: typical resting output drops from ~0.5 to ~0.0, widening the effective range.
 
+**Negative BIPOLAR activations:** Under BIPOLAR, output nodes can settle to negative values. These are NOT reported as attractors — only positive-above-baseline activations are. This is semantically correct: the topology uses complementary output pairs (approach/withdraw, trust/distrust, fight/flight) where suppression of one node is expressed by activation of its complement. A negative `approach` activation means approach is suppressed; the system reports `withdraw` as the active attractor instead.
+
 ### CopingDefaults interaction
 
 The `copingBias` formula `(tendency - 0.5) * 0.5` is NOT affected — the 0.5 is the population-mean center on the tendency scale [0, 1], not the activation range center.
@@ -88,16 +92,18 @@ Add a filter in `BehavioralSynthesisPhase` before calling `settle()` that retain
 
 ### Filter implementation
 
+The input-only filter applies inside `mergeDriveIntensities()`, NOT on the combined map. Classification and dissonance activations are designed to target specific CAPS nodes and must not be filtered — the LLM classifier is prompted with input node vocabulary, the rule-based classifier uses input node keywords, and dissonance activations are designed for direct settling (issue #1212).
+
 ```java
-// In BehavioralSynthesisPhase, after mergeDriveIntensities + mergeDissonanceActivations:
-var inputOnly = new HashMap<String, Double>();
-for (var entry : combinedActivations.entrySet()) {
-    CapsNode node = capsEngine.topology().nodes().get(entry.getKey());
+// In BehavioralSynthesisPhase.mergeDriveIntensities():
+// After mapping drive type to CAPS nodes via DRIVE_CAPS_MAPPINGS,
+// filter to INPUT nodes before merging into combinedActivations:
+for (String nodeId : mappedNodes) {
+    CapsNode node = capsEngine.topology().nodes().get(nodeId);
     if (node != null && node.type() == NodeType.INPUT) {
-        inputOnly.put(entry.getKey(), entry.getValue());
+        combinedActivations.merge(nodeId, intensity, Math::max);
     }
 }
-var result = capsEngine.settle(state, inputOnly);
 ```
 
 ### Remap table (verified against runtime topology)
@@ -114,6 +120,7 @@ var result = capsEngine.settle(state, inputOnly);
 | BIS_activation | `social_threat` | social_threat → BIS_activation | 0.40 |
 | self_efficacy | `mastery` | mastery → self_efficacy | 0.30 (empirical) |
 | other_safety | `perceived_responsiveness` | perceived_responsiveness → other_safety | 0.35 |
+| other_reliability | `perceived_responsiveness` | perceived_responsiveness → other_reliability | 0.25 |
 
 **Tier 2 — multi-hop trace (5 entries):**
 
@@ -125,13 +132,12 @@ var result = capsEngine.settle(state, inputOnly);
 | distrust | `betrayal` | betrayal → other_reliability → distrust (2-hop, neg×neg) |
 | assert, self_direct | `agency_granted` | agency_granted → self_efficacy → assert/self_direct (2-hop) |
 
-**Tier 3 — semantic proxy, topology gap (3 entries):**
+**Tier 3 — semantic proxy, topology gap (2 entries):**
 
 | Drive target | Input proxy | Rationale |
 |-------------|-------------|-----------|
-| persist | `reward` | Only incoming: future_outlook (mediating). Semantic: operant reinforcement |
-| escape_assessment | `unpredictable_danger` | Zero incoming connections. Semantic: trauma pathway |
-| other_reliability | `secure_attachment` | Only negative-weight incoming (invert drive intent). Semantic: attachment theory |
+| persist | `reward` | Only incoming: future_outlook (mediating, no input path). Semantic: operant reinforcement. Node is disposition-only — proxy is best-effort. |
+| escape_assessment | `unpredictable_danger` | Zero incoming connections. Semantic: trauma pathway. Node is disposition-only — proxy is best-effort. |
 
 ---
 
@@ -160,7 +166,7 @@ For each **target node** (not each connection):
 
 ```java
 // Group connections by target node
-Map<String, List<CapsConnection>> byTarget = topology.connections().values().stream()
+Map<String, List<CapsConnection>> byTarget = topology.connections().stream()
     .collect(Collectors.groupingBy(CapsConnection::to));
 
 for (var entry : byTarget.entrySet()) {
@@ -171,7 +177,7 @@ for (var entry : byTarget.entrySet()) {
     double vPredicted = 0.0;
     for (CapsConnection conn : incoming) {
         double sourceAct = inputActivations.getOrDefault(conn.from(), 0.0);
-        if (sourceAct < 0.01) continue;
+        if (Math.abs(sourceAct) < 0.01) continue; // abs — BIPOLAR sources can be negative
         double ew = state.weights().getOrDefault(conn.id(), conn.defaultWeight())
                          .effectiveWeight();
         vPredicted += ew * sourceAct;
@@ -196,8 +202,21 @@ for (var entry : byTarget.entrySet()) {
 - Remove `ConnectionWeight.inhibitory()` and `decayResistance()` fields — inhibitory is always zero (only decays from zero), decayResistance has no effect.
 - Simplify record to `ConnectionWeight(double excitatory, double precision)`.
 - Simplify `effectiveWeight()` to return `excitatory` directly.
-- Wire `temporalDiscount` from `WeightUpdateParameters`.
-- **Schema migration**: `SqliteCapsEngine` persists connection weights in `caps_connection_weights` table. Add Flyway migration to drop `inhibitory` and `decay_resistance` columns (or leave columns and ignore — simpler, no data loss). Update `loadWeights()` and `replaceWeights()` SQL.
+- Defer `temporalDiscount` wiring to follow-up — requires a delay parameter not present in the current WeightUpdateContext.
+- **Schema migration**: `SqliteCapsEngine` persists connection weights in `caps_connection_weights` table. Add Flyway V2 migration to drop `inhibitory` and `decay_resistance` columns (`ALTER TABLE caps_connection_weights DROP COLUMN inhibitory; ALTER TABLE caps_connection_weights DROP COLUMN decay_resistance;` — supported in SQLite 3.35.0+). Update `loadWeights()` and `replaceWeights()` SQL to match the simplified 2-column record. Pre-release stage — no backward compatibility needed.
+
+---
+
+## 4b. B3 Fix — Regulation Weight Update Persistence
+
+The actual B3 bug site is in `EmotionRegulationTickParticipant.java` (cognition module), not BehavioralSynthesisPhase (which already saves correctly).
+
+Two call sites discard the returned `AgentCapsState`:
+
+1. **Line ~379 (regulation path):** `capsEngine.updateWeights(capsState, ...)` — returned state discarded.
+2. **Line ~475 (coping path):** Same pattern.
+
+**Fix:** Capture the returned state and call `capsEngine.saveState(updated)` at both sites, following the same pattern as `BehavioralSynthesisPhase` lines 237-284.
 
 ---
 
@@ -262,11 +281,11 @@ Fix YAML keys in `caps-topology.yaml` disposition_modifiers.autonomy from `low`/
 
 ### N4: Resting activation clamping
 
-In `DispositionWeightMapper.addResting()`, after all disposition axes have contributed, clamp accumulated resting activations:
+Add clamping in `DispositionWeightMapper.addResting()` itself (applied on every call) so that all sources — disposition axes AND coping defaults — are clamped:
 - BIPOLAR nodes: clamp to `[-0.5, 0.5]`
 - UNIPOLAR nodes: clamp to `[0.0, 0.5]`
 
-The 0.5 upper bound ensures resting activations don't dominate situational input.
+The 0.5 upper bound ensures resting activations don't dominate situational input. Clamping per-call in `addResting()` prevents coping contributions from pushing beyond the bounds after disposition axes have already contributed.
 
 ### N1: Remove dead inhibitory weights
 
@@ -320,17 +339,18 @@ Update all `CapsEngineContractTest` assertions for the new BIPOLAR/rectified-tan
 
 Each finding gets its own commit within a single PR. Intermediate test validation after each commit. Order:
 
-1. **D2 (B1 + N6)**: BIPOLAR/rectified-tanh + activation clamp — foundational
+1. **D2 (B1 + N6)**: BIPOLAR/rectified-tanh + activation clamp + NodeRange.restingLevel() — foundational
 2. **N3**: Autonomy modifier key fix — independent of D2
 3. **N4**: Resting activation clamping — depends on D2 for range semantics
 4. **B5**: Distortion sign fix — depends on D2 for activation function
 5. **B6/D5**: Convergence threshold tightening
-6. **D4 (B2 + B3 + N1 + N2)**: Multi-cue R-W + inhibitory removal + weight clamping
-7. **D3 (B12)**: Drive injection filter + remap
-8. **B9**: ClassificationOutcomeEvaluator OSCILLATION fix
-9. **B10/D6**: CBR cache fixes + valence filter
-10. **D9**: Downstream threshold recalibration
-11. **D7 (B17)**: Verification tests (epic criterion + integration)
+6. **D4 (B2 + N1 + N2)**: Multi-cue R-W + inhibitory removal + weight clamping + Flyway V2
+7. **B3**: Regulation weight update persistence (EmotionRegulationTickParticipant)
+8. **D3 (B12)**: Drive injection filter + remap (inside mergeDriveIntensities)
+9. **B9**: ClassificationOutcomeEvaluator OSCILLATION fix
+10. **B10/D6**: CBR cache fixes + valence filter
+11. **D9**: Downstream threshold recalibration
+12. **D7 (B17)**: Verification tests (epic criterion + integration)
 
 ---
 
