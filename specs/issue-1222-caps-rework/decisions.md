@@ -32,39 +32,37 @@
 **Alternatives:**
 - Forced non-input activations via `forced_activation` parameter in settle() — violates the settler's layered architecture. External stimuli enter at the input layer; the network computes mediating/output. Initial-activation injection is too weak (overwritten by activation function in first settling iteration); clamped injection overrides learned network dynamics and destroys personality differentiation. The CAPS model depends on input signals propagating through personality-specific connection weights.
 - Fix mappings only without filtering — non-input entries are silently no-ops anyway, but future maintainers may re-add mediating nodes thinking they work
-**Remap methodology:** Three-tier approach, reflecting that the topology YAML is a starter configuration with only 38 connections for 107 nodes (~19 of 27 input nodes have no outgoing connections):
-1. **Topology-traced** (1-hop backward connection verified in YAML)
-2. **Multi-hop traced** (2-3 hop backward path verified in YAML)
+**Remap methodology:** Three-tier approach verified against the runtime topology (`caps-engine/src/main/resources/caps-topology.yaml`, 1816 lines):
+1. **Topology-traced** (1-hop backward connection verified)
+2. **Multi-hop traced** (2-3 hop backward path verified)
 3. **Semantic proxy** (no topology path exists — mapped by psychological theory, explicitly marked as topology gap)
 
-**Tier 1 — topology-traced (verified):**
+**Tier 1 — topology-traced (1-hop, verified):**
 - BAS_activation → `reward` (reward → BAS_activation, 0.50)
 - FFFS_activation → `physical_threat` (physical_threat → FFFS_activation, 0.55)
 - threat_sensitivity → `physical_threat` (physical_threat → threat_sensitivity, 0.50)
 - self_worth → `secure_attachment` (secure_attachment → self_worth, 0.30)
 - proximity_seek → `inconsistent_care` (inconsistent_care → proximity_seek, 0.40)
+- BIS_activation → `social_threat` (social_threat → BIS_activation, 0.40, Dickerson & Kemeny 2004)
+- self_efficacy → `mastery` (mastery → self_efficacy, 0.30, **empirical**, Bandura 1997)
+- other_safety → `perceived_responsiveness` (perceived_responsiveness → other_safety, 0.35, Reis et al. 2004)
 
 **Tier 2 — multi-hop traced (verified):**
-- approach → `reward` (reward → BAS_activation → approach, 2-hop; reward → reinforcement_expectation → approach, 2-hop)
-- self_efficacy → `secure_attachment` (secure_attachment → self_worth → self_efficacy, 2-hop)
+- approach → `reward` (reward → BAS_activation → approach, 2-hop)
 - trust → `secure_attachment` (secure_attachment → self_worth → trust, 2-hop)
-- BIS_activation → `physical_threat` (physical_threat → threat_sensitivity → arousal_level → BIS_activation, 3-hop — only backward path)
+- explore → `reward` (reward → BAS_activation → explore, 2-hop, Berlyne 1960)
+- distrust → `betrayal` (betrayal → other_reliability (-0.45) → distrust (-0.45), 2-hop, negative × negative = positive effect)
+- assert, self_direct → `agency_granted` (agency_granted → self_efficacy → assert/self_direct, 2-hop, Deci & Ryan SDT)
 
 **Tier 3 — semantic proxy (topology gap):**
-- other_safety → `acceptance` (TOPOLOGY GAP: no connections to/from other_safety in YAML; semantic: attachment theory, safe other = accepting other)
-- other_reliability → `secure_attachment` (TOPOLOGY GAP: only incoming are negative-weight inconsistent_care (-0.30), rejection (-0.35) which invert drive intent; semantic: attachment theory)
-- escape_assessment → `unpredictable_danger` (TOPOLOGY GAP: no connections to escape_assessment; semantic: trauma pathway)
-- distrust → `betrayal` (TOPOLOGY GAP: no connections to distrust, none from betrayal; semantic: attachment theory)
-- explore → `reward` (TOPOLOGY GAP: no connections to explore; semantic: BAS novelty pathway)
-- persist → `reward` (TOPOLOGY GAP: only incoming is future_outlook (mediating), no input path; semantic: operant reinforcement)
-- assert, self_direct → `agency_granted` (TOPOLOGY GAP: no connections to assert/self_direct, none from agency_granted; semantic: autonomy pathway)
-
-**Note:** Tier 3 entries expose missing connections in the starter topology. The remap will function because the input proxy nodes DO enter the settler — but the drive's influence reaches the target only if the topology eventually adds the connections that the semantic mapping assumes. Completing the topology connections is a follow-up to the CAPS rework.
+- persist → `reward` (only incoming: future_outlook (mediating, 0.40) — no input-node backward path; semantic: operant reinforcement)
+- escape_assessment → `unpredictable_danger` (zero incoming connections; semantic: trauma pathway)
+- other_reliability → `secure_attachment` (only incoming are negative-weight: inconsistent_care (-0.30), rejection (-0.35), betrayal (-0.45) — all invert drive intent; semantic: attachment theory)
 **Rationale:** Makes the settler's input contract explicit. Forces the drive-to-CAPS mappings to be semantically correct at the input layer. Each remap is grounded in the topology connections and source psychological models. Input proxies ensure drives activate the SAME downstream nodes through the network's learned dynamics — same input, different responses via different connection weights — which is how personality differentiation works.
 **Trade-offs:** Some semantic precision is lost — drives targeting mediating/output nodes expressed concepts at those layers. But the indirect activation through input proxies is CORRECT behavior: drive intensity should influence the network proportionally to connection strengths, not bypass them.
-**Sources:** DriveCompetitionDetector.java lines 28-43, BehavioralSynthesisPhase.java line 207, 2026-10-02-caps-topology.yaml (38 connections verified), Explorer agent B12, R1-04/R1-05/R2-02 review
-**Exploration:** quick → revised via adversarial review R1-04 (dependency removed), R1-05 (remap specification added), R2-02 (entries verified against topology, three-tier methodology)
-**Status:** revised — remap entries verified against actual topology connections; three-tier methodology replaces single backward-trace claim
+**Sources:** DriveCompetitionDetector.java lines 28-43, BehavioralSynthesisPhase.java line 207, caps-engine/src/main/resources/caps-topology.yaml (runtime topology, 1816 lines), Explorer agent B12, R1-04/R1-05/R2-02/R3-02 review
+**Exploration:** quick → revised via adversarial review R1-04 (dependency removed), R1-05 (remap added), R2-02 (three-tier methodology), R3-02 (tier classifications corrected against runtime topology)
+**Status:** revised — tier classifications corrected per R3-02; 8 Tier 1, 5 Tier 2, 3 Tier 3 (down from 5/4/7)
 
 ## D4: Weight learning — proper multi-cue Rescorla-Wagner
 
