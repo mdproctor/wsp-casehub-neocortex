@@ -12,74 +12,130 @@
 **Exploration:** quick
 **Status:** captured
 
-## D2: Settler baseline — BIPOLAR for mediating/output nodes
+## D2: Settler baseline — selective BIPOLAR + rectified tanh for UNIPOLAR
 
-**Choice:** Convert mediating and output nodes from UNIPOLAR (logistic, resting at 0.5) to BIPOLAR (tanh, resting at 0.0)
+**Choice:** Convert output nodes to BIPOLAR (tanh, resting at 0.0) by changing `defaultRange(OUTPUT)`. Replace logistic with rectified tanh (`max(0, tanh(x))`) for UNIPOLAR mediating nodes — preserving [0, 1] range while achieving zero resting. Keep topology-specified per-node ranges for mediating nodes (7 BIPOLAR cognitive schemas, 14 UNIPOLAR activation-level constructs).
 **Alternatives:**
-- Fix attractor extraction only — keep unipolar but report delta above background. Quick but 0.5×w background still flows through the network, consuming dynamic range
-- Zero-shifted logistic (logistic(x) - 0.5) — mathematically ≈ tanh(x/2), adds complexity without semantic clarity
-**Rationale:** CAPS theory prescribes that only situational input should activate the network. BIPOLAR with tanh gives zero activation for zero input. The codebase already supports BIPOLAR via NodeRange enum and the tanh path in CapsSettler. This is the cleanest fix — zero input produces zero activation.
-**Trade-offs:** Breaks absolute scale — BIPOLAR outputs range [-1, 1] instead of [0, 1]. Attractor extraction, strength comparison, CopingDefaults resting activation math, and downstream consumers all need adjustment. The CopingDefaults formula `(tendency - 0.5) * 0.5` assumes unipolar center and needs re-centering.
-**Sources:** CapsSettler.java lines 90-95 (activation functions), CapsNode.java/NodeRange.java (enum), epic #1222 B1
-**Exploration:** quick
-**Status:** captured
+- Blanket BIPOLAR for all mediating/output nodes — simple but destroys the topology's principled mixed-range design. BAS_activation, BIS_activation, FFFS_activation etc. are activation-level constructs where negative values are semantically meaningless. The topology YAML annotates these as `type: unipolar` with `range: [0, 1]` for good reason.
+- Selective BIPOLAR for outputs only, keep logistic for UNIPOLAR mediating — leaves the 0.5 resting background problem. BAS_activation at logistic(0)=0.5 feeds 0.5×0.60=0.30 into approach via its connection weight, creating spurious approach activation from zero BAS stimulation.
+- Fix attractor extraction only — 0.5×w background still flows through the network
+- Zero-shifted logistic (logistic(x) - 0.5) — mathematically ≈ tanh(x/2), no advantage over rectified tanh
+**Rationale:** The topology YAML has a principled mixed-range design: cognitive schemas (self_worth, self_efficacy, other_reliability, other_safety, world_predictability, future_outlook, reinforcement_expectation) are BIPOLAR with genuine bipolar semantics (e.g., "worthless ↔ worthy"); activation-level constructs (BAS_activation, BIS_activation, FFFS_activation, arousal_level, threat_sensitivity, etc.) are UNIPOLAR because negative activation is meaningless. D2's core goal — zero input produces zero activation — is achieved for BOTH types: `tanh(0) = 0` for BIPOLAR, `max(0, tanh(0)) = 0` for UNIPOLAR. Output nodes default to BIPOLAR because behavioral approach/avoidance has natural polarity.
+**Trade-offs:** Replaces logistic with rectified tanh for UNIPOLAR path — simpler computation (`Math.max(0, Math.tanh(x))` vs `1/(1+exp(-x))`). Attractor extraction baselines change because output restingLevel moves from 0.5 to 0.0 — downstream threshold recalibration needed (see D9). CopingDefaults `copingBias` formula `(tendency - 0.5) * 0.5` is UNAFFECTED: the 0.5 is the population-mean center on the tendency scale [0, 1], not the activation range center.
+**Sources:** CapsSettler.java lines 90-95 (activation functions), 2026-10-02-caps-topology.yaml (mixed range annotations — 7 bipolar + 14 unipolar mediating nodes), CapsNode.java/NodeRange.java (enum), epic #1222 B1, R1-02 review
+**Exploration:** quick → revised via adversarial review R1-02
+**Status:** revised — selective conversion replaces blanket BIPOLAR per R1-02's evidence on topology's intentional mixed-range design
 
 ## D3: Drive injection — filter to input nodes + remap
 
-**Choice:** Filter `combinedActivations` to INPUT nodes only before calling `settle()`. Remap `DriveCompetitionDetector.DRIVE_CAPS_MAPPINGS` to reference input-layer nodes.
+**Choice:** Filter `combinedActivations` to INPUT nodes only before calling `settle()`. Remap `DriveCompetitionDetector.DRIVE_CAPS_MAPPINGS` to reference input-layer nodes using backward topology tracing.
 **Alternatives:**
-- Allow forced non-input activations in settle() — changes SPI, adds complexity, suppresses natural network computation
+- Forced non-input activations via `forced_activation` parameter in settle() — violates the settler's layered architecture. External stimuli enter at the input layer; the network computes mediating/output. Initial-activation injection is too weak (overwritten by activation function in first settling iteration); clamped injection overrides learned network dynamics and destroys personality differentiation. The CAPS model depends on input signals propagating through personality-specific connection weights.
 - Fix mappings only without filtering — non-input entries are silently no-ops anyway, but future maintainers may re-add mediating nodes thinking they work
-**Rationale:** Makes the settler's input contract explicit. Forces the drive-to-CAPS mappings to be semantically correct at the input layer. E.g., "approach" (output) → "reward" + "agency_granted" (input proxies).
-**Trade-offs:** Some drive-to-CAPS mappings genuinely express concepts at the mediating/output layer ("self_efficacy", "approach"). The remapped input-layer proxies are less precise semantically.
-**Depends on:** D2 (BIPOLAR changes output-layer behavior)
-**Sources:** DriveCompetitionDetector.java lines 28-43 (DRIVE_CAPS_MAPPINGS), BehavioralSynthesisPhase.java line 207 (settle call), Explorer agent B12 confirmation
-**Exploration:** quick
-**Status:** captured
+**Remap methodology:** For each non-INPUT target in DRIVE_CAPS_MAPPINGS, trace backward through topology connections to find the input node(s) that most directly activate it. Key resolutions:
+- BAS_activation → `reward` (RST: reward drives BAS)
+- BIS_activation → `social_threat` (RST: uncertainty/conflict drives BIS)
+- FFFS_activation → `physical_threat` (RST: direct threat drives FFFS)
+- threat_sensitivity → `physical_threat` (topology: weight 0.50)
+- escape_assessment → `unpredictable_danger` (trauma pathway)
+- self_efficacy → `mastery`, `performance_judged` (Bandura: mastery experiences)
+- self_worth → `secure_attachment` (topology: weight 0.30)
+- other_safety → `acceptance` (attachment: safe other = accepting other)
+- other_reliability → `secure_attachment` (topology: attachment → other model)
+- approach → `reward`, `agency_granted` (BAS + autonomy pathways)
+- distrust → `betrayal` (attachment: betrayal → distrust)
+- proximity_seek → `secure_attachment` (attachment-seeking)
+- trust → `acceptance` (social: acceptance → trust)
+- explore → `reward` (BAS novelty pathway)
+- persist → `reward` (operant reinforcement)
+- assert, self_direct → `agency_granted` (autonomy pathway)
+**Rationale:** Makes the settler's input contract explicit. Forces the drive-to-CAPS mappings to be semantically correct at the input layer. Each remap is grounded in the topology connections and source psychological models. Input proxies ensure drives activate the SAME downstream nodes through the network's learned dynamics — same input, different responses via different connection weights — which is how personality differentiation works.
+**Trade-offs:** Some semantic precision is lost — drives targeting mediating/output nodes expressed concepts at those layers. But the indirect activation through input proxies is CORRECT behavior: drive intensity should influence the network proportionally to connection strengths, not bypass them.
+**Sources:** DriveCompetitionDetector.java lines 28-43, BehavioralSynthesisPhase.java line 207, 2026-10-02-caps-topology.yaml (connections), Explorer agent B12, R1-04/R1-05 review
+**Exploration:** quick → revised via adversarial review R1-04 (dependency removed), R1-05 (remap specification added)
+**Status:** revised — D2 dependency removed (filtering is independent); remap methodology and key resolutions added
 
 ## D4: Weight learning — proper multi-cue Rescorla-Wagner
 
 **Choice:** Implement textbook multi-cue R-W with cue competition: prediction error = `outcomeValence - Σ(w_i × a_i)` summed over all active cues to each target node. Remove dead inhibitory weight system. Add excitatory weight clamping [-2.0, 2.0]. Wire temporalDiscount for recency.
+**Precision integration strategy (Pearce-Hall under multi-cue):**
+1. Precision UPDATE uses the shared per-target prediction error — surprise about a target's outcome affects attention to ALL cues contributing to that target (standard Pearce-Hall)
+2. `confirmEpsilon` check uses the shared error — accurate ensemble prediction confirms all contributing cues simultaneously
+3. High-precision connections resist change via `effectiveAlpha = baseAlpha / precision` even when the shared error is large due to OTHER cues — well-established personality traits (empirical provenance, high precision) should not be destabilized by novel cue associations. This is the core mechanism: surprising outcomes primarily update low-precision (novel/uncertain) connections while empirical connections remain stable.
 **Alternatives:**
 - Simplify to Hebbian (Δw = α×a_src×a_tgt) — no error correction, loses cue competition which is the whole point of R-W in a personality network
 - Fix bugs but keep single-cue — leaves the per-connection update which has fixed point w = valence/activation per link (not wrong but limited — no competition between cues)
 **Rationale:** Cue competition is the core property of R-W that matters for personality-dependent learning — it means that strong predictors suppress learning for weaker ones, producing differentiated weight patterns across personalities. The topology is small enough (163 connections) for multi-cue to be computationally trivial.
 **Trade-offs:** Structural change to the update loop (currently per-connection, needs per-target-node summation). Existing test assertions on specific weight values may need updating. Different weight trajectories from the old single-cue rule.
-**Sources:** CapsWeightUpdater.java lines 36-87 (current update loop), ConnectionWeight.java (dual-weight record), WeightUpdateParameters.java (unused temporalDiscount/vicariousDiscount)
-**Exploration:** quick
-**Status:** captured
+**Sources:** CapsWeightUpdater.java lines 36-87 (current update loop), ConnectionWeight.java (dual-weight record), WeightUpdateParameters.java (unused temporalDiscount/vicariousDiscount), R1-06 review
+**Exploration:** quick → revised via adversarial review R1-06 (precision strategy specified)
+**Status:** revised — precision integration strategy added
 
 ## D5: Convergence detection — tighten variance threshold
 
-**Choice:** Reduce wider-oscillation variance threshold from `epsilon × 50` (0.05) to `epsilon × 10` (0.01). Keep two-cycle exact oscillation detection as fast path.
+**Choice:** Reduce wider-oscillation variance threshold from `epsilon × 50` (0.05) to `epsilon × 10` (0.01). Keep two-cycle exact oscillation detection as fast path. Both variance check sites (in-loop at ≥20 iterations, and MAX_ITERATIONS fallback) use the same multiplier `epsilon × 10`.
 **Alternatives:**
 - Per-node convergence (each node individually settled) — stricter but significantly increases iteration counts for the 107-node topology
 - Energy-based convergence (total squared activation change) — more principled but adds a new concept to the codebase
 **Rationale:** Minimal change that fixes the specific problem. Variance 0.01 allows only oscillations with amplitude ~0.1 (√0.01), which catches most genuine convergence while rejecting the persistent oscillations B6 describes.
+**Interaction with D2:** Under revised D2, output nodes are BIPOLAR [-1,1] while UNIPOLAR mediating nodes keep [0,1]. Variance 0.01 represents amplitude ~0.1, which is 5% of BIPOLAR range and 10% of UNIPOLAR range. Both are acceptable convergence criteria — 5% oscillation on a BIPOLAR output node is minor oscillation that does not warrant further iterations. No range-normalization of the threshold is needed.
 **Trade-offs:** Some edge cases near the boundary may flip between CONVERGED and OSCILLATION. This is acceptable — the new threshold is still generous enough for genuine convergence.
-**Sources:** CapsSettler.java lines 148-155 (wider oscillation detection), epic #1222 B6
-**Exploration:** quick
-**Status:** captured
+**Sources:** CapsSettler.java lines 148-155 (wider oscillation detection), epic #1222 B6, R1-07 review
+**Exploration:** quick → updated via adversarial review R1-07
+**Status:** revised — D2 interaction and dual-check clarification added
 
 ## D6: CBR cache polarity — valence categorical filter
 
-**Choice:** Derive valence from CAPS activations (approach-dominant = positive, avoid-dominant = negative). Store as categorical feature. Add `CbrFilter.contains(valence)` to lookup query.
+**Choice:** Derive valence from CAPS activations. Under revised D2 (BIPOLAR outputs), classify the dominant attractor's output node by its intrinsic approach/avoidance character. Store as categorical feature. Add `CbrFilter.contains(valence)` to lookup query.
+**Operational definition:**
+- Positive valence: dominant attractor from approach_avoidance:approach, social:trust/proximity_seek, achievement:persist/risk_take, autonomy:self_direct/rebel, learning:explore
+- Negative valence: dominant attractor from approach_avoidance:withdraw, social:distrust/distance_maintain, conflict:flight/freeze/fawn/submit, achievement:abandon, autonomy:comply/depend
+- Neutral: conflict:fight/assert (approach-like but not "positive"), approach_avoidance:cautious_approach, learning:consolidate/generalize/discriminate, achievement:perfectionism
 **Alternatives:**
+- Use attractor category as filter — too coarse. Category (social, conflict, achievement) doesn't distinguish approach vs avoidance within a category. The purpose of D6 is polarity discrimination to prevent CBR from returning polarity-inverted results, not category matching.
 - Raise cosine similarity threshold to 0.95 — reduces cache hit rate significantly, losing the cache's benefit
 - Cross-encoder reranking — adds latency (defeats the purpose of a fast cache) and requires model availability
 **Rationale:** No LLM call needed — valence is derivable from the CAPS activations being cached. Minimal new code (one new categorical feature + one filter in lookup). Preserves the 0.85 similarity threshold for genuine matches.
 **Trade-offs:** Valence classification from CAPS activations is coarse (positive/negative/neutral). Ambivalent situations (simultaneous approach+avoid) would need a "mixed" category.
-**Sources:** CbrCachingSituationDecorator.java lines 132-155 (lookupCbr), lines 158-187 (storeCbr)
-**Exploration:** quick
-**Status:** captured
+**Sources:** CbrCachingSituationDecorator.java lines 132-155 (lookupCbr), lines 158-187 (storeCbr), R1-08 review
+**Exploration:** quick → revised via adversarial review R1-08 (operational definition added)
+**Status:** revised — operational definition and attractor-category alternative rejection added
 
-## D7: Verification strategy — epic criterion + fix existing tests
+## D7: Verification strategy — epic criterion + fix existing tests + integration
 
-**Choice:** Update existing CapsEngineContractTest for BIPOLAR scale. Add two new tests implementing the epic's verification criterion: (1) no-input ranking differs from threat ranking, (2) opposite personalities diverge > 0.3 under same input.
+**Choice:** Update existing CapsEngineContractTest for BIPOLAR/rectified-tanh scale. Add two new tests implementing the epic's verification criterion: (1) no-input ranking differs from threat ranking, (2) opposite personalities diverge > 0.15 on BIPOLAR [-1,1] outputs under same input. Add BehavioralSynthesisPhase integration test exercising the full classify → merge → settle → update → persist pipeline.
+**Integration test scope:** BehavioralSynthesisPhaseTest should exercise:
+- Drive injection through mergeDriveIntensities() → settle() boundary (validates D3 filter + remap)
+- End-to-end data flow: input activations → settling → weight update → attractor persistence
+- Verify that drive activations targeting non-INPUT nodes are correctly remapped and not silently ignored
 **Alternatives:**
 - Comprehensive matrix (5 profiles × 5 scenarios × 3 intensities with statistical distance) — thorough but heavy and premature before proving the fundamentals work
-**Rationale:** The epic defines clear, testable criteria. Write exactly those tests. If they pass, the settler is working correctly. Matrix testing is a follow-up once fundamentals are proven.
+**Rationale:** The epic defines clear, testable criteria. Write exactly those tests. The divergence threshold is now range-relative: 0.15 on [-1,1] BIPOLAR output range = 7.5% of range, equivalent to the original 0.3 on [0,1] UNIPOLAR (30% of effective above-resting range). Integration-level coverage is essential because the bugs manifest at the BehavioralSynthesisPhase boundary, not in the settler math alone.
 **Trade-offs:** Minimum viable verification — doesn't add trajectory tests or cross-profile statistical tests. Sufficient for this rework scope.
-**Sources:** Epic #1222 verification section, CapsEngineContractTest.java (13 existing tests)
-**Exploration:** quick
+**Sources:** Epic #1222 verification section, CapsEngineContractTest.java (13 existing tests), BehavioralSynthesisPhaseTest.java, R1-09 review
+**Exploration:** quick → revised via adversarial review R1-09 (integration tests and range-relative threshold)
+**Status:** revised — integration test and range-relative threshold added
+
+## D8: Commit discipline — atomic commits per finding
+
+**Choice:** Each finding gets its own commit with its own test assertion within the single PR. Intermediate test validation after each commit. Git bisect-friendly history.
+**Alternatives:**
+- Single commit for all 14 findings — harder to isolate regressions, git bisect useless across a 14-finding change
+- Multiple PRs (D1's rejected alternative) — same test cycle overhead, unnecessary process overhead
+**Rationale:** Addresses the 14-finding scope risk (D1 trade-off) without the overhead of multiple PRs. If any finding causes a subtle personality differentiation regression, git bisect isolates it in O(log 14) = 4 commits. Each commit is independently revertable without touching the others.
+**Sources:** R1-10 review (implicit decision surfaced)
+**Exploration:** n/a — implicit decision surfaced by review
+**Status:** captured
+
+## D9: Downstream threshold recalibration strategy
+
+**Choice:** Explicit audit and recalibration of all downstream consumers that compare attractor strengths against configured thresholds. Recalibration is part of D2's implementation scope, performed before merging the rework PR.
+**Consumers requiring recalibration:**
+- `RegulationCascadeConfig.defaults()`: regulationConfidenceThreshold=0.3, regulationDominanceMargin=0.15 — used by EmotionRegulationTickParticipant (line ~281) and CopingMicroLoop (line ~155). Under BIPOLAR outputs, attractor gaps widen because baseline drops from ~0.5 to ~0.0. These thresholds may need lowering to maintain equivalent selectivity.
+- `ClassificationOutcomeEvaluator`: uses `attractorFactor` as raw max attractor strength in CBR outcome evaluation. Under BIPOLAR, max strength ≈ settled value (not settled − 0.5). The successRate computation may produce higher values, affecting CBR learning rates.
+- `BehavioralSynthesisPhase.createOrStrengthenAttractor()`: applies `emaRetention` (0.5) and `reinforcementBoostCap` (0.5) to attractor strength. These operate on the new BIPOLAR strength scale — review scaling.
+- Test assertions: `RegulationCascadeTest` (hardcoded 0.5, 0.4, 0.35), `CopingMicroLoopTest` (hardcoded 0.9) — update for BIPOLAR output scale.
+**Rationale:** Under revised D2, output nodes switch from UNIPOLAR restingLevel=0.5 to BIPOLAR restingLevel=0.0. Attractor strength gaps widen because baseline drops from ~0.5 to ~0.0 for default agents. All threshold-based consumers must be audited and recalibrated as part of the same PR, not discovered post-hoc during integration testing.
+**Sources:** EmotionRegulationTickParticipant.java, CopingMicroLoop.java, ClassificationOutcomeEvaluator.java, RegulationCascadeConfig.java, R1-03/R1-11 review
+**Exploration:** n/a — implicit decision surfaced by review
 **Status:** captured
