@@ -1,7 +1,7 @@
 # Work Plan —
 
 ## State
-branch: issue-1219-briefed-cognitive-avatars
+branch: 
 issue-repo: casehubio/neocortex
 status: active
 project-sha: 
@@ -9,7 +9,7 @@ date: 2026-11-23
 design-repo: 
 design-section-hashes: 
 flyway-next-v: 
-covers: casehubio/neocortex#1219
+covers: casehubio/neocortex#1233
 
 ## Queue
 - [ ] casehubio/neocortex#1233 — Unit-tests-MemoryCapability-EntityKnowledgeCapability ← active
