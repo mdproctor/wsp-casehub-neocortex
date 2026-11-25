@@ -32,28 +32,39 @@
 **Alternatives:**
 - Forced non-input activations via `forced_activation` parameter in settle() — violates the settler's layered architecture. External stimuli enter at the input layer; the network computes mediating/output. Initial-activation injection is too weak (overwritten by activation function in first settling iteration); clamped injection overrides learned network dynamics and destroys personality differentiation. The CAPS model depends on input signals propagating through personality-specific connection weights.
 - Fix mappings only without filtering — non-input entries are silently no-ops anyway, but future maintainers may re-add mediating nodes thinking they work
-**Remap methodology:** For each non-INPUT target in DRIVE_CAPS_MAPPINGS, trace backward through topology connections to find the input node(s) that most directly activate it. Key resolutions:
-- BAS_activation → `reward` (RST: reward drives BAS)
-- BIS_activation → `social_threat` (RST: uncertainty/conflict drives BIS)
-- FFFS_activation → `physical_threat` (RST: direct threat drives FFFS)
-- threat_sensitivity → `physical_threat` (topology: weight 0.50)
-- escape_assessment → `unpredictable_danger` (trauma pathway)
-- self_efficacy → `mastery`, `performance_judged` (Bandura: mastery experiences)
-- self_worth → `secure_attachment` (topology: weight 0.30)
-- other_safety → `acceptance` (attachment: safe other = accepting other)
-- other_reliability → `secure_attachment` (topology: attachment → other model)
-- approach → `reward`, `agency_granted` (BAS + autonomy pathways)
-- distrust → `betrayal` (attachment: betrayal → distrust)
-- proximity_seek → `secure_attachment` (attachment-seeking)
-- trust → `acceptance` (social: acceptance → trust)
-- explore → `reward` (BAS novelty pathway)
-- persist → `reward` (operant reinforcement)
-- assert, self_direct → `agency_granted` (autonomy pathway)
+**Remap methodology:** Three-tier approach, reflecting that the topology YAML is a starter configuration with only 38 connections for 107 nodes (~19 of 27 input nodes have no outgoing connections):
+1. **Topology-traced** (1-hop backward connection verified in YAML)
+2. **Multi-hop traced** (2-3 hop backward path verified in YAML)
+3. **Semantic proxy** (no topology path exists — mapped by psychological theory, explicitly marked as topology gap)
+
+**Tier 1 — topology-traced (verified):**
+- BAS_activation → `reward` (reward → BAS_activation, 0.50)
+- FFFS_activation → `physical_threat` (physical_threat → FFFS_activation, 0.55)
+- threat_sensitivity → `physical_threat` (physical_threat → threat_sensitivity, 0.50)
+- self_worth → `secure_attachment` (secure_attachment → self_worth, 0.30)
+- proximity_seek → `inconsistent_care` (inconsistent_care → proximity_seek, 0.40)
+
+**Tier 2 — multi-hop traced (verified):**
+- approach → `reward` (reward → BAS_activation → approach, 2-hop; reward → reinforcement_expectation → approach, 2-hop)
+- self_efficacy → `secure_attachment` (secure_attachment → self_worth → self_efficacy, 2-hop)
+- trust → `secure_attachment` (secure_attachment → self_worth → trust, 2-hop)
+- BIS_activation → `physical_threat` (physical_threat → threat_sensitivity → arousal_level → BIS_activation, 3-hop — only backward path)
+
+**Tier 3 — semantic proxy (topology gap):**
+- other_safety → `acceptance` (TOPOLOGY GAP: no connections to/from other_safety in YAML; semantic: attachment theory, safe other = accepting other)
+- other_reliability → `secure_attachment` (TOPOLOGY GAP: only incoming are negative-weight inconsistent_care (-0.30), rejection (-0.35) which invert drive intent; semantic: attachment theory)
+- escape_assessment → `unpredictable_danger` (TOPOLOGY GAP: no connections to escape_assessment; semantic: trauma pathway)
+- distrust → `betrayal` (TOPOLOGY GAP: no connections to distrust, none from betrayal; semantic: attachment theory)
+- explore → `reward` (TOPOLOGY GAP: no connections to explore; semantic: BAS novelty pathway)
+- persist → `reward` (TOPOLOGY GAP: only incoming is future_outlook (mediating), no input path; semantic: operant reinforcement)
+- assert, self_direct → `agency_granted` (TOPOLOGY GAP: no connections to assert/self_direct, none from agency_granted; semantic: autonomy pathway)
+
+**Note:** Tier 3 entries expose missing connections in the starter topology. The remap will function because the input proxy nodes DO enter the settler — but the drive's influence reaches the target only if the topology eventually adds the connections that the semantic mapping assumes. Completing the topology connections is a follow-up to the CAPS rework.
 **Rationale:** Makes the settler's input contract explicit. Forces the drive-to-CAPS mappings to be semantically correct at the input layer. Each remap is grounded in the topology connections and source psychological models. Input proxies ensure drives activate the SAME downstream nodes through the network's learned dynamics — same input, different responses via different connection weights — which is how personality differentiation works.
 **Trade-offs:** Some semantic precision is lost — drives targeting mediating/output nodes expressed concepts at those layers. But the indirect activation through input proxies is CORRECT behavior: drive intensity should influence the network proportionally to connection strengths, not bypass them.
-**Sources:** DriveCompetitionDetector.java lines 28-43, BehavioralSynthesisPhase.java line 207, 2026-10-02-caps-topology.yaml (connections), Explorer agent B12, R1-04/R1-05 review
-**Exploration:** quick → revised via adversarial review R1-04 (dependency removed), R1-05 (remap specification added)
-**Status:** revised — D2 dependency removed (filtering is independent); remap methodology and key resolutions added
+**Sources:** DriveCompetitionDetector.java lines 28-43, BehavioralSynthesisPhase.java line 207, 2026-10-02-caps-topology.yaml (38 connections verified), Explorer agent B12, R1-04/R1-05/R2-02 review
+**Exploration:** quick → revised via adversarial review R1-04 (dependency removed), R1-05 (remap specification added), R2-02 (entries verified against topology, three-tier methodology)
+**Status:** revised — remap entries verified against actual topology connections; three-tier methodology replaces single backward-trace claim
 
 ## D4: Weight learning — proper multi-cue Rescorla-Wagner
 
@@ -103,18 +114,18 @@
 
 ## D7: Verification strategy — epic criterion + fix existing tests + integration
 
-**Choice:** Update existing CapsEngineContractTest for BIPOLAR/rectified-tanh scale. Add two new tests implementing the epic's verification criterion: (1) no-input ranking differs from threat ranking, (2) opposite personalities diverge > 0.15 on BIPOLAR [-1,1] outputs under same input. Add BehavioralSynthesisPhase integration test exercising the full classify → merge → settle → update → persist pipeline.
+**Choice:** Update existing CapsEngineContractTest for BIPOLAR/rectified-tanh scale. Add two new tests implementing the epic's verification criterion: (1) no-input ranking differs from threat ranking, (2) opposite personalities diverge > 0.3 absolute activation difference under same input. Add BehavioralSynthesisPhase integration test exercising the full classify → merge → settle → update → persist pipeline.
 **Integration test scope:** BehavioralSynthesisPhaseTest should exercise:
 - Drive injection through mergeDriveIntensities() → settle() boundary (validates D3 filter + remap)
 - End-to-end data flow: input activations → settling → weight update → attractor persistence
 - Verify that drive activations targeting non-INPUT nodes are correctly remapped and not silently ignored
 **Alternatives:**
 - Comprehensive matrix (5 profiles × 5 scenarios × 3 intensities with statistical distance) — thorough but heavy and premature before proving the fundamentals work
-**Rationale:** The epic defines clear, testable criteria. Write exactly those tests. The divergence threshold is now range-relative: 0.15 on [-1,1] BIPOLAR output range = 7.5% of range, equivalent to the original 0.3 on [0,1] UNIPOLAR (30% of effective above-resting range). Integration-level coverage is essential because the bugs manifest at the BehavioralSynthesisPhase boundary, not in the settler math alone.
+**Rationale:** The epic defines clear, testable criteria. Write exactly those tests. The divergence threshold is 0.3 absolute activation difference — the same value as the epic's original criterion. Under BIPOLAR/tanh (which amplifies personality differences near rest due to tanh'(0)=1.0 vs logistic'(0)=0.25), this threshold will be easier to meet, which is acceptable: the test validates that the rework produces meaningfully differentiated outputs. If the threshold proves trivially met under BIPOLAR, it can be tightened empirically in a follow-up. Integration-level coverage is essential because the bugs manifest at the BehavioralSynthesisPhase boundary, not in the settler math alone.
 **Trade-offs:** Minimum viable verification — doesn't add trajectory tests or cross-profile statistical tests. Sufficient for this rework scope.
-**Sources:** Epic #1222 verification section, CapsEngineContractTest.java (13 existing tests), BehavioralSynthesisPhaseTest.java, R1-09 review
-**Exploration:** quick → revised via adversarial review R1-09 (integration tests and range-relative threshold)
-**Status:** revised — integration test and range-relative threshold added
+**Sources:** Epic #1222 verification section, CapsEngineContractTest.java (13 existing tests), BehavioralSynthesisPhaseTest.java, R1-09/R2-03 review
+**Exploration:** quick → revised via adversarial review R1-09 (integration tests), R2-03 (threshold corrected)
+**Status:** revised — integration test added; threshold corrected to 0.3 absolute per R2-03
 
 ## D8: Commit discipline — atomic commits per finding
 
