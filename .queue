@@ -12,6 +12,17 @@ flyway-next-v:
 covers: casehubio/neocortex#1219
 
 ## Queue
+- [ ] casehubio/neocortex#1233 — Unit-tests-MemoryCapability-EntityKnowledgeCapability ← active
+- [ ] casehubio/neocortex#1234 — Disposition-axes-persona-YAMLs
+- [ ] casehubio/neocortex#1236 — ProfileDescriptorViewSource-YAML-backed
+- [ ] casehubio/neocortex#1235 — CognitiveAvatarProducer-CDI-wiring
+- [ ] casehubio/neocortex#1239 — Avatar-hot-reload
+- [ ] casehubio/neocortex#1229 — Briefed-persona-thorough-planner
+- [ ] casehubio/neocortex#1230 — Briefed-persona-pragmatic-assistant
+- [ ] casehubio/neocortex#1238 — Capability-composition-interaction-tests
+- [ ] casehubio/neocortex#1237 — Additional-capabilities-consolidation-appraisal
+- [ ] casehubio/neocortex#503 — Avatar-narrator-cognitive-narrative-engine
+- [ ] casehubio/neocortex#499 — Behavioural-template-extraction
 - [x] casehubio/neocortex#593 — Cognitive-dissonance-constraint-satisfaction
 - [x] casehubio/neocortex#1210 — Dissonance-coping integration
 - [x] casehubio/neocortex#1211 — NLI fast-path pre-filter
