@@ -1,3 +1,17 @@
+# Work Plan —
+
+## State
+branch: 
+issue-repo: casehubio/neocortex
+status: active
+covers: casehubio/neocortex#1076
+project-sha: 
+date: 2026-11-23
+design-repo: 
+design-section-hashes: 
+flyway-next-v: 
+
+## Queue
 - [x] casehubio/neocortex#1222 — SE2-CAPS-Rework
 - [x] casehubio/neocortex#1226 — SE6-Affect-and-Emotion
 - [ ] casehubio/neocortex#1241 — consolidation-trait-constants ← done on issue-1158-reextract-biographical-situational
@@ -17,9 +31,9 @@
 - [x] casehubio/neocortex#1241 — consolidation-trait-constants
 - [ ] casehubio/neocortex#1158 — Re-extract-biographical-situational ← done on issue-1158-reextract-biographical-situational
 - [ ] casehubio/neocortex#1232 — Fix-deriveQualitySignal-timing ← done on issue-1232-fix-derive-quality-signal
-- [ ] casehubio/neocortex#1228 — Align-CDE-vocabulary-eidos        ← active
-- [ ] casehubio/neocortex#963 — onFacetMapped-events-bridge
-- [ ] casehubio/neocortex#1076 — PID5-facet-situational-attractor
+- [ ] casehubio/neocortex#1228 — Align-CDE-vocabulary-eidos ← done on issue-1228-align-cde-vocabulary-eidos
+- [ ] casehubio/neocortex#963 — onFacetMapped-events-bridge ← done on issue-1228-align-cde-vocabulary-eidos
+- [ ] casehubio/neocortex#1076 — PID5-facet-situational-attractor ← active
 - [ ] casehubio/neocortex#1065 — RelationalSchema-role-hierarchy
 - [ ] casehubio/neocortex#1091 — MindMapQuery-property-filtering
 - [ ] casehubio/neocortex#1227 — SE7-Orchestrators-Higher-Cognition
@@ -29,17 +43,6 @@
     - [ ] Task 2: casehubio/neocortex#963+casehubio/neocortex#1076+casehubio/neocortex#1065
   - [ ] Batch 3: batch3
     - [ ] Task 3: casehubio/neocortex#1091
-
-## State
-branch: issue-1228-align-cde-vocabulary-eidos
-issue-repo: casehubio/neocortex
-status: active
-covers: casehubio/neocortex#1228
-project-sha: 
-date: 2026-11-23
-design-repo: 
-design-section-hashes: 
-flyway-next-v: 
 
 ## Deferred
 - [ ] Wire configureSearchBudget/configureCuriosity into builder (S / Med) [casehubio/neocortex] — Requires new builder fields and CognitionCoreFactory CDI changes — better as follow-up to SE1
