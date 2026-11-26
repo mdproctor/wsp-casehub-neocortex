@@ -252,9 +252,11 @@ Validation: Run caps-llm-classifier eval suite with 25 facets to confirm accurac
 ### Neocortex (after eidos version bump)
 
 1. `PersonalityFacet` record — add 12 String constants (ANHEDONIA, DEPRESSIVITY, etc.)
-2. `CognitiveDerivationEngine` — add derivation rules per Section 2 across existing derivation methods
-3. `PersonalityPromptBuilder` — extend to 25 facets per Section 4
-4. `PersonalityMetadataEnricher` — ensure new facets flow through metadata enrichment for BehavioralSynthesisPhase and DriveProfileDerivationPhase
+2. `PersonalityProfileEntry.AmpdAssessment` record — add 12 `Integer` fields with `@JsonProperty` annotations for hyphenated JSON keys (e.g., `@JsonProperty("rigid-perfectionism") Integer rigidPerfectionism`). Note: `SituationalProfileEntry` already uses `Map<String, Integer> facetDeltas` — no changes needed there.
+3. `PersonalityProfileHandler` — extend facet-to-node-property mapping to include the 12 new facets
+4. `CognitiveDerivationEngine` — add derivation rules per Section 2 across existing derivation methods
+5. `PersonalityPromptBuilder` — extend to 25 facets per Section 4
+6. `PersonalityMetadataEnricher` — ensure new facets flow through metadata enrichment for BehavioralSynthesisPhase and DriveProfileDerivationPhase
 
 ### Existing Agent Migration
 
