@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 480" font-family="system-ui, -apple-system, sans-serif" font-size="13">
+  <style>
+    .header { font-size: 15px; font-weight: 600; fill: #1a1a2e; }
+    .label { font-size: 12px; fill: #333; }
+    .sublabel { font-size: 11px; fill: #666; }
+    .bug { fill: #fee2e2; stroke: #ef4444; stroke-width: 1.5; rx: 6; }
+    .fix { fill: #dcfce7; stroke: #22c55e; stroke-width: 1.5; rx: 6; }
+    .arrow { stroke: #94a3b8; stroke-width: 1.5; fill: none; marker-end: url(#arrowhead); }
+    .cross { stroke: #ef4444; stroke-width: 2.5; }
+    .check { stroke: #22c55e; stroke-width: 2.5; }
+  </style>
+  <defs>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#94a3b8"/>
+    </marker>
+  </defs>
+
+  <text x="360" y="28" text-anchor="middle" class="header">Four Thresholds, Four Failure Modes</text>
+
+  <!-- E4: Confidence Decay -->
+  <rect x="20" y="50" width="330" height="90" class="bug"/>
+  <text x="35" y="72" class="label" font-weight="600">E4: Confidence Decay</text>
+  <text x="35" y="90" class="sublabel">confidence × pow(0.5, elapsed/halfLife)</text>
+  <text x="35" y="106" class="sublabel">↳ confidence was already decayed from last tick</text>
+  <text x="35" y="122" class="sublabel">↳ result: 0.1 after 2 ticks (should be 0.2)</text>
+  <line x1="300" y1="80" x2="315" y2="95" class="cross"/>
+  <line x1="315" y1="80" x2="300" y2="95" class="cross"/>
+
+  <rect x="370" y="50" width="330" height="90" class="fix"/>
+  <text x="385" y="72" class="label" font-weight="600">Fix: originalConfidence field</text>
+  <text x="385" y="90" class="sublabel">originalConfidence × pow(0.5, elapsed/halfLife)</text>
+  <text x="385" y="106" class="sublabel">↳ always recompute from initial value</text>
+  <text x="385" y="122" class="sublabel">↳ idempotent: same result regardless of tick count</text>
+  <line x1="654" y1="82" x2="664" y2="92" class="check"/>
+  <line x1="654" y1="92" x2="664" y2="82" class="check"/>
+
+  <!-- E1: Signal Gates -->
+  <rect x="20" y="160" width="330" height="90" class="bug"/>
+  <text x="35" y="182" class="label" font-weight="600">E1: Signal Gates</text>
+  <text x="35" y="200" class="sublabel">drainBuffer() every tick → 1 signal/tick</text>
+  <text x="35" y="216" class="sublabel">↳ threshold = 3, batch size always 1</text>
+  <text x="35" y="232" class="sublabel">↳ LLM synthesis never fires for slow flows</text>
+  <line x1="300" y1="190" x2="315" y2="205" class="cross"/>
+  <line x1="315" y1="190" x2="300" y2="205" class="cross"/>
+
+  <rect x="370" y="160" width="330" height="90" class="fix"/>
+  <text x="385" y="182" class="label" font-weight="600">Fix: accumulate, drain on threshold</text>
+  <text x="385" y="200" class="sublabel">buffer persists across ticks</text>
+  <text x="385" y="216" class="sublabel">↳ drain + synthesize when count ≥ 3 (or cap 50)</text>
+  <text x="385" y="232" class="sublabel">↳ synchronized(state) prevents ArrayDeque race</text>
+  <line x1="654" y1="192" x2="664" y2="202" class="check"/>
+  <line x1="654" y1="202" x2="664" y2="192" class="check"/>
+
+  <!-- E8: Retention Formula -->
+  <rect x="20" y="270" width="330" height="90" class="bug"/>
+  <text x="35" y="292" class="label" font-weight="600">E8: Retention Formula</text>
+  <text x="35" y="310" class="sublabel">additive: (conf×w₁ + rec×w₂ + scope×w₃ + trust×w₄) / Σw</text>
+  <text x="35" y="326" class="sublabel">↳ conf=1.0, rec=0, scope=1, trust=1 → score 0.33</text>
+  <text x="35" y="342" class="sublabel">↳ above 0.1 threshold: old memories never evicted</text>
+  <line x1="300" y1="300" x2="315" y2="315" class="cross"/>
+  <line x1="315" y1="300" x2="300" y2="315" class="cross"/>
+
+  <rect x="370" y="270" width="330" height="90" class="fix"/>
+  <text x="385" y="292" class="label" font-weight="600">Fix: multiplicative base × modulators</text>
+  <text x="385" y="310" class="sublabel">base = avg(recency, frequency)</text>
+  <text x="385" y="326" class="sublabel">composite = base × confidence × trust</text>
+  <text x="385" y="342" class="sublabel">↳ rec=0, freq=0 → base=0 → evictable</text>
+  <line x1="654" y1="302" x2="664" y2="312" class="check"/>
+  <line x1="654" y1="312" x2="664" y2="302" class="check"/>
+
+  <!-- E9: Grouping -->
+  <rect x="20" y="380" width="330" height="90" class="bug"/>
+  <text x="35" y="402" class="label" font-weight="600">E9: Hygiene Grouping</text>
+  <text x="35" y="420" class="sublabel">score(mⱼ) ≥ threshold → group with mᵢ</text>
+  <text x="35" y="436" class="sublabel">↳ score = retrieval similarity to query</text>
+  <text x="35" y="452" class="sublabel">↳ unrelated memories both high vs query → grouped</text>
+  <line x1="300" y1="410" x2="315" y2="425" class="cross"/>
+  <line x1="315" y1="410" x2="300" y2="425" class="cross"/>
+
+  <rect x="370" y="380" width="330" height="90" class="fix"/>
+  <text x="385" y="402" class="label" font-weight="600">Fix: pairwise Jaccard on problem text</text>
+  <text x="385" y="420" class="sublabel">jaccard(mᵢ.problem, mⱼ.problem) ≥ threshold</text>
+  <text x="385" y="436" class="sublabel">↳ compares memories to each other, not to query</text>
+  <text x="385" y="452" class="sublabel">↳ 70% word overlap required for grouping</text>
+  <line x1="654" y1="412" x2="664" y2="422" class="check"/>
+  <line x1="654" y1="422" x2="664" y2="412" class="check"/>
+
+  <!-- Arrows -->
+  <path d="M 350 95 L 370 95" class="arrow"/>
+  <path d="M 350 205 L 370 205" class="arrow"/>
+  <path d="M 350 315 L 370 315" class="arrow"/>
+  <path d="M 350 425 L 370 425" class="arrow"/>
+</svg>
