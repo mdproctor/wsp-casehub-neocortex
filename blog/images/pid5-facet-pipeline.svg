@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 420" font-family="system-ui, -apple-system, sans-serif" font-size="13">
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#475569"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="400" y="28" text-anchor="middle" font-size="16" font-weight="600" fill="#1e293b">PID-5 Facet Pipeline — 13 → 25 Facets</text>
+
+  <!-- Source: Eidos -->
+  <rect x="20" y="50" width="160" height="80" rx="8" fill="#f0f9ff" stroke="#0284c7" stroke-width="1.5"/>
+  <text x="100" y="75" text-anchor="middle" font-weight="600" fill="#0284c7">Eidos</text>
+  <text x="100" y="93" text-anchor="middle" font-size="11" fill="#475569">AmpdFacets.CANONICAL</text>
+  <text x="100" y="108" text-anchor="middle" font-size="11" fill="#475569">25 facets</text>
+  <text x="100" y="123" text-anchor="middle" font-size="11" fill="#64748b">+ archetype profiles</text>
+
+  <!-- Arrow to PersonalityFacet -->
+  <line x1="180" y1="90" x2="220" y2="90" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- PersonalityFacet -->
+  <rect x="225" y="55" width="140" height="70" rx="8" fill="#fef3c7" stroke="#d97706" stroke-width="1.5"/>
+  <text x="295" y="80" text-anchor="middle" font-weight="600" fill="#92400e">PersonalityFacet</text>
+  <text x="295" y="97" text-anchor="middle" font-size="11" fill="#475569">25 String constants</text>
+  <text x="295" y="112" text-anchor="middle" font-size="11" fill="#64748b">cognitive-index</text>
+
+  <!-- Three pipelines branching out -->
+
+  <!-- Pipeline 1: Classification -->
+  <rect x="440" y="50" width="340" height="85" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.5"/>
+  <text x="610" y="72" text-anchor="middle" font-weight="600" fill="#166534">1. Classification Pipeline</text>
+  <text x="610" y="90" text-anchor="middle" font-size="11" fill="#475569">PersonalityPromptBuilder → LLM classifier prompt</text>
+  <text x="610" y="105" text-anchor="middle" font-size="11" fill="#475569">Pid5FacetsConfig → 25-facet allowlist</text>
+  <text x="610" y="120" text-anchor="middle" font-size="11" fill="#475569">CBR cache key → SHA-256 all 25 facet scores</text>
+
+  <!-- Pipeline 2: Situational Modulation -->
+  <rect x="440" y="155" width="340" height="85" rx="8" fill="#fdf4ff" stroke="#a855f7" stroke-width="1.5"/>
+  <text x="610" y="177" text-anchor="middle" font-weight="600" fill="#6b21a8">2. Situational Modulation</text>
+  <text x="610" y="195" text-anchor="middle" font-size="11" fill="#475569">archetype-situational-profiles.yaml</text>
+  <text x="610" y="210" text-anchor="middle" font-size="11" fill="#475569">12 families × 5 modes → 445 new shifts</text>
+  <text x="610" y="225" text-anchor="middle" font-size="11" fill="#475569">EffectiveCognitiveDefaults.compose()</text>
+
+  <!-- Pipeline 3: Cognitive Derivation -->
+  <rect x="440" y="260" width="340" height="100" rx="8" fill="#fff7ed" stroke="#ea580c" stroke-width="1.5"/>
+  <text x="610" y="282" text-anchor="middle" font-weight="600" fill="#9a3412">3. Cognitive Derivation</text>
+  <text x="610" y="300" text-anchor="middle" font-size="11" fill="#475569">CognitiveDerivationEngine — 48 new rules</text>
+  <text x="610" y="315" text-anchor="middle" font-size="11" fill="#475569">Tier 1 (6 facets): mood, appraisal, search,</text>
+  <text x="610" y="330" text-anchor="middle" font-size="11" fill="#475569">habituation, capacity, regulation, recurring thought</text>
+  <text x="610" y="345" text-anchor="middle" font-size="11" fill="#475569">Tier 2 (4 facets): extraction bias, pool, coping</text>
+
+  <!-- Connecting lines -->
+  <line x1="365" y1="80" x2="435" y2="80" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="365" y1="90" x2="400" y2="197" stroke="#475569" stroke-width="1.5"/>
+  <line x1="400" y1="197" x2="435" y2="197" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="365" y1="100" x2="400" y2="310" stroke="#475569" stroke-width="1.5"/>
+  <line x1="400" y1="310" x2="435" y2="310" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Footer: Tier legend -->
+  <rect x="20" y="380" width="760" height="30" rx="4" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="30" y="400" font-size="11" fill="#64748b">Tier 1 (strong evidence): Anhedonia, Depressivity, Perseveration, Rigid Perfectionism, Distractibility, Separation Insecurity</text>
+  <text x="740" y="400" font-size="11" fill="#64748b" text-anchor="end">+ Tier 2: 4 facets | No rules: 2</text>
+</svg>
