@@ -1,20 +1,20 @@
 # Work Plan —
 
 ## State
-branch: issue-1222-caps-rework
+branch: 
 issue-repo: casehubio/neocortex
 status: active
+covers: casehubio/neocortex#1227
 project-sha: 
 date: 2026-11-23
 design-repo: 
 design-section-hashes: 
 flyway-next-v: 
-covers: casehubio/neocortex#1222
 
 ## Queue
-- [ ] casehubio/neocortex#1222 — SE2-CAPS-Rework ← active
-- [ ] casehubio/neocortex#1226 — SE6-Affect-and-Emotion
-- [ ] casehubio/neocortex#1227 — SE7-Orchestrators-Higher-Cognition
+- [ ] casehubio/neocortex#1222 — SE2-CAPS-Rework ← done on issue-1222-caps-rework
+- [ ] casehubio/neocortex#1226 — SE6-Affect-and-Emotion ← done on issue-1222-caps-rework
+- [ ] casehubio/neocortex#1227 — SE7-Orchestrators-Higher-Cognition ← active
 - [ ] casehubio/neocortex#1241 — consolidation-trait-constants
 - [ ] casehubio/neocortex#1240 — cognitionActive-marker-detection
 - [x] casehubio/neocortex#593 — Cognitive-dissonance-constraint-satisfaction
