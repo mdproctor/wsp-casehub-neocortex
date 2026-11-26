@@ -8,4 +8,4 @@ _exec_ok:stacked_pr_detect=yes
 stacked_pr_detect=done
 branch_name_attempt=1
 branch_name=done
-create_branches_mechanical_attempt=1
+create_branches_mechanical_attempt=2
