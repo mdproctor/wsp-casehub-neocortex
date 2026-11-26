@@ -3,42 +3,38 @@
 ## Active Work: SE7 Orchestrators & Higher Cognition (#1227)
 
 **Branch:** `issue-1226-affect-emotion` (reused from SE6 — pipeline stacked work on existing branch)
-**Queue:** `casehubio/neocortex#1227` active, 10 tasks injected across 6 batches
+**Queue:** `casehubio/neocortex#1227` active, 10 tasks across 6 batches — **4 done, 6 remaining**
 
 ### What was completed this session
 
-**Design and planning — no implementation yet:**
+**Batches 1-2 implemented (4 tasks, 5 commits):**
 
-1. **Brainstorming** — 6 design decisions captured:
-   - D1: Fix E5 relational-schema trust with cursor (not remove dead code)
-   - D2: E8 retention formula first-principles redesign (base = recency + frequency, confidence × trust as multipliers)
-   - D3: E10d goal surfacing writes nothing (not an experience event — first-principles analysis)
-   - D4: E9 embedding-based pairwise cosine for hygiene grouping
-   - D5: E16 fix all three belief revision bugs (while disabled, cheapest to fix now)
-   - D6: 6-batch ordering strategy
+1. **E4 — Confidence decay compounding** (`62ae1ef6`): Added `originalConfidence` field to `AttributedState` record (8th field, with 7-arg convenience constructor for backward compatibility). `decayMap()` now always recomputes from the original value. Serialization updated with backward-compatible fallback for old data missing `originalConfidence`.
 
-2. **Design spec** written and reviewed:
-   - `specs/issue-1227-orchestrators-higher-cognition/2026-11-26-orchestrators-higher-cognition-design.md`
-   - Light design review ran (16 issues, 5 HIGH) — all corrections applied
-   - Key corrections: missing E10e (goal tick results discarded by safeRun), E4 idempotent recomputation, E12 INTENTION-only filter, E1 Strategy root cause distinct
+2. **E1 — Signal gates** (`091333dc`): `MentalModelOrchestrator` and `UserModelOrchestrator` no longer drain their signal buffers every tick. Buffers accumulate until threshold met (or cap 50), then drain and synthesize. `shouldInfer()` checks accumulated count instead of drained text line count. `StrategyLearningOrchestrator` unchanged — it already preserves turns by caseId.
 
-3. **Implementation plan** written:
-   - `plans/2026-11-26-se7-orchestrators-higher-cognition.md`
-   - 10 tasks in 6 batches, all with TDD steps and exact file paths
+3. **E8 — Retention formula redesign** (`8cddef2d`): `RetentionConfig` reduced from 5 fields to 3 (`retentionThreshold`, `recencyWeight`, `frequencyWeight`). Formula changed from additive weighted average to multiplicative: `base = avg(recency, frequency)`, `composite = base × confidence × trust`. `frequencyWeight` defaults to 0.0 until frequency tracking is wired.
+
+4. **E9 — Pairwise grouping** (`4c0c4a94`): `findSimilarGroups()` now uses word-level Jaccard similarity between memory problem texts instead of comparing each memory's retrieval score against the threshold.
+
+5. **Review fixes** (`22c33799`): F1: wrapped `shouldInfer()` + `drainBuffer()` in `synchronized(state)` to fix ArrayDeque data race. F2: set `frequencyWeight=0.0` in `RetentionConfig.DEFAULT`. X1: made `UserModelOrchestrator.bufferedSignals` volatile.
 
 ### What's next
 
-1. **Execute the plan** — start with `executing-plans` skill, beginning at Batch 1 (Task 1: E4 confidence decay)
-2. IntelliJ MCP needs heap recovery before execution can begin — wait for lifecycle manager to close idle projects
-3. The branch is `issue-1226-affect-emotion` with 1 commit ahead of main (closure stamp) and 1 behind (docs promote) — needs rebase or new branch before implementation
+**Resume at Batch 3, Task 5: Goal tick capture and cleanup (E10).** The plan is at `/Users/mdproctor/claude/casehub/slots/230/wsp-casehub-neocortex/plans/2026-11-26-se7-orchestrators-higher-cognition.md`.
+
+Remaining batches:
+- **Batch 3** (Tasks 5-6): Goal orchestration — safeCall for goal tick, queryGoals agent filter, remove recordSurfacing/recordEmotions, wire deductive context
+- **Batch 4** (Task 7): Narrative partition by agent, sub-thought INTENTION filter, heuristic acceptance
+- **Batch 5** (Task 8): Personality baselines from profile, dt-scaled pull, constraint tier fixes
+- **Batch 6** (Tasks 9-10): Quality signal timing, relational schema cursor, pressure mapping, belief revision
 
 ### Notes for next session
 
 - `MemoryScanRequest.callerPrincipalId` wired in `InMemoryMemoryStore` only — SQLite/JPA stores need updating when touched next
-- MoodConfig default decay constant changed from 4h to 20min — review cognitive profile config overrides
-- eidos repo has `signedPosition()` commit on `issue-1226-affect-emotion` — needs separate landing if not already done
-- AttributedState record (cognition-api) needs `originalConfidence` field added — Task 1 covers this
-- RetentionScore/RetentionConfig (cognition-api) need formula redesign — Task 3 covers this
+- MoodConfig default decay constant changed from 4h to 20min (from SE6) — review cognitive profile config overrides
+- `scopeDecay` field is dead code in `MemoryHygieneOrchestratorImpl` (kept to avoid constructor signature change) — clean up when frequency tracking is wired
+- Pre-existing test failure: `EmotionMappingIntegrationTest.shameWithUrgencyHasElevatedArousalAboveBaseline` — not related to SE7 work
 - E2 was deferred from SE1 (#1221) — now in SE7 Batch 6
 
 ## Epic Status (#1220)
@@ -51,6 +47,6 @@
 | SE4: Consolidation Phases | #1224 | Done (landed) |
 | SE5: cognitive-index | #1225 | Done (landed) |
 | SE6: Affect & Emotion | #1226 | **Done (landed)** |
-| SE7: Orchestrators | #1227 | **Active** — design complete, implementation not started |
+| SE7: Orchestrators | #1227 | **Active** — Batches 1-2 done, Batches 3-6 remaining |
 
 **6 of 7 sub-epics done. SE7 is the final sub-epic.**
