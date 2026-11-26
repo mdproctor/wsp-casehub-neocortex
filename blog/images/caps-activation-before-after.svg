@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 340">
+  <style>
+    text { font-family: 'Inter', 'Helvetica Neue', sans-serif; }
+    .title { font-size: 13px; font-weight: 600; fill: #1a1a2e; }
+    .label { font-size: 11px; fill: #4a4a6a; }
+    .value { font-size: 10px; fill: #6a6a8a; }
+    .axis-label { font-size: 10px; fill: #8a8a9a; }
+  </style>
+
+  <!-- Before panel -->
+  <rect x="10" y="10" width="340" height="320" rx="8" fill="#fafafa" stroke="#e0e0e0"/>
+  <text x="180" y="35" text-anchor="middle" class="title">Before: Logistic (Unipolar)</text>
+
+  <!-- Axis -->
+  <line x1="60" y1="60" x2="60" y2="280" stroke="#ccc" stroke-width="1"/>
+  <line x1="60" y1="280" x2="320" y2="280" stroke="#ccc" stroke-width="1"/>
+  <text x="55" y="68" text-anchor="end" class="axis-label">1.0</text>
+  <text x="55" y="173" text-anchor="end" class="axis-label">0.5</text>
+  <text x="55" y="283" text-anchor="end" class="axis-label">0.0</text>
+
+  <!-- Resting level line at 0.5 -->
+  <line x1="60" y1="170" x2="320" y2="170" stroke="#e74c3c" stroke-width="1.5" stroke-dasharray="6,4"/>
+  <text x="325" y="174" class="value" fill="#e74c3c">rest=0.5</text>
+
+  <!-- Bars: all clustered near 0.5 -->
+  <rect x="80" y="140" width="30" height="140" rx="3" fill="#3498db" opacity="0.7"/>
+  <text x="95" y="298" text-anchor="middle" class="value">approach</text>
+  <text x="95" y="135" text-anchor="middle" class="value">0.64</text>
+
+  <rect x="130" y="145" width="30" height="135" rx="3" fill="#3498db" opacity="0.7"/>
+  <text x="145" y="298" text-anchor="middle" class="value">withdraw</text>
+  <text x="145" y="140" text-anchor="middle" class="value">0.61</text>
+
+  <rect x="180" y="148" width="30" height="132" rx="3" fill="#3498db" opacity="0.7"/>
+  <text x="195" y="298" text-anchor="middle" class="value">flight</text>
+  <text x="195" y="143" text-anchor="middle" class="value">0.60</text>
+
+  <rect x="230" y="142" width="30" height="138" rx="3" fill="#3498db" opacity="0.7"/>
+  <text x="245" y="298" text-anchor="middle" class="value">trust</text>
+  <text x="245" y="137" text-anchor="middle" class="value">0.63</text>
+
+  <text x="180" y="315" text-anchor="middle" class="label" fill="#e74c3c">All nodes near 0.5 — no differentiation</text>
+
+  <!-- After panel -->
+  <rect x="370" y="10" width="340" height="320" rx="8" fill="#fafafa" stroke="#e0e0e0"/>
+  <text x="540" y="35" text-anchor="middle" class="title">After: Rectified Tanh (Bipolar)</text>
+
+  <!-- Axis -->
+  <line x1="420" y1="60" x2="420" y2="280" stroke="#ccc" stroke-width="1"/>
+  <line x1="420" y1="280" x2="680" y2="280" stroke="#ccc" stroke-width="1"/>
+  <text x="415" y="68" text-anchor="end" class="axis-label">1.0</text>
+  <text x="415" y="173" text-anchor="end" class="axis-label">0.0</text>
+  <text x="415" y="283" text-anchor="end" class="axis-label">-1.0</text>
+
+  <!-- Resting level line at 0.0 -->
+  <line x1="420" y1="170" x2="680" y2="170" stroke="#27ae60" stroke-width="1.5" stroke-dasharray="6,4"/>
+  <text x="685" y="174" class="value" fill="#27ae60">rest=0.0</text>
+
+  <!-- Bars: differentiated around 0.0 -->
+  <rect x="440" y="100" width="30" height="70" rx="3" fill="#2ecc71" opacity="0.7"/>
+  <text x="455" y="298" text-anchor="middle" class="value">approach</text>
+  <text x="455" y="95" text-anchor="middle" class="value">0.64</text>
+
+  <rect x="490" y="170" width="30" height="50" rx="3" fill="#e74c3c" opacity="0.5"/>
+  <text x="505" y="298" text-anchor="middle" class="value">withdraw</text>
+  <text x="505" y="230" text-anchor="middle" class="value">-0.23</text>
+
+  <rect x="540" y="110" width="30" height="60" rx="3" fill="#2ecc71" opacity="0.7"/>
+  <text x="555" y="298" text-anchor="middle" class="value">flight</text>
+  <text x="555" y="105" text-anchor="middle" class="value">0.55</text>
+
+  <rect x="590" y="130" width="30" height="40" rx="3" fill="#2ecc71" opacity="0.7"/>
+  <text x="605" y="298" text-anchor="middle" class="value">trust</text>
+  <text x="605" y="125" text-anchor="middle" class="value">0.36</text>
+
+  <text x="540" y="315" text-anchor="middle" class="label" fill="#27ae60">Nodes differentiate from zero baseline</text>
+</svg>
