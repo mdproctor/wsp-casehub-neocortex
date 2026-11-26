@@ -98,7 +98,7 @@ These produce the emotion signals consumed by mood and drives. Fix before drives
    - **PRIDE:** high internal-standards + high conduciveness (self-caused good outcome — correct per OCC)
    - **RELIEF:** high conduciveness + urgency delta > 0.3 (prior threat resolved — OCC's disconfirmation of a feared prospect; urgency delta captures the transition from danger to safety)
    - **GRATITUDE:** high conduciveness + low controllability (good outcome, not self-caused — OCC compound of JOY + other-agency; low controllability approximates external attribution since the agent didn't control the outcome)
-   - **ADMIRATION:** high external-standards (someone's action meets/exceeds social norms — OCC's approval of praiseworthy action; novelty is NOT a component of OCC admiration and is removed from this mapping)
+   - **ADMIRATION:** high external-standards (> 0.7) + relevance > 0.3 (someone's action notably exceeds social norms AND the agent notices it — OCC's approval of praiseworthy action; the relevance gate prevents firing on routine norm-conformance that the agent doesn't attend to; novelty is NOT a component of OCC admiration and is removed from this mapping)
    - **SATISFACTION:** high conduciveness + low novelty (expected good outcome confirmed — OCC's confirmation of a prospect; low novelty captures the expectedness that distinguishes satisfaction from surprise-joy)
    - **DISAPPOINTMENT:** low conduciveness + high relevance (cared about outcome, got negative — OCC's disconfirmation of a prospect of a desirable event)
 2. Cap INTERRUPTION: `clampIntensity((1.0 - novelty) * 0.3)` — maximum 0.3 instead of 1.0.
@@ -167,30 +167,40 @@ return sign * weight * config.personalityModulationStrength();
 
 **Problem:** `recordAppraisalModulation()` uses `put()` for both `pendingAppraisalModulations` and `pendingAppraisalDescriptions` — second call overwrites first in both maps.
 
-**Fix:** Use `merge()` with accumulator for both maps:
-```java
-pendingAppraisalModulations.merge(key, modulation,
-    (old, neu) -> { var m = new EnumMap<>(old); neu.forEach((k,v) -> m.merge(k, v, Double::sum)); return m; });
-```
+**Fix:** Use `merge()` with accumulator for both maps. **Description merge must execute before modulation merge** so the comparison uses the previous caller's individual contribution, not the already-merged total.
 
-For descriptions, accumulate by keeping the description from the larger modulation per axis:
 ```java
-if (descriptions != null) {
-    pendingAppraisalDescriptions.merge(key, descriptions,
-        (old, neu) -> {
-            var merged = new EnumMap<>(old);
-            var currentMod = pendingAppraisalModulations.get(key);
-            neu.forEach((axis, desc) -> {
-                var oldMod = currentMod != null ? currentMod.getOrDefault(axis, 0.0) : 0.0;
-                var neuMod = modulation.getOrDefault(axis, 0.0);
-                if (Math.abs(neuMod) >= Math.abs(oldMod)) merged.put(axis, desc);
+public void recordAppraisalModulation(String agentId, String tenantId,
+                                       Map<DriveAxis, Double> modulation,
+                                       @Nullable Map<DriveAxis, String> descriptions) {
+    var key = agentId + ":" + tenantId;
+
+    // 1. Merge descriptions FIRST — using pre-merge modulation state for comparison
+    if (descriptions != null) {
+        pendingAppraisalDescriptions.merge(key, descriptions,
+            (old, neu) -> {
+                var merged = new EnumMap<>(old);
+                var priorMod = pendingAppraisalModulations.get(key);
+                neu.forEach((axis, desc) -> {
+                    var priorAxisMod = priorMod != null ? priorMod.getOrDefault(axis, 0.0) : 0.0;
+                    var newAxisMod = modulation.getOrDefault(axis, 0.0);
+                    if (Math.abs(newAxisMod) >= Math.abs(priorAxisMod)) merged.put(axis, desc);
+                });
+                return merged;
             });
-            return merged;
+    }
+
+    // 2. Merge modulations SECOND
+    pendingAppraisalModulations.merge(key, modulation,
+        (old, neu) -> {
+            var m = new EnumMap<>(old);
+            neu.forEach((k, v) -> m.merge(k, v, Double::sum));
+            return m;
         });
 }
 ```
 
-This ensures that when two calls contribute modulations to the same axis, the description from the larger contributor is preserved. The alternative (concatenating descriptions) adds noise — the stronger modulation's description is more relevant.
+This ensures the description comparison is between the new caller's individual contribution and the previous caller's individual contribution (not the merged total). Example: Call 1 = CURIOSITY +0.1 "mild gap", Call 2 = CURIOSITY +0.3 "strong emotional response" → description merge compares |0.3| ≥ |0.1| → true → "strong emotional response" wins.
 
 ### C9: DriveSource state not agent-keyed (CuriosityDrive et al.)
 
@@ -252,25 +262,75 @@ record RegulatedShift(
 
 **Cause tracking:** `RegulatedShift` does NOT participate in `MoodOrchestrator.doTick()` cause tracking. The existing pattern match handles `DirectShift` and `InteractionAppraisal` for cause — regulation adjustments are second-order effects, not primary causes. No new pattern-match branch needed in `doTick()`.
 
-**Call site:** In `EmotionRegulationTickParticipant`, after a successful regulation result:
+**MoodOrchestrator dependency:** `EmotionRegulationTickParticipant` has no current reference to `MoodOrchestrator`. Add `@Nullable MoodOrchestrator moodOrchestrator` as a constructor parameter on the final constructor (extending the existing telescoping chain). Wire via `CognitionDefaultBeans` CDI producer. The dependency creates a feedback loop (mood → appraisal → regulation → mood) which is architecturally correct — the cycle is broken by the tick boundary.
+
+**Call sites — both paths:** Recording must happen in `handleRegulationResult()` (not inline in `tick()`), because `tick()` has two mutually exclusive code paths:
+1. **Coping path** (line 249-252): when `config.copingEnabled() && copingMicroLoop != null`, routes to `tickCopingPath()` → `handleRegulationResult()`.
+2. **Normal path**: inline regulation result handling (structurally identical to `handleRegulationResult()`).
+
+Add RegulatedShift recording inside `handleRegulationResult()` (which serves both paths), after the existing result-storage block:
+
 ```java
-double intensityDelta = result.regulatedIntensity() - result.peakOriginalIntensity();
-var pad = AlmaPadTable.project(dominantType, intensityDelta);
-moodOrchestrator.record(new MoodSignal.RegulatedShift(
-    pad.pleasure(), pad.arousal(), pad.dominance(),
-    result.strategy().name(), dominantType), agentId, tenantId);
+if (moodOrchestrator != null && dominantType != null) {
+    double intensityDelta = result.regulatedIntensity() - result.peakOriginalIntensity();
+    var pad = AlmaPadTable.project(dominantType, intensityDelta);
+    moodOrchestrator.record(new MoodSignal.RegulatedShift(
+        pad.pleasure(), pad.arousal(), pad.dominance(),
+        result.strategy().name(), dominantType), context.agentId(), context.tenantId());
+}
 ```
+
+The normal path's inline result handling should delegate to `handleRegulationResult()` as well, eliminating the code duplication between the two paths.
 
 ### C13: Regulation triggers on positive emotions (EmotionRegulationTickParticipant)
 
 **Problem:** Regulation threshold uses `Math.abs(intensity - 0.3)` — valence-blind. High JOY (0.8) triggers regulation.
 
-**Fix (D4):** Filter to negative-valence emotions before computing maxDiscrepancy. Check `emotion.pad().pleasure() < 0` before including in the regulation candidate set.
+**Fix (D4):** Restructure `tick()` to enforce the two-tier approach correctly. The current code computes maxDiscrepancy → regulationEffort → early return before the safety gate is reached. Filtering maxDiscrepancy to negative-valence while leaving the safety gate after the early return would make the safety gate unreachable when all emotions are positive.
+
+**Required flow restructure** in `tick()`:
+
+```java
+// Step 1: Compute peakEmotion from ALL emotions (unfiltered — safety gate is valence-blind)
+var peakEmotion = appraisal.get().emotions().stream()
+    .max(Comparator.comparingDouble(CognitiveEmotion::intensity))
+    .orElse(null);
+
+// Step 2: Safety gate FIRST — fires unconditionally on extreme intensity or fatigue
+double depletion = cognitiveResourcePool != null
+    ? cognitiveResourcePool.currentDepletion(context.agentId(), context.tenantId()) : 0.0;
+double currentFatigue = depletion;
+
+if (peakEmotion != null && (currentFatigue > SAFETY_FATIGUE_THRESHOLD
+                            || peakEmotion.intensity() > SAFETY_INTENSITY_THRESHOLD)) {
+    // Safety gate fires — skip maxDiscrepancy, skip effort, go directly to ATTENTIONAL_DEPLOYMENT
+    pinnedStrategy = EmotionRegulationStrategy.ATTENTIONAL_DEPLOYMENT;
+    strategySource = "SAFETY_GATE";
+    // ... proceed to regulation generation with pinnedStrategy
+}
+
+// Step 3: Normal regulation — only negative-valence emotions trigger effort
+double maxDiscrepancy = appraisal.get().emotions().stream()
+    .filter(e -> e.pad().pleasure() < 0)
+    .mapToDouble(e -> Math.abs(e.intensity() - BASELINE_INTENSITY))
+    .max().orElse(0.0);
+
+double alpha = DEFAULT_ALPHA * (1.0 - depletion);
+double regulationEffort = alpha * maxDiscrepancy / D_MAX;
+
+if (regulationEffort < EFFORT_NOISE_FLOOR) {
+    // No negative-valence emotions above threshold → no regulation needed
+    // (Safety gate already checked above — extreme positive already handled)
+    recordRecovery(...);
+    return;
+}
+// ... continue to Layer 2 (CAPS), Layer 3 (predictor), Layer 4 (LLM)
+```
 
 **Theoretical departure from Bosse et al. 2010:** The Bosse model regulates ALL deviations from baseline intensity regardless of valence (equation `α_n × d / d_max` applies uniformly). This spec intentionally departs from that model. For a cognitive agent, downregulating moderate JOY or HOPE is counterproductive — these positive states facilitate engagement and goal pursuit. The departure uses a two-tier approach:
 
-1. **Normal regulation path (this fix):** Only negative-valence emotions (pleasure < 0) contribute to `maxDiscrepancy` and trigger the regulation effort computation. Moderate JOY, HOPE, INTEREST are not candidates for regulation.
-2. **Safety gate (existing, unchanged):** Fires for ANY emotion exceeding `SAFETY_INTENSITY_THRESHOLD = 0.75` regardless of valence, triggering `ATTENTIONAL_DEPLOYMENT`. This catches extreme positive states (obsessive INTEREST, manic HOPE) that warrant intervention.
+1. **Safety gate (moved before effort computation):** Fires for ANY emotion exceeding `SAFETY_INTENSITY_THRESHOLD = 0.75` regardless of valence, OR when `currentFatigue > SAFETY_FATIGUE_THRESHOLD`. This catches extreme positive states (obsessive INTEREST, manic HOPE). By running before the effort early return, it is always reachable.
+2. **Normal regulation path:** Only negative-valence emotions (pleasure < 0) contribute to `maxDiscrepancy` and trigger the regulation effort computation. Moderate JOY, HOPE, INTEREST are not candidates for normal regulation.
 
 Together these tiers provide: normal positive emotions unregulated, moderate negative emotions regulated proportionally, extreme emotions of either valence caught by the safety gate.
 
@@ -287,7 +347,7 @@ Together these tiers provide: normal positive emotions unregulated, moderate neg
 3. **Goal bias interaction (C4, C2):** With goalBias of +0.3 pleasure, mood at +0.3 is at the effective baseline. Signals should not be dampened at this point. Mood should decay toward +0.3, not 0.0.
 4. **Personality differentiation (C7):** Bold and cautious agents under the same emotional input should produce different drive intensities with opposite signs on the risk-sensitive axes.
 5. **Emotion coverage (C14):** EmotionMapper should produce all 15 mapped emotion types given appropriate SEC inputs. Unmapped types (8) should be documented as excluded.
-6. **Regulation selectivity (C13):** Regulation effort should compute from negative-valence emotions only. The safety gate should fire for ANY emotion above 0.75 intensity regardless of valence.
+6. **Regulation selectivity (C13):** The safety gate must fire for ANY emotion above 0.75 intensity regardless of valence — even when all emotions are positive. Normal regulation effort should compute from negative-valence emotions only. An agent with only positive emotions at intensity 0.9 must hit the safety gate, not early-return.
 7. **Modulation accumulation (C6):** Two consecutive `recordAppraisalModulation` calls within one tick should produce a combined modulation per axis (additive), with the description from the larger contributor preserved.
 8. **Agent-scoped drives (C9):** Two agents ticked concurrently on the same DriveSource instances should produce independent drive intensities and independent diagnostic state (lastChannel, lastTrend, etc.).
 9. **Thread safety (C20):** Concurrent `record()` and `tick()` on the same agent should not corrupt state. The `pollFirst()` drain should not throw `NoSuchElementException`.

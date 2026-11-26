@@ -34,3 +34,15 @@
 **Sources:** `eidos/api/src/.../DispositionAxis.java:54-72`, `cognition/src/.../drive/DriveComposer.java:119-123`
 **Exploration:** deep-analysis (eidos repo exploration)
 **Status:** captured
+
+## D4: Valence-aware regulation filter (C13)
+
+**Choice:** Two-tier regulation: (1) safety gate executes FIRST — fires for any emotion above 0.75 intensity regardless of valence, (2) normal regulation path filters maxDiscrepancy to negative-valence emotions only (pleasure < 0). The safety gate must run before the effort computation's early return to remain reachable when all emotions are positive.
+**Alternatives:**
+- Bosse model as-is — regulate ALL deviations regardless of valence (the current behavior)
+- Functional maladaptiveness — regulate based on whether the emotion is maladaptive rather than its valence (more nuanced but requires a maladaptiveness classifier)
+**Rationale:** Bosse et al. 2010 models homeostatic regulation of biological emotion systems, where any deviation from baseline triggers corrective action. For a cognitive agent, moderate positive emotions (JOY, HOPE, INTEREST) are functionally beneficial — they facilitate engagement and goal pursuit. Downregulating them wastes cognitive resources and produces flatter, less responsive agents. The valence filter is a pragmatic departure that preserves the Bosse framework's proportional effort computation while restricting its scope to emotions that actually warrant intervention. Extreme positive states (obsessive INTEREST, manic HOPE above 0.75 intensity) are still caught by the safety gate, which fires independently of the maxDiscrepancy computation.
+**Trade-offs:** Some edge cases exist: moderate FEAR can be functional (alerting), moderate ANGER can be motivating. These are still regulated under this approach. A more granular filter could use emotion-specific regulation thresholds, but the complexity isn't justified given the existing strategy selection layers (CAPS, predictor) which handle strategy choice — the valence filter only controls whether regulation is *attempted*.
+**Sources:** `EmotionRegulationTickParticipant.java:184-187` (maxDiscrepancy computation), Bosse et al. 2010 equation `α_n × d / d_max`
+**Exploration:** quick
+**Status:** captured
