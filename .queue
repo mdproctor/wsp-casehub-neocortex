@@ -1,5 +1,39 @@
+# Work Plan —
+
+## State
+branch: issue-1226-affect-emotion
+issue-repo: casehubio/neocortex
+status: active
+covers: casehubio/neocortex#1226
+project-sha: 
+date: 2026-11-23
+design-repo: 
+design-section-hashes: 
+flyway-next-v: 
+
+## Queue
 - [x] casehubio/neocortex#1222 — SE2-CAPS-Rework
-- [ ] casehubio/neocortex#1226 — SE6-Affect-and-Emotion        ← active
+- [ ] casehubio/neocortex#1226 — SE6-Affect-and-Emotion ← active
+  - [ ] Batch 1: Mood
+    - [ ] Task 1: C20-thread-safety
+    - [ ] Task 2: C3-decay-before-signal
+    - [ ] Task 3: C4-goal-bias
+    - [ ] Task 4: C2-rate-limit-deltas
+  - [ ] Batch 2: Appraisal
+    - [ ] Task 5: C16-salience-normalisation
+    - [ ] Task 6: C21-gut-agent-filter
+    - [ ] Task 7: C11-appraisal-weights
+    - [ ] Task 8: C14-emotion-mapper
+  - [ ] Batch 3: Drives
+    - [ ] Task 9: C7-pole-sign-eidos
+    - [ ] Task 10: C6-modulation-merge
+    - [ ] Task 11: C9-agent-keyed-state
+    - [ ] Task 12: C10-cursor-and-zero
+  - [ ] Batch 4: Regulation
+    - [ ] Task 13: C5-resource-pool-wiring
+    - [ ] Task 14: C17-load-estimator
+    - [ ] Task 15: C13-valence-filter
+    - [ ] Task 16: C12-regulated-shift
 - [ ] casehubio/neocortex#1227 — SE7-Orchestrators-Higher-Cognition
 - [ ] casehubio/neocortex#1241 — consolidation-trait-constants
 - [ ] casehubio/neocortex#1240 — cognitionActive-marker-detection
@@ -16,17 +50,6 @@
 - [x] casehubio/neocortex#1237 — Additional-capabilities
 - [x] casehubio/neocortex#1240 — cognitionActive-marker-detection
 - [x] casehubio/neocortex#1241 — consolidation-trait-constants
-
-## State
-branch: issue-1226-affect-emotion
-issue-repo: casehubio/neocortex
-status: active
-covers: casehubio/neocortex#1226
-project-sha: 
-date: 2026-11-23
-design-repo: 
-design-section-hashes: 
-flyway-next-v: 
 
 ## Deferred
 - [ ] Wire configureSearchBudget/configureCuriosity into builder (S / Med) [casehubio/neocortex] — Requires new builder fields and CognitionCoreFactory CDI changes — better as follow-up to SE1
