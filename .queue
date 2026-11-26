@@ -13,12 +13,12 @@ flyway-next-v:
 
 ## Queue
 - [ ] casehubio/neocortex#1227 — SE7-Orchestrators-Higher-Cognition ← active
-  - [ ] Batch 1: Signal Gates
-    - [ ] Task 1: Fix confidence decay E4
-    - [ ] Task 2: Fix signal gates E1
-  - [ ] Batch 2: Memory Hygiene
-    - [ ] Task 3: Retention formula redesign E8
-    - [ ] Task 4: Pairwise similarity grouping E9
+  - [x] Batch 1: Signal Gates
+    - [x] Task 1: Fix confidence decay E4
+    - [x] Task 2: Fix signal gates E1
+  - [x] Batch 2: Memory Hygiene
+    - [x] Task 3: Retention formula redesign E8
+    - [x] Task 4: Pairwise similarity grouping E9
   - [ ] Batch 3: Goal Orchestration
     - [ ] Task 5: Goal tick capture and cleanup E10
     - [ ] Task 6: Wire deductive context E10a
