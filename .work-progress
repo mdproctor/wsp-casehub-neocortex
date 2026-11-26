@@ -1,0 +1,11 @@
+branch_matches_no_open_item=done
+_exec_ok:sync_main=yes
+sync_main=done
+resolve_issue_attempt=1
+last_yielded=branch_name
+resolve_issue=done
+_exec_ok:stacked_pr_detect=yes
+stacked_pr_detect=done
+branch_name_attempt=1
+branch_name=done
+create_branches_mechanical_attempt=1
