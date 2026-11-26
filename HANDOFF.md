@@ -1,73 +1,47 @@
 # HANDOFF — casehub-neocortex (slot 230)
 
-## Active Work: SE6 Affect & Emotion (#1226)
+## Active Work: SE7 Orchestrators & Higher Cognition (#1227)
 
-Branch `issue-1226-affect-emotion` is ready for implementation. Design, review, and planning are complete.
+Branch `issue-1226-affect-emotion` — #1227 is queued as next active item. No implementation started yet.
 
-### What's ready
+### What was completed this session
 
-| Artifact | Location |
-|----------|----------|
-| **Spec** (3 review rounds) | `specs/issue-1226-affect-emotion/2026-11-26-affect-emotion-design.md` |
-| **Decisions** (4) | `specs/issue-1226-affect-emotion/decisions.md` |
-| **Plan** (16 tasks, 4 batches) | `plans/2026-11-26-affect-emotion.md` |
+**SE6: Affect & Emotion (#1226) — all 16 tasks implemented and verified.**
 
-### How to start implementation
+16 commits on `issue-1226-affect-emotion`, not yet landed on main. Code review passed with 0 fixes needed.
 
-1. Run `work continue` — the pipeline will detect #1226 as active on `issue-1226-affect-emotion`
-2. Invoke `executing-plans` with the plan at `plans/2026-11-26-affect-emotion.md`
-3. Follow the 4-batch structure — each batch is a safe wrap point
+| Batch | Tasks | Summary |
+|-------|-------|---------|
+| Mood Mechanics | C20, C3, C4, C2 | Thread-safe signals, decay-before-apply, goal bias, asymptotic dampening |
+| Appraisal & Mapping | C16, C21, C11, C14 | Salience normalisation, agent-scoped gut feeling, weight injection, 6 OCC emotions |
+| Drive Computation | C7, C6, C9, C10 | Pole sign semantics (eidos cross-repo), modulation merge, agent-keyed state, additive recovery |
+| Regulation | C5, C17, C13, C12 | ResourcePool wiring, active drive counting, valence filter, RegulatedShift signal |
 
-### Plan summary (16 tasks, 4 batches)
+### Cross-repo commits
 
-**Batch 1: Mood Mechanics** (Tasks 1-4)
-- Task 1: C20 — Thread safety on pendingSignals (ConcurrentLinkedDeque)
-- Task 2: C3 — Decay before signal (swap order in doTick)
-- Task 3: C4 — Goal emotions as set-point bias (new setGoalBias API)
-- Task 4: C2 — Rate-limit mood deltas (direction-aware asymptotic + 20min decay)
+**eidos** (`/Users/mdproctor/claude/casehub/slots/230/eidos`): 1 commit on `issue-1226-affect-emotion` — `signedPosition()` added to `DispositionAxis`. Needs pushing.
 
-**Batch 2: Appraisal & Mapping** (Tasks 5-8)
-- Task 5: C16 — Concern salience normalisation (min instead of max)
-- Task 6: C21 — Gut-feeling agent filter (PrincipalId on MemoryScanRequest)
-- Task 7: C11 — Appraisal weights consumed + habituation token hash
-- Task 8: C14 — EmotionMapper 6 missing emotions + INTERRUPTION cap
+### What's next
 
-**Batch 3: Drive Computation** (Tasks 9-12)
-- Task 9: C7 — Pole sign semantics (eidos signedPosition + DriveComposer) **CROSS-REPO**
-- Task 10: C6 — Coping drive modulation merge (put→merge with description ordering)
-- Task 11: C9 — DriveSource state agent-keyed (ConcurrentHashMap per agent)
-- Task 12: C10 — DriveAdaptationPhase cursor + zero recovery
+1. Run `work end` to land #1226 (squash, push, close branch)
+2. Then `work continue` for #1227 — needs brainstorming, spec, and plan before implementation
 
-**Batch 4: Regulation** (Tasks 13-16)
-- Task 13: C5 — CognitiveResourcePool wiring (CDI Instance injection)
-- Task 14: C17 — CognitiveLoadEstimator LOW reachable
-- Task 15: C13 — Valence-aware regulation filter (D4 two-tier)
-- Task 16: C12 — RegulatedShift reaches mood (new MoodSignal subtype)
+### Notes for next session
 
-### Key design decisions
-
-- **D1**: Asymptotic mood rate-limiting with direction-aware dampening (recovery undampened)
-- **D2**: Goal emotions as set-point bias, not per-tick delta
-- **D3**: `DispositionAxis.signedPosition()` in eidos — cross-repo API change
-- **D4**: Two-tier regulation — safety gate (valence-blind, >0.75) + normal path (negative-valence only)
-
-### Cross-repo note
-
-Eidos cloned into slot at `/Users/mdproctor/claude/casehub/slots/230/eidos` on branch `issue-1226-affect-emotion`. Task 9 (C7) requires building eidos first:
-```bash
-JAVA_HOME=$(/usr/libexec/java_home -v 26) mvn install -pl api -DskipTests
-```
+- `MemoryScanRequest.callerPrincipalId` is wired in `InMemoryMemoryStore` only. SQLite/JPA stores need updating when touched next — not urgent since production currently uses InMemory for the cognitive pipeline.
+- MoodConfig default decay constant changed from 4h to 20min — any config overrides in cognitive profiles should be reviewed.
+- The eidos commit on `issue-1226-affect-emotion` branch needs to be pushed and landed separately from neocortex.
 
 ## Epic Status (#1220)
 
 | Sub-epic | Issue | Status |
 |----------|-------|--------|
 | SE1: Pipeline Spine | #1221 | Done |
-| SE2: CAPS Rework | #1222 | **Done** (landed) |
+| SE2: CAPS Rework | #1222 | Done (landed) |
 | SE3: Storage & Data Integrity | #1223 | Done |
 | SE4: Consolidation Phases | #1224 | Done |
 | SE5: cognitive-index | #1225 | Done |
-| SE6: Affect & Emotion | #1226 | **In progress** — design complete, implementation next |
-| SE7: Orchestrators | #1227 | Queued |
+| SE6: Affect & Emotion | #1226 | **Done** — 16 commits, awaiting work-end |
+| SE7: Orchestrators | #1227 | **Active** — not started |
 
-**5 of 7 sub-epics done. SE6 in progress. SE7 queued.**
+**6 of 7 sub-epics done. SE7 is the final sub-epic.**
