@@ -1,3 +1,22 @@
+# Work Plan —
+
+## State
+branch: 
+issue-repo: casehubio/neocortex
+status: active
+covers: casehubio/neocortex#1227
+project-sha: 
+date: 2026-11-23
+design-repo: 
+design-section-hashes: 
+flyway-next-v: 
+
+## Queue
+- [x] casehubio/neocortex#1222 — SE2-CAPS-Rework
+- [x] casehubio/neocortex#1226 — SE6-Affect-and-Emotion
+- [x] casehubio/neocortex#1227 — SE7-Orchestrators-Higher-Cognition
+- [ ] casehubio/neocortex#1241 — consolidation-trait-constants ← active
+- [ ] casehubio/neocortex#1240 — cognitionActive-marker-detection
 - [x] casehubio/neocortex#593 — Cognitive-dissonance-constraint-satisfaction
 - [x] casehubio/neocortex#1210 — Dissonance-coping integration
 - [x] casehubio/neocortex#1211 — NLI fast-path pre-filter
@@ -11,21 +30,10 @@
 - [x] casehubio/neocortex#1237 — Additional-capabilities
 - [x] casehubio/neocortex#1240 — cognitionActive-marker-detection
 - [x] casehubio/neocortex#1241 — consolidation-trait-constants
-- [x] casehubio/neocortex#1213 — issue 1213
-- [x] casehubio/neocortex#1081 — EffectiveCognitiveDefaults-CDI-wiring
-- [x] casehubio/neocortex#1073 — CognitiveAttentionAccumulator-tenant-broadcast
-- [x] casehubio/neocortex#1162 — migrate-MutationContext-to-ScopedValue
-- [x] casehubio/neocortex#1157 — Bridge-MindMap-situational-to-eidos
-
-## State
-branch: 
-issue-repo: casehubio/neocortex
-status: drained
-project-sha: 
-date: 2026-11-23
-design-repo: 
-design-section-hashes: 
-flyway-next-v: 
+- [ ] casehubio/neocortex#1081 — EffectiveCognitiveDefaults-CDI-wiring
+- [ ] casehubio/neocortex#1073 — CognitiveAttentionAccumulator-tenant-broadcast
+- [ ] casehubio/neocortex#1162 — migrate-MutationContext-to-ScopedValue
+- [ ] casehubio/neocortex#1157 — Bridge-MindMap-situational-to-eidos
 
 ## Deferred
 - [ ] Wire configureSearchBudget/configureCuriosity into builder (S / Med) [casehubio/neocortex] — Requires new builder fields and CognitionCoreFactory CDI changes — better as follow-up to SE1
