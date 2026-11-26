@@ -34,14 +34,14 @@ flyway-next-v:
 - [x] casehubio/neocortex#1228 — Align-CDE-vocabulary-eidos
 - [x] casehubio/neocortex#963 — onFacetMapped-events-bridge
 - [ ] casehubio/neocortex#1076 — PID5-facet-situational-attractor ← active
-  - [ ] Batch 1: Eidos foundation
-    - [ ] Task 1: Extend AmpdFacets + archetype profiles
-  - [ ] Batch 2: CDE rules
-    - [ ] Task 2: PersonalityFacet constants + derivation rules
-  - [ ] Batch 3: Pipeline + tests
-    - [ ] Task 3: PersonalityPromptBuilder 25 facets
-    - [ ] Task 4: AmpdAssessment + PersonalityProfileHandler
-    - [ ] Task 5: End-to-end integration test
+  - [x] Batch 1: Eidos foundation
+    - [x] Task 1: Extend AmpdFacets + archetype profiles
+  - [x] Batch 2: CDE rules
+    - [x] Task 2: PersonalityFacet constants + derivation rules
+  - [x] Batch 3: Pipeline + tests
+    - [x] Task 3: PersonalityPromptBuilder 25 facets
+    - [x] Task 4: AmpdAssessment + PersonalityProfileHandler
+    - [x] Task 5: End-to-end integration test
 - [ ] casehubio/neocortex#1065 — RelationalSchema-role-hierarchy
 - [ ] casehubio/neocortex#1091 — MindMapQuery-property-filtering
 - [ ] casehubio/neocortex#1227 — SE7-Orchestrators-Higher-Cognition
