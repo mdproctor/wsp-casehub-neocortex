@@ -3,7 +3,7 @@
 ## Active Work: SE7 Orchestrators & Higher Cognition (#1227)
 
 **Branch:** `issue-1226-affect-emotion` (reused from SE6 — pipeline stacked work on existing branch)
-**Queue:** `casehubio/neocortex#1227` active, 10 tasks across 6 batches — **6 done, 4 remaining**
+**Queue:** `casehubio/neocortex#1227` active, 10 tasks across 6 batches — **all 10 done**
 
 ### What was completed this session
 
@@ -23,14 +23,20 @@
 
 7. **E10a — Deductive context** (`e4efb0f7`): `GoalProposalOrchestrator.evaluateDeductive()` now passes disposition (from `CognitiveDefaultsRegistry`), mood (from `MoodOrchestrator`), beliefs and recent experiences (from `CaseMemoryStore`) to `DeductiveFormationContext`. Graceful degradation via nullable constructor params. Added 11-param backward-compatible constructor.
 
+8. **E12/E17 — Sub-thought + heuristic** (`bc042799`): `pushToMentalModel()` now filters to INTENTION type only. `parseHeuristic()` accepts heuristics with unresolvable sources at 0.3 confidence with "unlinked:heuristic" sentinel. E7 verified already correct.
+
+9. **E14/E15 — Personality + tiers** (`ba1e001d`): `pull()` now accepts dt parameter with `effectiveAlpha = 1 - pow(1 - alpha, dt)` for tick-frequency independence. `ConstraintPromptSection` → CONTEXTUAL tier. Default tier → CONTEXTUAL.
+
+10. **E16 — Belief revision** (`4b98b10a`): Per-agent cursors replace single tenant cursor. Reinforcement path added (confidence += 0.05 for supporting evidence). Cursor only advances after successful processing.
+
 ### What's next
 
-**Resume at Batch 4, Task 7: Narrative partition, sub-thought filter, reflection heuristics (E7, E12, E17).** The plan is at `/Users/mdproctor/claude/casehub/slots/230/wsp-casehub-neocortex/plans/2026-11-26-se7-orchestrators-higher-cognition.md`.
+**All 10 tasks complete.** Ready for `work end`. The plan is at `/Users/mdproctor/claude/casehub/slots/230/wsp-casehub-neocortex/plans/2026-11-26-se7-orchestrators-higher-cognition.md`.
 
-Remaining batches:
-- **Batch 4** (Task 7): Narrative partition by agent, sub-thought INTENTION filter, heuristic acceptance
-- **Batch 5** (Task 8): Personality baselines from profile, dt-scaled pull, constraint tier fixes
-- **Batch 6** (Tasks 9-10): Quality signal timing, relational schema cursor, pressure mapping, belief revision
+Deferred items (not bugs — design decisions):
+- **E5:** Relational schema cursor — incompatible with aggregate trust computation (needs all memories, not incremental)
+- **E6:** CAPS-driven pressure mapping — needs design decision on how CAPS activations reach TraitPressureSource
+- **E14 baseline:** Per-agent PID-5 baseline in `baselineFor()` — needs agentId piped through the caller chain
 
 ### Notes for next session
 
@@ -50,6 +56,6 @@ Remaining batches:
 | SE4: Consolidation Phases | #1224 | Done (landed) |
 | SE5: cognitive-index | #1225 | Done (landed) |
 | SE6: Affect & Emotion | #1226 | **Done (landed)** |
-| SE7: Orchestrators | #1227 | **Active** — Batches 1-2 done, Batches 3-6 remaining |
+| SE7: Orchestrators | #1227 | **Active** — All 10 tasks done, ready for work-end |
 
 **6 of 7 sub-epics done. SE7 is the final sub-epic.**
