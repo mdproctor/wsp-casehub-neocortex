@@ -1,5 +1,23 @@
 # HANDOFF — casehub-neocortex
 
+## Session completed: #1240 and #1241
+
+Two XS/Low issues from the #1237 additional-capabilities stream, both done and ready to land.
+
+### #1240 — cognitionActive marker detection
+- Branch: `issue-1240-cognition-active-marker` (1 commit, stacked base)
+- `CognitiveAvatarProducer` now injects `Instance<CognitiveLifecycle>` to detect whether the full cognition module is on the classpath
+- When resolvable, 4 lightweight capabilities (Needs, Appraisal, InnerThoughts, Consolidation) yield via `isActive() = false`
+- Design decision: D5 in `docs/specs/issue-1237-additional-capabilities/decisions.md`
+
+### #1241 — consolidation trait constants
+- Branch: `issue-1241-consolidation-trait-const` (1 commit, stacked on #1240)
+- `ConsolidationTraits` utility class in `mindmap-api` with 3 constants
+- All string literals replaced across 7 production + 5 test files in `cognitive-runtime`, `mindmap-intelligence`, and `cognition`
+
+### Queue state
+Both items marked done, waiting for `work end` to land. No active item in queue.
+
 ## Active Work: Cognitive Pipeline Coherence (#1220)
 
 A comprehensive review (107 findings across 9 sections) identified systemic issues in the cognitive pipeline. These are organized into 7 sub-epics. SE1 is done. 6 remain — all can run in parallel.
@@ -25,34 +43,8 @@ A comprehensive review (107 findings across 9 sections) identified systemic issu
 
 **Cross-repo:** #1228 (vocabulary alignment with eidos) — coordinate with eidos repo.
 
-### Parallelism rules
-
-All 6 open sub-epics touch different Maven modules or different files within the same module. They can run in separate slots with zero merge-conflict risk. The only constraint:
-
-- **SE2 and SE4 share 2 files** in mindmap-intelligence: `BehavioralSynthesisPhase.java` and `ClassificationOutcomeEvaluator.java` belong to SE2 exclusively. SE4 owns all other files in `mindmap-intelligence/consolidation/`.
-- **SE6 and SE7** are both in the cognition module but touch completely different subdirectories. No file overlap.
-
-### What SE1 changed (context for downstream work)
-
-- `CognitionConfig` is now an `EnumSet<Subsystem>` class — `all()` enables everything. Downstream code should use `config.isEnabled(Subsystem.X)` or the backward-compatible `config.xEnabled()` accessors. Tests that need a subset should build from `CognitionConfig.none().with(...)`.
-- `CognitionCore` has per-agent state via `ConcurrentHashMap<AgentKey, PerTickState>`. Use `promptSections(agentId, tenantId)` not the no-arg overload. The volatile `last*` fields still exist as a working set but are populated from the per-agent map.
-- Appraisal-to-mood/drive bridging only runs when `observation != null`. No-observation ticks don't re-bridge stale state.
-- `CognitivePipelineBuilder.build()` now calls `configureTheoryOfMind()` and wires `configureCognitiveMemoryRetriever` before `configureGutFeeling`.
-
-### Recommended approach per sub-epic
-
-| Sub-epic | Scale | Approach |
-|----------|-------|----------|
-| SE2 | L | 4 child issues. CAPS settler math is subtle — read the topology YAML and settler code carefully. B1 (unipolar baseline) is the most impactful fix. |
-| SE3 | M | 3 child issues. F1 (cursor ordering) is the most critical data integrity bug in the whole review — replace UUID with monotonic ID in SQLite and JPA stores. |
-| SE4 | L | 4 child issues. Many consolidation phases need fixes. Some findings (A9, F9, F10, F2, F15) were already fixed by pre-SE1 mechanical patches — the triage doc marks these. |
-| SE5 | M | 3 child issues. D1 requires coordination with eidos for vocabulary alignment (#1228). D2 and A10 were fixed in pre-SE1 patches. |
-| SE6 | L | 4 child issues. Mood clamping (C2) and drive modulation (C6) are the most impactful. C15 (RELIEF sign) was already fixed. The double drives.tick() fix from SE1 is partial — C8 full fix belongs here. |
-| SE7 | L | 5 child issues. E1 (gate thresholds) and E8 (retention score floor) are the most impactful. |
-
 ## References
 
 - **Parent epic:** casehubio/neocortex#1220
 - **Epic plan:** `docs/specs/cognitive-review-analysis/2026-11-24-epic-plan.md`
 - **Triage:** `docs/specs/cognitive-review-analysis/2026-11-24-cognitive-review-triage.md`
-- **Review source:** `https://raw.githubusercontent.com/mdproctor/neocortex/refs/heads/claude/magical-sagan-5e2uum/docs/research/2026-11-22-cognitive-review/REVIEW.md`
