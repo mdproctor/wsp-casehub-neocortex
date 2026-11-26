@@ -3,11 +3,11 @@
 ## Active Work: SE7 Orchestrators & Higher Cognition (#1227)
 
 **Branch:** `issue-1226-affect-emotion` (reused from SE6 — pipeline stacked work on existing branch)
-**Queue:** `casehubio/neocortex#1227` active, 10 tasks across 6 batches — **4 done, 6 remaining**
+**Queue:** `casehubio/neocortex#1227` active, 10 tasks across 6 batches — **6 done, 4 remaining**
 
 ### What was completed this session
 
-**Batches 1-2 implemented (4 tasks, 5 commits):**
+**Batches 1-3 implemented (6 tasks, 7 commits):**
 
 1. **E4 — Confidence decay compounding** (`62ae1ef6`): Added `originalConfidence` field to `AttributedState` record (8th field, with 7-arg convenience constructor for backward compatibility). `decayMap()` now always recomputes from the original value. Serialization updated with backward-compatible fallback for old data missing `originalConfidence`.
 
@@ -19,12 +19,15 @@
 
 5. **Review fixes** (`22c33799`): F1: wrapped `shouldInfer()` + `drainBuffer()` in `synchronized(state)` to fix ArrayDeque data race. F2: set `frequencyWeight=0.0` in `RetentionConfig.DEFAULT`. X1: made `UserModelOrchestrator.bufferedSignals` volatile.
 
+6. **E10 — Goal orchestration** (`680a3bcf`): E10e: `safeCall()` captures `GoalProposalTick` return value. E10b: clear `cachedProposals` on all NoChange paths. E10c: `queryGoals` filters by `agent-id` property (shared goals without agent-id still visible). E10d: removed `recordSurfacing()`/`recordEmotions()` — goal surfacing is cognitive state, not agent experience. Updated 2 existing tests, removed `countSurfacingEvents` helper.
+
+7. **E10a — Deductive context** (`e4efb0f7`): `GoalProposalOrchestrator.evaluateDeductive()` now passes disposition (from `CognitiveDefaultsRegistry`), mood (from `MoodOrchestrator`), beliefs and recent experiences (from `CaseMemoryStore`) to `DeductiveFormationContext`. Graceful degradation via nullable constructor params. Added 11-param backward-compatible constructor.
+
 ### What's next
 
-**Resume at Batch 3, Task 5: Goal tick capture and cleanup (E10).** The plan is at `/Users/mdproctor/claude/casehub/slots/230/wsp-casehub-neocortex/plans/2026-11-26-se7-orchestrators-higher-cognition.md`.
+**Resume at Batch 4, Task 7: Narrative partition, sub-thought filter, reflection heuristics (E7, E12, E17).** The plan is at `/Users/mdproctor/claude/casehub/slots/230/wsp-casehub-neocortex/plans/2026-11-26-se7-orchestrators-higher-cognition.md`.
 
 Remaining batches:
-- **Batch 3** (Tasks 5-6): Goal orchestration — safeCall for goal tick, queryGoals agent filter, remove recordSurfacing/recordEmotions, wire deductive context
 - **Batch 4** (Task 7): Narrative partition by agent, sub-thought INTENTION filter, heuristic acceptance
 - **Batch 5** (Task 8): Personality baselines from profile, dt-scaled pull, constraint tier fixes
 - **Batch 6** (Tasks 9-10): Quality signal timing, relational schema cursor, pressure mapping, belief revision
