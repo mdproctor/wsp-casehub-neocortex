@@ -1,10 +1,10 @@
 # Work Plan —
 
 ## State
-branch: issue-1076-pid5-facet-situational-attr
+branch: 
 issue-repo: casehubio/neocortex
 status: active
-covers: casehubio/neocortex#1076
+covers: casehubio/neocortex#1065
 project-sha: 
 date: 2026-11-23
 design-repo: 
@@ -33,7 +33,7 @@ flyway-next-v:
 - [x] casehubio/neocortex#1232 — Fix-deriveQualitySignal-timing
 - [x] casehubio/neocortex#1228 — Align-CDE-vocabulary-eidos
 - [x] casehubio/neocortex#963 — onFacetMapped-events-bridge
-- [ ] casehubio/neocortex#1076 — PID5-facet-situational-attractor ← active
+- [ ] casehubio/neocortex#1076 — PID5-facet-situational-attractor ← done on issue-1076-pid5-facet-situational-attr
   - [x] Batch 1: Eidos foundation
     - [x] Task 1: Extend AmpdFacets + archetype profiles
   - [x] Batch 2: CDE rules
@@ -42,7 +42,7 @@ flyway-next-v:
     - [x] Task 3: PersonalityPromptBuilder 25 facets
     - [x] Task 4: AmpdAssessment + PersonalityProfileHandler
     - [x] Task 5: End-to-end integration test
-- [ ] casehubio/neocortex#1065 — RelationalSchema-role-hierarchy
+- [ ] casehubio/neocortex#1065 — RelationalSchema-role-hierarchy ← active
 - [ ] casehubio/neocortex#1091 — MindMapQuery-property-filtering
 - [ ] casehubio/neocortex#1227 — SE7-Orchestrators-Higher-Cognition
   - [ ] Batch 1: batch1
