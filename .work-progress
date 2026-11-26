@@ -1,6 +1,6 @@
 _run=end
 review_attempt=1
-last_yielded=item_finished
+last_yielded=branch_name
 review=done
 review_produced=0
 diary_attempt=0
@@ -20,3 +20,36 @@ promote=done
 _exec_ok:squash_review=yes
 report_squash_review=ok
 squash_review=done
+_exec_ok:land=yes
+report_land=LANDED=casehubio/neocortex#1240,casehubio/neocortex#1241; CLOSED_ITEM=casehubio/neocortex#1241 branch=issue-1241-consolidation-trait-const; CARRIED=wsp-casehub-neocortex:issue-1241-consolidation-trait-const commits=3; UNPUBLISHED=/Users/mdproctor/claude/public/casehub/eidos commits=3; UNPROMOTED_BACKLOG=wsp-casehub-eidos -> eidos documents=3
+land=done
+_exec_ok:promote_backlog=yes
+report_promote_backlog=PROMOTED_COUNT=6
+promote_backlog=done
+_exec_ok:publish=yes
+report_publish=PUBLISHED_COUNT=5
+publish=done
+_exec_ok:publish_blog=yes
+report_publish_blog=BLOG_PUBLISHED_COUNT=4; BLOG_HELD=personal-notes reason=commit refused: Block Secrets: commit scanned, no secrets found.
+publish_blog=done
+handoff_attempt=1
+handoff=done
+handoff_produced=1
+_run_complete=yes
+branch_matches_no_open_item=done
+_exec_ok:sync_main=yes
+sync_main=done
+resolve_issue_attempt=1
+resolve_issue=done
+_exec_ok:stacked_pr_detect=yes
+stacked_pr_detect=done
+branch_name_attempt=1
+branch_name=done
+_exec_ok:create_branches=yes
+create_branches=done
+_exec_ok:recover_plan=yes
+recover_plan=done
+_exec_ok:design_routing=yes
+design_routing=done
+_exec_ok:scaffold=yes
+scaffold=done
