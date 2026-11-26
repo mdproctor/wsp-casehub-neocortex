@@ -4,7 +4,7 @@
 branch: issue-1226-affect-emotion
 issue-repo: casehubio/neocortex
 status: active
-covers: casehubio/neocortex#1226
+covers: casehubio/neocortex#1227
 project-sha: 
 date: 2026-11-23
 design-repo: 
@@ -12,11 +12,27 @@ design-section-hashes:
 flyway-next-v: 
 
 ## Queue
+- [ ] casehubio/neocortex#1227 — SE7-Orchestrators-Higher-Cognition ← active
+  - [ ] Batch 1: Signal Gates
+    - [ ] Task 1: Fix confidence decay E4
+    - [ ] Task 2: Fix signal gates E1
+  - [ ] Batch 2: Memory Hygiene
+    - [ ] Task 3: Retention formula redesign E8
+    - [ ] Task 4: Pairwise similarity grouping E9
+  - [ ] Batch 3: Goal Orchestration
+    - [ ] Task 5: Goal tick capture and cleanup E10
+    - [ ] Task 6: Wire deductive context E10a
+  - [ ] Batch 4: Narrative Reflection
+    - [ ] Task 7: Partition + filter + heuristics E7 E12 E17
+  - [ ] Batch 5: Personality Constraints
+    - [ ] Task 8: Baselines + dt + tiers E14 E15
+  - [ ] Batch 6: Remaining
+    - [ ] Task 9: Quality signal + cursor E2 E5
+    - [ ] Task 10: Pressure mapping + belief revision E6 E16
+- [x] casehubio/neocortex#1241 — consolidation-trait-constants
+- [x] casehubio/neocortex#1240 — cognitionActive-marker-detection
 - [x] casehubio/neocortex#1222 — SE2-CAPS-Rework
 - [x] casehubio/neocortex#1226 — SE6-Affect-and-Emotion
-- [ ] casehubio/neocortex#1227 — SE7-Orchestrators-Higher-Cognition ← active
-- [ ] casehubio/neocortex#1241 — consolidation-trait-constants
-- [ ] casehubio/neocortex#1240 — cognitionActive-marker-detection
 - [x] casehubio/neocortex#593 — Cognitive-dissonance-constraint-satisfaction
 - [x] casehubio/neocortex#1210 — Dissonance-coping integration
 - [x] casehubio/neocortex#1211 — NLI fast-path pre-filter
@@ -28,8 +44,6 @@ flyway-next-v:
 - [x] casehubio/neocortex#1225 — issue 1225
 - [x] casehubio/neocortex#1238 — Capability-composition-tests
 - [x] casehubio/neocortex#1237 — Additional-capabilities
-- [x] casehubio/neocortex#1240 — cognitionActive-marker-detection
-- [x] casehubio/neocortex#1241 — consolidation-trait-constants
 
 ## Deferred
 - [ ] Wire configureSearchBudget/configureCuriosity into builder (S / Med) [casehubio/neocortex] — Requires new builder fields and CognitionCoreFactory CDI changes — better as follow-up to SE1
