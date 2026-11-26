@@ -1,58 +1,71 @@
-# HANDOFF — casehub-neocortex
+# HANDOFF — casehub-neocortex (slot 230)
 
-## Active Work: Cognitive Pipeline Coherence (#1220)
+## Active Work: SE2 CAPS Rework (#1222)
 
-A comprehensive review (107 findings across 9 sections) identified systemic issues in the cognitive pipeline. These are organized into 7 sub-epics. SE1 is done. 6 remain — all can run in parallel.
+Branch `issue-1222-caps-rework` is ready for implementation. Design and planning are complete.
 
-### How to pick up any sub-epic
+### What's ready
 
-1. Read the **issue** on GitHub (`casehubio/neocortex#NNNN`) — it has the goal, modules, file list, and child issues with finding references
-2. Read the **epic plan** in the project: `docs/specs/cognitive-review-analysis/2026-11-24-epic-plan.md` — it has the dependency graph, module ownership, and child issue details for all 7 sub-epics
-3. Read the **triage** for context on each finding: `docs/specs/cognitive-review-analysis/2026-11-24-cognitive-review-triage.md` — categorised findings with fix status
-4. Run `work start #NNNN` to create a branch and plan the work. The epic plan has enough detail for each child issue to write an implementation plan directly — brainstorm only if the approach is unclear
+| Artifact | Location |
+|----------|----------|
+| **Spec** | `specs/issue-1222-caps-rework/2026-11-25-caps-rework-design.md` |
+| **Decisions** (9) | `specs/issue-1222-caps-rework/decisions.md` |
+| **Plan** (12 tasks, 4 batches) | `plans/2026-11-25-caps-rework.md` |
 
-### Status
+### How to start implementation
 
-| Sub-epic | Issue | Status | Module | Findings remaining |
-|----------|-------|--------|--------|--------------------|
-| SE1: Pipeline Spine | #1221 | **Done** (closed) | cognition core | 0 (+2 deferred: #1231, #1232) |
-| SE2: CAPS Rework | #1222 | **Open** | caps-engine, caps-testing, caps-llm-classifier, caps-situation-cbr | 8 |
-| SE3: Storage & Data Integrity | #1223 | **Open** | memory-sqlite, mindmap-sqlite, mindmap | 4 |
-| SE4: Consolidation Phases | #1224 | **Open** | mindmap-intelligence | 9 |
-| SE5: cognitive-index | #1225 | **Open** | cognitive-index | 6 |
-| SE6: Affect & Emotion | #1226 | **Open** | cognition (mood/drive/appraisal/regulation) | 14 |
-| SE7: Orchestrators | #1227 | **Open** | cognition (goal/narrative/personality/hygiene) | 10 |
+1. Run `work continue` — the pipeline will detect #1222 as active on `issue-1222-caps-rework`
+2. Invoke `executing-plans` with the plan at `plans/2026-11-25-caps-rework.md`
+3. Follow the 4-batch structure — each batch is a safe wrap point
 
-**Cross-repo:** #1228 (vocabulary alignment with eidos) — coordinate with eidos repo.
+### Plan summary (12 tasks, 4 batches)
 
-### Parallelism rules
+**Batch 1: Settler Foundation** (Tasks 1-5)
+- Task 1: BIPOLAR/rectified-tanh + activation clamp + NodeRange.restingLevel (D2, B1, N6)
+- Task 2: Autonomy modifier key fix (N3)
+- Task 3: Resting activation clamping (N4)
+- Task 4: Distortion sign fix (B5)
+- Task 5: Convergence threshold tightening (B6/D5)
 
-All 6 open sub-epics touch different Maven modules or different files within the same module. They can run in separate slots with zero merge-conflict risk. The only constraint:
+**Batch 2: Weight Learning** (Tasks 6-7)
+- Task 6: Multi-cue R-W + inhibitory removal + weight clamping + Flyway V2 (D4, B2, N1, N2)
+- Task 7: Regulation weight update persistence (B3)
 
-- **SE2 and SE4 share 2 files** in mindmap-intelligence: `BehavioralSynthesisPhase.java` and `ClassificationOutcomeEvaluator.java` belong to SE2 exclusively. SE4 owns all other files in `mindmap-intelligence/consolidation/`.
-- **SE6 and SE7** are both in the cognition module but touch completely different subdirectories. No file overlap.
+**Batch 3: Classification & CBR** (Tasks 8-10)
+- Task 8: Drive injection filter + remap (D3, B12)
+- Task 9: ClassificationOutcomeEvaluator OSCILLATION fix (B9)
+- Task 10: CBR cache fixes + valence filter (B10, D6)
 
-### What SE1 changed (context for downstream work)
+**Batch 4: Recalibration & Verification** (Tasks 11-12)
+- Task 11: Downstream threshold recalibration (D9)
+- Task 12: Epic criterion + integration tests (D7, B17)
 
-- `CognitionConfig` is now an `EnumSet<Subsystem>` class — `all()` enables everything. Downstream code should use `config.isEnabled(Subsystem.X)` or the backward-compatible `config.xEnabled()` accessors. Tests that need a subset should build from `CognitionConfig.none().with(...)`.
-- `CognitionCore` has per-agent state via `ConcurrentHashMap<AgentKey, PerTickState>`. Use `promptSections(agentId, tenantId)` not the no-arg overload. The volatile `last*` fields still exist as a working set but are populated from the per-agent map.
-- Appraisal-to-mood/drive bridging only runs when `observation != null`. No-observation ticks don't re-bridge stale state.
-- `CognitivePipelineBuilder.build()` now calls `configureTheoryOfMind()` and wires `configureCognitiveMemoryRetriever` before `configureGutFeeling`.
+### Key design decisions
 
-### Recommended approach per sub-epic
+- **D2**: Selective BIPOLAR — output nodes use tanh; UNIPOLAR mediating nodes use rectified tanh (`max(0, tanh(x))`). Respects topology's principled mixed-range design.
+- **D3**: Drive injection filtered to INPUT nodes inside `mergeDriveIntensities()`. 16 remaps across 3 tiers (8 Tier 1, 5 Tier 2, 3 Tier 3), verified against runtime topology.
+- **D4**: Textbook multi-cue Rescorla-Wagner with per-target-node prediction error. Inhibitory weights removed (dead code). Weight clamping [-2.0, 2.0].
+- **D8**: Atomic commits per finding — git bisect-friendly.
+- **D9**: Downstream threshold recalibration audit as part of the same PR.
 
-| Sub-epic | Scale | Approach |
-|----------|-------|----------|
-| SE2 | L | 4 child issues. CAPS settler math is subtle — read the topology YAML and settler code carefully. B1 (unipolar baseline) is the most impactful fix. |
-| SE3 | M | 3 child issues. F1 (cursor ordering) is the most critical data integrity bug in the whole review — replace UUID with monotonic ID in SQLite and JPA stores. |
-| SE4 | L | 4 child issues. Many consolidation phases need fixes. Some findings (A9, F9, F10, F2, F15) were already fixed by pre-SE1 mechanical patches — the triage doc marks these. |
-| SE5 | M | 3 child issues. D1 requires coordination with eidos for vocabulary alignment (#1228). D2 and A10 were fixed in pre-SE1 patches. |
-| SE6 | L | 4 child issues. Mood clamping (C2) and drive modulation (C6) are the most impactful. C15 (RELIEF sign) was already fixed. The double drives.tick() fix from SE1 is partial — C8 full fix belongs here. |
-| SE7 | L | 5 child issues. E1 (gate thresholds) and E8 (retention score floor) are the most impactful. |
+### Verification criterion (from epic)
 
-## References
+> Given `physical_threat=1.0`, the top attractor ranking must differ from the no-input ranking. Opposite personalities under the same input must produce attractor strength differences > 0.3.
 
-- **Parent epic:** casehubio/neocortex#1220
-- **Epic plan:** `docs/specs/cognitive-review-analysis/2026-11-24-epic-plan.md`
-- **Triage:** `docs/specs/cognitive-review-analysis/2026-11-24-cognitive-review-triage.md`
-- **Review source:** `https://raw.githubusercontent.com/mdproctor/neocortex/refs/heads/claude/magical-sagan-5e2uum/docs/research/2026-11-22-cognitive-review/REVIEW.md`
+### Modules in scope
+
+caps-engine, caps-api, caps-testing, caps-llm-classifier, caps-situation-cbr, mindmap-intelligence (BehavioralSynthesisPhase, ClassificationOutcomeEvaluator), cognition (EmotionRegulationTickParticipant), cognition-api (RegulationCascadeConfig)
+
+## Epic Status (#1220)
+
+| Sub-epic | Issue | Status |
+|----------|-------|--------|
+| SE1: Pipeline Spine | #1221 | **Done** (closed) |
+| SE2: CAPS Rework | #1222 | **In progress** — design complete, implementation next |
+| SE3: Storage & Data Integrity | #1223 | **Done** (closed) |
+| SE4: Consolidation Phases | #1224 | **Done** (closed) |
+| SE5: cognitive-index | #1225 | **Done** (closed) |
+| SE6: Affect & Emotion | #1226 | **Queued** |
+| SE7: Orchestrators | #1227 | **Queued** |
+
+**4 of 7 sub-epics done. SE2 in progress. SE6, SE7 queued.**
