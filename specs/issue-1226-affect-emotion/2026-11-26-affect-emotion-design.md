@@ -18,17 +18,30 @@ Mood is the foundation — drives, regulation, and appraisal all consume it. Fix
 
 **Problem:** Emotion PAD deltas are summed raw then clamped. Two strong emotions (+0.8 each) sum to +1.6, clamped to 1.0. With a 4-hour decay constant, mood pins at ±1.0 and never recovers at conversational pace.
 
-**Fix:** Replace raw sum with asymptotic approach. In `MoodOrchestrator.doTick()`, change the accumulation loop:
+**Fix:** Replace raw sum with **direction-aware** asymptotic approach. In `MoodOrchestrator.doTick()`, change the accumulation loop:
 
 ```java
 // Before: p += signal.pleasureDelta();
-// After:
-double remaining = config.maxDisplacement() - Math.abs(p);
-double scale = Math.max(0.0, remaining / config.maxDisplacement());
-p += signal.pleasureDelta() * scale;
+// After: direction-aware dampening — only signals pushing further from
+// the effective baseline are dampened; recovery signals apply at full strength.
+double effectiveBaseline = config.baseline().pleasure() + goalBiasPleasure;
+double displacement = p - effectiveBaseline;
+double remaining = config.maxDisplacement() - Math.abs(displacement);
+double headroom = Math.max(0.0, remaining / config.maxDisplacement());
+
+double delta = signal.pleasureDelta();
+boolean pushingAway = (delta > 0 && displacement >= 0) || (delta < 0 && displacement <= 0);
+
+p += pushingAway ? delta * headroom : delta;
 ```
 
-Apply same pattern to arousal and dominance. Also shorten default decay constant from 4 hours to 20 minutes (`MoodConfig` default).
+Apply same pattern to arousal and dominance (using their respective effective baselines). The `goalBiasPleasure` (and `goalBiasArousal`, `goalBiasDominance`) come from the goal bias set by `GoalEmotionMoodBridge` (C4 fix). Existing `clampAxis()` after the loop prevents overshooting ±maxDisplacement.
+
+The direction-aware approach means:
+- **Reinforcement** (pushing further from effective baseline): dampened as mood approaches limits — prevents pinning at extremes
+- **Recovery** (pulling toward effective baseline): undampened — a positive signal can fully counteract negative mood without suppression
+
+Also shorten default decay constant from 4 hours to 20 minutes (`MoodConfig` default). **Rationale for 20 minutes:** At conversational pace (messages every 1–5 minutes), a 4-hour time constant means mood barely decays between messages — 2 minutes of elapsed time decays <1% (factor `e^(-2/240) ≈ 0.992`). Mood from one interaction lingers all day (3×τ = 12 hours for 95% decay). At 20 minutes, mood responds to recent conversational context: 95% decay within 1 hour of silence, while still persisting meaningfully during a 30-minute conversation (60% retained after 10 minutes). `MoodConfig` is per-agent configurable, so agents with different interaction cadences can override.
 
 ### C3: Decay before signal (MoodOrchestrator)
 
@@ -38,7 +51,7 @@ Apply same pattern to arousal and dominance. Also shorten default decay constant
 
 ### C4: Goal emotions as set-point bias (GoalEmotionMoodBridge)
 
-**Problem:** Every tick, all active goal emotions (HOPE on each goal) are summed into a `DirectShift` delta and added to mood. 5 goals with HOPE → +0.3 pleasure delta per tick, pinning mood positive.
+**Problem:** Every tick, all active goal emotions are intensity-weighted-averaged into a `DirectShift` delta and added to mood. The magnitude depends on specific emotion intensities and PAD projections (not a fixed +0.3), but standing emotions are re-recorded as fresh deltas every tick regardless, pushing mood persistently in one direction.
 
 **Fix (D2):** Replace `record(DirectShift)` with a `setGoalBias(MoodState)` method on `MoodOrchestrator`. Goal emotions compute a standing PAD bias. `MoodDecay` decays toward `baseline + goalBias` instead of bare `baseline`. `GoalEmotionMoodBridge` calls `setGoalBias()` only when goal set changes, not every tick.
 
@@ -53,7 +66,16 @@ Modify `MoodDecay.decay()` to accept an effective baseline (baseline + goalBias)
 
 **Problem:** `record()` mutates `ArrayDeque<MoodSignal>` without acquiring `tickLock`. `doTick()` drains the same deque under the lock. Race condition.
 
-**Fix:** Replace `ArrayDeque<MoodSignal>` with `ConcurrentLinkedDeque<MoodSignal>`. No lock needed for `addLast()`. Drain in `doTick()` via `pollFirst()` loop (already does this).
+**Fix:** Replace `ArrayDeque<MoodSignal>` with `ConcurrentLinkedDeque<MoodSignal>`. No lock needed for `addLast()`. Replace the existing `while (!isEmpty()) { removeFirst() }` drain with the idiomatic concurrent pattern:
+
+```java
+MoodSignal signal;
+while ((signal = state.pendingSignals.pollFirst()) != null) {
+    drained.add(signal);
+}
+```
+
+The current code uses `removeFirst()` inside a `while (!isEmpty())` guard — safe under a lock with ArrayDeque, but with ConcurrentLinkedDeque the `isEmpty()` check and `removeFirst()` are not atomic. `pollFirst()` is a single atomic operation returning `null` when empty.
 
 ## Batch 2: Appraisal & Mapping (C11, C14, C16, C21)
 
@@ -72,14 +94,25 @@ These produce the emotion signals consumed by mood and drives. Fix before drives
 **Problem:** `mapEmotions()` only produces 9 of 15 emotion types. Missing: PRIDE, RELIEF, GRATITUDE, ADMIRATION, SATISFACTION, DISAPPOINTMENT. INTERRUPTION fires at intensity 1.0 on low novelty (should be low-moderate).
 
 **Fix:**
-1. Add mapping rules for 6 missing emotions using SEC dimension patterns from OCC theory:
-   - PRIDE: high internal-standards + high conduciveness
-   - RELIEF: high conduciveness + prior high urgency (delta)
-   - GRATITUDE: high conduciveness + external attribution (high external-standards)
-   - ADMIRATION: high external-standards + high novelty
-   - SATISFACTION: high conduciveness + high controllability
-   - DISAPPOINTMENT: low conduciveness + high relevance
+1. Add mapping rules for 6 missing emotions using SEC dimension patterns aligned with OCC theory:
+   - **PRIDE:** high internal-standards + high conduciveness (self-caused good outcome — correct per OCC)
+   - **RELIEF:** high conduciveness + urgency delta > 0.3 (prior threat resolved — OCC's disconfirmation of a feared prospect; urgency delta captures the transition from danger to safety)
+   - **GRATITUDE:** high conduciveness + low controllability (good outcome, not self-caused — OCC compound of JOY + other-agency; low controllability approximates external attribution since the agent didn't control the outcome)
+   - **ADMIRATION:** high external-standards (someone's action meets/exceeds social norms — OCC's approval of praiseworthy action; novelty is NOT a component of OCC admiration and is removed from this mapping)
+   - **SATISFACTION:** high conduciveness + low novelty (expected good outcome confirmed — OCC's confirmation of a prospect; low novelty captures the expectedness that distinguishes satisfaction from surprise-joy)
+   - **DISAPPOINTMENT:** low conduciveness + high relevance (cared about outcome, got negative — OCC's disconfirmation of a prospect of a desirable event)
 2. Cap INTERRUPTION: `clampIntensity((1.0 - novelty) * 0.3)` — maximum 0.3 instead of 1.0.
+
+**SEC limitations documented:** The SEC dimensions available do not directly encode other-agency attribution or temporal prospect tracking. The GRATITUDE mapping uses low controllability as a proxy for external agency — this will produce false positives when negative outcomes are also uncontrollable. The ADMIRATION mapping captures norm-conformance but cannot distinguish between situational norm-alignment and attributing a praiseworthy act to a specific agent. These limitations are inherent to SEC-only mapping without ToM/social-context inputs.
+
+**Unmapped EmotionType values (8 of 23):**
+- **FEARS_CONFIRMED:** mirror of RELIEF — requires temporal prospect tracking (prior fear → confirmed negative). SEC doesn't track prior emotional state.
+- **HAPPY_FOR, PITY:** fortune-of-others — require ToM/social-context inputs (knowing another agent's situation and valence).
+- **RESENTMENT, GLOATING:** fortune-of-others for disliked agents — require both ToM and relationship valence.
+- **GRATIFICATION:** OCC compound of PRIDE + JOY — could be derived as a post-hoc compound when both trigger simultaneously. Deferred to a follow-up issue.
+- **LOVE, HATE:** object-based emotions requiring sustained relationship context, not single-event appraisal.
+
+These 8 require either social-context SEC extensions or compound/temporal derivation. Tracked as a separate follow-up for social emotion mapping once the ToM subsystem matures.
 
 ### C16: Concern salience normalised by max(a,b) (ConcernBasedSalienceStrategy)
 
@@ -91,7 +124,18 @@ These produce the emotion signals consumed by mood and drives. Fix before drives
 
 **Problem:** Layer 2 affect fallback calls `memoryStore.scan()` with no agent filter. Multi-agent tenants share affect history.
 
-**Fix:** Add agent filter to the `MemoryScanRequest`. Use the principal/subject mechanism to scope to the current agent.
+**Fix:** Add `@Nullable PrincipalId callerPrincipalId` field to `MemoryScanRequest` (cross-module API change to memory-api). This aligns with the existing `CbrQuery.callerPrincipalId` pattern for principal-scoped filtering.
+
+In `GutFeelingParticipant`, change the scan to:
+```java
+var affectMemories = memoryStore.scan(
+    new MemoryScanRequest(tenantId, "affect", null, null, 50, null,
+                          PrincipalId.agent(agentId)));
+```
+
+Affect memories already store `PrincipalId` via `AffectTrajectoryDecorator` (which extracts agentId from the MindMap node's properties and calls `input.withPrincipalId(PrincipalId.agent(agentId))`). The CaseMemoryStore scan implementation uses `MemoryVisibility` for principal-scoped filtering — the plumbing exists, only the MemoryScanRequest field is missing.
+
+The `MemoryScanRequest` compact constructor gains a backward-compatible overload: the existing 6-arg constructor defaults `callerPrincipalId` to `null` (unfiltered).
 
 ## Batch 3: Drive Computation (C6, C7, C9, C10)
 
@@ -121,13 +165,32 @@ return sign * weight * config.personalityModulationStrength();
 
 ### C6: Coping drive modulations overwritten (DriveOrchestrator)
 
-**Problem:** `recordAppraisalModulation()` uses `put()` — second call overwrites first.
+**Problem:** `recordAppraisalModulation()` uses `put()` for both `pendingAppraisalModulations` and `pendingAppraisalDescriptions` — second call overwrites first in both maps.
 
-**Fix:** Use `merge()` with accumulator:
+**Fix:** Use `merge()` with accumulator for both maps:
 ```java
 pendingAppraisalModulations.merge(key, modulation,
     (old, neu) -> { var m = new EnumMap<>(old); neu.forEach((k,v) -> m.merge(k, v, Double::sum)); return m; });
 ```
+
+For descriptions, accumulate by keeping the description from the larger modulation per axis:
+```java
+if (descriptions != null) {
+    pendingAppraisalDescriptions.merge(key, descriptions,
+        (old, neu) -> {
+            var merged = new EnumMap<>(old);
+            var currentMod = pendingAppraisalModulations.get(key);
+            neu.forEach((axis, desc) -> {
+                var oldMod = currentMod != null ? currentMod.getOrDefault(axis, 0.0) : 0.0;
+                var neuMod = modulation.getOrDefault(axis, 0.0);
+                if (Math.abs(neuMod) >= Math.abs(oldMod)) merged.put(axis, desc);
+            });
+            return merged;
+        });
+}
+```
+
+This ensures that when two calls contribute modulations to the same axis, the description from the larger contributor is preserved. The alternative (concatenating descriptions) adds noise — the stronger modulation's description is more relevant.
 
 ### C9: DriveSource state not agent-keyed (CuriosityDrive et al.)
 
@@ -153,17 +216,63 @@ Top of the stack — consumes mood, drives, appraisal. Fix last.
 
 **Fix:** Accept `@Nullable CognitiveResourcePool` as a constructor parameter (CDI `Instance<CognitiveResourcePool>`). Wire via `CognitionDefaultBeans` (which already produces `DefaultCognitiveResourcePool`).
 
+**Behavioral impact:** This activates a previously inert subsystem. With `cognitiveResourcePool = null`, the fatigue gate (`currentFatigue > SAFETY_FATIGUE_THRESHOLD`) never fires and alpha is always `DEFAULT_ALPHA * 1.0 = 0.5`. After the fix, depletion accumulates via `recordEffort()`, alpha decreases over time, and the safety gate starts triggering `ATTENTIONAL_DEPLOYMENT` under sustained emotional load.
+
+**Threshold calibration:** `DefaultCognitiveResourcePool` uses logarithmic depletion: `Math.min(1.0, Math.log(1 + accumulator) / Math.log(1 + maxEffort))`. With `REGULATION_CONTRIBUTION_RATE = 0.15` and typical `regulationEffort` of ~0.3-0.5, each regulation event adds ~0.045-0.075 to the accumulator. The logarithmic curve means early events contribute more than later ones, and reaching `SAFETY_FATIGUE_THRESHOLD = 0.7` requires sustained regulation across many ticks — not a single intense interaction. Recovery between ticks via `recordRecovery()` further moderates accumulation. The thresholds are appropriate for a gradual depletion model where the safety gate represents genuine cognitive exhaustion, not momentary spikes.
+
 ### C12: Regulated intensity doesn't reach mood (EmotionRegulationTickParticipant)
 
 **Problem:** Regulation computes `regulatedIntensity` but only uses it for CAPS weight updates. `GoalEmotionMoodBridge` reads raw `CognitiveEmotion::intensity`, bypassing regulation.
 
 **Fix:** After regulation produces a result, record a `MoodSignal.RegulatedShift` that applies the difference `(regulatedIntensity - originalIntensity)` as a correction to mood. This feeds back through the rate-limited mood pipeline (C2 fix).
 
+Add `RegulatedShift` to the `MoodSignal` sealed interface in cognition-api:
+
+```java
+record RegulatedShift(
+    double pleasureDelta,
+    double arousalDelta,
+    double dominanceDelta,
+    String regulationStrategy,
+    @Nullable EmotionType targetEmotion
+) implements MoodSignal {
+    public RegulatedShift {
+        Objects.requireNonNull(regulationStrategy, "regulationStrategy required");
+        validateDelta("pleasureDelta", pleasureDelta);
+        validateDelta("arousalDelta", arousalDelta);
+        validateDelta("dominanceDelta", dominanceDelta);
+    }
+}
+```
+
+**Fields:**
+- `pleasureDelta/arousalDelta/dominanceDelta`: the correction `(regulatedIntensity - originalIntensity)` projected onto PAD via `AlmaPadTable`. Validated to [-2, 2] like other MoodSignal subtypes.
+- `regulationStrategy`: which strategy produced this correction (e.g. "COGNITIVE_REAPPRAISAL", "ATTENTIONAL_DEPLOYMENT").
+- `targetEmotion`: which emotion was regulated (nullable — regulation may target the overall emotional state).
+
+**Cause tracking:** `RegulatedShift` does NOT participate in `MoodOrchestrator.doTick()` cause tracking. The existing pattern match handles `DirectShift` and `InteractionAppraisal` for cause — regulation adjustments are second-order effects, not primary causes. No new pattern-match branch needed in `doTick()`.
+
+**Call site:** In `EmotionRegulationTickParticipant`, after a successful regulation result:
+```java
+double intensityDelta = result.regulatedIntensity() - result.peakOriginalIntensity();
+var pad = AlmaPadTable.project(dominantType, intensityDelta);
+moodOrchestrator.record(new MoodSignal.RegulatedShift(
+    pad.pleasure(), pad.arousal(), pad.dominance(),
+    result.strategy().name(), dominantType), agentId, tenantId);
+```
+
 ### C13: Regulation triggers on positive emotions (EmotionRegulationTickParticipant)
 
 **Problem:** Regulation threshold uses `Math.abs(intensity - 0.3)` — valence-blind. High JOY (0.8) triggers regulation.
 
-**Fix:** Filter to negative-valence emotions before computing maxDiscrepancy. Check `emotion.pad().pleasure() < 0` before including in the regulation candidate set.
+**Fix (D4):** Filter to negative-valence emotions before computing maxDiscrepancy. Check `emotion.pad().pleasure() < 0` before including in the regulation candidate set.
+
+**Theoretical departure from Bosse et al. 2010:** The Bosse model regulates ALL deviations from baseline intensity regardless of valence (equation `α_n × d / d_max` applies uniformly). This spec intentionally departs from that model. For a cognitive agent, downregulating moderate JOY or HOPE is counterproductive — these positive states facilitate engagement and goal pursuit. The departure uses a two-tier approach:
+
+1. **Normal regulation path (this fix):** Only negative-valence emotions (pleasure < 0) contribute to `maxDiscrepancy` and trigger the regulation effort computation. Moderate JOY, HOPE, INTEREST are not candidates for regulation.
+2. **Safety gate (existing, unchanged):** Fires for ANY emotion exceeding `SAFETY_INTENSITY_THRESHOLD = 0.75` regardless of valence, triggering `ATTENTIONAL_DEPLOYMENT`. This catches extreme positive states (obsessive INTEREST, manic HOPE) that warrant intervention.
+
+Together these tiers provide: normal positive emotions unregulated, moderate negative emotions regulated proportionally, extreme emotions of either valence caught by the safety gate.
 
 ### C17: CognitiveLoadEstimator LOW unreachable
 
@@ -173,10 +282,22 @@ Top of the stack — consumes mood, drives, appraisal. Fix last.
 
 ## Verification Criteria
 
-1. **Mood stability:** With no input, mood should decay to baseline within ~20 minutes (not 4 hours). A single strong emotion should shift mood by ~0.3-0.5 from neutral, not pin at ±1.0.
-2. **Personality differentiation:** Bold and cautious agents under the same emotional input should produce different drive intensities with opposite signs on the risk-sensitive axes.
-3. **Emotion coverage:** EmotionMapper should produce all 15 emotion types given appropriate SEC inputs.
-4. **Regulation selectivity:** Regulation should fire on FEAR/ANGER/DISTRESS but not on JOY/PRIDE/HOPE.
+1. **Mood stability (C2, C3):** With no input, mood should decay to baseline within ~60 minutes (3×τ at 20 minutes). A single strong emotion should shift mood by ~0.3-0.5 from neutral, not pin at ±1.0.
+2. **Mood recovery (C2):** An agent at mood -0.8 receiving a strong positive signal (+0.8) should recover toward baseline with no dampening on the recovery direction. The same signal pushing further negative (at -0.8, receiving -0.8) should be dampened.
+3. **Goal bias interaction (C4, C2):** With goalBias of +0.3 pleasure, mood at +0.3 is at the effective baseline. Signals should not be dampened at this point. Mood should decay toward +0.3, not 0.0.
+4. **Personality differentiation (C7):** Bold and cautious agents under the same emotional input should produce different drive intensities with opposite signs on the risk-sensitive axes.
+5. **Emotion coverage (C14):** EmotionMapper should produce all 15 mapped emotion types given appropriate SEC inputs. Unmapped types (8) should be documented as excluded.
+6. **Regulation selectivity (C13):** Regulation effort should compute from negative-valence emotions only. The safety gate should fire for ANY emotion above 0.75 intensity regardless of valence.
+7. **Modulation accumulation (C6):** Two consecutive `recordAppraisalModulation` calls within one tick should produce a combined modulation per axis (additive), with the description from the larger contributor preserved.
+8. **Agent-scoped drives (C9):** Two agents ticked concurrently on the same DriveSource instances should produce independent drive intensities and independent diagnostic state (lastChannel, lastTrend, etc.).
+9. **Thread safety (C20):** Concurrent `record()` and `tick()` on the same agent should not corrupt state. The `pollFirst()` drain should not throw `NoSuchElementException`.
+10. **Agent-scoped gut feeling (C21):** Layer 2 affect fallback should return affect memories scoped to the requesting agent, not the entire tenant.
+11. **Resource pool activation (C5):** Regulation should fire the fatigue gate when depletion > 0.7, which requires the resource pool to actually track effort. Alpha should decrease with accumulated depletion.
+12. **Regulation reaches mood (C12):** After regulation produces a result, a `RegulatedShift` mood signal should be recorded with the intensity delta projected onto PAD.
+13. **Drive cursor ordering (C10):** Drive adaptation should use timestamp-based cursor, not UUID lexical ordering. Intensity at 0.0 should recover via additive update.
+14. **Appraisal weights consumed (C11):** SEC dimensions where appraisal weight differs from 1.0 by >0.15 should produce bias instructions in the LLM prompt.
+15. **Salience normalisation (C16):** A 3-word concern fully matching within a 30-word observation should score 1.0 (min-based normalisation), not 0.1.
+16. **Cognitive load estimator (C17):** LOW level should be reachable — count drives with intensity > 0.3, not all 4 axes.
 
 ## References
 
@@ -189,9 +310,9 @@ Top of the stack — consumes mood, drives, appraisal. Fix last.
 - `cognition/src/main/java/.../drive/DriveOrchestrator.java` — C6
 - `cognition/src/main/java/.../drive/DriveComposer.java` — C7
 - `cognition/src/main/java/.../drive/CuriosityDrive.java` — C9
-- `cognition/src/main/java/.../drive/DriveAdaptationPhase.java` — C10 (actually in mindmap-intelligence)
+- `cognition/src/main/java/.../drive/DriveAdaptationPhase.java` — C10
 - `cognition/src/main/java/.../regulation/EmotionRegulationTickParticipant.java` — C5, C12, C13
 - `cognition/src/main/java/.../regulation/CognitiveLoadEstimator.java` — C17
 - `eidos/api/src/.../DispositionAxis.java` — C7 cross-repo
 - `memory-api/src/.../MoodDecay.java` — C3
-- decisions.md D1, D2, D3
+- decisions.md D1, D2, D3, D4
