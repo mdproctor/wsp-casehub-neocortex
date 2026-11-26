@@ -1,29 +1,18 @@
 # HANDOFF — casehub-neocortex (slot 229)
 
-## Session 2026-11-26
+## Session 2026-11-26 (second pass)
 
 ### What happened
 
-1. **#1232 fixed and committed** — `deriveQualitySignal()` was reading stale cumulative mood via `mood.currentMood()` (pending signals not yet ticked). Changed to read `lastMoodDelta` directly — the interaction-specific PAD delta. Also populates delta from CognitiveImpact.moodSignal() path. Thresholds recalibrated for delta range (±0.05 vs ±0.3/0.1). 5 tests added. Branch: `issue-1232-fix-derive-quality-signal`.
+1. **#1232 completed** — `deriveQualitySignal()` fixed to read interaction-specific delta instead of stale cumulative mood. 5 tests. Squashed and landed.
 
-2. **#1228 in progress** — Aligning CognitiveDerivationEngine vocabulary with eidos canonical terms. Production code done (CDE maps, 8 downstream Java files, CAPS topology YAML, 4 cognitive profile YAMLs). 251 test fixture `DispositionAxes` constructors renamed via positional regex script.
+2. **#1228 completed** — Full vocabulary alignment of CognitiveDerivationEngine with eidos canonical terms. 319 test fixture renames across 59 files, 10 production files, CAPS topology YAML, 4 cognitive profiles, 5 wacky-manor character YAMLs, 3 verify_schema.yaml files. 3091 tests passing. Squashed to 1 commit and landed.
 
-3. **#1158 deferred** — Re-extract biographical situational profiles is an operational task needing Python venv + API credentials. Not suited for a code session.
+3. **#1158 deferred** — Operational task (Python venv + LLM API). Not suited for code sessions.
 
-### What didn't work
+### What the next session must know
 
-- Queue had stale `← active` markers on #1241/#1240 from a prior session. Required manual advancing.
-- The batch DispositionAxes rename script missed fully-qualified constructors (`new io.casehub.neocortex.cognitive.index.DispositionAxes(...)`) — caught in test failures.
-
-### Remaining on #1228
-
-- **2 behavioral test failures** in `GoalFormationEmergenceTest` — topology change affected CAPS settling thresholds. Need assertion recalibration.
-- **Wacky-manor character YAML files** — disposition terms need updating to eidos canonical.
-- **verify_schema.yaml** — allowed value lists need updating.
-- Full test run once fixes complete.
-
-### References
-
-- Branch: `issue-1228-align-cde-vocabulary-eidos`
-- Eidos vocabulary: `eidos/vocab/src/main/java/.../ConscientiousnessTerm.java`, `ThomasKilmannTerm.java`
-- Queue: `.queue` position 15/25, 4 items done-pending-landing
+- Both #1232 and #1228 are landed on main. The branch is closed.
+- Next in queue: #963 (onFacetMapped-events-bridge) — Batch 2, different domain.
+- The wacky-manor character YAML changes were committed to the examples repo on its current branch (`issue-593-cognitive-dissonance`). They need to be landed separately when that branch closes.
+- Pre-existing test failure: `MoodOrchestratorTest.moodConfig_defaults_valid` — not caused by any of our changes.
