@@ -51,6 +51,7 @@ flyway-next-v:
     - [ ] Task 2: casehubio/neocortex#963+casehubio/neocortex#1076+casehubio/neocortex#1065
   - [ ] Batch 3: batch3
     - [ ] Task 3: casehubio/neocortex#1091
+- [ ] casehubio/neocortex#1242 — CDE-rule-unit-test-coverage
 
 ## Deferred
 - [ ] Wire configureSearchBudget/configureCuriosity into builder (S / Med) [casehubio/neocortex] — Requires new builder fields and CognitionCoreFactory CDI changes — better as follow-up to SE1
