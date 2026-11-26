@@ -318,13 +318,14 @@ double maxDiscrepancy = appraisal.get().emotions().stream()
 double alpha = DEFAULT_ALPHA * (1.0 - depletion);
 double regulationEffort = alpha * maxDiscrepancy / D_MAX;
 
-if (regulationEffort < EFFORT_NOISE_FLOOR) {
-    // No negative-valence emotions above threshold → no regulation needed
-    // (Safety gate already checked above — extreme positive already handled)
+if (pinnedStrategy == null && regulationEffort < EFFORT_NOISE_FLOOR) {
+    // No safety gate fired AND no negative-valence emotions above threshold → no regulation needed
     recordRecovery(...);
     return;
 }
 // ... continue to Layer 2 (CAPS), Layer 3 (predictor), Layer 4 (LLM)
+// When pinnedStrategy != null (safety gate fired), this early return is bypassed
+// and regulation generation proceeds with the pinned ATTENTIONAL_DEPLOYMENT strategy.
 ```
 
 **Theoretical departure from Bosse et al. 2010:** The Bosse model regulates ALL deviations from baseline intensity regardless of valence (equation `α_n × d / d_max` applies uniformly). This spec intentionally departs from that model. For a cognitive agent, downregulating moderate JOY or HOPE is counterproductive — these positive states facilitate engagement and goal pursuit. The departure uses a two-tier approach:
