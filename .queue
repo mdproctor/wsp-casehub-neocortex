@@ -1,20 +1,6 @@
-# Work Plan —
-
-## State
-branch: 
-issue-repo: casehubio/neocortex
-status: active
-covers: casehubio/neocortex#1227
-project-sha: 
-date: 2026-11-23
-design-repo: 
-design-section-hashes: 
-flyway-next-v: 
-
-## Queue
-- [ ] casehubio/neocortex#1222 — SE2-CAPS-Rework ← done on issue-1222-caps-rework
-- [ ] casehubio/neocortex#1226 — SE6-Affect-and-Emotion ← done on issue-1222-caps-rework
-- [ ] casehubio/neocortex#1227 — SE7-Orchestrators-Higher-Cognition ← active
+- [x] casehubio/neocortex#1222 — SE2-CAPS-Rework
+- [x] casehubio/neocortex#1226 — SE6-Affect-and-Emotion
+- [ ] casehubio/neocortex#1227 — SE7-Orchestrators-Higher-Cognition        ← active
 - [ ] casehubio/neocortex#1241 — consolidation-trait-constants
 - [ ] casehubio/neocortex#1240 — cognitionActive-marker-detection
 - [x] casehubio/neocortex#593 — Cognitive-dissonance-constraint-satisfaction
@@ -28,6 +14,17 @@ flyway-next-v:
 - [x] casehubio/neocortex#1225 — issue 1225
 - [x] casehubio/neocortex#1238 — Capability-composition-tests
 - [x] casehubio/neocortex#1237 — Additional-capabilities
+
+## State
+branch: 
+issue-repo: casehubio/neocortex
+status: active
+covers: casehubio/neocortex#1227
+project-sha: 
+date: 2026-11-23
+design-repo: 
+design-section-hashes: 
+flyway-next-v: 
 
 ## Deferred
 - [ ] Wire configureSearchBudget/configureCuriosity into builder (S / Med) [casehubio/neocortex] — Requires new builder fields and CognitionCoreFactory CDI changes — better as follow-up to SE1
