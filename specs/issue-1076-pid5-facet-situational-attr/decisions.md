@@ -23,7 +23,9 @@
 
 **Rationale:** The boundary between "has CDE rules" and "doesn't" should be the boundary between "empirically demonstrated cognitive processing effects" and "behavioral strategy or belief content without cognitive processing evidence." Submissiveness and Unusual Beliefs fall on the wrong side. Deceitfulness/Attention Seeking are behavioral strategies that were correctly left without rules initially — backfill with minimal rules only where evidence exists.
 
-**Trade-offs:** 2 of 25 facets will have no CDE derivation rules. This means they flow through classification and situational modulation but don't affect derived cognitive parameters. Agents with high Submissiveness or Unusual Beliefs won't get differentiated cognitive profiles from those facets alone.
+**Trade-offs:** 2 of 25 facets will have no CDE derivation rules. This means they flow through classification and situational modulation but don't affect derived cognitive parameters. Agents with high Submissiveness or Unusual Beliefs won't get differentiated cognitive profiles from those facets alone. Note: Submissiveness has STRONG situational modulation under hierarchy (D2), so its shifted score affects the LLM classification prompt but not deterministic CDE parameters — an intentional soft-influence-only design for a psychometrically weak facet.
+
+**Implementation constraint (R1-18):** Adding 5 Negative Affectivity facets alongside existing NA facets (Anxiousness, Emotional Lability, Hostility, Suspiciousness) concentrates correlated predictors. CDE coefficients for new NA facets must be sized conservatively (±0.1 range) and cumulative effects on shared parameters (especially `deriveRecurringThoughtConfig`) validated in integration tests. If stacking produces implausible derived values, add a domain-cap mechanism as a follow-up.
 
 **Sources:**
 - Literature review forks: Negative Affect cluster (Meehl 1975, Beck 1967, Scherer 2022, Nolen-Hoeksema 1991, Davis & Nolen-Hoeksema 2000)
@@ -39,7 +41,7 @@
 
 **Depends on:** D1 (facet selection)
 
-**Choice:** Confidence-scaled deltas — only STRONG and MODERATE evidence enters profiles; WEAK evidence omitted.
+**Choice:** Confidence-scaled deltas — only STRONG and MODERATE evidence enters profiles; WEAK evidence omitted. Deltas added to `archetype-situational-profiles.yaml` in eidos (alongside existing 13-facet entries per archetype family × mode).
 
 **Scaling:**
 - STRONG evidence → delta ±10–15, provenance: empirical
@@ -76,9 +78,10 @@
 
 **Choice:** Eidos first, neocortex depends.
 
-1. eidos: Add 12 facets to `AmpdFacets.CANONICAL` + `PersonalityFacet` enum
-2. neocortex: Bump eidos dependency version
-3. neocortex: CDE rules, situational profiles, PersonalityPromptBuilder extension, tests
+1. eidos: Add 12 facets to `AmpdFacets.CANONICAL` + extend `archetype-situational-profiles.yaml` with new facet shifts
+2. neocortex: Bump eidos dependency version + add 12 String constants to `PersonalityFacet` record
+3. neocortex: CDE derivation rules (10 Tier 1+2 facets), PersonalityPromptBuilder extension (all 25), integration tests
+4. neocortex: Handle existing agents — `PersonalityFacet.facetScore()` already returns 0.5 for absent facets, so agents with 13-facet descriptors get neutral defaults for the 12 new facets automatically
 
 **Alternatives:**
 - Parallel with interface contract — risk of name mismatches
@@ -98,9 +101,9 @@
 **Alternatives:**
 - Relevance-filtered (|score - 0.5| > threshold) — reduces noise but makes CBR cache keys unstable
 
-**Rationale:** Simpler, deterministic. 25 facet-value pairs add ~100 tokens to the prompt — negligible cost. CBR cache key stability matters: same agent always hashes the same facet set regardless of which facets happen to be "interesting."
+**Rationale:** Simpler, deterministic. 25 facet-value pairs add ~100 tokens to the prompt — negligible cost. No threshold logic to tune or explain.
 
-**Trade-offs:** Agents with average scores on most facets include uninformative facet values in the prompt. The classifier must handle the full set, though Haiku-class models handle this easily.
+**Trade-offs:** Agents with average scores on most facets include uninformative facet-value pairs (e.g., "moderate Withdrawal: 0.50") that add noise to the prompt. The token cost is negligible but signal dilution is a theoretical concern. Validate with the existing caps-llm-classifier eval suite (13 vs 25 facets) during implementation to confirm accuracy is maintained.
 
 **Exploration:** quick
 **Status:** captured
