@@ -239,6 +239,16 @@ Classic experimental paradigms that test specific cognitive capabilities:
 - **Scapegoating Under Stress** — group under external threat redirects blame to weakest member. Personality-driven — who initiates it, who resists it, who goes along?
 - **Forgiveness Arc** — betrayal → anger → time → interaction → partial trust restoration. The hardest arc — requires sustained positive despite negative history. Different personalities forgive at different rates (or not at all).
 
+### Source 3: Emotional-behavioral escalation patterns
+
+Beyond interaction paradigms — testing that emotion produces realistic *behavioral mode changes*, not just word choices:
+
+- **Emotional shutdown** — poor regulation character becomes upset → storms off → refuses to speak to anyone → may break something. Tests: action tendency shift (approach → rejection), sustained mood state (doesn't snap back next tick), withdrawal affecting ALL subsequent interactions (not just the person who caused it), and the recovery path (high lability = fast recovery, high perseveration = prolonged shutdown with anger resurfacing).
+- **The re-engagement problem** — someone tries to talk to the shut-down character. Too soon = makes it worse (arousal spikes again). Too long = signals indifference (affiliation damage). The approacher's personality determines timing — anxious attachment approaches too soon, avoidant waits too long, secure gets it roughly right.
+- **Displacement** — angry at A but can't confront A (status/power differential). Takes it out on C instead. Tests: action tendency (antagonism) redirected to lower-status target.
+- **Emotional contagion** — one character's distress spreads to others in the room. High empathy characters catch it, low empathy characters are unaffected. Tests: affect trajectory correlation across characters in shared context.
+- **The slow burn** — not explosive anger but accumulating resentment. No single event is "enough" to react to, but the trajectory is heading toward eruption. Tests: significance accumulation below threshold over many small events, then threshold crossing.
+
 ### How to use this catalogue
 
 Each interaction pattern becomes a macro test:
