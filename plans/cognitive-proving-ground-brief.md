@@ -177,6 +177,38 @@ Real example: A keeps interrupting B. B asks politely, then less politely, then 
 
 **What this proves:** the cognitive model produces personality-dependent interpersonal dynamics from the same trigger, without scripting. The behavior emerges from the interaction of two personality profiles under sustained pressure. Different pairings, different outcomes — same architecture.
 
+## Verification Depth: State → Intent → Trajectory
+
+Current eval scores individual sentences for tone. That's surface-level — it tells you the LLM wrote angry words, not that the character is angry for the right reasons.
+
+Three verification layers:
+
+### Layer 1: State → Intent
+Given a cognitive state (drives, goals, mood, relationships, CAPS attractors, regulation budget), does the character's **intent** — what they're trying to achieve — follow from the state?
+
+Not "did they use harsh words" but "is their action goal consistent with depleted regulation + spiking autonomy drive + FIXATION-level recurring thought?"
+
+Intent is derivable from cognitive state. If the state says "affiliation drive collapsing, autonomy dominant, regulation exhausted" then the intent should be "assert boundary" not "make polite request." The words can vary — the intent must follow from the state.
+
+### Layer 2: Intent → Downstream Effects
+After an action, do the other characters' cognitive states update correctly? Does the recipient's mental model of the actor update? Does trust shift? Does theory of mind register what happened?
+
+This verifies the cognitive pipeline processes interpersonal actions bidirectionally, not just produces output.
+
+### Layer 3: State Trajectories
+Across N interactions, does the internal state follow a plausible trajectory? Not just "is the endpoint right" but "is the path right?"
+
+A character who goes patient → irritated → strained → ultimatum over 8 interactions, with regulation budget visibly declining, coping strategy shifting from reappraisal to confrontation, is proof the model works.
+
+A character who goes patient → patient → patient → explosion with no intermediate state changes is proof it doesn't — even if the explosion sentence scores high on "anger tone."
+
+**What this means for the harness:**
+- Every tick's cognitive state must be capturable (not just the LLM output)
+- Trajectory assertions: "regulation budget decreased monotonically over ticks 5-12"
+- Intent classification: separate from tone — an assertive boundary can be delivered calmly
+- Cross-character state coupling: "A's action at tick 7 caused B's trust to drop by >0.1"
+- Discontinuity detection: flag state jumps that lack intermediate buildup
+
 ## What the Next Session Should Do
 
 1. **Brainstorm the harness architecture** — snapshot capture/restore, state injection API, macro test runner
