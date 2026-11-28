@@ -159,6 +159,24 @@ A key test: **would it pass a Turing test?** LLMs without cognitive models revea
 
 **What we might be missing:** The architecture has the pieces (habituation, fatigue, recurring thought) but they may not be wired to produce visible behavioral change in LLM output. The proving ground should include "patience exhaustion" and "tangent resistance" as explicit macro tests.
 
+### Concrete macro test: "The Interruption Escalation"
+
+Real example: A keeps interrupting B. B asks politely, then less politely, then gives an ultimatum ("let me finish or I'm leaving"), then follows through. Five systems compose:
+
+1. **Regulation depletion** — each polite request costs cognitive effort. Budget drains.
+2. **Habituation failure** — same stimulus (interruption) recurs without resolution → FIXATION threshold.
+3. **Drive conflict** — affiliation ("don't cause a fight") vs autonomy ("let me speak"). Autonomy eventually wins.
+4. **Coping strategy switch** — reappraisal fails → confrontation coping selected.
+5. **The other character's response is personality-driven** — a dismissive personality says "go ahead then." An anxious personality apologizes. A hostile personality escalates.
+
+**The test:** Run the same interruption sequence with different character pairings. Verify:
+- Agreeable × agreeable: never reaches ultimatum
+- Agreeable × dismissive: slow escalation → ultimatum → relationship damage
+- Hostile × hostile: fast escalation → blowup in 2-3 exchanges
+- Anxious × dominant: no escalation, anxious character suppresses (but accumulates resentment → later eruption?)
+
+**What this proves:** the cognitive model produces personality-dependent interpersonal dynamics from the same trigger, without scripting. The behavior emerges from the interaction of two personality profiles under sustained pressure. Different pairings, different outcomes — same architecture.
+
 ## What the Next Session Should Do
 
 1. **Brainstorm the harness architecture** — snapshot capture/restore, state injection API, macro test runner
