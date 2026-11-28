@@ -272,6 +272,42 @@ The new harness should build on these, not replace them. The question is what ab
 - **Macro test runner** — run scenario from fixture, assert cognitive outcomes, iterate
 - **Rapid replay** — same starting state, different personality tweak, compare outputs
 
+### Checkpoint chaining and the state tree
+
+Macro tests should be **chainable, not monolithic**. Instead of one 200-tick run, build a dependency chain of short verified runs:
+
+```
+Run A (patience test, 20 ticks) → checkpoint_A (verified: regulation depleting)
+  → Run B (continued pressure, 15 ticks) → checkpoint_B (verified: near threshold)
+    → Run C (gentle re-engagement) → verify: de-escalation
+    → Run D (aggressive confrontation) → verify: emotional shutdown
+    → Run E (ignored entirely) → verify: resentment accumulation
+```
+
+**Properties of the state tree:**
+
+1. **Each checkpoint is independently verified.** Run A's assertions pass before checkpoint_A is committed. If the assertions fail, the checkpoint is invalid and nothing downstream runs.
+
+2. **Invalidation cascades downstream.** If you change a cognitive model that fires during Run A, checkpoint_A is stale — and so is everything below it. The tree has dependency edges, like a build graph. Re-run from the point of change, not from scratch.
+
+3. **Branching = "what if" testing.** From any single checkpoint, fork into multiple runs with different situations. Same cognitive history, different stimuli, verify different trajectories. This is where the real proving happens — the same character state should produce personality-dependent responses to different situations.
+
+4. **Checkpoints are reusable across tests.** A checkpoint tagged "high-trust-about-to-break" can seed tests for: betrayal discovery, false accusation of a third party, trust collapse cascade, or slow-burn resentment. One state, many tests.
+
+5. **Categorised checkpoint catalogue.** Each checkpoint gets metadata tags describing the cognitive state it represents:
+   - Regulation state: fresh / depleted / exhausted
+   - Relationship state: strangers / allies / rivals / post-betrayal
+   - Emotional state: calm / aroused / grieving / angry
+   - Goal state: aligned / conflicted / blocked / abandoned
+   - Drive state: which drives are active and at what intensity
+   - Capability coverage: which cognitive capabilities this state exercises
+
+   Future sessions browse the catalogue to find starting states for whatever they're testing, rather than building fixtures from scratch.
+
+6. **The tree solves the duration problem.** Testing late-stage behavior (personality drift, relationship reconciliation) doesn't require 200-tick monolithic runs. It requires a chain of 5 × 30-tick runs where each was verified independently. The final run starts from a checkpoint that embodies 150 ticks of verified cognitive history — without paying the cost of re-simulating all 150 ticks.
+
+7. **Tree depth = confidence.** A checkpoint 5 levels deep in the tree represents a character whose cognitive state has been verified at every stage. If a late-stage test fails, you know exactly which layer of the cognitive history is responsible — it's the last verified link before the failure.
+
 ## Character Design Strategy
 
 5 core characters exist with full biography profiles (25 PID-5 facets each). 13 supporting characters without profiles. See `existing-scenario-audit.md` for character creation patterns (biography YAML + Eidos descriptor + characters.yaml entry).
