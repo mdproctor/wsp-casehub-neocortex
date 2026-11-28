@@ -259,6 +259,27 @@ Each interaction pattern becomes a macro test:
 
 The catalogue is not exhaustive — it's a framework. Each pattern tests a specific composition of cognitive capabilities. Full coverage comes from running the full matrix of patterns × character pairings.
 
+## Development Flow: Gap-Driven, Not Literature-Driven
+
+The proving ground inverts how cognitive capabilities get added to the architecture.
+
+**Current flow (wrong):** Read paper → implement capability → hope it integrates
+**Correct flow:** Failed macro test → identify behavioral gap → find capability that fills it → implement → verify test passes
+
+Every new cognitive capability must trace to a specific failed test:
+- "Characters A and B in situation X should produce trajectory Y, but instead produce Z"
+- "The gap is: the architecture has no mechanism for [specific thing]"
+- "Adding [capability] with [these properties] should close the gap"
+- "After implementation, the same test produces the expected trajectory"
+
+This means:
+1. **No speculative capabilities** — if no test fails without it, it's not needed yet
+2. **Clear acceptance criteria** — the failing test IS the spec
+3. **Empirical validation** — the test passes after implementation, proving the capability works in composition with the rest of the stack
+4. **Literature follows need** — find the right paper AFTER identifying the gap, not before
+
+The macro test catalogue is therefore also the **capability roadmap**. Gaps discovered by running the catalogue drive what gets built next. The order of implementation is determined by which gaps block the most tests, not by which papers are most interesting.
+
 ## What the Next Session Should Do
 
 1. **Brainstorm the harness architecture** — snapshot capture/restore, state injection API, macro test runner
