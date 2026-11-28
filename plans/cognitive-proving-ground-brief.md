@@ -6,19 +6,39 @@
 
 ---
 
+## Read First
+
+Before acting on this brief, read these two files in order:
+1. `existing-scenario-audit.md` — what the current wacky-manor scenario does, its 5 core characters (with full 25-facet PID-5 profiles), 13 supporting characters, and its cognitive coverage gaps
+2. `cognitive-capability-matrix.md` — 68 cognitive capabilities mapped to trigger conditions, environmental requirements, observable outputs, and duration needs
+
+This brief synthesizes both. If something below is unclear, the answer is in one of those files.
+
+---
+
 ## What This Is
 
-A test harness and scenario engine that **comprehensively stresses and empirically proves the cognitive model works**. Not a game — a proving ground. The game format (Traitors/Big Brother) is one vehicle for generating situations, chosen because deception + elimination + public reasoning efficiently exercises the full cognitive stack.
+A test harness that **comprehensively stresses and empirically proves the cognitive model works**. Not a game — a proving ground. Game formats (Traitors/Big Brother) are one vehicle for generating situations, chosen because deception + elimination + public reasoning efficiently exercises the full cognitive stack. But the deliverable is the harness, not the game.
 
 ## Priority Hierarchy
 
 | Priority | Goal | What it means |
 |----------|------|---------------|
 | **P1** | Prove the cognitive model | Every capability exercised, every arc verified, empirical evidence of human-like emergence |
-| **P2** | Fast iterative development | Snapshot/macro harness, pre-seeded states, rapid replay, no long wait times |
+| **P2** | Fast iterative development | Checkpoint/fixture harness, pre-seeded states, rapid replay, no long wait times |
 | **P3** | Entertaining to watch | Suspense, humor, characters people want to follow — emergent from P1, not scripted |
 
 P3 is a natural consequence of P1: if the cognitive model genuinely produces human-like behavior under pressure, the result is inherently watchable.
+
+## Guardrails — What NOT To Do
+
+1. **Do not implement.** This session is brainstorming and design only. No code, no PRs, no new modules.
+2. **Do not design a game.** The Traitors format is a situation generator, not the deliverable. The deliverable is a test harness.
+3. **Do not detail all 23+ macro tests.** The catalogue is illustrative — pick 3-5 that span different capability clusters and design those deeply. The rest validate the framework.
+4. **Do not add cognitive capabilities.** The existing 68 capabilities may have gaps. Document the gaps — do not fill them yet. Gap-driven development means the failing test comes first.
+5. **Brainstorm before proposing.** Use the brainstorming skill. Explore alternatives for the harness architecture before committing to one.
+
+---
 
 ## The Cognitive Capability Landscape
 
@@ -26,8 +46,8 @@ P3 is a natural consequence of P1: if the cognitive model genuinely produces hum
 
 ### By test approach
 
-**Snapshot-injectable (single event → observe response):**
-- SEC appraisal, OCC emotions, action tendencies, gut feeling
+**Fixture-injectable (single event, observe response):**
+- SEC appraisal (Scherer's stimulus evaluation checks), OCC emotions (Ortony/Clore/Collins), Frijda action tendencies, gut feeling
 - Emotion regulation, coping micro-loop
 - Expression styles, situational personality detection
 - Theory of Mind (single observation)
@@ -45,15 +65,17 @@ P3 is a natural consequence of P1: if the cognitive model genuinely produces hum
 - Cognitive dissonance: value established → forced violation → tension → resolution
 - Relationship stage evolution: stranger → ally, ally → enemy
 - Recurring thought: topic recurs → fixation threshold
+- Enemy → reconciliation arc (~50-80 ticks minimum)
 
 **Long-arc (100+ ticks, personality-level):**
 - Personality evolution from sustained relationship pressure
 - Social norm emergence from group behavioral regularities
 - Narrative identity composition from accumulated episodes
 - CAPS attractor formation from classified experiences
-- Enemy → reconciliation arc (~50-80 ticks minimum)
 
 ### What the current scenario DOESN'T exercise (gaps)
+
+The current scenario is a wacky-manor treasure hunt — open-ended exploration with 5 profiled characters. The cognitive pipeline is fully wired but under-stimulated because the format doesn't force emotional intensity, trust dynamics, or structural confrontation. See `existing-scenario-audit.md` for full details.
 
 | Gap | Why | Required condition |
 |-----|-----|-------------------|
@@ -68,114 +90,7 @@ P3 is a natural consequence of P1: if the cognitive model genuinely produces hum
 | Recurring thought / fixation | Insufficient emotional intensity | Unresolved threats that recur across rounds |
 | Social norm emergence | Not enough group interactions | Repeated roundtable-style public behavior |
 
-## State Injection & Snapshot Architecture
-
-**The key insight:** don't simulate 200 ticks to reach the interesting state. Inject it.
-
-### What needs to be injectable:
-- **Emotions** — set current mood PAD, active emotions, appraisal state
-- **Memories** — pre-seed experience, relationship, reflection memories
-- **Relationships** — set trust level, familiarity, relational schema per pair
-- **Goals** — active goals with priority, horizon, dependencies, blocked state
-- **Beliefs** — MindMap belief nodes that can be contradicted
-- **Knowledge graph** — entities, edges, properties, confidence levels
-- **Drive state** — current intensity per axis, accumulated history
-- **CAPS state** — connection weights, attractor strengths
-- **Personality facets** — PID-5 scores, disposition axes
-
-### What partially exists:
-- `BackstorySeeder` — seeds formative experiences from biography YAML
-- `BiographyHandler` — 10 YAML types across 8-layer biographical import
-- `CognitiveEmergenceTest` — scenario builder for disposition seeding + CAPS settling + attractor assertions
-- `ManorCognitiveSeeder` — loads biographies at startup
-- InMemory stores — volatile stores for test isolation
-
-### What's needed:
-- **Snapshot capture** — freeze full cognitive state at a point in time
-- **Snapshot restore** — resume from a frozen state with optional tweaks
-- **State composability** — "take character A's personality + character B's relationship history + this specific emotional state"
-- **Macro test harness** — run scenario from snapshot, assert cognitive outcomes, iterate
-- **Rapid replay** — same starting state, different personality tweak, compare outputs
-
-## Character Design Strategy
-
-5 core characters exist with full biography profiles. 13 supporting without profiles.
-
-### Character design for cognitive model stress:
-
-Characters should be designed to create **tensions that force cognitive capabilities to activate**, not to fill narrative roles. Each character should stress a different cluster:
-
-| Cluster | Facet profile | What it stresses |
-|---------|--------------|-----------------|
-| **Trust-sensitive** | High suspiciousness + low trust formation | Theory of Mind, belief revision, trust dynamics |
-| **Attachment-driven** | High separation insecurity + anxious attachment | Attachment disruption, recurring thought, affiliation drive |
-| **Impulsive risk-taker** | High impulsivity + high risk-taking | Emotion regulation, search budget extremes, coping |
-| **Rigid perfectionist** | High rigid perfectionism + high perseveration | Cognitive dissonance, fixation, convergent search |
-| **Social manipulator** | High manipulativeness + high deceitfulness | Deception detection (by others), expression styles, strategy |
-| **Emotionally volatile** | High emotional lability + high hostility | Mood extremes, regulation demand, relationship damage |
-
-### Key principle: characters must have **incompatible goals**
-
-Not just different goals — goals that structurally conflict. Character A's success requires information Character B is hiding. Character C wants to protect Character D but the group might vote D out. These conflicts force the cognitive stack to handle tradeoffs, not just execute plans.
-
-## Game Format Ideas
-
-The Traitors format is the starting point but should be improved for proving ground goals.
-
-### Core structure (from #176/#203):
-- **Day phase** — explore, discover, interact (drives curiosity, information gathering)
-- **Night phase** — traitor acts (drives deception, self-preservation)
-- **Roundtable** — mandatory public discussion (forces regulation, Theory of Mind, social cognition)
-- **Banishment vote** — elimination (forces attachment disruption, drive conflict, goal urgency)
-
-### Enhancements for cognitive model coverage:
-- **Resource scarcity** — shared resources requiring cooperation but incentivizing hoarding → goal planning, drive conflict
-- **Asymmetric information** — different characters know different things → Theory of Mind, information gap curiosity
-- **Crisis events** — external pressures forcing temporary alliances between enemies → cognitive dissonance, relational schema shifts
-- **Private conversations** — gossip/rumor dynamics → social norms, trust networks, belief formation
-- **Reputation memory** — past behavior remembered and referenced → relationship evolution, strategy adaptation
-- **Multi-round with evolving alliances** — not one-shot but shifting loyalties → personality evolution, long-arc dynamics
-- **Calm periods** — mandatory downtime between intense phases → mood decay, reflection, drive recovery
-
-### Duration design:
-- Minimum 150 ticks for one full game (relationship + belief arcs)
-- 300+ ticks for personality-visible drift
-- Phase structure: ~10 ticks day, ~5 ticks night, ~10 ticks roundtable = ~25 ticks per round × 6-12 rounds
-
-## Turing Test Markers — Detecting "Too Patient" / "Too Agreeable"
-
-A key test: **would it pass a Turing test?** LLMs without cognitive models reveal themselves through what they DON'T do:
-
-| LLM Tell | Human Reality | Cognitive Capability Required |
-|----------|--------------|------------------------------|
-| Infinite patience with repetition | Irritation, habituation failure, "we already covered this" | **Recurring thought detection (8.4)** — habituation rate should increase with repetition; **Emotion regulation** — suppressing annoyance has a cost |
-| Happy to follow random tangents | Annoyance at context-switching, desire to stay on track | **Goal prioritization (4.6)** — active goals create resistance to distraction; **Autonomy drive (3.4)** — pressure from others' agendas; **Cognitive resource depletion (8.5)** — context-switching is fatiguing |
-| Never gets short or curt | Fatigue → shorter responses, less patience | **Cognitive resource pool** — depleted resources reduce elaboration; **Mood decay interaction** — sustained negative mood → lower engagement |
-| Agrees too easily | Cognitive dissonance from changing position, belief anchoring | **Cognitive dissonance (8.3)** — agreeing with something that contradicts beliefs creates tension; **Belief revision (7.1)** — revising beliefs has a threshold, not instant |
-| No boredom | Competence drive drops, search budget narrows | **Competence drive (3.3)** — repeated low-challenge tasks → declining engagement; **Search budget** — boredom narrows exploration |
-| Never offended | Self-standards appraisal dimension | **SEC appraisal** — internal/external standards violations trigger shame/anger; **Expression styles** — hostility facet shapes reaction to perceived disrespect |
-
-**The test scenario:** Have Character A repeat the same question to Character B three times. By the third time, B should show irritation — not because we scripted it, but because the cognitive model's habituation, recurring thought, and resource depletion systems produce it naturally. If B answers patiently all three times, the model isn't working.
-
-**What we might be missing:** The architecture has the pieces (habituation, fatigue, recurring thought) but they may not be wired to produce visible behavioral change in LLM output. The proving ground should include "patience exhaustion" and "tangent resistance" as explicit macro tests.
-
-### Concrete macro test: "The Interruption Escalation"
-
-Real example: A keeps interrupting B. B asks politely, then less politely, then gives an ultimatum ("let me finish or I'm leaving"), then follows through. Five systems compose:
-
-1. **Regulation depletion** — each polite request costs cognitive effort. Budget drains.
-2. **Habituation failure** — same stimulus (interruption) recurs without resolution → FIXATION threshold.
-3. **Drive conflict** — affiliation ("don't cause a fight") vs autonomy ("let me speak"). Autonomy eventually wins.
-4. **Coping strategy switch** — reappraisal fails → confrontation coping selected.
-5. **The other character's response is personality-driven** — a dismissive personality says "go ahead then." An anxious personality apologizes. A hostile personality escalates.
-
-**The test:** Run the same interruption sequence with different character pairings. Verify:
-- Agreeable × agreeable: never reaches ultimatum
-- Agreeable × dismissive: slow escalation → ultimatum → relationship damage
-- Hostile × hostile: fast escalation → blowup in 2-3 exchanges
-- Anxious × dominant: no escalation, anxious character suppresses (but accumulates resentment → later eruption?)
-
-**What this proves:** the cognitive model produces personality-dependent interpersonal dynamics from the same trigger, without scripting. The behavior emerges from the interaction of two personality profiles under sustained pressure. Different pairings, different outcomes — same architecture.
+---
 
 ## Verification Depth: State → Intent → Trajectory
 
@@ -184,7 +99,7 @@ Current eval scores individual sentences for tone. That's surface-level — it t
 Three verification layers:
 
 ### Layer 1: State → Intent
-Given a cognitive state (drives, goals, mood, relationships, CAPS attractors, regulation budget), does the character's **intent** — what they're trying to achieve — follow from the state?
+Given a cognitive state (drives, goals, mood (PAD = Pleasure-Arousal-Dominance), relationships, CAPS (Cognitive-Affective Processing System) attractors, regulation budget), does the character's **intent** — what they're trying to achieve — follow from the state?
 
 Not "did they use harsh words" but "is their action goal consistent with depleted regulation + spiking autonomy drive + FIXATION-level recurring thought?"
 
@@ -209,55 +124,94 @@ A character who goes patient → patient → patient → explosion with no inter
 - Cross-character state coupling: "A's action at tick 7 caused B's trust to drop by >0.1"
 - Discontinuity detection: flag state jumps that lack intermediate buildup
 
+---
+
 ## Macro Test Suite — Behavioral Interaction Catalogue
 
-The interruption escalation is one pattern. The next session should build a comprehensive catalogue of behavioral interactions drawn from two sources:
+The catalogue below is illustrative, not exhaustive. Each pattern tests a specific composition of cognitive capabilities. The next session should pick 3-5 that span different clusters and design those deeply — the rest validate the framework.
+
+### Turing Test Markers — Detecting "Too Patient" / "Too Agreeable"
+
+A key test: **would it pass a Turing test?** LLMs without cognitive models reveal themselves through what they DON'T do:
+
+| LLM Tell | Human Reality | Cognitive Capability Required |
+|----------|--------------|------------------------------|
+| Infinite patience with repetition | Irritation, habituation failure, "we already covered this" | Recurring thought detection — habituation rate should increase; emotion regulation — suppressing annoyance has a cost |
+| Happy to follow random tangents | Annoyance at context-switching, desire to stay on track | Goal prioritization — active goals resist distraction; autonomy drive — pressure from others' agendas; cognitive resource depletion — context-switching is fatiguing |
+| Never gets short or curt | Fatigue → shorter responses, less patience | Cognitive resource pool — depleted resources reduce elaboration; sustained negative mood → lower engagement |
+| Agrees too easily | Cognitive dissonance from changing position, belief anchoring | Cognitive dissonance — agreeing against beliefs creates tension; belief revision — has a threshold, not instant |
+| No boredom | Competence drive drops, search budget narrows | Competence drive — repeated low-challenge → declining engagement; search budget narrows |
+| Never offended | Self-standards appraisal dimension | SEC appraisal — internal/external standards violations trigger shame/anger; expression styles — hostility facet shapes reaction |
+
+**The test:** Have Character A repeat the same question to Character B three times. By the third time, B should show irritation — not because we scripted it, but because the cognitive model's habituation, recurring thought, and resource depletion systems produce it naturally. If B answers patiently all three times, the model isn't working.
+
+### Concrete macro test: "The Interruption Escalation"
+
+Real example: A keeps interrupting B. B asks politely, then less politely, then gives an ultimatum ("let me finish or I'm leaving"), then follows through. Five systems compose:
+
+1. **Regulation depletion** — each polite request costs cognitive effort. Budget drains.
+2. **Habituation failure** — same stimulus (interruption) recurs without resolution → FIXATION threshold.
+3. **Drive conflict** — affiliation ("don't cause a fight") vs autonomy ("let me speak"). Autonomy eventually wins.
+4. **Coping strategy switch** — reappraisal fails → confrontation coping selected.
+5. **The other character's response is personality-driven** — a dismissive personality says "go ahead then." An anxious personality apologizes. A hostile personality escalates.
+
+**The test:** Run the same interruption sequence with different character pairings. Verify:
+- Agreeable × agreeable: never reaches ultimatum
+- Agreeable × dismissive: slow escalation → ultimatum → relationship damage
+- Hostile × hostile: fast escalation → blowup in 2-3 exchanges
+- Anxious × dominant: no escalation, anxious character suppresses (but accumulates resentment → later eruption?)
+
+**What this proves:** the cognitive model produces personality-dependent interpersonal dynamics from the same trigger, without scripting. Different pairings, different outcomes — same architecture.
 
 ### Source 1: Reality TV dynamics (Traitors, Big Brother, Survivor)
-These shows are natural laboratories for interpersonal cognitive dynamics under pressure. Mine them for recurring interaction patterns:
 
-- **The false accusation** — A publicly accuses B of being the traitor. B is innocent. How does B react? (Indignation vs calm denial vs counterattack — personality-dependent.) How does the group update their mental models?
-- **The alliance fracture** — A and B have been allies. A discovers B lied about something. Does A confront directly, gather more evidence first, or distance silently? (Strategy selection from personality + trust state.)
-- **The sacrifice play** — A volunteers for a dangerous task to prove loyalty. Does B read this as genuine or manipulative? (Theory of Mind accuracy under uncertainty.)
-- **The quiet one** — C says very little in roundtables. Does the group interpret silence as suspicious or harmless? Different characters should read the same silence differently based on their own suspiciousness facet.
-- **The charm offensive** — manipulative character lavishes attention on a target. Does the target's trust increase? Does a third party watching get suspicious? (Multi-agent social cognition.)
-- **The grief response** — an ally is eliminated. How long does grief affect behavior? Does it change goals? Does it create a revenge drive? (Attachment disruption → drive formation → goal proposal.)
-- **The reluctant vote** — forced to vote out someone you like to save yourself. Cognitive dissonance between values and action. Does guilt emerge in later interactions?
-- **The comeback** — a character who was suspected and nearly eliminated is vindicated. How does the group's trust recalibrate? (Belief revision speed and completeness.)
+These shows are natural laboratories for interpersonal cognitive dynamics under pressure:
+
+- **The false accusation** — A publicly accuses innocent B. How does B react? (Indignation vs calm denial vs counterattack — personality-dependent.) How does the group update mental models?
+- **The alliance fracture** — A discovers ally B lied. Does A confront directly, gather evidence first, or distance silently? (Strategy selection from personality + trust state.)
+- **The sacrifice play** — A volunteers for danger to prove loyalty. Does B read this as genuine or manipulative? (Theory of Mind accuracy under uncertainty.)
+- **The quiet one** — C says little in group settings. Different characters read the same silence differently based on their own suspiciousness facet.
+- **The charm offensive** — manipulator lavishes attention on a target. Does trust increase? Does a watching third party get suspicious? (Multi-agent social cognition.)
+- **The grief response** — ally is eliminated. How long does grief affect behavior? Does it create a revenge drive? (Attachment disruption → drive formation → goal proposal.)
+- **The reluctant vote** — forced to vote out someone you like to save yourself. Cognitive dissonance between values and action. Does guilt emerge later?
+- **The comeback** — suspected character is vindicated. How fast does group trust recalibrate? (Belief revision speed and completeness.)
 
 ### Source 2: Behavioral science interaction paradigms
-Classic experimental paradigms that test specific cognitive capabilities:
+
+Classic experimental paradigms testing specific cognitive capabilities:
 
 - **Prisoner's Dilemma (iterated)** — cooperation vs defection across rounds. Tit-for-tat emergence? Personality-dependent strategy? Forgiveness after defection?
-- **Ultimatum Game** — does the proposer account for the responder's personality? Does a hostile responder reject unfair offers that an agreeable one accepts?
+- **Ultimatum Game** — does the proposer account for the responder's personality? Does a hostile responder reject unfair offers?
 - **Trust Game** — escalating investment. At what point does each personality stop trusting? Does betrayal history from other relationships bleed in?
-- **Bystander Effect** — crisis event with multiple witnesses. Who acts first? (Drive differentiation — high autonomy acts, high conformity waits.)
-- **Conformity Pressure (Asch)** — group says something obviously wrong. Does the target conform? (Personality-dependent — high submissiveness conforms, high autonomy resists.)
-- **Cognitive Load + Decision Making** — decisions made when cognitively depleted vs fresh. Do characters make worse choices under fatigue? (Resource pool depletion → decision quality.)
-- **Reciprocity Norm** — A helps B. Does B feel obligated to help A later? How long does the obligation persist? (Social norm + relationship memory.)
-- **Status Hierarchy Formation** — in a new group, who defers to whom? Does a natural hierarchy emerge from personality profiles? (Dominance, autonomy, social orient interactions.)
-- **Scapegoating Under Stress** — group under external threat redirects blame to weakest member. Personality-driven — who initiates it, who resists it, who goes along?
-- **Forgiveness Arc** — betrayal → anger → time → interaction → partial trust restoration. The hardest arc — requires sustained positive despite negative history. Different personalities forgive at different rates (or not at all).
+- **Bystander Effect** — crisis with multiple witnesses. Who acts first? (High autonomy acts, high conformity waits.)
+- **Conformity Pressure (Asch)** — group says something obviously wrong. Does the target conform? (High submissiveness conforms, high autonomy resists.)
+- **Cognitive Load + Decision Making** — decisions when cognitively depleted vs fresh. Worse choices under fatigue?
+- **Reciprocity Norm** — A helps B. Does B feel obligated later? How long does it persist?
+- **Status Hierarchy Formation** — who defers to whom? Does a natural hierarchy emerge from personality profiles?
+- **Scapegoating Under Stress** — group under threat redirects blame to weakest member. Who initiates, resists, goes along?
+- **Forgiveness Arc** — betrayal → anger → time → partial trust restoration. Different personalities forgive at different rates (or not at all).
 
 ### Source 3: Emotional-behavioral escalation patterns
 
-Beyond interaction paradigms — testing that emotion produces realistic *behavioral mode changes*, not just word choices:
+Testing that emotion produces realistic *behavioral mode changes*, not just word choices:
 
-- **Emotional shutdown** — poor regulation character becomes upset → storms off → refuses to speak to anyone → may break something. Tests: action tendency shift (approach → rejection), sustained mood state (doesn't snap back next tick), withdrawal affecting ALL subsequent interactions (not just the person who caused it), and the recovery path (high lability = fast recovery, high perseveration = prolonged shutdown with anger resurfacing).
-- **The re-engagement problem** — someone tries to talk to the shut-down character. Too soon = makes it worse (arousal spikes again). Too long = signals indifference (affiliation damage). The approacher's personality determines timing — anxious attachment approaches too soon, avoidant waits too long, secure gets it roughly right.
-- **Displacement** — angry at A but can't confront A (status/power differential). Takes it out on C instead. Tests: action tendency (antagonism) redirected to lower-status target.
-- **Emotional contagion** — one character's distress spreads to others in the room. High empathy characters catch it, low empathy characters are unaffected. Tests: affect trajectory correlation across characters in shared context.
-- **The slow burn** — not explosive anger but accumulating resentment. No single event is "enough" to react to, but the trajectory is heading toward eruption. Tests: significance accumulation below threshold over many small events, then threshold crossing.
+- **Emotional shutdown** — poor regulation character becomes upset → storms off → refuses to speak → may break something. Tests: action tendency shift (approach → rejection), sustained mood (doesn't snap back next tick), withdrawal affecting ALL subsequent interactions, and recovery path (high lability = fast recovery, high perseveration = prolonged shutdown).
+- **The re-engagement problem** — someone tries to talk to the shut-down character. Too soon = makes it worse. Too long = signals indifference. Approacher's personality determines timing — anxious attachment approaches too soon, avoidant waits too long, secure gets it roughly right.
+- **Displacement** — angry at A but can't confront A (status/power differential). Takes it out on C instead. Action tendency (antagonism) redirected to lower-status target.
+- **Emotional contagion** — one character's distress spreads. High empathy catches it, low empathy unaffected. Affect trajectory correlation across shared context.
+- **The slow burn** — accumulating resentment from many small events. No single event is "enough," but the trajectory heads toward eruption. Significance accumulation below threshold, then crossing.
 
 ### How to use this catalogue
 
 Each interaction pattern becomes a macro test:
-1. **Pre-seed** the character states to the starting conditions
+1. **Pre-seed** character states to the starting conditions (using fixtures)
 2. **Run** the interaction sequence (10-50 ticks depending on arc length)
 3. **Assert** state trajectories, not output text
 4. **Compare** across character pairings — same situation, different personalities, verify different emergent outcomes
 
-The catalogue is not exhaustive — it's a framework. Each pattern tests a specific composition of cognitive capabilities. Full coverage comes from running the full matrix of patterns × character pairings.
+Full coverage comes from running the matrix of patterns × character pairings.
+
+---
 
 ## Development Flow: Gap-Driven, Not Literature-Driven
 
@@ -280,18 +234,130 @@ This means:
 
 The macro test catalogue is therefore also the **capability roadmap**. Gaps discovered by running the catalogue drive what gets built next. The order of implementation is determined by which gaps block the most tests, not by which papers are most interesting.
 
+---
+
+## Checkpoint, Fixture & State Injection Architecture
+
+**The key insight:** don't simulate 200 ticks to reach the interesting state. Inject it.
+
+### Terminology
+- **Checkpoint** — capture of full cognitive state at runtime for later restoration (snapshot of a running simulation)
+- **Fixture** — pre-composed state for test setup (may come from a checkpoint, or be hand-built from YAML/programmatic builder)
+- **State injection** — the API that loads a fixture into the cognitive pipeline before a test run
+
+### What needs to be injectable:
+- **Emotions** — current mood PAD values, active emotions, appraisal state
+- **Memories** — experience, relationship, reflection memories
+- **Relationships** — trust level, familiarity, relational schema per character pair
+- **Goals** — active goals with priority, horizon, dependencies, blocked state
+- **Beliefs** — MindMap belief nodes that can be contradicted
+- **Knowledge graph** — entities, edges, properties, confidence levels
+- **Drive state** — current intensity per axis, accumulated history
+- **CAPS state** — connection weights, attractor strengths
+- **Personality facets** — PID-5 (Personality Inventory for DSM-5) scores, disposition axes
+
+### What partially exists:
+- `BackstorySeeder` — seeds formative experiences from biography YAML
+- `BiographyHandler` — 10 YAML types across 8-layer biographical import
+- `CognitiveEmergenceTest` — scenario builder for disposition seeding + CAPS settling + attractor assertions
+- `ManorCognitiveSeeder` — loads biographies at startup
+- InMemory stores — volatile stores for test isolation
+
+The new harness should build on these, not replace them. The question is what abstraction layer sits above them to compose checkpoints, fixtures, state injection, and trajectory assertions into a single test API.
+
+### What's needed:
+- **Checkpoint capture** — freeze full cognitive state at a point in time (serialize all stores: MindMap + memory + CBR + mood + drives + CAPS)
+- **Checkpoint restore** — resume from a frozen state with optional tweaks
+- **State composability** — "take character A's personality + character B's relationship history + this specific emotional state"
+- **Macro test runner** — run scenario from fixture, assert cognitive outcomes, iterate
+- **Rapid replay** — same starting state, different personality tweak, compare outputs
+
+## Character Design Strategy
+
+5 core characters exist with full biography profiles (25 PID-5 facets each). 13 supporting characters without profiles. See `existing-scenario-audit.md` for character creation patterns (biography YAML + Eidos descriptor + characters.yaml entry).
+
+### Character design for cognitive model stress:
+
+Characters should create **tensions that force cognitive capabilities to activate**, not fill narrative roles:
+
+| Cluster | Facet profile | What it stresses |
+|---------|--------------|-----------------|
+| **Trust-sensitive** | High suspiciousness + low trust formation | Theory of Mind, belief revision, trust dynamics |
+| **Attachment-driven** | High separation insecurity + anxious attachment | Attachment disruption, recurring thought, affiliation drive |
+| **Impulsive risk-taker** | High impulsivity + high risk-taking | Emotion regulation, search budget extremes, coping |
+| **Rigid perfectionist** | High rigid perfectionism + high perseveration | Cognitive dissonance, fixation, convergent search |
+| **Social manipulator** | High manipulativeness + high deceitfulness | Deception detection (by others), expression styles, strategy |
+| **Emotionally volatile** | High emotional lability + high hostility | Mood extremes, regulation demand, relationship damage |
+
+### Key principle: characters must have **incompatible goals**
+
+Not just different goals — goals that structurally conflict. Character A's success requires information Character B is hiding. Character C wants to protect Character D but the group might vote D out. These conflicts force the cognitive stack to handle tradeoffs, not just execute plans.
+
+---
+
+## Situation Generation — Game Format as Vehicle
+
+> **Context, not spec.** This section describes one possible situation-generation format.
+> The next session should evaluate whether this format covers the capability gaps above,
+> propose alternatives or modifications, and design the harness to be format-agnostic —
+> the Traitors format is one scenario script, not the only one.
+
+### Core structure (from #176/#203):
+- **Day phase** — explore, discover, interact (drives curiosity, information gathering)
+- **Night phase** — traitor acts (drives deception, self-preservation)
+- **Roundtable** — mandatory public discussion (forces regulation, Theory of Mind, social cognition)
+- **Banishment vote** — elimination (forces attachment disruption, drive conflict, goal urgency)
+
+### Enhancements worth evaluating:
+- **Resource scarcity** — shared resources requiring cooperation but incentivizing hoarding → goal planning, drive conflict
+- **Asymmetric information** — different characters know different things → Theory of Mind, information gap curiosity
+- **Crisis events** — external pressures forcing temporary alliances between enemies → cognitive dissonance, relational schema shifts
+- **Private conversations** — gossip/rumor dynamics → social norms, trust networks, belief formation
+- **Reputation memory** — past behavior remembered and referenced → relationship evolution, strategy adaptation
+- **Multi-round with evolving alliances** — shifting loyalties → personality evolution, long-arc dynamics
+- **Calm periods** — mandatory downtime between intense phases → mood decay, reflection, drive recovery
+
+### Duration estimates (from capability matrix):
+- Minimum ~150 ticks for one full game covering relationship + belief arcs
+- 300+ ticks for personality-visible drift
+- Phase structure: ~10 ticks day, ~5 ticks night, ~10 ticks roundtable ≈ 25 ticks/round × 6-12 rounds
+
+---
+
 ## What the Next Session Should Do
 
-1. **Brainstorm the harness architecture** — snapshot capture/restore, state injection API, macro test runner
-2. **Design the scenario engine** — phase structure, event generation, character interaction mechanics
-3. **Map capabilities to scenario phases** — which phase exercises which capabilities
-4. **Design 3-5 "macro test scenarios"** — pre-seeded states that target specific capability clusters
-5. **Character roster** — which characters to build/modify for maximum cognitive stress
+1. **Brainstorm the harness architecture.** Key design questions:
+   - How do we checkpoint full cognitive state? (Serialize all stores? Graph + memory + CAPS + mood + drives?)
+   - What's the fixture format? (YAML like biographies? Programmatic builder like CognitiveEmergenceTest?)
+   - How do we assert trajectories? (Time-series assertions on state sequences? Trajectory shape matching?)
+   - How do we classify intent separately from tone? (LLM judge? Rule-based from cognitive state? Both?)
+   - How does this compose with the existing eval infrastructure (~100 test classes, Python classification pipeline)?
+   - What's the minimum viable harness that can run the interruption-escalation test end to end?
+2. **Pick 3-5 macro tests** that span different capability clusters. Design those deeply — fixture states, expected trajectories, assertion criteria.
+3. **Map capabilities to scenario phases** — which situation types exercise which capabilities
+4. **Character roster** — which characters to build/modify for maximum cognitive stress across the chosen tests
+5. **Identify gaps** — which macro tests require capabilities the architecture doesn't have? Document as failing-test specs, not implementation tasks.
 6. **Plan the work** — decompose into issues, estimate, sequence
+
+## Glossary
+
+| Term | Meaning |
+|------|---------|
+| **Tick** | One simulation step — each character observes, decides, acts, records |
+| **SEC** | Scherer's Stimulus Evaluation Checks — 7 appraisal dimensions (relevance, novelty, urgency, conduciveness, controllability, adjustability, standards) |
+| **OCC** | Ortony, Clore & Collins emotion model — named emotion types (joy, fear, anger, shame, etc.) derived from appraisal |
+| **PAD** | Pleasure-Arousal-Dominance — 3D emotional state space (Mehrabian & Russell 1974) |
+| **CAPS** | Cognitive-Affective Processing System (Mischel & Shoda 1995) — network of input/mediating/output nodes that settles to behavioral attractors |
+| **PID-5** | Personality Inventory for DSM-5 — 25 pathological personality facets |
+| **Consolidation** | Periodic background processing cycle — experience graduation, belief revision, merge detection, goal resolution, community summary, etc. |
+| **Checkpoint** | Frozen full cognitive state captured at runtime |
+| **Fixture** | Pre-composed cognitive state for test setup |
+| **State injection** | API that loads a fixture into the cognitive pipeline |
 
 ## Supporting Materials
 
 - `cognitive-capability-matrix.md` — 68 capabilities × trigger conditions × environmental requirements
 - `existing-scenario-audit.md` — current coverage, gaps, character creation patterns, eval infrastructure
+- `brief-review.md` — review findings that shaped this version of the brief
 - casehubio/examples#176 — original Traitors format proposal
 - casehubio/examples#203 — spatial model + game phases (spatial deferred for now)
