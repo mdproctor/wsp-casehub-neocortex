@@ -209,6 +209,46 @@ A character who goes patient → patient → patient → explosion with no inter
 - Cross-character state coupling: "A's action at tick 7 caused B's trust to drop by >0.1"
 - Discontinuity detection: flag state jumps that lack intermediate buildup
 
+## Macro Test Suite — Behavioral Interaction Catalogue
+
+The interruption escalation is one pattern. The next session should build a comprehensive catalogue of behavioral interactions drawn from two sources:
+
+### Source 1: Reality TV dynamics (Traitors, Big Brother, Survivor)
+These shows are natural laboratories for interpersonal cognitive dynamics under pressure. Mine them for recurring interaction patterns:
+
+- **The false accusation** — A publicly accuses B of being the traitor. B is innocent. How does B react? (Indignation vs calm denial vs counterattack — personality-dependent.) How does the group update their mental models?
+- **The alliance fracture** — A and B have been allies. A discovers B lied about something. Does A confront directly, gather more evidence first, or distance silently? (Strategy selection from personality + trust state.)
+- **The sacrifice play** — A volunteers for a dangerous task to prove loyalty. Does B read this as genuine or manipulative? (Theory of Mind accuracy under uncertainty.)
+- **The quiet one** — C says very little in roundtables. Does the group interpret silence as suspicious or harmless? Different characters should read the same silence differently based on their own suspiciousness facet.
+- **The charm offensive** — manipulative character lavishes attention on a target. Does the target's trust increase? Does a third party watching get suspicious? (Multi-agent social cognition.)
+- **The grief response** — an ally is eliminated. How long does grief affect behavior? Does it change goals? Does it create a revenge drive? (Attachment disruption → drive formation → goal proposal.)
+- **The reluctant vote** — forced to vote out someone you like to save yourself. Cognitive dissonance between values and action. Does guilt emerge in later interactions?
+- **The comeback** — a character who was suspected and nearly eliminated is vindicated. How does the group's trust recalibrate? (Belief revision speed and completeness.)
+
+### Source 2: Behavioral science interaction paradigms
+Classic experimental paradigms that test specific cognitive capabilities:
+
+- **Prisoner's Dilemma (iterated)** — cooperation vs defection across rounds. Tit-for-tat emergence? Personality-dependent strategy? Forgiveness after defection?
+- **Ultimatum Game** — does the proposer account for the responder's personality? Does a hostile responder reject unfair offers that an agreeable one accepts?
+- **Trust Game** — escalating investment. At what point does each personality stop trusting? Does betrayal history from other relationships bleed in?
+- **Bystander Effect** — crisis event with multiple witnesses. Who acts first? (Drive differentiation — high autonomy acts, high conformity waits.)
+- **Conformity Pressure (Asch)** — group says something obviously wrong. Does the target conform? (Personality-dependent — high submissiveness conforms, high autonomy resists.)
+- **Cognitive Load + Decision Making** — decisions made when cognitively depleted vs fresh. Do characters make worse choices under fatigue? (Resource pool depletion → decision quality.)
+- **Reciprocity Norm** — A helps B. Does B feel obligated to help A later? How long does the obligation persist? (Social norm + relationship memory.)
+- **Status Hierarchy Formation** — in a new group, who defers to whom? Does a natural hierarchy emerge from personality profiles? (Dominance, autonomy, social orient interactions.)
+- **Scapegoating Under Stress** — group under external threat redirects blame to weakest member. Personality-driven — who initiates it, who resists it, who goes along?
+- **Forgiveness Arc** — betrayal → anger → time → interaction → partial trust restoration. The hardest arc — requires sustained positive despite negative history. Different personalities forgive at different rates (or not at all).
+
+### How to use this catalogue
+
+Each interaction pattern becomes a macro test:
+1. **Pre-seed** the character states to the starting conditions
+2. **Run** the interaction sequence (10-50 ticks depending on arc length)
+3. **Assert** state trajectories, not output text
+4. **Compare** across character pairings — same situation, different personalities, verify different emergent outcomes
+
+The catalogue is not exhaustive — it's a framework. Each pattern tests a specific composition of cognitive capabilities. Full coverage comes from running the full matrix of patterns × character pairings.
+
 ## What the Next Session Should Do
 
 1. **Brainstorm the harness architecture** — snapshot capture/restore, state injection API, macro test runner
